@@ -8398,6 +8398,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_da_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_da_dispatcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures 0.3.28",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_da_client",
+ "zksync_dal",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_dal"
 version = "0.1.0"
 dependencies = [
@@ -8440,12 +8470,30 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "test-casing",
  "thiserror",
  "tokio",
  "tracing",
  "vise",
  "zksync_basic_types",
  "zksync_health_check",
+]
+
+[[package]]
+name = "zksync_default_da_clients"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "flate2",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_da_client",
+ "zksync_env_config",
+ "zksync_node_framework",
+ "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8927,6 +8975,8 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
+ "zksync_da_client",
+ "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -9215,6 +9265,7 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_core_leftovers",
+ "zksync_default_da_clients",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_metadata_calculator",

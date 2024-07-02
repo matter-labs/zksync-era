@@ -140,7 +140,7 @@ fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
     command.stderr(Stdio::piped());
     let child = command.spawn()?;
-    Ok(child.wait_with_output()?)
+    child.wait_with_output()
 }
 
 fn log_output(output: &std::process::Output) -> String {

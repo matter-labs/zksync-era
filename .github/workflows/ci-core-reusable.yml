@@ -135,7 +135,7 @@ jobs:
         base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,base_token_ratio_persister,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher,base_token_ratio_persister${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -288,6 +288,10 @@ jobs:
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
 
+      - name: Show fee-projection.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
       - name: Show sccache logs
         if: always()
         run: |
@@ -305,7 +309,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,base_token_ratio_persister,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher,base_token_ratio_persister${{ matrix.consensus && ',consensus' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:

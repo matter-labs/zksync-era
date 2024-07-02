@@ -28,6 +28,8 @@ const STATE_TRANSITON_MANAGER = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
 );
 
+let serverComponents = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+
 const depositAmount = ethers.utils.parseEther('0.001');
 
 describe('Upgrade test', function () {
@@ -68,8 +70,7 @@ describe('Upgrade test', function () {
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
         utils.background({
-            command:
-                'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator',
+            command: `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=${serverComponents}`,
             stdio: [null, logs, logs]
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -265,8 +266,7 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background({
-            command:
-                'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
+            command: `cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=${serverComponents} &> upgrade.log`,
             stdio: [null, logs, logs]
         });
         await utils.sleep(10);

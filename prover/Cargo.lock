@@ -4589,6 +4589,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "circuit_definitions 1.5.0",
  "clap 4.5.4",
  "colored",

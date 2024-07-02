@@ -16,8 +16,9 @@ use zksync_config::{
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DBConfig, EthConfig,
-    EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
+    EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 use zksync_protobuf::repr::ProtoRepr;
 
@@ -63,6 +64,7 @@ pub struct TempConfigStore {
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
@@ -94,6 +96,7 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             core_object_store: self.core_object_store.clone(),
             base_token_adjuster: self.base_token_adjuster_config.clone(),

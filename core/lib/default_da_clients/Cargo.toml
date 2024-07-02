@@ -1,0 +1,24 @@
+[package]
+name = "zksync_default_da_clients"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+flate2.workspace = true
+
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+zksync_da_client.workspace = true
+zksync_node_framework.workspace = true
+zksync_env_config.workspace = true

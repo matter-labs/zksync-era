@@ -3,10 +3,17 @@
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{consensus::ConsensusConfig, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        consensus::ConsensusConfig, eth_sender::PubdataSendingMode, wallets::Wallets,
+        GeneralConfig, Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
+use zksync_default_da_clients::{
+    no_da::wiring_layer::NoDAClientWiringLayer,
+    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
+};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -20,6 +27,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
+        da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -452,6 +460,38 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(NoDAClientWiringLayer);
+        Ok(self)
+    }
+
+    #[allow(dead_code)]
+    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let object_store_config = DAObjectStoreConfig::from_env()?;
+        self.node
+            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
+        Ok(self)
+    }
+
+    fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = try_load_config!(self.configs.eth);
+        if let Some(sender_config) = eth_sender_config.sender {
+            if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
+                tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
+                return Ok(self);
+            }
+        }
+
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
+        let da_config = try_load_config!(self.configs.da_dispatcher_config);
+        self.node.add_layer(DataAvailabilityDispatcherLayer::new(
+            state_keeper_config,
+            da_config,
+        ));
+
+        Ok(self)
+    }
+
     fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
         let protective_reads_writer_config =
             try_load_config!(self.configs.protective_reads_writer_config);
@@ -554,6 +594,9 @@ impl MainNodeBuilder {
                 }
                 Component::CommitmentGenerator => {
                     self = self.add_commitment_generator_layer()?;
+                }
+                Component::DADispatcher => {
+                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
