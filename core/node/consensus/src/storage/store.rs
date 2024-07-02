@@ -59,6 +59,8 @@ pub(crate) struct Store {
     batch_certificates: ctx::channel::UnboundedSender<attester::BatchQC>,
     /// Range of L2 blocks for which we have a QC persisted.
     blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    /// Range of L1 batches we have persisted.
+    batches_persisted: sync::watch::Receiver<storage::BatchStoreState>,
 }
 
 struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
@@ -67,6 +69,7 @@ struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
 pub struct StoreRunner {
     pool: ConnectionPool,
     blocks_persisted: PersistedBlockState,
+    batches_persisted: sync::watch::Sender<storage::BatchStoreState>,
     block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
     batch_certificates: ctx::channel::UnboundedReceiver<attester::BatchQC>,
 }
@@ -77,16 +80,24 @@ impl Store {
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
     ) -> ctx::Result<(Store, StoreRunner)> {
-        let blocks_persisted = pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+
+        // Initial state of persisted blocks
+        let blocks_persisted = conn
             .block_certificates_range(ctx)
             .await
-            .wrap("certificates_range()")?;
+            .wrap("block_certificates_range()")?;
+
+        // Initial state of persisted batches
+        let batches_persisted = conn.batches_range(ctx).await.wrap("batches_range()")?;
+
+        drop(conn);
+
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
+        let batches_persisted = sync::watch::channel(batches_persisted).0;
         let (block_certs_send, block_certs_recv) = ctx::channel::unbounded();
         let (batch_certs_send, batch_certs_recv) = ctx::channel::unbounded();
+
         Ok((
             Store {
                 pool: pool.clone(),
@@ -94,10 +105,12 @@ impl Store {
                 batch_certificates: batch_certs_send,
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
+                batches_persisted: batches_persisted.subscribe(),
             },
             StoreRunner {
                 pool,
                 blocks_persisted: PersistedBlockState(blocks_persisted),
+                batches_persisted,
                 block_certificates: block_certs_recv,
                 batch_certificates: batch_certs_recv,
             },
@@ -152,13 +165,14 @@ impl StoreRunner {
         let StoreRunner {
             pool,
             blocks_persisted,
+            batches_persisted,
             mut block_certificates,
             mut batch_certificates,
         } = self;
 
         let res = scope::run!(ctx, |ctx, s| async {
             s.spawn::<()>(async {
-                // Loop updating `persisted` whenever blocks get pruned.
+                // Loop updating `blocks_persisted` whenever blocks get pruned.
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 loop {
                     let range = pool
@@ -166,8 +180,38 @@ impl StoreRunner {
                         .await?
                         .block_certificates_range(ctx)
                         .await
-                        .wrap("certificates_range()")?;
+                        .wrap("block_certificates_range()")?;
                     blocks_persisted.update(range);
+                    ctx.sleep(POLL_INTERVAL).await?;
+                }
+            });
+
+            s.spawn::<()>(async {
+                // Loop updating `batches_persisted` whenever a new L1 batch is available in the database.
+                // We have to do this because the L1 batch is produced as L2 blocks are executed,
+                // which can happen on a different machine or in a different process, so we can't rely on some
+                // DAL method updating this memory construct. However I'm not sure that `BatchStoreState`
+                // really has to contain the full blown last batch, or whether it could have for example
+                // just the number of it. We can't just use the `attester::BatchQC`, which would make it
+                // analogous to the `BlockStoreState`, because the `SyncBatch` mechanism is for catching
+                // up with L1 batches from peers _without_ the QC, based on L1 inclusion proofs instead.
+                // Nevertheless since the `SyncBatch` contains all transactions for all L2 blocks,
+                // we can try to make it less frequent by querying just the last batch number first.
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+                let mut next_batch_number = { batches_persisted.borrow().next() };
+                loop {
+                    let mut conn = pool.connection(ctx).await?;
+                    if let Some(last_batch_number) = conn
+                        .get_last_batch_number(ctx)
+                        .await
+                        .wrap("last_batch_number()")?
+                    {
+                        if last_batch_number >= next_batch_number {
+                            let range = conn.batches_range(ctx).await.wrap("batches_range()")?;
+                            next_batch_number = last_batch_number.next();
+                            batches_persisted.send_replace(range);
+                        }
+                    }
                     ctx.sleep(POLL_INTERVAL).await?;
                 }
             });
@@ -394,22 +438,16 @@ impl PayloadManager for Store {
 impl storage::PersistentBatchStore for Store {
     /// Range of batches persisted in storage.
     fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
-        // TODO: Add something like the `BlockStoreState` that gets updated when inserts happen.
-        // It's not clear whether this gets updated on nodes that aren't actively doing the insertion,
-        // but just use the database for synchronising state with other processes.
-        todo!()
+        self.batches_persisted.clone()
     }
 
     /// Get the highest L1 batch number from storage.
     async fn last_batch(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
-        let nr = self
-            .conn(ctx)
+        self.conn(ctx)
             .await?
-            .last_batch_number(ctx)
+            .get_last_batch_number(ctx)
             .await
-            .wrap("last_batch")?;
-
-        Ok(nr.map(|nr| attester::BatchNumber(nr.0 as u64)))
+            .wrap("get_last_batch_number")
     }
 
     /// Get the L1 batch QC from storage with the highest number.
@@ -437,27 +475,11 @@ impl storage::PersistentBatchStore for Store {
         ctx: &ctx::Ctx,
         number: attester::BatchNumber,
     ) -> ctx::Result<Option<attester::SyncBatch>> {
-        let mut conn = self.conn(ctx).await?;
-
-        let Some((min, max)) = conn
-            .get_l2_block_range_of_l1_batch(ctx, number)
+        self.conn(ctx)
+            .await?
+            .get_batch(ctx, number)
             .await
-            .wrap("get_last_batch_certificate_number")?
-        else {
-            return Ok(None);
-        };
-
-        let payloads = conn.payloads(ctx, min..max).await.wrap("payloads")?;
-
-        let payloads = payloads.into_iter().map(|p| p.encode()).collect();
-
-        let batch = attester::SyncBatch {
-            number,
-            payloads,
-            proof: Vec::new(), // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
-        };
-
-        Ok(Some(batch))
+            .wrap("get_batch")
     }
     /// Returns the QC of the batch with the given number.
     async fn get_batch_qc(

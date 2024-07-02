@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage as storage;
+use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
@@ -157,18 +157,6 @@ impl<'a> Connection<'a> {
             .context("get_l1_batch_metadata()")?)
     }
 
-    /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
-    pub async fn last_batch_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<L1BatchNumber>> {
-        // There are a number of other getters to consider if we want the `hash` or the `commitment` fields to be filled
-        Ok(ctx
-            .wait(self.0.blocks_dal().get_sealed_l1_batch_number())
-            .await?
-            .context("get_sealed_l1_batch_number()")?)
-    }
-
     /// Wrapper for `FetcherCursor::new()`.
     pub async fn new_payload_queue(
         &mut self,
@@ -282,6 +270,18 @@ impl<'a> Connection<'a> {
         }))
     }
 
+    /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
+    pub async fn get_last_batch_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_sealed_l1_batch_number())
+            .await?
+            .context("get_sealed_l1_batch_number()")?
+            .map(|nr| attester::BatchNumber(nr.0 as u64)))
+    }
+
     /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
     pub async fn get_last_batch_certificate_number(
         &mut self,
@@ -318,12 +318,84 @@ impl<'a> Connection<'a> {
             .await?
             .context("get_l2_block_range_of_l1_batch()")?;
 
-        let Some((min, max)) = range else {
+        Ok(range.map(|(min, max)| {
+            let min = validator::BlockNumber(min.0 as u64);
+            let max = validator::BlockNumber(max.0 as u64);
+            (min, max)
+        }))
+    }
+
+    /// Construct the [attester::SyncBatch] for a given batch number.
+    pub async fn get_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::SyncBatch>> {
+        let Some((min, max)) = self
+            .get_l2_block_range_of_l1_batch(ctx, number)
+            .await
+            .context("get_l2_block_range_of_l1_batch()")?
+        else {
             return Ok(None);
         };
 
-        let min = validator::BlockNumber(min.0 as u64);
-        let max = validator::BlockNumber(max.0 as u64);
-        Ok(Some((min, max)))
+        let payloads = self.payloads(ctx, min..max).await.wrap("payloads()")?;
+        let payloads = payloads.into_iter().map(|p| p.encode()).collect();
+
+        // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
+        // It is supposed to be a Merkle proof that the rolling hash of the batch has been included
+        // in the L1 state tree. The state root hash of L1 won't be available in the DB, it requires
+        // an API client.
+        let batch = attester::SyncBatch {
+            number,
+            payloads,
+            proof: Vec::new(),
+        };
+
+        Ok(Some(batch))
+    }
+
+    /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
+    pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
+        let mut state = BatchStoreState {
+            first: attester::BatchNumber(0), // TODO: Is 0 okay for an empty database?
+            last: None,
+        };
+
+        if let Some(first) = self
+            .0
+            .blocks_dal()
+            .get_earliest_l1_batch_number()
+            .await
+            .context("get_earliest_l1_batch_number()")?
+        {
+            state.first.0 = first.0 as u64;
+        }
+
+        // TODO: In the future when we start filling in the `SyncBatch::proof` field,
+        // we can only run `get_batch` expecting `Some` result on numbers where the
+        // L1 state root hash is already available, so that we can produce some
+        // Merkle proof that the rolling hash of the L2 blocks in the batch has
+        // been included in the L1 state tree. At that point we probably can't
+        // call `get_last_batch_number` here, but something that indicates that
+        // the hashes/commitments on the L1 batch are ready and the thing has
+        // been included in L1; that potentially requires an API client as well.
+        if let Some(last) = self
+            .get_last_batch_number(ctx)
+            .await
+            .context("get_last_batch_number()")?
+        {
+            // For now it would be unexpected if we couldn't retrieve the payloads
+            // for the `last` batch number, as an L1 batch is only created if we
+            // have all the L2 miniblocks for it.
+            state.last = Some(
+                self.get_batch(ctx, last)
+                    .await
+                    .context("get_batch()")?
+                    .context("last batch not available")?,
+            );
+        }
+
+        Ok(state)
     }
 }
