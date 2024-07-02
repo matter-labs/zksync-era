@@ -27,7 +27,7 @@ static KEYSTORE: Lazy<Mutex<Option<Keystore>>> = Lazy::new(|| Mutex::new(None));
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
     static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| {
-        let keystore = KEYSTORE.lock().unwrap().clone().unwrap_or_else(Keystore::default);
+        let keystore = KEYSTORE.lock().unwrap().clone().unwrap_or_default();
         circuit_commitments(&keystore).unwrap()
     });
 }
