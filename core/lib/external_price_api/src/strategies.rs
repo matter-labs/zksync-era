@@ -53,6 +53,32 @@ impl PriceAPIClient for AverageStrategy {
     }
 }
 
+#[derive(Debug)]
+struct FailOverStrategy {
+    pricing_apis: Vec<Arc<Mutex<dyn PriceAPIClient>>>,
+}
+
+impl FailOverStrategy {
+    fn new(pricing_apis: Vec<Arc<Mutex<dyn PriceAPIClient>>>) -> Self {
+        return Self { pricing_apis };
+    }
+}
+
+#[async_trait]
+impl PriceAPIClient for FailOverStrategy {
+    async fn fetch_price(&mut self, token_address: Address) -> anyhow::Result<BaseTokenAPIPrice> {
+        for p in &mut self.pricing_apis {
+            match p.lock().await.fetch_price(token_address).await {
+                Ok(x) => return Ok(x),
+                Err(e) => {
+                    tracing::info!("Error fetching token price: {}", e)
+                }
+            }
+        }
+        Err(anyhow::anyhow!("No successful price fetches"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{str::FromStr, sync::Arc};
@@ -63,7 +89,10 @@ mod tests {
     use tokio::sync::Mutex;
     use zksync_types::{base_token_price::BaseTokenAPIPrice, Address};
 
-    use crate::{strategies::AverageStrategy, PriceAPIClient};
+    use crate::{
+        strategies::{AverageStrategy, FailOverStrategy},
+        PriceAPIClient,
+    };
 
     #[tokio::test]
     async fn test_avg_strategy_happy_day() {
@@ -109,6 +138,64 @@ mod tests {
 
         let mut avg_strategy = AverageStrategy::new(vec![api_1.clone(), api_2.clone()]);
         let result = avg_strategy.fetch_price(address).await;
+        assert_eq!(
+            "No successful price fetches",
+            result.err().unwrap().to_string()
+        );
+
+        assert_eq!(api_1.lock().await.hit_count, 1);
+        assert_eq!(api_2.lock().await.hit_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_fail_over_strategy_happy_day() {
+        let api_1 = MockPricingApi::new("1.5".to_string(), "2.5".to_string(), Utc::now());
+        let api_2 = MockPricingApi::new("2.5".to_string(), "3.5".to_string(), Utc::now());
+        let address = Address::random();
+
+        let mut fo_strategy = FailOverStrategy::new(vec![api_1.clone(), api_2.clone()]);
+        let result_1 = fo_strategy.fetch_price(address).await.unwrap();
+        assert_eq!(result_1.eth_price, BigDecimal::from_str("1.5").unwrap());
+        assert_eq!(
+            result_1.base_token_price,
+            BigDecimal::from_str("2.5").unwrap()
+        );
+
+        assert_eq!(api_1.lock().await.hit_count, 1);
+        // second API should have never been hit
+        assert_eq!(api_2.lock().await.hit_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_fail_over_strategy_should_fail_over() {
+        let api_1 = Arc::new(Mutex::new(AlwaysErrorPricingApi { hit_count: 0 }));
+        let api_2 = MockPricingApi::new("2.5".to_string(), "3.5".to_string(), Utc::now());
+        let api_3 = MockPricingApi::new("3.5".to_string(), "4.5".to_string(), Utc::now());
+        let address = Address::random();
+
+        let mut fo_strategy =
+            FailOverStrategy::new(vec![api_1.clone(), api_2.clone(), api_3.clone()]);
+        let result_1 = fo_strategy.fetch_price(address).await.unwrap();
+        assert_eq!(result_1.eth_price, BigDecimal::from_str("2.5").unwrap());
+        assert_eq!(
+            result_1.base_token_price,
+            BigDecimal::from_str("3.5").unwrap()
+        );
+
+        assert_eq!(api_1.lock().await.hit_count, 1);
+        assert_eq!(api_2.lock().await.hit_count, 1);
+        // third API should have never been hit
+        assert_eq!(api_3.lock().await.hit_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_fail_over_strategy_fail_if_all_fail() {
+        let api_1 = Arc::new(Mutex::new(AlwaysErrorPricingApi { hit_count: 0 }));
+        let api_2 = Arc::new(Mutex::new(AlwaysErrorPricingApi { hit_count: 0 }));
+        let address = Address::random();
+
+        let mut fo_strategy = FailOverStrategy::new(vec![api_1.clone(), api_2.clone()]);
+        let result = fo_strategy.fetch_price(address).await;
         assert_eq!(
             "No successful price fetches",
             result.err().unwrap().to_string()
