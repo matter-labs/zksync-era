@@ -124,25 +124,21 @@ async fn manual_batch_witness_generation() {
         .await
         .unwrap();
 
-    /*
     use std::str::FromStr;
-
-    use anyhow::Context;
-    use prover_dal::Prover;
-    use zksync_dal::{ConnectionPool, Core};
-    use zksync_types::url::SensitiveUrl;
-
-    let max_connections = 10;
+    /*let max_connections = 10;
     let connection_pool = ConnectionPool::<Core>::builder(connection_url, max_connections)
         .build()
         .await
         .context("failed to build a connection_pool")
         .unwrap();
     */
-
     use std::{fs, fs::File};
 
+    use anyhow::Context;
     use ciborium;
+    use prover_dal::Prover;
+    use zksync_dal::{ConnectionPool, Core};
+    use zksync_types::url::SensitiveUrl;
 
     let eip_4844_blobs_res = File::open("./tests/data/basic/blobs.bin");
     let witness_gen_input_res = File::open("./tests/data/basic/witness_gen_input.bin");
@@ -155,8 +151,8 @@ async fn manual_batch_witness_generation() {
             || inputs_for_witness_generation_res.is_err()
         {
             panic!("No artfacts for tests!");
-        /*
-        let batch_number = 484890;
+
+        /*let batch_number = 487023;
 
         let prover_connection_pool = ConnectionPool::<Prover>::singleton(prover_url)
             .build()
