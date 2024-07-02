@@ -138,9 +138,9 @@ impl WitnessInputMerklePaths {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
-    pub previous_root_hash: H256,
-    pub previous_meta_hash: H256,
-    pub previous_aux_hash: H256,
+    pub previous_root_hash: Option<H256>,
+    pub previous_meta_hash: Option<H256>,
+    pub previous_aux_hash: Option<H256>,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub protocol_version: ProtocolVersionId,

@@ -163,25 +163,12 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         compare_witness_input_data(&db_result, &result);
 
-        let previous_batch_with_metadata = self
-            .pool
-            .connection()
-            .await?
-            .blocks_dal()
-            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
-            .await
-            .unwrap()
-            .unwrap();
-
         let block_state = WitnessBlockState {
             read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
             is_write_initial: updates_manager.storage_view_cache.initial_writes(),
         };
 
         result.witness_block_state = block_state;
-        result.previous_aux_hash = previous_batch_with_metadata.metadata.aux_data_hash;
-        result.previous_meta_hash = previous_batch_with_metadata.metadata.meta_parameters_hash;
-        result.previous_root_hash = previous_batch_with_metadata.metadata.root_hash;
 
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
 
@@ -262,9 +249,9 @@ async fn get_updates_manager_witness_input_data(
 
     VMRunWitnessInputData {
         l1_batch_number,
-        previous_aux_hash: H256::zero(),
-        previous_meta_hash: H256::zero(),
-        previous_root_hash: H256::zero(),
+        previous_aux_hash: None,
+        previous_meta_hash: None,
+        previous_root_hash: None,
         used_bytecodes,
         initial_heap_content,
 
@@ -350,9 +337,9 @@ async fn get_database_witness_input_data(
 
     VMRunWitnessInputData {
         l1_batch_number: block_header.number,
-        previous_root_hash: H256::zero(),
-        previous_meta_hash: H256::zero(),
-        previous_aux_hash: H256::zero(),
+        previous_root_hash: None,
+        previous_meta_hash: None,
+        previous_aux_hash: None,
         used_bytecodes,
         initial_heap_content,
 

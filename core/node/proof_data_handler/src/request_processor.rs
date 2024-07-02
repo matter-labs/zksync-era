@@ -64,7 +64,7 @@ impl RequestProcessor {
             None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
         };
 
-        let vm_run_data = self
+        let mut vm_run_data = self
             .blob_store
             .get(l1_batch_number)
             .await
@@ -74,6 +74,22 @@ impl RequestProcessor {
             .get(l1_batch_number)
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
+
+        let previous_batch_metadata = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
+            .await
+            .unwrap()
+            .expect("No metadata for previous batch");
+
+        vm_run_data.previous_root_hash = Some(previous_batch_metadata.metadata.root_hash);
+        vm_run_data.previous_meta_hash =
+            Some(previous_batch_metadata.metadata.meta_parameters_hash);
+        vm_run_data.previous_aux_hash = Some(previous_batch_metadata.metadata.aux_data_hash);
 
         let blob = WitnessInputData {
             vm_run_data,
