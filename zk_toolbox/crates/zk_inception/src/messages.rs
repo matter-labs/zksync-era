@@ -260,6 +260,8 @@ pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save t
 pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
 pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
 pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
+pub(super) const MSG_CLONING_BELLMAN_CUDA_SPINNER: &str = "Cloning bellman-cuda...";
+pub(super) const MSG_BUILDING_BELLMAN_CUDA_SPINNER: &str = "Building bellman-cuda...";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

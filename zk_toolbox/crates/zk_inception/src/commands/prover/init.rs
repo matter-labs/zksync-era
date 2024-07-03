@@ -1,4 +1,11 @@
-use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
+use std::path::PathBuf;
+
+use common::{
+    check_prover_prequisites,
+    cmd::Cmd,
+    logger,
+    spinner::{self, Spinner},
+};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 use zksync_config::{
@@ -14,7 +21,8 @@ use super::{
 use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_BUILDING_BELLMAN_CUDA_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_CLONING_BELLMAN_CUDA_SPINNER, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
         MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
@@ -67,6 +75,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     chain_config.save_zksync_general_config(&general_config)?;
 
+    init_bellman_cuda(shell)?;
+
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
 }
@@ -87,8 +97,8 @@ fn download_setup_key(
         .parent()
         .expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    let mut cmd = Cmd::new(cmd!(shell, "wget {url} -P {parent}"));
-    cmd.run()?;
+    Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
+
     spinner.finish();
     Ok(())
 }
@@ -128,4 +138,24 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
+}
+
+fn init_bellman_cuda(shell: &Shell) -> anyhow::Result<()> {
+    let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
+    Cmd::new(cmd!(
+        shell,
+        "git clone https://github.com/matter-labs/era-bellman-cuda"
+    ))
+    .run()?;
+    spinner.finish();
+
+    let spinner = Spinner::new(MSG_BUILDING_BELLMAN_CUDA_SPINNER);
+    Cmd::new(cmd!(
+        shell,
+        "cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release"
+    ))
+    .run()?;
+    Cmd::new(cmd!(shell, "cmake --build era-bellman-cuda/build")).run()?;
+    spinner.finish();
+    Ok(())
 }
