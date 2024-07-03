@@ -350,9 +350,10 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
 impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
         type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..2) {
+        match rng.gen_range(0..3) {
             0 => T::Calldata,
-            _ => T::Blobs,
+            1 => T::Blobs,
+            _ => T::Custom,
         }
     }
 }
@@ -751,6 +752,15 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
                 .collect(),
             genesis_spec: self.sample(rng),
+            rpc: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::RpcConfig {
+        configs::consensus::RpcConfig {
+            get_block_rate: self.sample(rng),
         }
     }
 }

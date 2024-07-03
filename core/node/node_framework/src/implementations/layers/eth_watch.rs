@@ -51,10 +51,10 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let client = context.get_resource::<EthInterfaceResource>()?.0;
 
         let eth_client = EthHttpQueryClient::new(
             client,
@@ -65,13 +65,13 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
-        context.add_task(Box::new(EthWatchTask {
+        context.add_task(EthWatchTask {
             main_pool,
             client: eth_client,
             governance_contract: governance_contract(),
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
-        }));
+        });
 
         Ok(())
     }

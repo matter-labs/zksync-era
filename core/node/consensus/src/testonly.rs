@@ -49,7 +49,8 @@ use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
     batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
-    en, ConnectionPool,
+    en,
+    storage::ConnectionPool,
 };
 
 /// Fake StateKeeper for tests.
@@ -100,6 +101,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 }],
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
+            rpc: None,
         },
         config::ConsensusSecrets {
             node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),

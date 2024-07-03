@@ -55,8 +55,7 @@ impl ForgeScript {
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args = self.args.build();
-        Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()?;
-        Ok(())
+        Ok(Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()?)
     }
 
     pub fn wallet_args_passed(&self) -> bool {

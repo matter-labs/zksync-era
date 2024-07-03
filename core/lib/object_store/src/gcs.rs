@@ -130,7 +130,7 @@ impl From<HttpError> for ObjectStoreError {
                 .status()
                 .map_or(false, |status| matches!(status, StatusCode::NOT_FOUND)),
             HttpError::Response(response) => response.code == StatusCode::NOT_FOUND.as_u16(),
-            HttpError::TokenSource(_) => false,
+            _ => false,
         };
 
         if is_not_found {
@@ -145,7 +145,7 @@ impl From<HttpError> for ObjectStoreError {
                     has_transient_io_source(err)
                         || get_source::<reqwest::Error>(err).is_some_and(is_transient_http_error)
                 }
-                HttpError::Response(_) => false,
+                _ => false,
             };
             ObjectStoreError::Other {
                 is_transient,

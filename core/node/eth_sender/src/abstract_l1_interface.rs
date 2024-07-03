@@ -1,6 +1,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
@@ -32,6 +33,13 @@ pub(crate) struct L1BlockNumbers {
     pub latest: L1BlockNumber,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "type", rename_all = "snake_case")]
+pub(crate) enum OperatorType {
+    NonBlob,
+    Blob,
+}
+
 #[async_trait]
 pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
     async fn failure_reason(&self, tx_hash: H256) -> Option<FailureInfo>;
@@ -51,11 +59,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
     async fn get_operator_nonce(
         &self,
         block_numbers: L1BlockNumbers,
-    ) -> Result<OperatorNonce, EthSenderError>;
-
-    async fn get_blobs_operator_nonce(
-        &self,
-        block_numbers: L1BlockNumbers,
+        operator_type: OperatorType,
     ) -> Result<Option<OperatorNonce>, EthSenderError>;
 
     async fn sign_tx(
@@ -122,28 +126,13 @@ impl AbstractL1Interface for RealL1Interface {
     async fn get_operator_nonce(
         &self,
         block_numbers: L1BlockNumbers,
-    ) -> Result<OperatorNonce, EthSenderError> {
-        let finalized = self
-            .ethereum_gateway()
-            .nonce_at(block_numbers.finalized.0.into())
-            .await?
-            .as_u32()
-            .into();
-
-        let latest = self
-            .ethereum_gateway()
-            .nonce_at(block_numbers.latest.0.into())
-            .await?
-            .as_u32()
-            .into();
-        Ok(OperatorNonce { finalized, latest })
-    }
-
-    async fn get_blobs_operator_nonce(
-        &self,
-        block_numbers: L1BlockNumbers,
+        operator_type: OperatorType,
     ) -> Result<Option<OperatorNonce>, EthSenderError> {
-        match &self.ethereum_gateway_blobs() {
+        let gateway = match operator_type {
+            OperatorType::NonBlob => Some(self.ethereum_gateway()),
+            OperatorType::Blob => self.ethereum_gateway_blobs(),
+        };
+        match gateway {
             None => Ok(None),
             Some(gateway) => {
                 let finalized = gateway

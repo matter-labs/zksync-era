@@ -6,7 +6,6 @@ use axum::{
     response::Response,
     Router,
 };
-use hyper::body::HttpBody;
 use serde_json::json;
 use tower::ServiceExt;
 use zksync_basic_types::U256;
@@ -107,7 +106,9 @@ async fn request_tee_proof_inputs() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let json = json
         .get("Success")

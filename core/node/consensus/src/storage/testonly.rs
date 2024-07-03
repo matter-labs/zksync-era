@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContracts;
+use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
@@ -125,19 +126,13 @@ impl ConnectionPool {
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         self.wait_for_certificate(ctx, want_last).await?;
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let last_cert = conn
-            .last_certificate(ctx)
+        let range = conn
+            .certificates_range(ctx)
             .await
-            .wrap("last_certificate()")?
-            .unwrap();
-        let first_cert = conn
-            .first_certificate(ctx)
-            .await
-            .wrap("first_certificate()")?
-            .unwrap();
-        assert_eq!(want_last, last_cert.header().number);
+            .wrap("certificates_range()")?;
+        assert_eq!(want_last.next(), range.next());
         let mut blocks: Vec<validator::FinalBlock> = vec![];
-        for i in first_cert.header().number.0..=last_cert.header().number.0 {
+        for i in range.first.0..range.next().0 {
             let i = validator::BlockNumber(i);
             let block = conn.block(ctx, i).await.context("block()")?.unwrap();
             blocks.push(block);
@@ -164,5 +159,33 @@ impl ConnectionPool {
             block.verify(&genesis).context(block.number())?;
         }
         Ok(blocks)
+    }
+
+    pub async fn prune_batches(
+        &self,
+        ctx: &ctx::Ctx,
+        last_batch: L1BatchNumber,
+    ) -> ctx::Result<()> {
+        let mut conn = self.connection(ctx).await.context("connection()")?;
+        let (_, last_block) = ctx
+            .wait(
+                conn.0
+                    .blocks_dal()
+                    .get_l2_block_range_of_l1_batch(last_batch),
+            )
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?
+            .context("batch not found")?;
+        conn.0
+            .pruning_dal()
+            .soft_prune_batches_range(last_batch, last_block)
+            .await
+            .context("soft_prune_batches_range()")?;
+        conn.0
+            .pruning_dal()
+            .hard_prune_batches_range(last_batch, last_block)
+            .await
+            .context("hard_prune_batches_range()")?;
+        Ok(())
     }
 }
