@@ -14,8 +14,8 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObjectStoreConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    GenesisConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
+    GasAdjusterConfig, GenesisConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::temp_config_store::TempConfigStore;
 use zksync_env_config::FromEnv;
@@ -24,8 +24,9 @@ use zksync_protobuf::{
     ProtoRepr,
 };
 use zksync_protobuf_config::proto::{
-    general::GeneralConfig as ProtoGeneral, genesis::Genesis as ProtoGenesis,
-    secrets::Secrets as ProtoSecrets, wallets::Wallets as ProtoWallets,
+    contracts::Contracts as ProtoContracts, general::GeneralConfig as ProtoGeneral,
+    genesis::Genesis as ProtoGenesis, secrets::Secrets as ProtoSecrets,
+    wallets::Wallets as ProtoWallets,
 };
 
 fn load_env_config() -> TempConfigStore {
@@ -67,6 +68,7 @@ fn load_env_config() -> TempConfigStore {
 fn main() {
     let config = load_env_config();
 
+    let contracts = ContractsConfig::from_env().unwrap();
     let general = config.general();
     let wallets = config.wallets();
     let genesis = GenesisConfig::from_env().unwrap();
@@ -84,6 +86,8 @@ fn main() {
     fs::write("./wallets.yaml", data).unwrap();
     let data = encode_yaml(&ProtoSecrets::build(&secrets)).unwrap();
     fs::write("./secrets.yaml", data).unwrap();
+    let data = encode_yaml(&ProtoContracts::build(&contracts)).unwrap();
+    fs::write("./contracts.yaml", data).unwrap();
 }
 
 pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
