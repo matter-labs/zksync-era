@@ -84,6 +84,68 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     }
 }
 
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[tokio::test]
+async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersionId) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+    let pool = ConnectionPool::test(from_snapshot, version).await;
+
+    // Fill storage with unsigned L2 blocks and L1 batches in a way that the
+    // last L1 batch is guaranteed to have some L2 blocks executed in it.
+    scope::run!(ctx, |ctx, s| async {
+        // Start state keeper.
+        let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        s.spawn_bg(runner.run(ctx));
+
+        for _ in 0..3 {
+            for _ in 0..2 {
+                sk.push_random_block(rng).await;
+            }
+            sk.seal_batch().await;
+        }
+        sk.push_random_block(rng).await;
+
+        pool.wait_for_payload(ctx, sk.last_block()).await?;
+
+        Ok(())
+    })
+    .await
+    .unwrap();
+
+    // Now we can try to retrieve the batch.
+    scope::run!(ctx, |ctx, _s| async {
+        let mut conn = pool.connection(ctx).await?;
+        let batches = conn.batches_range(ctx).await?;
+        let last = batches.last.expect("last is set");
+        let (min, max) = conn
+            .get_l2_block_range_of_l1_batch(ctx, last.number)
+            .await?
+            .unwrap();
+
+        assert_eq!(
+            last.payloads.len(),
+            (max.0 - min.0) as usize,
+            "all block payloads present"
+        );
+
+        let first_payload = last.payloads.first().expect("last batch has payloads");
+
+        let want_payload = conn.payload(ctx, min).await?.expect("payload is in the DB");
+        let want_payload = want_payload.encode();
+
+        assert_eq!(
+            first_payload, &want_payload,
+            "first payload is the right number"
+        );
+
+        anyhow::Ok(())
+    })
+    .await
+    .unwrap();
+}
+
 // In the current implementation, consensus certificates are created asynchronously
 // for the L2 blocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the L2 blocks in storage.
