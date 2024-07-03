@@ -16,7 +16,7 @@ use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMo
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::{
     api::SubmitTeeProofRequest,
-    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput},
+    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput, V1TeeVerifierInput},
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
@@ -33,7 +33,7 @@ async fn request_tee_proof_inputs() {
     // prepare a sample mocked TEE verifier input
 
     let batch_number = L1BatchNumber::from(1);
-    let tvi = TeeVerifierInput::new(
+    let tvi = V1TeeVerifierInput::new(
         PrepareBasicCircuitsJob::new(0),
         vec![],
         L1BatchEnv {
@@ -70,6 +70,7 @@ async fn request_tee_proof_inputs() {
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
     );
+    let tvi = TeeVerifierInput::V1(tvi);
 
     // populate mocked object store with a single batch blob
 
