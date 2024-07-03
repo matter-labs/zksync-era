@@ -233,7 +233,7 @@ impl ProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details
             WHERE
-                status NOT IN ('picked_by_prover', 'generated')
+                status = 'unpicked'
             ORDER BY
                 l1_batch_number ASC
             LIMIT
