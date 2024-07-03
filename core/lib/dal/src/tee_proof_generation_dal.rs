@@ -75,10 +75,10 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             &processing_timeout,
         )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
     }
@@ -171,10 +171,10 @@ impl TeeProofGenerationDal<'_, '_> {
                 1
             "#,
         )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
     }
