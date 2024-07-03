@@ -19,6 +19,8 @@ pub struct ProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, EnumString, Display)]
 enum ProofGenerationJobStatus {
+    #[strum(serialize = "waiting_for_data")]
+    WaitingForData,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
