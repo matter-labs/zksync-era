@@ -485,10 +485,14 @@ impl ConsensusDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use rand::Rng as _;
-    use zksync_consensus_roles::validator;
+    use zksync_consensus_roles::{attester, validator};
     use zksync_consensus_storage::ReplicaState;
+    use zksync_types::{L1BatchNumber, ProtocolVersion};
 
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{
+        tests::{create_l1_batch_header, create_l2_block_header},
+        ConnectionPool, Core, CoreDal,
+    };
 
     #[tokio::test]
     async fn replica_state_read_write() {
@@ -523,5 +527,90 @@ mod tests {
                 assert_eq!(want, conn.consensus_dal().replica_state().await.unwrap());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_batch_certificate() {
+        let rng = &mut rand::thread_rng();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let mut mock_batch_qc = |number: L1BatchNumber| {
+            let mut cert: attester::BatchQC = rng.gen();
+            cert.message.number.0 = number.0 as u64;
+            cert.signatures.add(rng.gen(), rng.gen());
+            cert
+        };
+
+        // Required for inserting l2 blocks
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        // Insert some mock L2 blocks and L1 batches
+        let mut block_number = 0;
+        let mut batch_number = 0;
+        for _ in 0..3 {
+            for _ in 0..3 {
+                block_number += 1;
+                let l2_block = create_l2_block_header(block_number);
+                conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
+            }
+            batch_number += 1;
+            let l1_batch = create_l1_batch_header(batch_number);
+
+            conn.blocks_dal()
+                .insert_mock_l1_batch(&l1_batch)
+                .await
+                .unwrap();
+
+            conn.blocks_dal()
+                .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.number)
+                .await
+                .unwrap();
+        }
+
+        let l1_batch_number = L1BatchNumber(batch_number);
+
+        // Insert a batch certificate for the last L1 batch.
+        let cert1 = mock_batch_qc(l1_batch_number);
+
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert1)
+            .await
+            .unwrap();
+
+        // Try insert duplicate batch certificate for the same batch.
+        let cert2 = mock_batch_qc(l1_batch_number);
+
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert2)
+            .await
+            .unwrap();
+
+        // Retrieve the latest certificate.
+        let number = conn
+            .consensus_dal()
+            .get_last_batch_certificate_number()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let cert = conn
+            .consensus_dal()
+            .batch_certificate(number)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cert, cert1, "duplicates are ignored");
+
+        // Try insert batch certificate for non-existing batch
+        let cert3 = mock_batch_qc(l1_batch_number.next());
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert3)
+            .await
+            .expect_err("missing payload");
     }
 }
