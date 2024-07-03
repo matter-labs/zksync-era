@@ -116,6 +116,7 @@ impl VmRunner {
             .await
             .context("Failed getting storage view cache")?;
         updates_manager.finish_batch(finished_batch);
+        // this is needed for Basic Witness Input Producer to use in memory reads, but not database queries
         updates_manager.update_storage_view_cache(storage_view_cache);
 
         latency.observe();

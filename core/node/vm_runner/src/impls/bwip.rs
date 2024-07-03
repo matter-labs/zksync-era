@@ -104,8 +104,9 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
     ) -> anyhow::Result<L1BatchNumber> {
         Ok(conn
             .vm_runner_dal()
-            .get_bwip_latest_processed_batch(self.first_processed_batch)
-            .await?)
+            .get_bwip_latest_processed_batch()
+            .await?
+            .unwrap_or(self.first_processed_batch))
     }
 
     async fn last_ready_to_be_loaded_batch(

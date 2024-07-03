@@ -113,24 +113,20 @@ impl VmRunnerDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_bwip_latest_processed_batch(
-        &mut self,
-        default_batch: L1BatchNumber,
-    ) -> DalResult<L1BatchNumber> {
+    pub async fn get_bwip_latest_processed_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                COALESCE(MAX(l1_batch_number), $1) AS "last_processed_l1_batch!"
+                MAX(l1_batch_number) AS "last_processed_l1_batch"
             FROM
                 vm_runner_bwip
             "#,
-            default_batch.0 as i32
         )
         .instrument("get_bwip_latest_processed_batch")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
-        Ok(L1BatchNumber(row.last_processed_l1_batch as u32))
+        Ok(row.last_processed_l1_batch.map(|n| L1BatchNumber(n as u32)))
     }
 
     pub async fn get_bwip_last_ready_batch(
