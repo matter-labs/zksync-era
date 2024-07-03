@@ -357,15 +357,23 @@ impl<'a> Connection<'a> {
 
     /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
     pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
-        // TODO: Is 0 okay for an empty database? Maybe look in snapshot_recovery?
         let first = self
             .0
             .blocks_dal()
             .get_earliest_l1_batch_number()
             .await
-            .context("get_earliest_l1_batch_number()")?
-            .map(|n| attester::BatchNumber(n.0 as u64))
-            .unwrap_or(attester::BatchNumber(0));
+            .context("get_earliest_l1_batch_number()")?;
+
+        let first = if first.is_some() {
+            first
+        } else {
+            self.0
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await
+                .context("get_earliest_l1_batch_number()")?
+                .map(|s| s.l1_batch_number)
+        };
 
         // TODO: In the future when we start filling in the `SyncBatch::proof` field,
         // we can only run `get_batch` expecting `Some` result on numbers where the
@@ -394,6 +402,11 @@ impl<'a> Connection<'a> {
             None
         };
 
-        Ok(BatchStoreState { first, last })
+        Ok(BatchStoreState {
+            first: first
+                .map(|n| attester::BatchNumber(n.0 as u64))
+                .unwrap_or(attester::BatchNumber(0)),
+            last,
+        })
     }
 }
