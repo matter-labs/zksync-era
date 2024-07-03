@@ -441,7 +441,7 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
@@ -537,7 +537,7 @@ mod tests {
 
         let mut mock_batch_qc = |number: L1BatchNumber| {
             let mut cert: attester::BatchQC = rng.gen();
-            cert.message.number.0 = number.0 as u64;
+            cert.message.number.0 = u64::from(number.0);
             cert.signatures.add(rng.gen(), rng.gen());
             cert
         };
