@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use bigdecimal::Zero;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -6,7 +7,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -416,9 +417,10 @@ impl ConsensusDal<'_, '_> {
         use InsertCertificateError as E;
         let mut txn = self.storage.start_transaction().await?;
 
+        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
         let _l1_batch_header = txn
             .blocks_dal()
-            .get_l1_batch_header(zksync_types::L1BatchNumber(cert.message.number.0 as u32))
+            .get_l1_batch_header(l1_batch_number)
             .await?
             .ok_or(E::MissingPayload)?;
 
@@ -431,22 +433,28 @@ impl ConsensusDal<'_, '_> {
         //     return Err(E::PayloadMismatch);
         // }
 
-        // TODO: Handle duplicates
-        sqlx::query!(
+        let res = sqlx::query!(
             r#"
             INSERT INTO
                 l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
             VALUES
                 ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            cert.message.number.0 as i64,
+            l1_batch_number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
         .execute(&mut txn)
         .await?;
+
+        if res.rows_affected().is_zero() {
+            tracing::debug!(%l1_batch_number, "duplicate batch certificate");
+        }
+
         txn.commit().await.context("commit")?;
+
         Ok(())
     }
 
