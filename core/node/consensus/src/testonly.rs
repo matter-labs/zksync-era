@@ -270,7 +270,7 @@ impl StateKeeper {
             actions.push(FetchedTransaction::new(tx).into());
         }
         actions.push(SyncAction::SealL2Block);
-        self.actions_sender.push_actions(actions).await;
+        self.actions_sender.push_actions(actions).await.unwrap();
     }
 
     /// Pushes `SealBatch` command to the `StateKeeper`.
@@ -278,7 +278,7 @@ impl StateKeeper {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
         actions.push(SyncAction::SealBatch);
-        self.actions_sender.push_actions(actions).await;
+        self.actions_sender.push_actions(actions).await.unwrap();
         self.batch_sealed = true;
     }
 
