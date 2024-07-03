@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_multivm.workspace = true
 zksync_object_store.workspace = true
 zksync_types.workspace = true
 zksync_state.workspace = true
