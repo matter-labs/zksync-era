@@ -1,7 +1,8 @@
 use anyhow::Context as _;
+use storage::Store;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
@@ -9,9 +10,11 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_consensus_storage::BlockStore;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use super::*;
+use crate::{mn::run_main_node, storage::ConnectionPool};
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
