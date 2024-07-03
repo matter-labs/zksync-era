@@ -10,11 +10,11 @@ impl PeriodicApiStruct {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let store = &*self.blob_store;
         let merkle_paths = store
-            .put(data.l1_batch_number, &data.data.merkle_paths)
+            .put(data.l1_batch_number, &data.witness_input_data.merkle_paths)
             .await
             .expect("Failed to save proof generation data to GCS");
         let witness_inputs = store
-            .put(data.l1_batch_number, &data.data)
+            .put(data.l1_batch_number, &data.witness_input_data)
             .await
             .expect("Failed to save proof generation data to GCS");
         let mut connection = self.pool.connection().await.unwrap();
@@ -31,7 +31,7 @@ impl PeriodicApiStruct {
                 &merkle_paths,
                 &witness_inputs,
                 data.protocol_version,
-                data.eip_4844_blobs,
+                data.witness_input_data.eip_4844_blobs,
             )
             .await;
     }

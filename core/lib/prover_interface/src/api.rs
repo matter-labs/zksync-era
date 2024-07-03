@@ -18,10 +18,9 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
-    pub data: WitnessInputData,
+    pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
     pub l1_verifier_config: L1VerifierConfig,
-    pub eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

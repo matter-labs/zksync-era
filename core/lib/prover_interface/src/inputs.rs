@@ -5,7 +5,8 @@ use serde_with::{serde_as, Bytes};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 pub use zksync_state::WitnessStorage;
 use zksync_types::{
-    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
+    basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchNumber,
+    ProtocolVersionId, H256, U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -167,6 +168,7 @@ impl StoredObject for VMRunWitnessInputData {
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: WitnessInputMerklePaths,
+    pub eip_4844_blobs: Eip4844Blobs,
 }
 
 impl StoredObject for WitnessInputData {

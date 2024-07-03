@@ -91,11 +91,6 @@ impl RequestProcessor {
             Some(previous_batch_metadata.metadata.meta_parameters_hash);
         vm_run_data.previous_aux_hash = Some(previous_batch_metadata.metadata.aux_data_hash);
 
-        let blob = WitnessInputData {
-            vm_run_data,
-            merkle_paths,
-        };
-
         let header = self
             .pool
             .connection()
@@ -144,13 +139,19 @@ impl RequestProcessor {
             }
         };
 
-        let proof_gen_data = ProofGenerationData {
-            l1_batch_number,
-            data: blob,
-            protocol_version: protocol_version.version,
-            l1_verifier_config: protocol_version.l1_verifier_config,
+        let blob = WitnessInputData {
+            vm_run_data,
+            merkle_paths,
             eip_4844_blobs,
         };
+
+        let proof_gen_data = ProofGenerationData {
+            l1_batch_number,
+            witness_input_data: blob,
+            protocol_version: protocol_version.version,
+            l1_verifier_config: protocol_version.l1_verifier_config,
+        };
+
         Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
             proof_gen_data,
         )))))

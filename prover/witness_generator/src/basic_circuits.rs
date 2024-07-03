@@ -39,9 +39,8 @@ use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{StorageView, WitnessStorage};
 use zksync_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::ProtocolSemanticVersion,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, Address,
+    L1BatchNumber, BOOTLOADER_ADDRESS,
 };
 
 use crate::{
@@ -76,7 +75,6 @@ struct BlobUrls {
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
     job: WitnessInputData,
-    eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug)]
@@ -110,11 +108,7 @@ impl BasicWitnessGenerator {
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob {
-            block_number,
-            job,
-            eip_4844_blobs,
-        } = basic_job;
+        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
 
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
@@ -122,16 +116,7 @@ impl BasicWitnessGenerator {
             block_number.0
         );
 
-        Some(
-            process_basic_circuits_job(
-                &*object_store,
-                started_at,
-                block_number,
-                job,
-                eip_4844_blobs,
-            )
-            .await,
-        )
+        Some(process_basic_circuits_job(&*object_store, started_at, block_number, job).await)
     }
 }
 
@@ -157,13 +142,13 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some((block_number, eip_4844_blobs)) => {
+            Some(block_number) => {
                 tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
                 let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store, eip_4844_blobs).await;
+                let job = get_artifacts(block_number, &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -264,10 +249,9 @@ async fn process_basic_circuits_job(
     started_at: Instant,
     block_number: L1BatchNumber,
     job: WitnessInputData,
-    eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-        generate_witness(block_number, object_store, job, eip_4844_blobs).await;
+        generate_witness(block_number, object_store, job).await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -324,14 +308,9 @@ async fn update_database(
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    eip_4844_blobs: Eip4844Blobs,
 ) -> BasicWitnessGeneratorJob {
     let job = object_store.get(block_number).await.unwrap();
-    BasicWitnessGeneratorJob {
-        block_number,
-        job,
-        eip_4844_blobs,
-    }
+    BasicWitnessGeneratorJob { block_number, job }
 }
 
 async fn save_scheduler_artifacts(
@@ -387,7 +366,6 @@ async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     input: WitnessInputData,
-    eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
     Vec<(u8, String, usize)>,
@@ -456,7 +434,7 @@ async fn generate_witness(
             storage_oracle,
             &mut tree,
             path,
-            eip_4844_blobs.blobs(),
+            input.eip_4844_blobs.blobs(),
             |circuit| {
                 circuit_sender.blocking_send(circuit).unwrap();
             },

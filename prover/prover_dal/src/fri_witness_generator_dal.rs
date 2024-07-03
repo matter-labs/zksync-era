@@ -86,7 +86,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         last_l1_batch_to_process: u32,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
+    ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -115,7 +115,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         SKIP LOCKED
                 )
             RETURNING
-                witness_inputs_fri.*
+                witness_inputs_fri.l1_batch_number
             "#,
             i64::from(last_l1_batch_to_process),
             protocol_version.minor as i32,
@@ -125,21 +125,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            // Blobs can be `None` if we are using an `off-chain DA`
-            let blobs = if row.eip_4844_blobs.is_none() {
-                Eip4844Blobs::empty()
-            } else {
-                Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
-                    panic!(
-                        "missing eip 4844 blobs from the database for batch {}",
-                        row.l1_batch_number
-                    )
-                }))
-                .expect("failed to decode EIP4844 blobs")
-            };
-            (L1BatchNumber(row.l1_batch_number as u32), blobs)
-        })
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn get_basic_circuit_witness_job_attempts(

@@ -19,8 +19,8 @@ pub struct ProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, EnumString, Display)]
 enum ProofGenerationJobStatus {
-    #[strum(serialize = "waiting_for_data")]
-    WaitingForData,
+    #[strum(serialize = "unpicked")]
+    Unpicked,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
@@ -56,7 +56,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status NOT IN ('picked_by_prover', 'generated')
+                            AND status = 'unpicked'
                         )
                         OR (
                             status = 'picked_by_prover'
@@ -166,7 +166,7 @@ impl ProofGenerationDal<'_, '_> {
             INSERT INTO
                 proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
             VALUES
-                ($1, 'waiting_for_data', $2, NOW(), NOW())
+                ($1, 'unpicked', $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
              i64::from(l1_batch_number.0),
