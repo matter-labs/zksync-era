@@ -38,8 +38,6 @@ impl BaseTokenDal<'_, '_> {
         Ok(row.id as usize)
     }
 
-    // TODO (PE-128): pub async fn mark_l1_update()
-
     pub async fn get_latest_ratio(&mut self) -> DalResult<Option<BaseTokenRatio>> {
         let row = sqlx::query_as!(
             StorageBaseTokenRatio,

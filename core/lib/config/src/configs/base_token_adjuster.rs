@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::Deserialize;
 
 /// By default the ratio persister will run every 30 seconds.
@@ -21,5 +23,9 @@ impl Default for BaseTokenAdjusterConfig {
 impl BaseTokenAdjusterConfig {
     fn default_interval() -> u64 {
         DEFAULT_INTERVAL_MS
+    }
+
+    pub fn price_polling_interval(&self) -> Duration {
+        Duration::from_millis(self.price_polling_interval_ms)
     }
 }
