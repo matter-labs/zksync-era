@@ -47,6 +47,8 @@ impl ProtoRepr for proto::GeneralConfig {
             .context("basic_witness_input_producer")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
+            base_token_adjuster: read_optional_repr(&self.base_token_adjuster)
+                .context("base_token_adjuster")?,
             commitment_generator: read_optional_repr(&self.commitment_generator)
                 .context("commitment_generator")?,
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
@@ -96,6 +98,7 @@ impl ProtoRepr for proto::GeneralConfig {
             snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
             pruning: this.pruning.as_ref().map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
+            base_token_adjuster: this.base_token_adjuster.as_ref().map(ProtoRepr::build),
         }
     }
 }

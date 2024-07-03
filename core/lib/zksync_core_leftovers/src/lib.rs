@@ -90,6 +90,8 @@ pub enum Component {
     DADispatcher,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
+    /// A component to fetch and persist ETH<->BaseToken conversion ratios for chains with custom base tokens.
+    BaseTokenRatioPersister,
     /// VM runner-based component that saves VM execution data for basic witness generation.
     VmRunnerBwip,
 }
@@ -131,6 +133,9 @@ impl FromStr for Components {
             "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
+            }
+            "base_token_ratio_persister" => {
+                Ok(Components(vec![Component::BaseTokenRatioPersister]))
             }
             "vm_runner_bwip" => Ok(Components(vec![Component::VmRunnerBwip])),
             other => Err(format!("{} is not a valid component name", other)),

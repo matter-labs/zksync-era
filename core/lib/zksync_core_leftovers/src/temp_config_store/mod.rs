@@ -17,8 +17,9 @@ use zksync_config::{
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
-    ApiConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
+    EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 use zksync_protobuf::repr::ProtoRepr;
 
@@ -68,6 +69,7 @@ pub struct TempConfigStore {
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
@@ -100,6 +102,7 @@ impl TempConfigStore {
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
             core_object_store: self.core_object_store.clone(),
+            base_token_adjuster: self.base_token_adjuster_config.clone(),
             commitment_generator: self.commitment_generator.clone(),
             snapshot_recovery: self.snapshot_recovery.clone(),
             pruning: self.pruning.clone(),

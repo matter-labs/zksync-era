@@ -16,8 +16,9 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
-    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
+    EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     genesis_init, is_genesis_needed,
@@ -47,7 +48,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher"
+        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,base_token_ratio_persister"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -272,6 +273,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
