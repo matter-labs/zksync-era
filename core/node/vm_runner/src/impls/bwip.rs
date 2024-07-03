@@ -194,7 +194,7 @@ async fn get_updates_manager_witness_input_data(
         .l1_batch
         .finished
         .clone()
-        .ok_or(Err(anyhow!("L1 batch {l1_batch_number:?} is not finished")))?;
+        .ok_or_else(|| anyhow!("L1 batch {l1_batch_number:?} is not finished"))?;
 
     let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
     let default_aa = updates_manager
@@ -209,7 +209,7 @@ async fn get_updates_manager_witness_input_data(
         .factory_deps_dal()
         .get_sealed_factory_dep(bootloader)
         .await?
-        .ok_or(Err(anyhow!("Failed fetching bootloader bytecode from DB")))?;
+        .ok_or_else(|| anyhow!("Failed fetching bootloader bytecode from DB"))?;
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
 
     let account_code_hash = h256_to_u256(default_aa);
@@ -217,7 +217,7 @@ async fn get_updates_manager_witness_input_data(
         .factory_deps_dal()
         .get_sealed_factory_dep(default_aa)
         .await?
-        .ok_or(Err(anyhow!("Default account bytecode should exist")))?;
+        .ok_or_else(|| anyhow!("Default account bytecode should exist"))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let hashes: HashSet<H256> = finished_batch
@@ -269,20 +269,20 @@ async fn get_database_witness_input_data(
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await?
-        .ok_or(Err(anyhow!("L1 block header should exist")))?;
+        .ok_or_else(|| anyhow!("L1 block header should exist"))?;
 
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await?
-        .ok_or(Err(anyhow!("Initial bootloader heap should exist")))?;
+        .ok_or_else(|| anyhow!("Initial bootloader heap should exist"))?;
 
     let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
         .await?
-        .ok_or(Err(anyhow!("Default account bytecode should exist")))?;
+        .ok_or_else(|| anyhow!("Default account bytecode should exist"))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let hashes: HashSet<H256> = block_header
@@ -317,13 +317,13 @@ async fn get_database_witness_input_data(
         .blocks_dal()
         .get_storage_oracle_info(block_header.number)
         .await?
-        .ok_or(Err(anyhow!("Storage oracle info should exist")))?;
+        .ok_or_else(|| anyhow!("Storage oracle info should exist"))?;
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.bootloader)
         .await?
-        .ok_or(Err(anyhow!("Bootloader bytecode should exist")))?;
+        .ok_or_else(|| anyhow!("Bootloader bytecode should exist"))?;
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
 
     Ok(VMRunWitnessInputData {

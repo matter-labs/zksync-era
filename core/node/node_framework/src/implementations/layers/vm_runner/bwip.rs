@@ -37,8 +37,8 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let object_store = context.get_resource::<ObjectStoreResource>().await?;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
+        let object_store = context.get_resource::<ObjectStoreResource>()?;
 
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
@@ -62,11 +62,11 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         )
         .await?;
 
-        context.add_task(Box::new(tasks.loader_task));
-        context.add_task(Box::new(tasks.output_handler_factory_task));
-        context.add_task(Box::new(BasicWitnessInputProducerTask {
+        context.add_task(tasks.loader_task);
+        context.add_task(tasks.output_handler_factory_task);
+        context.add_task(BasicWitnessInputProducerTask {
             basic_witness_input_producer,
-        }));
+        });
         Ok(())
     }
 }

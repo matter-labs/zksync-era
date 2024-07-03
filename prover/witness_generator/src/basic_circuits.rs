@@ -427,7 +427,7 @@ async fn generate_witness(
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
-        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage<'_>>, HistoryDisabled> =
+        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
