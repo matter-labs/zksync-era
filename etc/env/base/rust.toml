@@ -57,6 +57,7 @@ zksync_health_check=debug,\
 zksync_proof_fri_compressor=info,\
 vise_exporter=debug,\
 snapshots_creator=debug,\
+zksync_base_token_adjuster=debug,\
 """
 
 # `RUST_BACKTRACE` variable

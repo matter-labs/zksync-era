@@ -21,6 +21,8 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_ratio_persister::BaseTokenRatioPersisterLayer,
+        base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::{ConsensusLayer, Mode as ConsensusMode},
@@ -57,6 +59,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_types::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -148,6 +151,11 @@ impl MainNodeBuilder {
     }
 
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
+        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
+        if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
+            self.node.add_layer(BaseTokenRatioProviderLayer {});
+        }
+
         let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
@@ -495,6 +503,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.base_token_adjuster);
+        self.node
+            .add_layer(BaseTokenRatioPersisterLayer::new(config));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -584,6 +600,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
+                }
+                Component::BaseTokenRatioPersister => {
+                    self = self.add_base_token_ratio_persister_layer()?;
                 }
             }
         }

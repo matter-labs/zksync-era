@@ -51,7 +51,7 @@ impl Database for MemoryDatabase {
 }
 
 /// An idiomatic way to create a resource is to prepare a wrapper for it.
-/// This way we separate the logic of framework (which is primarily about glueing things together)
+/// This way we separate the logic of the framework (which is primarily about glueing things together)
 /// from an actual logic of the resource.
 #[derive(Clone)]
 struct DatabaseResource(pub Arc<dyn Database>);
