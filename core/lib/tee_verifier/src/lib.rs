@@ -242,12 +242,13 @@ mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_object_store::StoredObject;
+    use zksync_prover_interface::inputs::TeeVerifierInput;
 
     use super::*;
 
     #[test]
     fn test_v1_serialization() {
-        let tvi = TeeVerifierInput::new(
+        let tvi = V1TeeVerifierInput::new(
             PrepareBasicCircuitsJob::new(0),
             vec![],
             L1BatchEnv {
@@ -284,7 +285,7 @@ mod tests {
             },
             vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
         );
-
+        let tvi = TeeVerifierInput::new(tvi);
         let serialized = <TeeVerifierInput as StoredObject>::serialize(&tvi)
             .expect("Failed to serialize TeeVerifierInput.");
         let deserialized: TeeVerifierInput =
