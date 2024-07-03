@@ -358,7 +358,7 @@ impl<'a> Connection<'a> {
     /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
     pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
         let mut state = BatchStoreState {
-            first: attester::BatchNumber(0), // TODO: Is 0 okay for an empty database?
+            first: attester::BatchNumber(0), // TODO: Is 0 okay for an empty database? Maybe look in snapshot_recovery?
             last: None,
         };
 

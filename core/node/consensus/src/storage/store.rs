@@ -511,8 +511,14 @@ impl storage::PersistentBatchStore for Store {
         _ctx: &ctx::Ctx,
         _batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
-        unimplemented!(
-            "This should not be called until we have the stateless L1 batch story completed."
-        )
+        // Currently the gossiping of `SyncBatch` and the `BatchStoreState` is unconditionally started by the `Network::run_stream` in consensus,
+        // and as long as any node reports new batches available by updating the `PersistentBatchStore::persisted` here, the other nodes
+        // will start pulling the corresponding batches, which will end up being passed to this method.
+        // If we return an error here or panic, it will stop the whole consensus task tree due to the way scopes work, so instead just return immediately.
+        // In the future we have to validate the proof agains the L1 state root hash, which IIUC we can't do just yet.
+
+        // Err(anyhow::format_err!("unimplemented: queue_next_batch should not be called until we have the stateless L1 batch story completed.").into())
+
+        Ok(())
     }
 }
