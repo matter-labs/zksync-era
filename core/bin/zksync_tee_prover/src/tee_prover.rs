@@ -12,7 +12,7 @@ use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::api_client::TeeApiClient;
+use crate::{api_client::TeeApiClient, error::TeeProverError};
 
 /// Wiring layer for `TeeProver`
 ///
@@ -55,6 +55,7 @@ impl WiringLayer for TeeProverLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let tee_prover_task = TeeProver {
+            config: Default::default(),
             signing_key: self.signing_key,
             public_key: self.signing_key.public_key(&Secp256k1::new()),
             attestation_quote_bytes: self.attestation_quote_bytes,
@@ -67,6 +68,7 @@ impl WiringLayer for TeeProverLayer {
 }
 
 struct TeeProver {
+    config: TeeProverConfig,
     signing_key: SecretKey,
     public_key: PublicKey,
     attestation_quote_bytes: Vec<u8>,
@@ -75,19 +77,66 @@ struct TeeProver {
 }
 
 impl TeeProver {
-    fn verify(&self, tvi: TeeVerifierInput) -> anyhow::Result<(Signature, L1BatchNumber, H256)> {
+    fn verify(
+        &self,
+        tvi: TeeVerifierInput,
+    ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
         match tvi {
             TeeVerifierInput::V1(tvi) => {
-                let verification_result = tvi.verify()?;
+                let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
                 let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
-                let msg_to_sign = Message::from_slice(root_hash_bytes)?;
+                let msg_to_sign = Message::from_slice(root_hash_bytes)
+                    .map_err(|e| TeeProverError::Verification(e.into()))?;
                 let signature = self.signing_key.sign_ecdsa(msg_to_sign);
                 Ok((signature, batch_number, verification_result.value_hash))
             }
-            _ => Err(anyhow::anyhow!(
+            _ => Err(TeeProverError::Verification(anyhow::anyhow!(
                 "Only TeeVerifierInput::V1 verification supported."
-            )),
+            ))),
+        }
+    }
+
+    async fn step(&self) -> Result<(), TeeProverError> {
+        match self.api_client.get_job().await? {
+            Some(job) => {
+                let (signature, batch_number, root_hash) = self.verify(*job)?;
+                self.api_client
+                    .submit_proof(
+                        batch_number,
+                        signature,
+                        &self.public_key,
+                        root_hash,
+                        self.tee_type,
+                    )
+                    .await?;
+            }
+            None => tracing::trace!("There are currently no pending batches to be proven"),
+        }
+        Ok(())
+    }
+}
+
+/// TEE prover configuration options.
+#[derive(Debug, Clone)]
+pub struct TeeProverConfig {
+    /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
+    /// from [`Self::run()`]).
+    pub max_retries: usize,
+    /// Initial back-off interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// will be multiplied by [`Self.retry_backoff_multiplier`].
+    pub initial_retry_backoff: Duration,
+    pub retry_backoff_multiplier: f32,
+    pub max_backoff: Duration,
+}
+
+impl Default for TeeProverConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 5,
+            initial_retry_backoff: Duration::from_secs(1),
+            retry_backoff_multiplier: 2.0,
+            max_backoff: Duration::from_secs(128),
         }
     }
 }
@@ -105,42 +154,35 @@ impl Task for TeeProver {
             .register_attestation(self.attestation_quote_bytes.clone(), &self.public_key)
             .await?;
 
-        const POLLING_INTERVAL_MS: u64 = 1000;
-        const MAX_BACKOFF_MS: u64 = 60_000;
-        const BACKOFF_MULTIPLIER: u64 = 2;
-
-        let mut backoff: u64 = POLLING_INTERVAL_MS;
+        let mut retries = 1;
+        let mut backoff = self.config.initial_retry_backoff;
 
         loop {
             if *stop_receiver.0.borrow() {
                 tracing::info!("Stop signal received, shutting down TEE Prover component");
                 return Ok(());
             }
-            let job = match self.api_client.get_job().await {
-                Ok(Some(job)) => {
-                    backoff = POLLING_INTERVAL_MS;
-                    job
+            let result = self.step().await;
+            match result {
+                Ok(()) => {
+                    retries = 1;
+                    backoff = self.config.initial_retry_backoff;
                 }
-                Ok(None) => {
-                    tracing::info!("There are currently no pending batches to be proven; backing off for {} ms", backoff);
-                    tokio::time::timeout(Duration::from_millis(backoff), stop_receiver.0.changed())
+                Err(err) => {
+                    if !err.is_transient() || retries > self.config.max_retries {
+                        return Err(err.into());
+                    }
+                    retries += 1;
+                    tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
+                    tokio::time::timeout(backoff, stop_receiver.0.changed())
                         .await
                         .ok();
-                    backoff = (backoff * BACKOFF_MULTIPLIER).min(MAX_BACKOFF_MS);
-                    continue;
+                    backoff = std::cmp::min(
+                        backoff.mul_f32(self.config.retry_backoff_multiplier),
+                        self.config.max_backoff,
+                    );
                 }
-                Err(e) => return Err(e),
-            };
-            let (signature, batch_number, root_hash) = self.verify(*job)?;
-            self.api_client
-                .submit_proof(
-                    batch_number,
-                    signature,
-                    &self.public_key,
-                    root_hash,
-                    self.tee_type,
-                )
-                .await?;
+            }
         }
     }
 }

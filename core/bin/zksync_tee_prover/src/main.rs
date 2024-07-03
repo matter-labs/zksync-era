@@ -9,6 +9,7 @@ use zksync_node_framework::{
 
 mod api_client;
 mod config;
+mod error;
 mod tee_prover;
 
 /// This application serves as a TEE verifier, a.k.a. a TEE prover.

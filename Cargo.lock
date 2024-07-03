@@ -9378,6 +9378,7 @@ dependencies = [
  "reqwest 0.12.5",
  "secp256k1",
  "serde",
+ "thiserror",
  "tokio",
  "tracing",
  "url",

@@ -15,6 +15,7 @@ async-trait.workspace = true
 reqwest.workspace = true
 secp256k1.workspace = true
 serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 url.workspace = true
