@@ -19,7 +19,7 @@ impl Default for BaseTokenAdjusterConfig {
 }
 
 impl BaseTokenAdjusterConfig {
-    pub fn default_interval() -> u64 {
+    fn default_interval() -> u64 {
         DEFAULT_INTERVAL_MS
     }
 }
