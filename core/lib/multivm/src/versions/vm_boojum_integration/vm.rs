@@ -86,7 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// This method should be used only after the batch execution.
     /// Otherwise it can panic.
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_, raw_events, l1_messages) = self.state.event_sink.flatten();
+        let (raw_events, l1_messages) = self.state.event_sink.flatten();
         let events: Vec<_> = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))

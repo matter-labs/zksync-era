@@ -119,7 +119,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_, raw_events, l1_messages) = self.vm.state.event_sink.flatten();
+        let (raw_events, l1_messages) = self.vm.state.event_sink.flatten();
         let events = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
