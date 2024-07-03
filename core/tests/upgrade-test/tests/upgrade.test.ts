@@ -218,20 +218,16 @@ describe('Upgrade test', function () {
         await utils.sleep(2);
     });
 
-    // bh ERROR
     step('Check bootloader is updated on L2', async () => {
         const receipt = await waitForNewL1Batch(alice);
         const batchDetails = await alice.provider.getL1BatchDetails(receipt.l1BatchNumber!);
-        // bh ERROR - Property 'baseSystemContractsHashes' does not exist on type 'BatchDetails'.ts(2339)
         expect(batchDetails.baseSystemContractsHashes.bootloader).to.eq(bootloaderHash);
     });
 
-    // bh ERROR
     step('Finalize upgrade on the target chain', async () => {
         // Wait for batches with old bootloader to be executed on L1.
         let l1BatchNumber = await alice.provider.getL1BatchNumber();
         while (
-            // bh ERROR - Property 'baseSystemContractsHashes' does not exist on type 'BatchDetails'.ts(2339)
             (await alice.provider.getL1BatchDetails(l1BatchNumber)).baseSystemContractsHashes.bootloader ==
             bootloaderHash
         ) {
