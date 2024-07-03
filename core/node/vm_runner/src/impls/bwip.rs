@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -146,26 +147,27 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
         let l1_batch_number = updates_manager.l1_batch.number;
+        let mut connection = self.pool.connection().await?;
 
         tracing::info!(
             "Started saving VM run data for L1 batch {:?}",
             l1_batch_number
         );
 
-        let db_result =
-            get_database_witness_input_data(&mut self.pool.connection().await?, l1_batch_number)
-                .await;
-        let mut result = get_updates_manager_witness_input_data(
-            &mut self.pool.connection().await?,
-            updates_manager.clone(),
-        )
-        .await;
+        let db_result = get_database_witness_input_data(&mut connection, l1_batch_number).await?;
+        let mut result =
+            get_updates_manager_witness_input_data(&mut connection, updates_manager.clone())
+                .await?;
 
         compare_witness_input_data(&db_result, &result);
 
+        let storage_view_cache = updates_manager
+            .storage_view_cache()
+            .expect("Storage view cache was not initialized");
+
         let block_state = WitnessStorageState {
-            read_storage_key: updates_manager.storage_view_cache.read_storage_keys(),
-            is_write_initial: updates_manager.storage_view_cache.initial_writes(),
+            read_storage_key: storage_view_cache.read_storage_keys(),
+            is_write_initial: storage_view_cache.initial_writes(),
         };
 
         result.witness_block_state = block_state;
@@ -174,14 +176,10 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         tracing::info!("Saved VM run data for L1 batch {:?}", l1_batch_number);
 
-        self.pool
-            .connection()
-            .await
-            .unwrap()
+        connection
             .proof_generation_dal()
             .save_vm_runner_artifacts_metadata(l1_batch_number, &blob_url)
-            .await
-            .unwrap();
+            .await?;
 
         Ok(())
     }
@@ -190,13 +188,13 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 async fn get_updates_manager_witness_input_data(
     connection: &mut Connection<'_, Core>,
     updates_manager: Arc<UpdatesManager>,
-) -> VMRunWitnessInputData {
+) -> anyhow::Result<VMRunWitnessInputData> {
     let l1_batch_number = updates_manager.l1_batch.number.clone();
     let finished_batch = updates_manager
         .l1_batch
         .finished
         .clone()
-        .expect(format!("L1 batch {l1_batch_number:?} is not finished").as_str());
+        .ok_or(Err(anyhow!("L1 batch {l1_batch_number:?} is not finished")))?;
 
     let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
     let default_aa = updates_manager
@@ -210,18 +208,16 @@ async fn get_updates_manager_witness_input_data(
     let bootloader_code_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(bootloader)
-        .await
-        .expect("Failed fetching bootloader bytecode from DB")
-        .expect("Bootloader bytecode should exist");
+        .await?
+        .ok_or(Err(anyhow!("Failed fetching bootloader bytecode from DB")))?;
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
 
     let account_code_hash = h256_to_u256(default_aa);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(default_aa)
-        .await
-        .expect("Failed fetching default account bytecode from DB")
-        .expect("Default account bytecode should exist");
+        .await?
+        .ok_or(Err(anyhow!("Default account bytecode should exist")))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let hashes: HashSet<H256> = finished_batch
@@ -247,7 +243,7 @@ async fn get_updates_manager_witness_input_data(
     let storage_refunds = finished_batch.final_execution_state.storage_refunds;
     let pubdata_costs = Some(finished_batch.final_execution_state.pubdata_costs);
 
-    VMRunWitnessInputData {
+    Ok(VMRunWitnessInputData {
         l1_batch_number,
         previous_aux_hash: None,
         previous_meta_hash: None,
@@ -262,34 +258,31 @@ async fn get_updates_manager_witness_input_data(
         storage_refunds,
         pubdata_costs: pubdata_costs.unwrap(),
         witness_block_state: WitnessStorageState::default(),
-    }
+    })
 }
 
 async fn get_database_witness_input_data(
     connection: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
-) -> VMRunWitnessInputData {
+) -> anyhow::Result<VMRunWitnessInputData> {
     let block_header = connection
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
+        .await?
+        .ok_or(Err(anyhow!("L1 block header should exist")))?;
 
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
-        .await
-        .unwrap()
-        .unwrap();
+        .await?
+        .ok_or(Err(anyhow!("Initial bootloader heap should exist")))?;
 
     let account_code_hash = h256_to_u256(block_header.base_system_contracts_hashes.default_aa);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.default_aa)
-        .await
-        .expect("Failed fetching default account bytecode from DB")
-        .expect("Default account bytecode should exist");
+        .await?
+        .ok_or(Err(anyhow!("Default account bytecode should exist")))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
     let hashes: HashSet<H256> = block_header
@@ -323,19 +316,17 @@ async fn get_database_witness_input_data(
     } = connection
         .blocks_dal()
         .get_storage_oracle_info(block_header.number)
-        .await
-        .unwrap()
-        .unwrap();
+        .await?
+        .ok_or(Err(anyhow!("Storage oracle info should exist")))?;
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(block_header.base_system_contracts_hashes.bootloader)
-        .await
-        .expect("Failed fetching bootloader bytecode from DB")
-        .expect("Bootloader bytecode should exist");
+        .await?
+        .ok_or(Err(anyhow!("Bootloader bytecode should exist")))?;
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
 
-    VMRunWitnessInputData {
+    Ok(VMRunWitnessInputData {
         l1_batch_number: block_header.number,
         previous_root_hash: None,
         previous_meta_hash: None,
@@ -352,7 +343,7 @@ async fn get_database_witness_input_data(
         storage_refunds,
         pubdata_costs: pubdata_costs.unwrap(),
         witness_block_state: WitnessStorageState::default(),
-    }
+    })
 }
 
 fn compare_witness_input_data(db_result: &VMRunWitnessInputData, result: &VMRunWitnessInputData) {

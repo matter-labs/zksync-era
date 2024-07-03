@@ -48,8 +48,8 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
             // to DB for querying last processed batch and last ready to be loaded batch.
             //
             // `window_size` connections for `BasicWitnessInputProducer`
-            // as there can be multiple output handlers holding multi-second connections to write
-            // large amount of protective reads.
+            // as there can be multiple output handlers holding multi-second connections to process
+            // BWIP data.
             master_pool
                 .get_custom(self.basic_witness_input_producer_config.window_size + 2)
                 .await?,
