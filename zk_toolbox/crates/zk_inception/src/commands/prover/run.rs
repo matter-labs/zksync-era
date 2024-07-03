@@ -102,7 +102,7 @@ fn run_compressor(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin --features gpu zksync_proof_fri_compressor -- --config-path={config_path} --secrets-path={secrets_path}"));
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --features gpu --release --bin zksync_proof_fri_compressor -- --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_RUNNING_COMPRESSOR_ERR)
 }
