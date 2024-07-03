@@ -78,7 +78,7 @@ impl<S: ReadStorage> Vm<S> {
         execution_mode: VmExecutionMode,
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
-        let mut refund = Refunds {
+        let mut refunds = Refunds {
             gas_refunded: 0,
             operator_suggested_refund: 0,
         };
@@ -147,7 +147,7 @@ impl<S: ReadStorage> Vm<S> {
 
                         let pubdata_published = self.inner.world_diff.pubdata.0 as u32;
 
-                        refund.operator_suggested_refund = compute_refund(
+                        refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
                             bootloader_refund.as_u64(),
                             gas_spent_on_pubdata.as_u64(),
@@ -163,7 +163,7 @@ impl<S: ReadStorage> Vm<S> {
                         );
 
                         pubdata_before = pubdata_published;
-                        let refund_value = refund.operator_suggested_refund;
+                        let refund_value = refunds.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
                             OPERATOR_REFUNDS_OFFSET + current_tx_index,
                             refund_value.into(),
@@ -174,7 +174,7 @@ impl<S: ReadStorage> Vm<S> {
                 }
                 NotifyAboutRefund => {
                     if track_refunds {
-                        refund.gas_refunded = self.get_hook_params()[0].low_u64()
+                        refunds.gas_refunded = self.get_hook_params()[0].low_u64()
                     }
                 }
                 PostResult => {
@@ -260,7 +260,7 @@ impl<S: ReadStorage> Vm<S> {
             }
         };
 
-        (result, refund)
+        (result, refunds)
     }
 
     fn run_account_validation(&mut self) -> Result<(), ()> {
@@ -496,16 +496,27 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
-        if let VmExecutionMode::OneTx = execution_mode {
+        if matches!(execution_mode, VmExecutionMode::OneTx) {
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
             track_refunds = true;
+            // Create a snapshot to roll back the bootloader call frame on halt.
+            self.make_snapshot();
         }
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata.0;
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
+        if matches!(execution_mode, VmExecutionMode::OneTx) {
+            if matches!(result, ExecutionResult::Halt { .. }) {
+                // Only `Halt`ed executions need a rollback; `Revert`s are correctly handled by the bootloader
+                // so the bootloader / system contract state should be persisted.
+                self.rollback_to_the_latest_snapshot();
+            } else {
+                self.pop_snapshot_no_rollback();
+            }
+        }
 
         let events = merge_events(
             self.inner.world_diff.events_after(&start),
@@ -569,20 +580,18 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (
-        Result<(), crate::interface::BytecodeCompressionError>,
+        Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     ) {
         self.push_transaction_inner(tx, 0, with_compression);
         let result = self.inspect(tracer, VmExecutionMode::OneTx);
 
-        if self.has_unpublished_bytecodes() {
-            (
-                Err(BytecodeCompressionError::BytecodeCompressionFailed),
-                result,
-            )
+        let compression_result = if self.has_unpublished_bytecodes() {
+            Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {
-            (Ok(()), result)
-        }
+            Ok(())
+        };
+        (compression_result, result)
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {

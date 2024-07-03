@@ -318,6 +318,9 @@ impl UniqueStorageLogs {
                 unique_logs.insert(log.log.key, *log);
             }
         }
+
+        // Remove no-op write logs (i.e., X -> X writes) produced by the old VM.
+        unique_logs.retain(|_, log| log.previous_value != log.log.value);
         Self(unique_logs)
     }
 }
