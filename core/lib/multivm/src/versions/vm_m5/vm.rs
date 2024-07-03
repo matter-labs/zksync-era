@@ -119,7 +119,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_full_history, raw_events, l1_messages) = self.vm.state.event_sink.flatten();
+        let (_, raw_events, l1_messages) = self.vm.state.event_sink.flatten();
         let events = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
@@ -137,14 +137,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 })
             })
             .collect();
-        let total_log_queries = self.vm.state.event_sink.get_log_queries()
-            + self
-                .vm
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.vm.get_final_log_queries().len();
 
         let used_contract_hashes = self
             .vm
@@ -182,10 +174,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             used_contract_hashes,
             system_logs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
-            total_log_queries,
-            cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for `vm5`
-            deduplicated_events_logs: vec![],
+            // Fields below are not produced by `vm5`
             storage_refunds: vec![],
             pubdata_costs: vec![],
         }

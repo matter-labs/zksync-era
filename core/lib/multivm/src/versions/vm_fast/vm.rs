@@ -639,9 +639,6 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .map(|x| x.glue_into())
                 .collect(),
             user_l2_to_l1_logs,
-            total_log_queries: 0,
-            cycles_used: 0,
-            deduplicated_events_logs: vec![],
             storage_refunds: vec![],
             pubdata_costs: vec![],
         }

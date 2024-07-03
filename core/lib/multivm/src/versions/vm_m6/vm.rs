@@ -153,14 +153,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 })
             })
             .collect();
-        let total_log_queries = self.vm.state.event_sink.get_log_queries()
-            + self
-                .vm
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.vm.get_final_log_queries().len();
 
         let used_contract_hashes = self
             .vm
@@ -196,13 +188,10 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             used_contract_hashes,
-            system_logs: vec![],
-            total_log_queries,
-            cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for `vm6`
-            deduplicated_events_logs: vec![],
-            storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
+            // Fields below are not produced by `vm6`
+            system_logs: vec![],
+            storage_refunds: vec![],
             pubdata_costs: vec![],
         }
     }

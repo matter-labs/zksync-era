@@ -83,7 +83,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// This method should be used only after the batch execution.
     /// Otherwise it can panic.
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (deduplicated_events_logs, raw_events, l1_messages) = self.state.event_sink.flatten();
+        let (_, raw_events, l1_messages) = self.state.event_sink.flatten();
         let events: Vec<_> = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
@@ -93,13 +93,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .into_iter()
             .map(|log| UserL2ToL1Log(log.glue_into()))
             .collect();
-        let total_log_queries = self.state.event_sink.get_log_queries()
-            + self
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.state.storage.get_final_log_queries().len();
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
 
@@ -115,12 +108,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             used_contract_hashes: self.get_used_contracts(),
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
-            total_log_queries,
-            cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs: deduplicated_events_logs
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             storage_refunds: Vec::new(),
             pubdata_costs: Vec::new(),
         }
