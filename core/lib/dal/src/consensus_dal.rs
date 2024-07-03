@@ -423,8 +423,9 @@ impl ConsensusDal<'_, '_> {
             .ok_or(E::MissingPayload)?;
 
         // TODO: Verify that the certificate matches the stored batch:
-        // * Add the hash of the batch to the `BatchQC`
-        // * How do we match the `L1BatchHeader` to an `attester::SyncBatch`? Do we need metadata as well?
+        // * add the hash of the batch to the `BatchQC`
+        // * find out which field in the `l1_batches` table contains the hash we need to match
+        // * ideally move the responsibility of validation outside this method
 
         // if header.payload != want_payload.encode().hash() {
         //     return Err(E::PayloadMismatch);

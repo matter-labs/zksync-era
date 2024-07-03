@@ -357,20 +357,15 @@ impl<'a> Connection<'a> {
 
     /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
     pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
-        let mut state = BatchStoreState {
-            first: attester::BatchNumber(0), // TODO: Is 0 okay for an empty database? Maybe look in snapshot_recovery?
-            last: None,
-        };
-
-        if let Some(first) = self
+        // TODO: Is 0 okay for an empty database? Maybe look in snapshot_recovery?
+        let first = self
             .0
             .blocks_dal()
             .get_earliest_l1_batch_number()
             .await
             .context("get_earliest_l1_batch_number()")?
-        {
-            state.first.0 = first.0 as u64;
-        }
+            .map(|n| attester::BatchNumber(n.0 as u64))
+            .unwrap_or(attester::BatchNumber(0));
 
         // TODO: In the future when we start filling in the `SyncBatch::proof` field,
         // we can only run `get_batch` expecting `Some` result on numbers where the
@@ -380,22 +375,25 @@ impl<'a> Connection<'a> {
         // call `get_last_batch_number` here, but something that indicates that
         // the hashes/commitments on the L1 batch are ready and the thing has
         // been included in L1; that potentially requires an API client as well.
-        if let Some(last) = self
+        let last = self
             .get_last_batch_number(ctx)
             .await
-            .context("get_last_batch_number()")?
-        {
+            .context("get_last_batch_number()")?;
+
+        let last = if let Some(last) = last {
             // For now it would be unexpected if we couldn't retrieve the payloads
             // for the `last` batch number, as an L1 batch is only created if we
             // have all the L2 miniblocks for it.
-            state.last = Some(
+            Some(
                 self.get_batch(ctx, last)
                     .await
                     .context("get_batch()")?
                     .context("last batch not available")?,
-            );
-        }
+            )
+        } else {
+            None
+        };
 
-        Ok(state)
+        Ok(BatchStoreState { first, last })
     }
 }
