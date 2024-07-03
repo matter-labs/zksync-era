@@ -113,10 +113,6 @@ async fn request_tee_proof_inputs() {
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let json = json
-        .get("Success")
-        .expect("Unexpected response format")
-        .clone();
     let deserialized: TeeVerifierInput = serde_json::from_value(json).unwrap();
 
     assert_eq!(tvi, deserialized);
