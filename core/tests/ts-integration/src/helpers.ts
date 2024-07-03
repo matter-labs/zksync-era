@@ -4,6 +4,8 @@ import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 
+export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
+
 /**
  * Loads the test contract
  *
@@ -22,7 +24,7 @@ export function getTestContract(name: string): ZkSyncArtifact {
  * @returns Conta
  */
 export function getContractSource(relativePath: string): string {
-    const contractPath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/${relativePath}`;
+    const contractPath = `${__dirname}/../contracts/${relativePath}`;
     const source = fs.readFileSync(contractPath, 'utf8');
     return source;
 }
@@ -45,8 +47,8 @@ export async function deployContract(
     overrides: any = {}
 ): Promise<zksync.Contract> {
     const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, initiator, deploymentType);
-    const contract = await contractFactory.deploy(...args, overrides);
-    await contract.deployed();
+    const contract = (await contractFactory.deploy(...args, overrides)) as zksync.Contract;
+    await contract.waitForDeployment();
     return contract;
 }
 
@@ -57,12 +59,12 @@ export async function deployContract(
  * @param wallet Wallet to send a transaction from. Should have enough balance to cover the fee.
  * @returns Transaction receipt.
  */
-export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.providers.TransactionReceipt> {
+export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.TransactionReceipt> {
     return await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
 }
 
 /**
- * Waits until a new L1 batch is created on zkSync node.
+ * Waits until a new L1 batch is created on ZKsync node.
  * This function attempts to trigger this action by sending an additional transaction,
  * however it may not be enough in some env (e.g. if some testnet is configured to utilize the block capacity).
  *
@@ -72,11 +74,12 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
     // Send a dummy transaction and wait until the new L1 batch is created.
     const oldReceipt = await anyTransaction(wallet);
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash)).l1BatchNumber) {
+    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash))?.l1BatchNumber) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
-    return await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash);
+    return (await wallet.provider.getTransactionReceipt(oldReceipt.hash))!;
 }
+
 /**
  * Waits until the requested block is finalized.
  *
@@ -100,8 +103,41 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
  * @param wallet Wallet to use to fetch the gas price.
  * @returns Scaled gas price.
  */
-export async function scaledGasPrice(wallet: ethers.Wallet | zksync.Wallet): Promise<ethers.BigNumber> {
-    const gasPrice = await wallet.getGasPrice();
+export async function scaledGasPrice(wallet: ethers.Wallet | zksync.Wallet): Promise<bigint> {
+    const provider = wallet.provider;
+    if (!provider) {
+        throw new Error('Wallet should have provider');
+    }
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice;
+    if (!gasPrice) {
+        throw new Error('Failed to fetch gas price');
+    }
     // Increase by 40%
-    return gasPrice.mul(140).div(100);
+    return (gasPrice * 140n) / 100n;
+}
+
+export const bigIntReviver = (_: string, value: any) => {
+    if (typeof value === 'string' && value.endsWith('n')) {
+        const number = value.slice(0, -1);
+        if (/^-?\d+$/.test(number)) {
+            return BigInt(number);
+        }
+    }
+    return value;
+};
+
+export const bigIntReplacer = (_: string, value: any) => {
+    if (typeof value === 'bigint') {
+        return `${value}n`;
+    }
+    return value;
+};
+
+export function bigIntMax(...args: bigint[]) {
+    if (args.length === 0) {
+        throw new Error('No arguments provided');
+    }
+
+    return args.reduce((max, current) => (current > max ? current : max), args[0]);
 }

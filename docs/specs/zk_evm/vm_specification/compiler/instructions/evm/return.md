@@ -12,7 +12,7 @@ is common for Yul and EVMLA representations.
 ## [RETURN](https://www.evm.codes/#f3?fork=shanghai)
 
 This instruction works differently in deploy code. For more information, see
-[the zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#return).
+[the ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#return-stop).
 
 ### LLVM IR
 

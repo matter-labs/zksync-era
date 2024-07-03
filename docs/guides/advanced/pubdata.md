@@ -1,6 +1,6 @@
 # Overview
 
-Pubdata in zkSync can be divided up into 4 different categories:
+Pubdata in ZKsync can be divided up into 4 different categories:
 
 1. L2 to L1 Logs
 2. L2 to L1 Messages
@@ -12,14 +12,14 @@ One thing to note is that the way that the data is represented changes in a pre-
 level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single bytes
 array.
 
-> Note: Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
+> Note: When the 4844 was integrated this bytes array was moved from being part of the calldata to blob data.
 
 While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
-need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks` transactions where the
-proposed block has been referenced by a corresponding `executeBlocks` call (the reason for this is that a committed or
-even proven block can be reverted but an executed one cannot). Once we have all the committed blocks that have been
-executed, we then will pull the transaction input and the relevant fields, applying them in order to reconstruct the
-current state of L2.
+need to filter all of the transactions to the L1 ZKsync contract for only the `commitBlocks/commitBatches` transactions
+where the proposed block has been referenced by a corresponding `executeBlocks/executeBatches` call (the reason for this
+is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
+blocks that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
+to reconstruct the current state of L2.
 
 One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
 each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done [here](./compression.md). Once
@@ -90,35 +90,44 @@ id generated as part of a batch will be in the `indexRepeatedStorageChanges` fie
 ### Post-Boojum Era
 
 ```solidity
-/// @notice Data needed to commit new block
-/// @param blockNumber Number of the committed block
-/// @param timestamp Unix timestamp denoting the start of the block execution
+/// @notice Data needed to commit new batch
+/// @param batchNumber Number of the committed batch
+/// @param timestamp Unix timestamp denoting the start of the batch execution
 /// @param indexRepeatedStorageChanges The serial number of the shortcut index that's used as a unique identifier for storage keys that were used twice or more
 /// @param newStateRoot The state root of the full state tree
 /// @param numberOfLayer1Txs Number of priority operations to be processed
-/// @param priorityOperationsHash Hash of all priority operations from this block
-/// @param systemLogs concatenation of all L2 -> L1 system logs in the block
-/// @param totalL2ToL1Pubdata Total pubdata committed to as part of bootloader run. Contents are: l2Tol1Logs <> l2Tol1Messages <> publishedBytecodes <> stateDiffs
-struct CommitBlockInfo {
-  uint64 blockNumber;
+/// @param priorityOperationsHash Hash of all priority operations from this batch
+/// @param bootloaderHeapInitialContentsHash Hash of the initial contents of the bootloader heap. In practice it serves as the commitment to the transactions in the batch.
+/// @param eventsQueueStateHash Hash of the events queue state. In practice it serves as the commitment to the events in the batch.
+/// @param systemLogs concatenation of all L2 -> L1 system logs in the batch
+/// @param pubdataCommitments Packed pubdata commitments/data.
+/// @dev pubdataCommitments format: This will always start with a 1 byte pubdataSource flag. Current allowed values are 0 (calldata) or 1 (blobs)
+///                             kzg: list of: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || proof (48 bytes) = 144 bytes
+///                             calldata: pubdataCommitments.length - 1 - 32 bytes of pubdata
+///                                       and 32 bytes appended to serve as the blob commitment part for the aux output part of the batch commitment
+/// @dev For 2 blobs we will be sending 288 bytes of calldata instead of the full amount for pubdata.
+/// @dev When using calldata, we only need to send one blob commitment since the max number of bytes in calldata fits in a single blob and we can pull the
+///     linear hash from the system logs
+struct CommitBatchInfo {
+  uint64 batchNumber;
   uint64 timestamp;
   uint64 indexRepeatedStorageChanges;
   bytes32 newStateRoot;
   uint256 numberOfLayer1Txs;
   bytes32 priorityOperationsHash;
+  bytes32 bootloaderHeapInitialContentsHash;
+  bytes32 eventsQueueStateHash;
   bytes systemLogs;
-  bytes totalL2ToL1Pubdata;
+  bytes pubdataCommitments;
 }
 
 ```
 
-The main difference between the two `CommitBlockInfo` structs is that we have taken a few of the fields and merged them
-into a single bytes array called `totalL2ToL1Pubdata`. The contents of pubdata include:
-
-1. L2 to L1 Logs
-2. L2 to L1 Messages
-3. Published Bytecodes
-4. Compressed State Diffs
+The main difference between the two `CommitBatchInfo` and `CommitBlockInfo` structs is that we have taken a few of the
+fields and merged them into a single bytes array called `pubdataCommitments`. In the `calldata` mode, the pubdata is
+being passed using that field. In the `blobs` mode, that field is used to store the KZG commitments and proofs. More on
+EIP-4844 blobs [here](./pubdata-with-blobs.md). In the Validium mode, the field will either be empty or store the
+inclusion proof for the DA blob.
 
 The 2 main fields needed for state reconstruction are the bytecodes and the state diffs. The bytecodes follow the same
 structure and reasoning in the old system (as explained above). The state diffs will follow the compression illustrated

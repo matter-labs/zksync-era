@@ -120,8 +120,8 @@ mod tests {
 
     #[test]
     fn entries_in_empty_tree() {
-        let mut tree = MerkleTree::new(PatchSet::default());
-        tree.extend(vec![]);
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        tree.extend(vec![]).unwrap();
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[missing_key]).unwrap();
@@ -131,14 +131,18 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, tree.hasher.empty_tree_hash());
+        entries[0]
+            .verify(&tree.hasher, tree.hasher.empty_tree_hash())
+            .unwrap();
     }
 
     #[test]
     fn entries_in_single_node_tree() {
-        let mut tree = MerkleTree::new(PatchSet::default());
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
         let key = Key::from(987_654);
-        let output = tree.extend(vec![TreeEntry::new(key, 1, ValueHash::repeat_byte(1))]);
+        let output = tree
+            .extend(vec![TreeEntry::new(key, 1, ValueHash::repeat_byte(1))])
+            .unwrap();
         let missing_key = Key::from(123);
 
         let entries = tree.entries(0, &[key, missing_key]).unwrap();
@@ -149,8 +153,8 @@ mod tests {
         let entries = tree.entries_with_proofs(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(!entries[0].base.is_empty());
-        entries[0].verify(&tree.hasher, output.root_hash);
+        entries[0].verify(&tree.hasher, output.root_hash).unwrap();
         assert!(entries[1].base.is_empty());
-        entries[1].verify(&tree.hasher, output.root_hash);
+        entries[1].verify(&tree.hasher, output.root_hash).unwrap();
     }
 }

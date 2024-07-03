@@ -1,22 +1,19 @@
 use std::{str::FromStr, time::Duration};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use zksync_basic_types::{
-    ethabi,
-    network::Network,
-    web3::contract::{Detokenize, Error as Web3ContractError},
-    Address, L2ChainId, H256, U256,
+    commitment::L1BatchCommitmentMode, network::Network, Address, L2ChainId, H256,
 };
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
     /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
     pub network: Network,
-    /// Name of current zkSync network
+    /// Name of current ZKsync network
     /// Used for Sentry environment
     pub zksync_network: String,
-    /// ID of current zkSync network treated as ETH network ID.
-    /// Used to distinguish zkSync from other Web3-capable networks.
+    /// ID of current ZKsync network treated as ETH network ID.
+    /// Used to distinguish ZKsync from other Web3-capable networks.
     pub zksync_network_id: L2ChainId,
 }
 
@@ -32,10 +29,10 @@ impl NetworkConfig {
 }
 
 /// An enum that represents the version of the fee model to use.
-///  - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 ///  Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 ///  processing the batch on L1.
-///  - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 ///  The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 ///  processing the batch on L1.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -47,40 +44,6 @@ pub enum FeeModelVersion {
 impl Default for FeeModelVersion {
     fn default() -> Self {
         Self::V1
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub enum L1BatchCommitDataGeneratorMode {
-    #[default]
-    Rollup,
-    Validium,
-}
-
-// The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
-// And knowing that, in Ethereum, the response is the index of the enum case.
-// 0 corresponds to Rollup case,
-// 1 corresponds to Validium case,
-// Other values are incorrect.
-impl Detokenize for L1BatchCommitDataGeneratorMode {
-    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
-        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
-            let message = format!("L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}");
-            Web3ContractError::InvalidOutputType(message)
-        }
-
-        match tokens.as_slice() {
-            [ethabi::Token::Uint(enum_value)] => {
-                if enum_value == &U256::zero() {
-                    Ok(L1BatchCommitDataGeneratorMode::Rollup)
-                } else if enum_value == &U256::one() {
-                    Ok(L1BatchCommitDataGeneratorMode::Validium)
-                } else {
-                    Err(error(&tokens))
-                }
-            }
-            _ => Err(error(&tokens)),
-        }
     }
 }
 
@@ -142,7 +105,12 @@ pub struct StateKeeperConfig {
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
     pub max_gas_per_batch: u64,
-    /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+    /// The maximum amount of pubdata that can be used by the batch.
+    /// This variable should not exceed:
+    /// - 128kb for calldata-based rollups
+    /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
+    /// - the DA layer's blob size limit for the DA layer-based validiums
+    /// - 100 MB for the object store-based or no-da validiums
     pub max_pubdata_per_batch: u64,
 
     /// The version of the fee model to use.
@@ -157,6 +125,12 @@ pub struct StateKeeperConfig {
     /// the recursion layers' circuits.
     pub max_circuits_per_batch: usize,
 
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads can be written asynchronously in VM runner instead.
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "StateKeeperConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
+
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
@@ -165,10 +139,14 @@ pub struct StateKeeperConfig {
     pub default_aa_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 impl StateKeeperConfig {
+    fn default_protective_reads_persistence_enabled() -> bool {
+        true
+    }
+
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
@@ -200,9 +178,10 @@ impl StateKeeperConfig {
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
             bootloader_hash: None,
             default_aa_hash: None,
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
         }
     }
 }

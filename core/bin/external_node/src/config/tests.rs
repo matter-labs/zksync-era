@@ -42,12 +42,12 @@ fn parsing_observability_config() {
     assert_eq!(config.prometheus_port, Some(3322));
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/");
     assert_eq!(config.sentry_environment.unwrap(), "mainnet - mainnet2");
-    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_matches!(config.log_format, zksync_vlog::LogFormat::Plain);
     assert_eq!(config.prometheus_push_interval_ms, 10_000);
 
     env_vars.0.insert("MISC_LOG_FORMAT", "json");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, vlog::LogFormat::Json);
+    assert_matches!(config.log_format, zksync_vlog::LogFormat::Json);
 
     // If both the canonical and obsolete vars are specified, the canonical one should prevail.
     env_vars.0.insert("EN_LOG_FORMAT", "plain");
@@ -55,7 +55,7 @@ fn parsing_observability_config() {
         .0
         .insert("EN_SENTRY_URL", "https://example.com/new");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_matches!(config.log_format, zksync_vlog::LogFormat::Plain);
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/new");
 }
 
@@ -73,9 +73,9 @@ fn parsing_optional_config_from_empty_env() {
     assert_eq!(config.subscriptions_limit, 10_000);
     assert_eq!(config.fee_history_limit, 1_024);
     assert_eq!(config.polling_interval(), Duration::from_millis(200));
-    assert_eq!(config.max_tx_size, 1_000_000);
+    assert_eq!(config.max_tx_size_bytes, 1_000_000);
     assert_eq!(
-        config.metadata_calculator_delay(),
+        config.merkle_tree_processing_delay(),
         Duration::from_millis(100)
     );
     assert_eq!(config.max_nonce_ahead, 50);
@@ -98,7 +98,7 @@ fn parsing_optional_config_from_empty_env() {
     );
     assert_eq!(
         config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitDataGeneratorMode::Rollup
+        L1BatchCommitmentMode::Rollup
     );
 }
 
@@ -136,9 +136,9 @@ fn parsing_optional_config_from_env() {
     assert_eq!(config.subscriptions_limit, 20_000);
     assert_eq!(config.fee_history_limit, 1_000);
     assert_eq!(config.polling_interval(), Duration::from_millis(500));
-    assert_eq!(config.max_tx_size, BYTES_IN_MEGABYTE);
+    assert_eq!(config.max_tx_size_bytes, BYTES_IN_MEGABYTE);
     assert_eq!(
-        config.metadata_calculator_delay(),
+        config.merkle_tree_processing_delay(),
         Duration::from_millis(50)
     );
     assert_eq!(config.max_nonce_ahead, 100);
@@ -168,8 +168,27 @@ fn parsing_optional_config_from_env() {
     );
     assert_eq!(
         config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitDataGeneratorMode::Validium
+        L1BatchCommitmentMode::Validium
     );
+}
+
+#[test]
+fn parsing_renamed_optional_parameters() {
+    let env_vars = [
+        ("EN_MAX_TX_SIZE_BYTES", "100000"),
+        ("EN_PUBSUB_POLLING_INTERVAL_MS", "250"),
+        ("EN_MEMPOOL_CACHE_UPDATE_INTERVAL_MS", "100"),
+        ("EN_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER", "15"),
+    ];
+    let env_vars = env_vars
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value.to_owned()));
+
+    let config: OptionalENConfig = envy::prefixed("EN_").from_iter(env_vars).unwrap();
+    assert_eq!(config.max_tx_size_bytes, 100_000);
+    assert_eq!(config.pubsub_polling_interval_ms, 250);
+    assert_eq!(config.mempool_cache_update_interval_ms, 100);
+    assert_eq!(config.merkle_tree_max_l1_batches_per_iter, 15);
 }
 
 #[test]

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                vm_runner_protective_reads (l1_batch_number, created_at, updated_at)\n            VALUES\n                ($1, NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2f1b6c4f4686b423a4c449c56e1687e91d8367347b3830830a4c76407d60bc5"
+}

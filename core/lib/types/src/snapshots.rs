@@ -25,6 +25,9 @@ pub struct AllSnapshots {
 pub enum SnapshotVersion {
     /// Initial snapshot version. Keys in storage logs are stored as `(address, key)` pairs.
     Version0 = 0,
+    /// Snapshot version made compatible with L1 recovery. Differs from `Version0` by including
+    /// hashed keys in storage logs instead of `(address, key)` pairs.
+    Version1 = 1,
 }
 
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
@@ -79,16 +82,31 @@ pub struct SnapshotStorageLogsStorageKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SnapshotStorageLogsChunk {
-    pub storage_logs: Vec<SnapshotStorageLog>,
+pub struct SnapshotStorageLogsChunk<K = H256> {
+    pub storage_logs: Vec<SnapshotStorageLog<K>>,
 }
 
+/// Storage log record in a storage snapshot.
+///
+/// Version 0 and version 1 snapshots differ in the key type; version 0 uses full [`StorageKey`]s (i.e., storage key preimages),
+/// and version 1 uses [`H256`] hashed keys. See [`SnapshotVersion`] for details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SnapshotStorageLog {
-    pub key: StorageKey,
+pub struct SnapshotStorageLog<K = H256> {
+    pub key: K,
     pub value: StorageValue,
     pub l1_batch_number_of_initial_write: L1BatchNumber,
     pub enumeration_index: u64,
+}
+
+impl SnapshotStorageLog<StorageKey> {
+    pub fn drop_key_preimage(self) -> SnapshotStorageLog {
+        SnapshotStorageLog {
+            key: self.key.hashed_key(),
+            value: self.value,
+            l1_batch_number_of_initial_write: self.l1_batch_number_of_initial_write,
+            enumeration_index: self.enumeration_index,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -144,17 +162,22 @@ impl ProtoFmt for SnapshotStorageLog {
     type Proto = crate::proto::SnapshotStorageLog;
 
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let hashed_key = if let Some(hashed_key) = &r.hashed_key {
+            <[u8; 32]>::try_from(hashed_key.as_slice())
+                .context("hashed_key")?
+                .into()
+        } else {
+            let address = required(&r.account_address)
+                .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
+                .context("account_address")?;
+            let key = required(&r.storage_key)
+                .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+                .context("storage_key")?;
+            StorageKey::new(AccountTreeId::new(address), key).hashed_key()
+        };
+
         Ok(Self {
-            key: StorageKey::new(
-                AccountTreeId::new(
-                    required(&r.account_address)
-                        .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
-                        .context("account_address")?,
-                ),
-                required(&r.storage_key)
-                    .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
-                    .context("storage_key")?,
-            ),
+            key: hashed_key,
             value: required(&r.storage_value)
                 .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
                 .context("storage_value")?,
@@ -168,23 +191,63 @@ impl ProtoFmt for SnapshotStorageLog {
 
     fn build(&self) -> Self::Proto {
         Self::Proto {
-            account_address: Some(self.key.address().as_bytes().into()),
-            storage_key: Some(self.key.key().as_bytes().into()),
-            storage_value: Some(self.value.as_bytes().into()),
+            account_address: None,
+            storage_key: None,
+            hashed_key: Some(self.key.as_bytes().to_vec()),
+            storage_value: Some(self.value.as_bytes().to_vec()),
             l1_batch_number_of_initial_write: Some(self.l1_batch_number_of_initial_write.0),
             enumeration_index: Some(self.enumeration_index),
         }
     }
 }
 
-impl ProtoFmt for SnapshotStorageLogsChunk {
+impl ProtoFmt for SnapshotStorageLog<StorageKey> {
+    type Proto = crate::proto::SnapshotStorageLog;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let address = required(&r.account_address)
+            .and_then(|bytes| Ok(<[u8; 20]>::try_from(bytes.as_slice())?.into()))
+            .context("account_address")?;
+        let key = required(&r.storage_key)
+            .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+            .context("storage_key")?;
+
+        Ok(Self {
+            key: StorageKey::new(AccountTreeId::new(address), key),
+            value: required(&r.storage_value)
+                .and_then(|bytes| Ok(<[u8; 32]>::try_from(bytes.as_slice())?.into()))
+                .context("storage_value")?,
+            l1_batch_number_of_initial_write: L1BatchNumber(
+                *required(&r.l1_batch_number_of_initial_write)
+                    .context("l1_batch_number_of_initial_write")?,
+            ),
+            enumeration_index: *required(&r.enumeration_index).context("enumeration_index")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            account_address: Some(self.key.address().as_bytes().to_vec()),
+            storage_key: Some(self.key.key().as_bytes().to_vec()),
+            hashed_key: None,
+            storage_value: Some(self.value.as_bytes().to_vec()),
+            l1_batch_number_of_initial_write: Some(self.l1_batch_number_of_initial_write.0),
+            enumeration_index: Some(self.enumeration_index),
+        }
+    }
+}
+
+impl<K> ProtoFmt for SnapshotStorageLogsChunk<K>
+where
+    SnapshotStorageLog<K>: ProtoFmt<Proto = crate::proto::SnapshotStorageLog>,
+{
     type Proto = crate::proto::SnapshotStorageLogsChunk;
 
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         let mut storage_logs = Vec::with_capacity(r.storage_logs.len());
         for (i, storage_log) in r.storage_logs.iter().enumerate() {
             storage_logs.push(
-                SnapshotStorageLog::read(storage_log)
+                SnapshotStorageLog::<K>::read(storage_log)
                     .with_context(|| format!("storage_log[{i}]"))?,
             )
         }
@@ -196,7 +259,7 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
             storage_logs: self
                 .storage_logs
                 .iter()
-                .map(SnapshotStorageLog::build)
+                .map(SnapshotStorageLog::<K>::build)
                 .collect(),
         }
     }

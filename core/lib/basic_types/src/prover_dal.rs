@@ -10,10 +10,6 @@ use crate::{
     L1BatchNumber,
 };
 
-// This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
-// This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
-
 #[derive(Debug, Clone)]
 pub struct FriProverJobMetadata {
     pub id: u32,
@@ -26,15 +22,21 @@ pub struct FriProverJobMetadata {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct JobCountStatistics {
+pub struct ExtendedJobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
     pub failed: usize,
     pub successful: usize,
 }
 
-impl Add for JobCountStatistics {
-    type Output = JobCountStatistics;
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JobCountStatistics {
+    pub queued: usize,
+    pub in_progress: usize,
+}
+
+impl Add for ExtendedJobCountStatistics {
+    type Output = ExtendedJobCountStatistics;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self {
@@ -99,13 +101,13 @@ pub struct JobPosition {
     pub sequence_number: usize,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusFailed {
     pub started_at: DateTime<Utc>,
     pub error: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ProverJobStatusSuccessful {
     pub started_at: DateTime<Utc>,
     pub time_taken: Duration,
@@ -120,7 +122,7 @@ impl Default for ProverJobStatusSuccessful {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ProverJobStatusInProgress {
     pub started_at: DateTime<Utc>,
 }
@@ -146,7 +148,7 @@ pub struct WitnessJobStatusFailed {
     pub error: String,
 }
 
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq)]
+#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr, PartialEq, Clone)]
 pub enum ProverJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -238,6 +240,7 @@ impl FromStr for GpuProverInstanceStatus {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ProverJobFriInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -260,6 +263,7 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,
@@ -276,6 +280,7 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
+#[derive(Debug, Clone)]
 pub struct LeafWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -294,6 +299,7 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct NodeWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
@@ -312,6 +318,22 @@ pub struct NodeWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RecursionTipWitnessGeneratorJobInfo {
+    pub l1_batch_number: L1BatchNumber,
+    pub status: WitnessJobStatus,
+    pub attempts: u32,
+    pub processing_started_at: Option<NaiveDateTime>,
+    pub time_taken: Option<NaiveTime>,
+    pub error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub number_of_final_node_jobs: i32,
+    pub protocol_version: Option<i32>,
+    pub picked_by: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub scheduler_partial_input_blob_url: String,
@@ -326,7 +348,7 @@ pub struct SchedulerWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
-#[derive(Debug, EnumString, Display)]
+#[derive(Debug, EnumString, Display, Clone)]
 pub enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,
@@ -342,6 +364,7 @@ pub enum ProofCompressionJobStatus {
     Skipped,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProofCompressionJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub attempts: u32,
@@ -354,4 +377,13 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
+}
+
+// Used for transferring information about L1 Batches from DAL to public interfaces (currently prover_cli stats).
+/// DTO containing information about L1 Batch Proof.
+#[derive(Debug, Clone)]
+pub struct ProofGenerationTime {
+    pub l1_batch_number: L1BatchNumber,
+    pub time_taken: NaiveTime,
+    pub created_at: NaiveDateTime,
 }

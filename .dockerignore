@@ -24,6 +24,7 @@ keys/setup
 !Cargo.toml
 !contracts/
 !setup_2\^26.key
+!setup_2\^24.key
 # It's required to remove .git from contracts,
 # otherwise yarn tries to use .git parent directory that
 # doesn't exist.
@@ -45,3 +46,4 @@ contracts/.git
 !etc/env/dev.toml
 !etc/env/consensus_secrets.yaml
 !etc/env/consensus_config.yaml
+!rust-toolchain

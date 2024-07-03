@@ -2,32 +2,35 @@ use std::{
     env,
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+    path::PathBuf,
     time::Duration,
 };
 
 use anyhow::Context;
 use serde::Deserialize;
-use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
-        chain::L1BatchCommitDataGeneratorMode,
         consensus::{ConsensusConfig, ConsensusSecrets},
+        en_config::ENConfig,
+        GeneralConfig, Secrets,
     },
     ObjectStoreConfig,
 };
-use zksync_core::{
-    api_server::{
-        tx_sender::TxSenderConfig,
-        web3::{state::InternalApiConfig, Namespace},
-    },
-    temp_config_store::decode_yaml_repr,
-};
+use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, read_yaml_repr};
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
+use zksync_node_api_server::{
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfig, Namespace},
+};
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
-use zksync_types::{api::BridgeAddresses, url::SensitiveUrl, ETHEREUM_ADDRESS};
+use zksync_types::{
+    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
+    L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
+};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
@@ -40,6 +43,32 @@ use crate::config::observability::ObservabilityENConfig;
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
+
+macro_rules! load_optional_config_or_default {
+    ($config:expr, $($name:ident).+, $default:ident) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.map(|a| a.try_into())).flatten().transpose()?
+            .unwrap_or_else(Self::$default)
+    };
+}
+
+macro_rules! load_config_or_default {
+    ($config:expr, $($name:ident).+, $default:ident) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.clone().try_into()).transpose()?
+            .unwrap_or_else(Self::$default)
+    };
+}
+
+macro_rules! load_config {
+    ($config:expr, $($name:ident).+) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+.clone().map(|a| a.try_into())).flatten().transpose()?
+    };
+}
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
@@ -85,7 +114,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub base_token_addr: Address,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
 }
 
@@ -186,7 +215,7 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
         }
     }
@@ -213,14 +242,15 @@ pub(crate) struct OptionalENConfig {
     /// Max possible limit of entities to be requested via API at once.
     #[serde(default = "OptionalENConfig::default_req_entities_limit")]
     pub req_entities_limit: usize,
-    /// Max possible size of an ABI encoded tx (in bytes).
-    #[serde(default = "OptionalENConfig::default_max_tx_size")]
-    pub max_tx_size: usize,
+    /// Max possible size of an ABI-encoded transaction supplied to `eth_sendRawTransaction`.
+    #[serde(
+        alias = "max_tx_size",
+        default = "OptionalENConfig::default_max_tx_size_bytes"
+    )]
+    pub max_tx_size_bytes: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
-    /// Note: Deprecated option, no longer in use. Left to display a warning in case someone used them.
-    pub transactions_per_sec_limit: Option<u32>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
     pub fee_history_limit: u64,
@@ -235,12 +265,12 @@ pub(crate) struct OptionalENConfig {
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
-    /// Interval between polling DB for pubsub (in ms).
+    /// Interval between polling DB for Web3 subscriptions.
     #[serde(
-        rename = "pubsub_polling_interval",
+        alias = "pubsub_polling_interval",
         default = "OptionalENConfig::default_polling_interval"
     )]
-    polling_interval: u64,
+    pubsub_polling_interval_ms: u64,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[serde(default = "OptionalENConfig::default_max_nonce_ahead")]
     pub max_nonce_ahead: u32,
@@ -271,10 +301,13 @@ pub(crate) struct OptionalENConfig {
     #[serde(default)]
     pub filters_disabled: bool,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
-    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
-    pub mempool_cache_update_interval: u64,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    /// Default is 50 milliseconds.
+    #[serde(
+        alias = "mempool_cache_update_interval",
+        default = "OptionalENConfig::default_mempool_cache_update_interval_ms"
+    )]
+    pub mempool_cache_update_interval_ms: u64,
+    /// Maximum number of transactions to be stored in the mempool cache.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
@@ -291,26 +324,33 @@ pub(crate) struct OptionalENConfig {
     healthcheck_hard_time_limit_ms: Option<u64>,
 
     // Gas estimation config
-    /// The factor by which to scale the gasLimit
+    /// The factor by which to scale the gas limit.
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
-    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
+    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
     pub gas_price_scale_factor: f64,
 
     // Merkle tree config
-    #[serde(default = "OptionalENConfig::default_metadata_calculator_delay")]
-    metadata_calculator_delay: u64,
-    /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
+    /// Processing delay between processing L1 batches in the Merkle tree.
+    #[serde(
+        alias = "metadata_calculator_delay",
+        default = "OptionalENConfig::default_merkle_tree_processing_delay_ms"
+    )]
+    merkle_tree_processing_delay_ms: u64,
+    /// Maximum number of L1 batches to be processed by the Merkle tree at a time. L1 batches are processed in a bulk
+    /// only if they are readily available (i.e., mostly during node catch-up). Increasing this value reduces the number
+    /// of I/O operations at the cost of requiring more RAM (order of 100 MB / batch).
     #[serde(
         alias = "max_blocks_per_tree_batch",
-        default = "OptionalENConfig::default_max_l1_batches_per_tree_iter"
+        alias = "max_l1_batches_per_tree_iter",
+        default = "OptionalENConfig::default_merkle_tree_max_l1_batches_per_iter"
     )]
-    pub max_l1_batches_per_tree_iter: usize,
+    pub merkle_tree_max_l1_batches_per_iter: usize,
     /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub merkle_tree_max_open_files: Option<NonZeroU32>,
@@ -337,16 +377,20 @@ pub(crate) struct OptionalENConfig {
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    /// If not specified, such logging will be disabled.
     database_long_connection_threshold_ms: Option<u64>,
-    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details. If not specified, such logging will be disabled.
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
-    /// Capacity of the queue for asynchronous miniblock sealing. Once this many miniblocks are queued,
-    /// sealing will block until some of the miniblocks from the queue are processed.
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
-    pub miniblock_seal_queue_capacity: usize,
+    #[serde(
+        alias = "miniblock_seal_queue_capacity",
+        default = "OptionalENConfig::default_l2_block_seal_queue_capacity"
+    )]
+    pub l2_block_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
@@ -362,8 +406,8 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
 
-    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    #[serde(default)]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
@@ -376,6 +420,9 @@ pub(crate) struct OptionalENConfig {
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
+
+    #[serde(default)]
+    pub snapshots_recovery_object_store: Option<ObjectStoreConfig>,
 
     /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
     /// recent state and will continuously remove (prune) old enough parts of the state in the background.
@@ -392,12 +439,236 @@ pub(crate) struct OptionalENConfig {
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
     /// which happens roughly 24 hours after its generation on the mainnet. Thus, in practice this value can specify
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
-    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 1 hour.
+    /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
 }
 
 impl OptionalENConfig {
+    fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
+        let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
+            .map(|a: Vec<String>| a.iter().map(|a| a.parse()).collect::<Result<_, _>>())
+            .transpose()?;
+
+        Ok(OptionalENConfig {
+            filters_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.filters_limit,
+                default_filters_limit
+            ),
+            subscriptions_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.subscriptions_limit,
+                default_subscriptions_limit
+            ),
+            req_entities_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.req_entities_limit,
+                default_req_entities_limit
+            ),
+            max_tx_size_bytes: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_tx_size,
+                default_max_tx_size_bytes
+            ),
+            vm_execution_cache_misses_limit: load_config!(
+                general_config.api_config,
+                web3_json_rpc.vm_execution_cache_misses_limit
+            ),
+            fee_history_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.fee_history_limit,
+                default_fee_history_limit
+            ),
+            max_batch_request_size: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_batch_request_size,
+                default_max_batch_request_size
+            ),
+            max_response_body_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_response_body_size_mb,
+                default_max_response_body_size_mb
+            ),
+            max_response_body_size_overrides_mb: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_response_body_size_overrides_mb,
+                default_max_response_body_size_overrides_mb
+            ),
+            pubsub_polling_interval_ms: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.pubsub_polling_interval,
+                default_polling_interval
+            ),
+            max_nonce_ahead: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.max_nonce_ahead,
+                default_max_nonce_ahead
+            ),
+            vm_concurrency_limit: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.vm_concurrency_limit,
+                default_vm_concurrency_limit
+            ),
+            factory_deps_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.factory_deps_cache_size_mb,
+                default_factory_deps_cache_size_mb
+            ),
+            initial_writes_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.initial_writes_cache_size_mb,
+                default_initial_writes_cache_size_mb
+            ),
+            latest_values_cache_size_mb: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.latest_values_cache_size_mb,
+                default_latest_values_cache_size_mb
+            ),
+            filters_disabled: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.filters_disabled)
+                .unwrap_or_default(),
+            mempool_cache_update_interval_ms: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.mempool_cache_update_interval,
+                default_mempool_cache_update_interval_ms
+            ),
+            mempool_cache_size: load_optional_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.mempool_cache_size,
+                default_mempool_cache_size
+            ),
+
+            healthcheck_slow_time_limit_ms: load_config!(
+                general_config.api_config,
+                healthcheck.slow_time_limit_ms
+            ),
+            healthcheck_hard_time_limit_ms: load_config!(
+                general_config.api_config,
+                healthcheck.hard_time_limit_ms
+            ),
+            estimate_gas_scale_factor: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.estimate_gas_scale_factor,
+                default_estimate_gas_scale_factor
+            ),
+            estimate_gas_acceptable_overestimation: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.estimate_gas_acceptable_overestimation,
+                default_estimate_gas_acceptable_overestimation
+            ),
+            gas_price_scale_factor: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.gas_price_scale_factor,
+                default_gas_price_scale_factor
+            ),
+            merkle_tree_max_l1_batches_per_iter: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.max_l1_batches_per_iter,
+                default_merkle_tree_max_l1_batches_per_iter
+            ),
+            merkle_tree_max_open_files: load_config!(
+                general_config.db_config,
+                experimental.state_keeper_db_max_open_files
+            ),
+            merkle_tree_multi_get_chunk_size: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.multi_get_chunk_size,
+                default_merkle_tree_multi_get_chunk_size
+            ),
+            merkle_tree_block_cache_size_mb: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.block_cache_size_mb,
+                default_merkle_tree_block_cache_size_mb
+            ),
+            merkle_tree_memtable_capacity_mb: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.memtable_capacity_mb,
+                default_merkle_tree_memtable_capacity_mb
+            ),
+            merkle_tree_stalled_writes_timeout_sec: load_config_or_default!(
+                general_config.db_config,
+                merkle_tree.stalled_writes_timeout_sec,
+                default_merkle_tree_stalled_writes_timeout_sec
+            ),
+            database_long_connection_threshold_ms: load_config!(
+                general_config.postgres_config,
+                long_connection_threshold_ms
+            ),
+            database_slow_query_threshold_ms: load_config!(
+                general_config.postgres_config,
+                slow_query_threshold_ms
+            ),
+            l2_block_seal_queue_capacity: load_config_or_default!(
+                general_config.state_keeper_config,
+                l2_block_seal_queue_capacity,
+                default_l2_block_seal_queue_capacity
+            ),
+            l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
+            snapshots_recovery_enabled: general_config
+                .snapshot_recovery
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
+                general_config.snapshot_recovery,
+                postgres.max_concurrency,
+                default_snapshots_recovery_postgres_max_concurrency
+            ),
+            pruning_enabled: general_config
+                .pruning
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            snapshots_recovery_object_store: load_config!(
+                general_config.snapshot_recovery,
+                object_store
+            ),
+            pruning_chunk_size: load_optional_config_or_default!(
+                general_config.pruning,
+                chunk_size,
+                default_pruning_chunk_size
+            ),
+            pruning_removal_delay_sec: load_optional_config_or_default!(
+                general_config.pruning,
+                removal_delay_sec,
+                default_pruning_removal_delay_sec
+            ),
+            pruning_data_retention_sec: load_optional_config_or_default!(
+                general_config.pruning,
+                data_retention_sec,
+                default_pruning_data_retention_sec
+            ),
+            protective_reads_persistence_enabled: general_config
+                .db_config
+                .as_ref()
+                .map(|a| a.experimental.protective_reads_persistence_enabled)
+                .unwrap_or(true),
+            merkle_tree_processing_delay_ms: load_config_or_default!(
+                general_config.db_config,
+                experimental.processing_delay_ms,
+                default_merkle_tree_processing_delay_ms
+            ),
+            merkle_tree_include_indices_and_filters_in_block_cache: general_config
+                .db_config
+                .as_ref()
+                .map(|a| a.experimental.include_indices_and_filters_in_block_cache)
+                .unwrap_or_default(),
+            extended_rpc_tracing: load_config_or_default!(
+                general_config.api_config,
+                web3_json_rpc.extended_api_tracing,
+                default_extended_api_tracing
+            ),
+            main_node_rate_limit_rps: enconfig
+                .main_node_rate_limit_rps
+                .unwrap_or_else(Self::default_main_node_rate_limit_rps),
+            api_namespaces,
+            contracts_diamond_proxy_addr: None,
+        })
+    }
+
     const fn default_filters_limit() -> usize {
         10_000
     }
@@ -410,7 +681,7 @@ impl OptionalENConfig {
         1_024
     }
 
-    const fn default_max_tx_size() -> usize {
+    const fn default_max_tx_size_bytes() -> usize {
         1_000_000
     }
 
@@ -434,11 +705,11 @@ impl OptionalENConfig {
         50
     }
 
-    const fn default_metadata_calculator_delay() -> u64 {
+    const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
 
-    const fn default_max_l1_batches_per_tree_iter() -> usize {
+    const fn default_merkle_tree_max_l1_batches_per_iter() -> usize {
         20
     }
 
@@ -489,7 +760,11 @@ impl OptionalENConfig {
         10
     }
 
-    const fn default_miniblock_seal_queue_capacity() -> usize {
+    fn default_max_response_body_size_overrides_mb() -> MaxResponseSizeOverrides {
+        MaxResponseSizeOverrides::empty()
+    }
+
+    const fn default_l2_block_seal_queue_capacity() -> usize {
         10
     }
 
@@ -497,7 +772,7 @@ impl OptionalENConfig {
         true
     }
 
-    const fn default_mempool_cache_update_interval() -> u64 {
+    const fn default_mempool_cache_update_interval_ms() -> u64 {
         50
     }
 
@@ -513,10 +788,6 @@ impl OptionalENConfig {
         NonZeroUsize::new(100).unwrap()
     }
 
-    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
-        L1BatchCommitDataGeneratorMode::Rollup
-    }
-
     fn default_snapshots_recovery_postgres_max_concurrency() -> NonZeroUsize {
         SnapshotsApplierConfig::default().max_concurrency
     }
@@ -530,21 +801,23 @@ impl OptionalENConfig {
     }
 
     fn default_pruning_data_retention_sec() -> u64 {
-        3_600 // 1 hour
+        3_600 * 24 * 7 // 7 days
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
-        envy::prefixed("EN_")
+    fn from_env() -> anyhow::Result<Self> {
+        let mut result: OptionalENConfig = envy::prefixed("EN_")
             .from_env()
-            .context("could not load external node config")
+            .context("could not load external node config")?;
+        result.snapshots_recovery_object_store = snapshot_recovery_object_store_config().ok();
+        Ok(result)
     }
 
     pub fn polling_interval(&self) -> Duration {
-        Duration::from_millis(self.polling_interval)
+        Duration::from_millis(self.pubsub_polling_interval_ms)
     }
 
-    pub fn metadata_calculator_delay(&self) -> Duration {
-        Duration::from_millis(self.metadata_calculator_delay)
+    pub fn merkle_tree_processing_delay(&self) -> Duration {
+        Duration::from_millis(self.merkle_tree_processing_delay_ms)
     }
 
     /// Returns the size of factory dependencies cache in bytes.
@@ -612,7 +885,7 @@ impl OptionalENConfig {
     }
 
     pub fn mempool_cache_update_interval(&self) -> Duration {
-        Duration::from_millis(self.mempool_cache_update_interval)
+        Duration::from_millis(self.mempool_cache_update_interval_ms)
     }
 
     pub fn pruning_removal_delay(&self) -> Duration {
@@ -636,7 +909,7 @@ pub(crate) struct RequiredENConfig {
     /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
     pub l1_chain_id: L1ChainId,
-    /// L2 chain ID (e.g., 270 for zkSync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
+    /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
 
@@ -657,10 +930,41 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
             .context("could not load external node config")
+    }
+
+    fn from_configs(
+        general: &GeneralConfig,
+        en_config: &ENConfig,
+        secrets: &Secrets,
+    ) -> anyhow::Result<Self> {
+        let api_config = general
+            .api_config
+            .as_ref()
+            .context("Api config is required")?;
+        let db_config = general
+            .db_config
+            .as_ref()
+            .context("Database config is required")?;
+        Ok(RequiredENConfig {
+            l1_chain_id: en_config.l1_chain_id,
+            l2_chain_id: en_config.l2_chain_id,
+            http_port: api_config.web3_json_rpc.http_port,
+            ws_port: api_config.web3_json_rpc.ws_port,
+            healthcheck_port: api_config.healthcheck.port,
+            eth_client_url: secrets
+                .l1
+                .as_ref()
+                .context("L1 secrets are required")?
+                .l1_rpc_url
+                .clone(),
+            main_node_url: en_config.main_node_url.clone(),
+            state_cache_path: db_config.state_keeper_db_path.clone(),
+            merkle_tree_path: db_config.merkle_tree.path.clone(),
+        })
     }
 
     #[cfg(test)]
@@ -696,7 +1000,7 @@ pub(crate) struct PostgresConfig {
 }
 
 impl PostgresConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             database_url: env::var("DATABASE_URL")
                 .context("DATABASE_URL env variable is not set")?
@@ -733,11 +1037,41 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+
+    // Snapshot recovery
+    /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
+    pub snapshots_recovery_l1_batch: Option<L1BatchNumber>,
+    /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
+    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
+    #[serde(default)]
+    pub snapshots_recovery_drop_storage_key_preimages: bool,
+    /// Approximate chunk size (measured in the number of entries) to recover in a single iteration.
+    /// Reasonable values are order of 100,000 (meaning an iteration takes several seconds).
+    ///
+    /// **Important.** This value cannot be changed in the middle of tree recovery (i.e., if a node is stopped in the middle
+    /// of recovery and then restarted with a different config).
+    #[serde(default = "ExperimentalENConfig::default_snapshots_recovery_tree_chunk_size")]
+    pub snapshots_recovery_tree_chunk_size: u64,
+    /// Buffer capacity for parallel persistence operations. Should be reasonably small since larger buffer means more RAM usage;
+    /// buffer elements are persisted tree chunks. OTOH, small buffer can lead to persistence parallelization being inefficient.
+    ///
+    /// If not set, parallel persistence will be disabled.
+    #[serde(default)] // Temporarily use a conservative option (sequential recovery) as default
+    pub snapshots_recovery_tree_parallel_persistence_buffer: Option<NonZeroUsize>,
+
+    // Commitment generator
+    /// Maximum degree of parallelism during commitment generation, i.e., the maximum number of L1 batches being processed in parallel.
+    /// If not specified, commitment generator will use a value roughly equal to the number of CPU cores with some clamping applied.
+    pub commitment_generator_max_parallelism: Option<NonZeroU32>,
 }
 
 impl ExperimentalENConfig {
     const fn default_state_keeper_db_block_cache_capacity_mb() -> usize {
         128
+    }
+
+    fn default_snapshots_recovery_tree_chunk_size() -> u64 {
+        MetadataCalculatorRecoveryConfig::default().desired_chunk_size
     }
 
     #[cfg(test)]
@@ -746,12 +1080,49 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            snapshots_recovery_l1_batch: None,
+            snapshots_recovery_drop_storage_key_preimages: false,
+            snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
+            snapshots_recovery_tree_parallel_persistence_buffer: None,
+            commitment_generator_max_parallelism: None,
         }
     }
 
     /// Returns the size of block cache for the state keeper RocksDB cache in bytes.
     pub fn state_keeper_db_block_cache_capacity(&self) -> usize {
         self.state_keeper_db_block_cache_capacity_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            state_keeper_db_block_cache_capacity_mb: load_config_or_default!(
+                general_config.db_config,
+                experimental.state_keeper_db_block_cache_capacity_mb,
+                default_state_keeper_db_block_cache_capacity_mb
+            ),
+            state_keeper_db_max_open_files: load_config!(
+                general_config.db_config,
+                experimental.state_keeper_db_max_open_files
+            ),
+            snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
+            snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
+                general_config.snapshot_recovery,
+                tree.chunk_size,
+                default_snapshots_recovery_tree_chunk_size
+            ),
+            snapshots_recovery_tree_parallel_persistence_buffer: load_config!(
+                general_config.snapshot_recovery,
+                tree.parallel_persistence_buffer
+            ),
+            snapshots_recovery_drop_storage_key_preimages: general_config
+                .snapshot_recovery
+                .as_ref()
+                .map_or(false, |config| config.drop_storage_key_preimages),
+            commitment_generator_max_parallelism: general_config
+                .commitment_generator
+                .as_ref()
+                .map(|a| a.max_parallelism),
+        })
     }
 }
 
@@ -761,7 +1132,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Secrets>(&cfg).context("failed decoding YAML")?,
+        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&cfg)
+            .context("failed decoding YAML")?,
     ))
 }
 
@@ -775,21 +1147,11 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     ))
 }
 
-/// Configuration for snapshot recovery. Loaded optionally, only if snapshot recovery is enabled.
-#[derive(Debug)]
-pub(crate) struct SnapshotsRecoveryConfig {
-    pub snapshots_object_store: ObjectStoreConfig,
-}
-
-impl SnapshotsRecoveryConfig {
-    pub fn new() -> anyhow::Result<Self> {
-        let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-            .from_env::<ObjectStoreConfig>()
-            .context("failed loading snapshot object store config from env variables")?;
-        Ok(Self {
-            snapshots_object_store,
-        })
-    }
+/// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
+pub(crate) fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
+    envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")
 }
 
 #[derive(Debug, Deserialize)]
@@ -800,63 +1162,150 @@ pub struct ApiComponentConfig {
     pub tree_api_remote_url: Option<String>,
 }
 
+impl ApiComponentConfig {
+    fn from_configs(general_config: &GeneralConfig) -> Self {
+        ApiComponentConfig {
+            tree_api_remote_url: general_config
+                .api_config
+                .as_ref()
+                .and_then(|a| a.web3_json_rpc.tree_api_url.clone()),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
     pub api_port: Option<u16>,
 }
 
+impl TreeComponentConfig {
+    fn from_configs(general_config: &GeneralConfig) -> Self {
+        let api_port = general_config
+            .api_config
+            .as_ref()
+            .map(|a| a.merkle_tree.port);
+        TreeComponentConfig { api_port }
+    }
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug)]
-pub(crate) struct ExternalNodeConfig {
+pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub observability: ObservabilityENConfig,
-    pub remote: RemoteENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
+    pub remote: R,
 }
 
-impl ExternalNodeConfig {
-    /// Loads config from the environment variables and fetches contracts addresses from the main node.
-    pub async fn new(
-        required: RequiredENConfig,
-        optional: OptionalENConfig,
-        observability: ObservabilityENConfig,
-        main_node_client: &DynClient<L2>,
-    ) -> anyhow::Result<Self> {
-        let experimental = envy::prefixed("EN_EXPERIMENTAL_")
-            .from_env::<ExperimentalENConfig>()
-            .context("could not load external node config (experimental params)")?;
-
-        let api_component_config = envy::prefixed("EN_API_")
-            .from_env::<ApiComponentConfig>()
-            .context("could not load external node config (API component params)")?;
-        let tree_component_config = envy::prefixed("EN_TREE_")
-            .from_env::<TreeComponentConfig>()
-            .context("could not load external node config (tree component params)")?;
-
-        let remote = RemoteENConfig::fetch(main_node_client)
-            .await
-            .context("Unable to fetch required config values from the main node")?;
-
-        let postgres = PostgresConfig::from_env()?;
+impl ExternalNodeConfig<()> {
+    /// Parses the local part of node configuration from the environment.
+    pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
-            remote,
-            postgres,
-            required,
-            optional,
-            experimental,
-            observability,
+            required: RequiredENConfig::from_env()?,
+            postgres: PostgresConfig::from_env()?,
+            optional: OptionalENConfig::from_env()?,
+            observability: ObservabilityENConfig::from_env()?,
+            experimental: envy::prefixed("EN_EXPERIMENTAL_")
+                .from_env::<ExperimentalENConfig>()
+                .context("could not load external node config (experimental params)")?,
             consensus: read_consensus_config().context("read_consensus_config()")?,
-            tree_component: tree_component_config,
-            api_component: api_component_config,
+            api_component: envy::prefixed("EN_API_")
+                .from_env::<ApiComponentConfig>()
+                .context("could not load external node config (API component params)")?,
+            tree_component: envy::prefixed("EN_TREE_")
+                .from_env::<TreeComponentConfig>()
+                .context("could not load external node config (tree component params)")?,
+            remote: (),
         })
     }
 
+    pub fn from_files(
+        general_config_path: PathBuf,
+        external_node_config_path: PathBuf,
+        secrets_configs_path: PathBuf,
+        consensus_config_path: Option<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(general_config_path)
+            .context("failed decoding general YAML config")?;
+        let external_node_config =
+            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_path)
+                .context("failed decoding external node YAML config")?;
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs_path)
+            .context("failed decoding secrets YAML config")?;
+
+        let consensus = consensus_config_path
+            .map(read_yaml_repr::<proto::consensus::Config>)
+            .transpose()
+            .context("failed decoding consensus YAML config")?;
+
+        let required = RequiredENConfig::from_configs(
+            &general_config,
+            &external_node_config,
+            &secrets_config,
+        )?;
+        let optional = OptionalENConfig::from_configs(&general_config, &external_node_config)?;
+        let postgres = PostgresConfig {
+            database_url: secrets_config
+                .database
+                .as_ref()
+                .context("DB secrets is required")?
+                .server_url
+                .clone()
+                .context("Server url is required")?,
+            max_connections: general_config
+                .postgres_config
+                .as_ref()
+                .context("Postgres config is required")?
+                .max_connections()?,
+        };
+        let observability = ObservabilityENConfig::from_configs(&general_config)?;
+        let experimental = ExperimentalENConfig::from_configs(&general_config)?;
+
+        let api_component = ApiComponentConfig::from_configs(&general_config);
+        let tree_component = TreeComponentConfig::from_configs(&general_config);
+
+        Ok(Self {
+            required,
+            postgres,
+            optional,
+            observability,
+            experimental,
+            consensus,
+            api_component,
+            tree_component,
+            remote: (),
+        })
+    }
+
+    /// Fetches contracts addresses from the main node, completing the configuration.
+    pub async fn fetch_remote(
+        self,
+        main_node_client: &DynClient<L2>,
+    ) -> anyhow::Result<ExternalNodeConfig> {
+        let remote = RemoteENConfig::fetch(main_node_client)
+            .await
+            .context("Unable to fetch required config values from the main node")?;
+        Ok(ExternalNodeConfig {
+            required: self.required,
+            postgres: self.postgres,
+            optional: self.optional,
+            observability: self.observability,
+            experimental: self.experimental,
+            consensus: self.consensus,
+            tree_component: self.tree_component,
+            api_component: self.api_component,
+            remote,
+        })
+    }
+}
+
+impl ExternalNodeConfig {
     #[cfg(test)]
     pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
@@ -880,7 +1329,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
-            max_tx_size: config.optional.max_tx_size,
+            max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
                 .optional

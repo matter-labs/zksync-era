@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                minor,\n                patch\n            FROM\n                protocol_patches\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minor",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d45de6e0add0a94d7f6df10bca0248fdf74448b6a8906d55b68b48320f2b04ba"
+}

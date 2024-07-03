@@ -27,8 +27,7 @@ pub struct PruningInfo {
 pub struct HardPruningStats {
     pub deleted_l1_batches: u64,
     pub deleted_l2_blocks: u64,
-    pub deleted_storage_logs_from_past_batches: u64,
-    pub deleted_storage_logs_from_pruned_batches: u64,
+    pub deleted_storage_logs: u64,
     pub deleted_events: u64,
     pub deleted_call_traces: u64,
     pub deleted_l2_to_l1_logs: u64,
@@ -174,16 +173,8 @@ impl PruningDal<'_, '_> {
             self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
 
-            // The deleting of logs is split into two queries to make it faster,
-            // only the first query has to go through all previous logs
-            // and the query optimizer should be happy with it
-            let deleted_storage_logs_from_past_batches = self
-                .prune_storage_logs_from_past_l2_blocks(
-                    first_l2_block_to_prune..=last_l2_block_to_prune,
-                )
-                .await?;
-            let deleted_storage_logs_from_pruned_batches = self
-                .prune_storage_logs_in_range(first_l2_block_to_prune..=last_l2_block_to_prune)
+            let deleted_storage_logs = self
+                .prune_storage_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
                 .await?;
             let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
             let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
@@ -194,8 +185,7 @@ impl PruningDal<'_, '_> {
                 deleted_events,
                 deleted_l2_to_l1_logs,
                 deleted_call_traces,
-                deleted_storage_logs_from_past_batches,
-                deleted_storage_logs_from_pruned_batches,
+                deleted_storage_logs,
             }
         } else {
             HardPruningStats::default()
@@ -314,64 +304,45 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    async fn prune_storage_logs_from_past_l2_blocks(
+    /// Removes storage logs overwritten by the specified new logs.
+    async fn prune_storage_logs(
         &mut self,
         l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
     ) -> DalResult<u64> {
+        // Storage log pruning is designed to use deterministic indexes and thus have predictable performance.
+        //
+        // - The WITH query is guaranteed to use the block number index (that's the only WHERE condition),
+        //   and the supplied range of blocks should be reasonably small.
+        // - The main DELETE query is virtually guaranteed to use the primary key index since it removes ranges w.r.t. this index.
+        //
+        // Using more sophisticated queries leads to fluctuating performance due to unpredictable indexes being used.
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM storage_logs
-            WHERE
-                storage_logs.miniblock_number < $1
-                AND hashed_key IN (
-                    SELECT
-                        hashed_key
+            WITH
+                new_logs AS MATERIALIZED (
+                    SELECT DISTINCT
+                        ON (hashed_key) hashed_key,
+                        miniblock_number,
+                        operation_number
                     FROM
                         storage_logs
                     WHERE
                         miniblock_number BETWEEN $1 AND $2
+                    ORDER BY
+                        hashed_key,
+                        miniblock_number DESC,
+                        operation_number DESC
                 )
-            "#,
-            i64::from(l2_blocks_to_prune.start().0),
-            i64::from(l2_blocks_to_prune.end().0)
-        )
-        .instrument("hard_prune_batches_range#prune_storage_logs_from_past_l2_blocks")
-        .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(execution_result.rows_affected())
-    }
-
-    async fn prune_storage_logs_in_range(
-        &mut self,
-        l2_blocks_to_prune: ops::RangeInclusive<L2BlockNumber>,
-    ) -> DalResult<u64> {
-        let execution_result = sqlx::query!(
-            r#"
-            DELETE FROM storage_logs USING (
-                SELECT
-                    hashed_key,
-                    MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
-                FROM
-                    storage_logs
-                WHERE
-                    miniblock_number BETWEEN $1 AND $2
-                GROUP BY
-                    hashed_key
-            ) AS last_storage_logs
+            DELETE FROM storage_logs USING new_logs
             WHERE
-                storage_logs.miniblock_number BETWEEN $1 AND $2
-                AND last_storage_logs.hashed_key = storage_logs.hashed_key
-                AND (
-                    storage_logs.miniblock_number != last_storage_logs.op[1]
-                    OR storage_logs.operation_number != last_storage_logs.op[2]
-                )
+                storage_logs.hashed_key = new_logs.hashed_key
+                AND storage_logs.miniblock_number <= $2
+                AND (storage_logs.miniblock_number, storage_logs.operation_number) < (new_logs.miniblock_number, new_logs.operation_number)
             "#,
             i64::from(l2_blocks_to_prune.start().0),
             i64::from(l2_blocks_to_prune.end().0)
         )
-        .instrument("hard_prune_batches_range#prune_storage_logs_in_range")
+        .instrument("hard_prune_batches_range#prune_storage_logs")
         .with_arg("l2_blocks_to_prune", &l2_blocks_to_prune)
         .report_latency()
         .execute(self.storage)
@@ -441,27 +412,6 @@ impl PruningDal<'_, '_> {
         .report_latency()
         .execute(self.storage)
         .await?;
-        Ok(())
-    }
-
-    // This method must be separate as VACUUM is not supported inside a transaction
-    pub async fn run_vacuum_after_hard_pruning(&mut self) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            VACUUM l1_batches,
-            miniblocks,
-            storage_logs,
-            events,
-            call_traces,
-            l2_to_l1_logs,
-            transactions
-            "#,
-        )
-        .instrument("hard_prune_batches_range#vacuum")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
         Ok(())
     }
 }

@@ -1,8 +1,8 @@
-//! Loadtest: an utility to stress-test the zkSync server.
+//! Loadtest: an utility to stress-test the ZKsync server.
 //!
 //! In order to launch it, you must provide required environmental variables, for details see `README.md`.
 //! Without required variables provided, test is launched in the localhost/development mode with some hard-coded
-//! values to check the local zkSync deployment.
+//! values to check the local ZKsync deployment.
 
 use std::time::Duration;
 
@@ -12,16 +12,16 @@ use loadnext::{
     executor::Executor,
     report_collector::LoadtestResult,
 };
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_config::configs::api::PrometheusConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // We don't want to introduce dependency on `zksync_env_config` in loadnext,
     // but we historically rely on the environment variables for the observability configuration,
     // so we load them directly here.
-    let log_format: vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
+    let log_format: zksync_vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
         .ok()
         .unwrap_or("plain".to_string())
         .parse()?;
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)

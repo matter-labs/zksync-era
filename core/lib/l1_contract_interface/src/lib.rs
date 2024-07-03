@@ -1,4 +1,4 @@
-//! Utilities for interacting with the zkSync L1 contract
+//! Utilities for interacting with the ZKsync L1 contract
 //!
 //! Provides utilities both to encode input data for the contract and to decode
 //! the data provided by the contract.

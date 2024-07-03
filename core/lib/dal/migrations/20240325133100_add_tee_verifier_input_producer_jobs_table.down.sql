@@ -1,0 +1,5 @@
+DROP INDEX IF EXISTS idx_tee_verifier_input_producer_jobs_status_processing_attempts;
+
+DROP TABLE IF EXISTS tee_verifier_input_producer_jobs;
+
+DROP TYPE IF EXISTS tee_verifier_input_producer_job_status;

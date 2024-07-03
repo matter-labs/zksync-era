@@ -17,10 +17,20 @@ zksync_proof_data_handler=info,\
 zksync_shared_metrics=info,\
 zksync_node_test_utils=info,\
 zksync_vm_runner=info,\
+zksync_node_test_utils=info,\
+zksync_state_keeper=info,\
+zksync_reorg_detector=info,\
+zksync_consistency_checker=info,\
+zksync_metadata_calculator=info,\
+zksync_node_sync=info,\
+zksync_node_consensus=info,\
+zksync_contract_verification_server=info,\
+zksync_node_api_server=info,\
+zksync_tee_verifier_input_producer=info,\
 zksync_consensus_bft=info,\
 zksync_consensus_network=info,\
 zksync_consensus_storage=info,\
-zksync_core=debug,\
+zksync_core_leftovers=debug,\
 zksync_server=debug,\
 zksync_contract_verifier=debug,\
 zksync_dal=info,\
@@ -47,6 +57,7 @@ zksync_health_check=debug,\
 zksync_proof_fri_compressor=info,\
 vise_exporter=debug,\
 snapshots_creator=debug,\
+zksync_base_token_adjuster=debug,\
 """
 
 # `RUST_BACKTRACE` variable

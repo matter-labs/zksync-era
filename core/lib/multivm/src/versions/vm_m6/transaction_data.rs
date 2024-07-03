@@ -90,7 +90,7 @@ impl From<Transaction> for TransactionData {
                     ],
                     data: execute_tx.execute.calldata,
                     signature: common_data.signature.clone(),
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: common_data.paymaster_params.paymaster_input.clone(),
                     reserved_dynamic: vec![],
                 }
@@ -119,7 +119,7 @@ impl From<Transaction> for TransactionData {
                     data: execute_tx.execute.calldata,
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                 }
@@ -148,7 +148,7 @@ impl From<Transaction> for TransactionData {
                     data: execute_tx.execute.calldata,
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                 }

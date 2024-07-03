@@ -31,14 +31,15 @@ async fn prover_and_assert_base_layer(
             file_backed_base_path: "./tests/data/".to_owned(),
         },
         max_retries: 5,
+        local_mirror_path: None,
     };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
-        .await;
+        .await?;
     let expected_proof = object_store
         .get(expected_proof_id)
         .await
-        .expect("missing expected proof");
+        .context("missing expected proof")?;
 
     let aggregation_round = AggregationRound::BasicCircuits;
     let blob_key = FriCircuitKey {
@@ -79,6 +80,8 @@ async fn prover_and_assert_base_layer(
 //     prover_and_assert_base_layer(5176866, 1, L1BatchNumber(128623), 1086).await;
 // }
 
+// TODO(PLA-939): Enable this test when the test data is available.
+#[ignore]
 #[tokio::test]
 async fn test_base_layer_sha256_proof_gen() {
     prover_and_assert_base_layer(1293714, 6, L1BatchNumber(114499), 479)

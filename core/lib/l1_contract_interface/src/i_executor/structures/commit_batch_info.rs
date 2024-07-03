@@ -1,5 +1,8 @@
 use zksync_types::{
-    commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
+    commitment::{
+        pre_boojum_serialize_commitments, serialize_commitments, L1BatchCommitmentMode,
+        L1BatchWithMetadata,
+    },
     ethabi::Token,
     pubdata_da::PubdataDA,
     web3::contract::Error as ContractError,
@@ -14,17 +17,24 @@ use crate::{
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
 const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 const PUBDATA_SOURCE_BLOBS: u8 = 1;
+const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
-pub struct CommitBatchInfoRollup<'a> {
-    pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pub pubdata_da: PubdataDA,
+pub struct CommitBatchInfo<'a> {
+    mode: L1BatchCommitmentMode,
+    l1_batch_with_metadata: &'a L1BatchWithMetadata,
+    pubdata_da: PubdataDA,
 }
 
-impl<'a> CommitBatchInfoRollup<'a> {
-    pub fn new(l1_batch_with_metadata: &'a L1BatchWithMetadata, pubdata_da: PubdataDA) -> Self {
+impl<'a> CommitBatchInfo<'a> {
+    pub fn new(
+        mode: L1BatchCommitmentMode,
+        l1_batch_with_metadata: &'a L1BatchWithMetadata,
+        pubdata_da: PubdataDA,
+    ) -> Self {
         Self {
+            mode,
             l1_batch_with_metadata,
             pubdata_da,
         }
@@ -162,7 +172,7 @@ impl<'a> CommitBatchInfoRollup<'a> {
     }
 }
 
-impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
+impl Tokenizable for CommitBatchInfo<'_> {
     fn from_token(_token: Token) -> Result<Self, ContractError> {
         // Currently there is no need to decode this struct.
         // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
@@ -184,227 +194,50 @@ impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
         }
 
         if protocol_version.is_pre_1_4_2() {
-            tokens.push(
-                // `totalL2ToL1Pubdata` without pubdata source byte
-                Token::Bytes(self.pubdata_input()),
-            );
+            tokens.push(Token::Bytes(match self.mode {
+                L1BatchCommitmentMode::Rollup => self.pubdata_input(),
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
+                L1BatchCommitmentMode::Validium => vec![],
+            }));
         } else {
-            let pubdata = self.pubdata_input();
-            match self.pubdata_da {
-                PubdataDA::Calldata => {
+            tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
+                (L1BatchCommitmentMode::Validium, PubdataDA::Calldata) => {
+                    vec![PUBDATA_SOURCE_CALLDATA]
+                }
+                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => {
+                    vec![PUBDATA_SOURCE_BLOBS]
+                }
+
+                (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
+                    panic!("Custom pubdata DA is incompatible with Rollup mode")
+                }
+                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                    vec![PUBDATA_SOURCE_CUSTOM]
+                }
+
+                (L1BatchCommitmentMode::Rollup, PubdataDA::Calldata) => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
+                    let pubdata = self.pubdata_input();
                     let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
-
-                    let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
+                    std::iter::once(PUBDATA_SOURCE_CALLDATA)
                         .chain(pubdata)
                         .chain(blob_commitment)
-                        .collect();
-
-                    tokens.push(Token::Bytes(result));
+                        .collect()
                 }
-                PubdataDA::Blobs => {
+                (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
+                    let pubdata = self.pubdata_input();
                     let pubdata_commitments =
                         pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {
                             let kzg_info = KzgInfo::new(blob);
                             kzg_info.to_pubdata_commitment()
                         });
-                    let result = std::iter::once(PUBDATA_SOURCE_BLOBS)
+                    std::iter::once(PUBDATA_SOURCE_BLOBS)
                         .chain(pubdata_commitments)
-                        .collect();
-
-                    tokens.push(Token::Bytes(result));
+                        .collect()
                 }
-            }
-        }
-
-        Token::Tuple(tokens)
-    }
-}
-
-/// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in validium mode.
-#[derive(Debug)]
-pub struct CommitBatchInfoValidium<'a> {
-    pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pub pubdata_da: PubdataDA,
-}
-
-impl<'a> CommitBatchInfoValidium<'a> {
-    pub fn new(l1_batch_with_metadata: &'a L1BatchWithMetadata, pubdata_da: PubdataDA) -> Self {
-        Self {
-            l1_batch_with_metadata,
-            pubdata_da,
-        }
-    }
-
-    fn base_tokens(&self) -> Vec<Token> {
-        if self
-            .l1_batch_with_metadata
-            .header
-            .protocol_version
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
-            .is_pre_boojum()
-        {
-            vec![
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.number.0)),
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.timestamp)),
-                Token::Uint(U256::from(
-                    self.l1_batch_with_metadata.metadata.rollup_last_leaf_index,
-                )),
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .root_hash
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.l1_tx_count)),
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .l2_l1_merkle_root
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::Bytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .initial_writes_compressed
-                        .clone()
-                        .unwrap(),
-                ),
-                Token::Bytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .repeated_writes_compressed
-                        .clone()
-                        .unwrap(),
-                ),
-                Token::Bytes(pre_boojum_serialize_commitments(
-                    &self.l1_batch_with_metadata.header.l2_to_l1_logs,
-                )),
-                Token::Array(
-                    self.l1_batch_with_metadata
-                        .header
-                        .l2_to_l1_messages
-                        .iter()
-                        .map(|message| Token::Bytes(message.to_vec()))
-                        .collect(),
-                ),
-                Token::Array(
-                    self.l1_batch_with_metadata
-                        .raw_published_factory_deps
-                        .iter()
-                        .map(|bytecode| Token::Bytes(bytecode.to_vec()))
-                        .collect(),
-                ),
-            ]
-        } else {
-            vec![
-                // `batchNumber`
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.number.0)),
-                // `timestamp`
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.timestamp)),
-                // `indexRepeatedStorageChanges`
-                Token::Uint(U256::from(
-                    self.l1_batch_with_metadata.metadata.rollup_last_leaf_index,
-                )),
-                // `newStateRoot`
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .root_hash
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `numberOfLayer1Txs`
-                Token::Uint(U256::from(self.l1_batch_with_metadata.header.l1_tx_count)),
-                // `priorityOperationsHash`
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `bootloaderHeapInitialContentsHash`
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .bootloader_initial_content_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `eventsQueueStateHash`
-                Token::FixedBytes(
-                    self.l1_batch_with_metadata
-                        .metadata
-                        .events_queue_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `systemLogs`
-                Token::Bytes(serialize_commitments(
-                    &self.l1_batch_with_metadata.header.system_logs,
-                )),
-            ]
-        }
-    }
-}
-
-impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
-    fn from_token(_token: Token) -> Result<Self, ContractError> {
-        // Currently there is no need to decode this struct.
-        // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
-        // the implementation is provided here and not in some other inconsistent way.
-        Err(ContractError::Other("Not implemented".into()))
-    }
-
-    fn into_token(self) -> Token {
-        let mut tokens = self.base_tokens();
-
-        let protocol_version = self
-            .l1_batch_with_metadata
-            .header
-            .protocol_version
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-
-        if protocol_version.is_pre_boojum() {
-            return Token::Tuple(tokens);
-        }
-
-        if protocol_version.is_pre_1_4_2() {
-            tokens.push(
-                // Here we're not pushing any pubdata on purpose.
-                // We are not sending pubdata in Validium mode.
-                Token::Bytes(Vec::default()),
-            );
-        } else {
-            match self.pubdata_da {
-                PubdataDA::Calldata => {
-                    // Here we're not pushing any pubdata on purpose.
-                    // We are not sending pubdata in Validium mode.
-                    let result = vec![PUBDATA_SOURCE_CALLDATA];
-
-                    tokens.push(Token::Bytes(result));
-                }
-                PubdataDA::Blobs => {
-                    // Here we're not pushing any pubdata on purpose.
-                    // We are not sending pubdata in Validium mode.
-                    let result = vec![PUBDATA_SOURCE_BLOBS];
-
-                    tokens.push(Token::Bytes(result));
-                }
-            }
+            }));
         }
 
         Token::Tuple(tokens)

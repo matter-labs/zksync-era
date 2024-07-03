@@ -1,7 +1,9 @@
-use zksync_core::sync_layer::ActionQueueSender;
+use zksync_node_sync::ActionQueueSender;
 
 use crate::resource::{Resource, Unique};
 
+/// A resource that provides [`ActionQueueSender`] to the service.
+/// This resource is unique, e.g. it's expected to be consumed by a single service.
 #[derive(Debug, Clone)]
 pub struct ActionQueueSenderResource(pub Unique<ActionQueueSender>);
 

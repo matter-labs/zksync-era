@@ -9,32 +9,27 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig,
         },
-        consensus::{ConsensusConfig, ConsensusSecrets},
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::Wallets,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
-        ProofDataHandlerConfig,
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+        L1Secrets, ObservabilityConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig, EthWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
-use zksync_core::{
-    api_server::{
-        tx_sender::{ApiContracts, TxSenderConfig},
-        web3::{state::InternalApiConfig, Namespace},
-    },
-    metadata_calculator::MetadataCalculatorConfig,
-    temp_config_store::decode_yaml_repr,
-};
 use zksync_env_config::FromEnv;
+use zksync_metadata_calculator::MetadataCalculatorConfig;
+use zksync_node_api_server::{
+    tx_sender::{ApiContracts, TxSenderConfig},
+    web3::{state::InternalApiConfig, Namespace},
+};
 use zksync_node_framework::{
     implementations::layers::{
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
-        consensus::{ConsensusLayer, Mode as ConsensusMode},
         contract_verification_api::ContractVerificationApiLayer,
-        eth_sender::EthSenderLayer,
+        eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -48,7 +43,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            StateKeeperLayer,
+            output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -60,7 +55,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
-use zksync_protobuf_config::proto;
+use zksync_state::RocksdbStorageOptions;
 
 struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
@@ -80,7 +75,8 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = PostgresConfig::from_env()?;
-        let pools_layer = PoolsLayerBuilder::empty(config)
+        let secrets = DatabaseSecrets::from_env()?;
+        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
             .with_prover(true)
@@ -104,9 +100,9 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = GenesisConfig::from_env()?;
-        let eth_config = EthConfig::from_env()?;
+        let eth_config = L1Secrets::from_env()?;
         let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.web3_url);
+            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -139,9 +135,11 @@ impl MainNodeBuilder {
     fn add_metadata_calculator_layer(mut self) -> anyhow::Result<Self> {
         let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
         let operations_manager_env_config = OperationsManagerConfig::from_env()?;
+        let state_keeper_env_config = StateKeeperConfig::from_env()?;
         let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_env_config,
             &operations_manager_env_config,
+            &state_keeper_env_config,
         );
         self.node
             .add_layer(MetadataCalculatorLayer::new(metadata_calculator_config));
@@ -150,17 +148,32 @@ impl MainNodeBuilder {
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
         let wallets = Wallets::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?;
+        let sk_config = StateKeeperConfig::from_env()?;
+        let persisence_layer = OutputHandlerLayer::new(
+            contracts_config.l2_shared_bridge_addr.unwrap(),
+            sk_config.l2_block_seal_queue_capacity,
+        );
         let mempool_io_layer = MempoolIOLayer::new(
-            NetworkConfig::from_env()?,
-            ContractsConfig::from_env()?,
-            StateKeeperConfig::from_env()?,
+            NetworkConfig::from_env()?.zksync_network_id,
+            sk_config,
             MempoolConfig::from_env()?,
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
-        let state_keeper_layer = StateKeeperLayer;
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
+        let db_config = DBConfig::from_env()?;
+
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
+            .add_layer(persisence_layer)
             .add_layer(mempool_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
@@ -216,7 +229,7 @@ impl MainNodeBuilder {
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+            ApiContracts::load_from_disk_blocking(), // TODO (BFT-138): Allow to dynamically reload API contracts
         ));
         Ok(self)
     }
@@ -291,6 +304,8 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit(),
+            with_extended_tracing: rpc_config.extended_api_tracing,
+            ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
@@ -306,12 +321,14 @@ impl MainNodeBuilder {
         let network_config = NetworkConfig::from_env()?;
         let genesis_config = GenesisConfig::from_env()?;
 
-        self.node.add_layer(EthSenderLayer::new(
-            eth_sender_config,
+        self.node.add_layer(EthTxAggregatorLayer::new(
+            eth_sender_config.clone(),
             contracts_config,
-            network_config,
+            network_config.zksync_network_id,
             genesis_config.l1_batch_commit_data_generator_mode,
         ));
+        self.node
+            .add_layer(EthTxManagerLayer::new(eth_sender_config));
 
         Ok(self)
     }
@@ -357,47 +374,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        // Copy-pasted from the zksync_server codebase.
-
-        fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_SECRETS_PATH") else {
-                return Ok(None);
-            };
-            let secrets = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::consensus::Secrets>(&secrets)
-                    .context("failed decoding YAML")?,
-            ))
-        }
-
-        fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>> {
-            // Read public config.
-            let Ok(path) = std::env::var("CONSENSUS_CONFIG_PATH") else {
-                return Ok(None);
-            };
-            let cfg = std::fs::read_to_string(&path).context(path)?;
-            Ok(Some(
-                decode_yaml_repr::<proto::consensus::Config>(&cfg)
-                    .context("failed decoding YAML")?,
-            ))
-        }
-
-        let genesis = GenesisConfig::from_env()?;
-        let config = read_consensus_config().context("read_consensus_config()")?;
-        let secrets = read_consensus_secrets().context("read_consensus_secrets()")?;
-
-        self.node.add_layer(ConsensusLayer {
-            mode: ConsensusMode::Main,
-            config,
-            secrets,
-            chain_id: genesis.l2_chain_id,
-        });
-
-        Ok(self)
-    }
-
     fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
@@ -406,11 +382,11 @@ impl MainNodeBuilder {
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let _guard = vlog::ObservabilityBuilder::new()
+    let _guard = zksync_vlog::ObservabilityBuilder::new()
         .with_log_format(log_format)
         .build();
 
@@ -436,7 +412,6 @@ fn main() -> anyhow::Result<()> {
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
         .add_contract_verification_api_layer()?
-        .add_consensus_layer()?
         .build()?
         .run()?;
 

@@ -83,7 +83,7 @@ impl L2ClientMetrics {
         };
         let info = &self.info[&network];
         if let Err(err) = info.set(config_labels) {
-            tracing::warn!(
+            tracing::debug!(
                 "Error setting configuration info {:?} for L2 client; already set to {:?}",
                 err.into_inner(),
                 info.get()
@@ -167,7 +167,7 @@ impl L2ClientMetrics {
                 let status = err
                     .downcast_ref::<transport::Error>()
                     .and_then(|err| match err {
-                        transport::Error::RequestFailure { status_code } => Some(*status_code),
+                        transport::Error::Rejected { status_code } => Some(*status_code),
                         _ => None,
                     });
                 let labels = HttpErrorLabels {

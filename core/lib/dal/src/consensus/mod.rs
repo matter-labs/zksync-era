@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt, ProtoRepr};
 use zksync_types::{
+    abi, ethabi,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -38,38 +39,59 @@ pub struct Payload {
 impl ProtoFmt for Payload {
     type Proto = proto::Payload;
 
-    fn read(message: &Self::Proto) -> anyhow::Result<Self> {
-        let mut transactions = Vec::with_capacity(message.transactions.len());
-        for (i, tx) in message.transactions.iter().enumerate() {
-            transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        let protocol_version = required(&r.protocol_version)
+            .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
+            .context("protocol_version")?;
+        let mut transactions = vec![];
+
+        match protocol_version {
+            v if v >= ProtocolVersionId::Version25 => {
+                anyhow::ensure!(
+                    r.transactions.is_empty(),
+                    "transactions should be empty in protocol_version {v}"
+                );
+                for (i, tx) in r.transactions_v25.iter().enumerate() {
+                    transactions.push(
+                        tx.read()
+                            .with_context(|| format!("transactions_v25[{i}]"))?,
+                    );
+                }
+            }
+            v => {
+                anyhow::ensure!(
+                    r.transactions_v25.is_empty(),
+                    "transactions_v25 should be empty in protocol_version {v}"
+                );
+                for (i, tx) in r.transactions.iter().enumerate() {
+                    transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
+                }
+            }
         }
 
         Ok(Self {
-            protocol_version: required(&message.protocol_version)
-                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
-                .context("protocol_version")?,
-            hash: required(&message.hash)
+            protocol_version,
+            hash: required(&r.hash)
                 .and_then(|h| parse_h256(h))
                 .context("hash")?,
             l1_batch_number: L1BatchNumber(
-                *required(&message.l1_batch_number).context("l1_batch_number")?,
+                *required(&r.l1_batch_number).context("l1_batch_number")?,
             ),
-            timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
-            l2_fair_gas_price: *required(&message.l2_fair_gas_price)
-                .context("l2_fair_gas_price")?,
-            fair_pubdata_price: message.fair_pubdata_price,
-            virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
-            operator_address: required(&message.operator_address)
+            timestamp: *required(&r.timestamp).context("timestamp")?,
+            l1_gas_price: *required(&r.l1_gas_price).context("l1_gas_price")?,
+            l2_fair_gas_price: *required(&r.l2_fair_gas_price).context("l2_fair_gas_price")?,
+            fair_pubdata_price: r.fair_pubdata_price,
+            virtual_blocks: *required(&r.virtual_blocks).context("virtual_blocks")?,
+            operator_address: required(&r.operator_address)
                 .and_then(|a| parse_h160(a))
                 .context("operator_address")?,
             transactions,
-            last_in_batch: *required(&message.last_in_batch).context("last_in_batch")?,
+            last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
         })
     }
 
     fn build(&self) -> Self::Proto {
-        Self::Proto {
+        let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
@@ -80,13 +102,19 @@ impl ProtoFmt for Payload {
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
-            transactions: self
-                .transactions
-                .iter()
-                .map(proto::Transaction::build)
-                .collect(),
+            transactions: vec![],
+            transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
+        };
+        match self.protocol_version {
+            v if v >= ProtocolVersionId::Version25 => {
+                x.transactions_v25 = self.transactions.iter().map(ProtoRepr::build).collect();
+            }
+            _ => {
+                x.transactions = self.transactions.iter().map(ProtoRepr::build).collect();
+            }
         }
+        x
     }
 }
 
@@ -100,6 +128,50 @@ impl Payload {
     }
 }
 
+impl ProtoRepr for proto::TransactionV25 {
+    type Type = Transaction;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        use proto::transaction_v25::T;
+        let tx = match required(&self.t)? {
+            T::L1(l1) => abi::Transaction::L1 {
+                tx: required(&l1.rlp)
+                    .and_then(|x| {
+                        let tokens = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], x)
+                            .context("ethabi::decode()")?;
+                        // Unwrap is safe because `ethabi::decode` does the verification.
+                        let tx =
+                            abi::L2CanonicalTransaction::decode(tokens.into_iter().next().unwrap())
+                                .context("L2CanonicalTransaction::decode()")?;
+                        Ok(tx)
+                    })
+                    .context("rlp")?
+                    .into(),
+                factory_deps: l1.factory_deps.clone(),
+                eth_block: 0,
+            },
+            T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
+        };
+        tx.try_into()
+    }
+
+    fn build(tx: &Self::Type) -> Self {
+        let tx = abi::Transaction::try_from(tx.clone()).unwrap();
+        use proto::transaction_v25::T;
+        Self {
+            t: Some(match tx {
+                abi::Transaction::L1 {
+                    tx, factory_deps, ..
+                } => T::L1(proto::L1Transaction {
+                    rlp: Some(ethabi::encode(&[tx.encode()])),
+                    factory_deps,
+                }),
+                abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
+            }),
+        }
+    }
+}
+
 impl ProtoRepr for proto::Transaction {
     type Type = Transaction;
 
@@ -109,6 +181,17 @@ impl ProtoRepr for proto::Transaction {
         Ok(Self::Type {
             common_data: match common_data {
                 proto::transaction::CommonData::L1(common_data) => {
+                    anyhow::ensure!(
+                        *required(&common_data.deadline_block)
+                            .context("common_data.deadline_block")?
+                            == 0
+                    );
+                    anyhow::ensure!(
+                        required(&common_data.eth_hash)
+                            .and_then(|x| parse_h256(x))
+                            .context("common_data.eth_hash")?
+                            == H256::default()
+                    );
                     ExecuteTransactionCommon::L1(L1TxCommonData {
                         sender: required(&common_data.sender_address)
                             .and_then(|x| parse_h160(x))
@@ -116,8 +199,6 @@ impl ProtoRepr for proto::Transaction {
                         serial_id: required(&common_data.serial_id)
                             .map(|x| PriorityOpId(*x))
                             .context("common_data.serial_id")?,
-                        deadline_block: *required(&common_data.deadline_block)
-                            .context("common_data.deadline_block")?,
                         layer_2_tip_fee: required(&common_data.layer_2_tip_fee)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
@@ -150,9 +231,6 @@ impl ProtoRepr for proto::Transaction {
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.priority_queue_type")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
                         eth_block: *required(&common_data.eth_block)
                             .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
@@ -247,9 +325,6 @@ impl ProtoRepr for proto::Transaction {
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_per_pubdata_limit")?,
-                        eth_hash: required(&common_data.eth_hash)
-                            .and_then(|x| parse_h256(x))
-                            .context("common_data.eth_hash")?,
                         eth_block: *required(&common_data.eth_block)
                             .context("common_data.eth_block")?,
                         canonical_tx_hash: required(&common_data.canonical_tx_hash)
@@ -274,10 +349,7 @@ impl ProtoRepr for proto::Transaction {
                     .and_then(|x| parse_h256(x))
                     .map(h256_to_u256)
                     .context("execute.value")?,
-                factory_deps: match execute.factory_deps.is_empty() {
-                    true => None,
-                    false => Some(execute.factory_deps.clone()),
-                },
+                factory_deps: execute.factory_deps.clone(),
             },
             received_timestamp_ms: 0, // This timestamp is local to the node
             raw_bytes: self.raw_bytes.as_ref().map(|x| x.clone().into()),
@@ -290,7 +362,7 @@ impl ProtoRepr for proto::Transaction {
                 proto::transaction::CommonData::L1(proto::L1TxCommonData {
                     sender_address: Some(data.sender.as_bytes().into()),
                     serial_id: Some(data.serial_id.0),
-                    deadline_block: Some(data.deadline_block),
+                    deadline_block: Some(0),
                     layer_2_tip_fee: Some(u256_to_h256(data.layer_2_tip_fee).as_bytes().into()),
                     full_fee: Some(u256_to_h256(data.full_fee).as_bytes().into()),
                     max_fee_per_gas: Some(u256_to_h256(data.max_fee_per_gas).as_bytes().into()),
@@ -300,7 +372,7 @@ impl ProtoRepr for proto::Transaction {
                     ),
                     op_processing_type: Some(data.op_processing_type as u32),
                     priority_queue_type: Some(data.priority_queue_type as u32),
-                    eth_hash: Some(data.eth_hash.as_bytes().into()),
+                    eth_hash: Some(H256::default().as_bytes().into()),
                     eth_block: Some(data.eth_block),
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
@@ -345,7 +417,7 @@ impl ProtoRepr for proto::Transaction {
                         gas_per_pubdata_limit: Some(
                             u256_to_h256(data.gas_per_pubdata_limit).as_bytes().into(),
                         ),
-                        eth_hash: Some(data.eth_hash.as_bytes().into()),
+                        eth_hash: Some(H256::default().as_bytes().into()),
                         eth_block: Some(data.eth_block),
                         canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                         to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
@@ -358,10 +430,7 @@ impl ProtoRepr for proto::Transaction {
             contract_address: Some(this.execute.contract_address.as_bytes().into()),
             calldata: Some(this.execute.calldata.clone()),
             value: Some(u256_to_h256(this.execute.value).as_bytes().into()),
-            factory_deps: match &this.execute.factory_deps {
-                Some(inner) => inner.clone(),
-                None => vec![],
-            },
+            factory_deps: this.execute.factory_deps.clone(),
         };
         Self {
             common_data: Some(common_data),

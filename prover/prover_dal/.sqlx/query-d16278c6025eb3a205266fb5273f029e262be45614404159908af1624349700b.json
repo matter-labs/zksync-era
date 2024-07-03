@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                prover_fri_protocol_versions (\n                    id,\n                    recursion_scheduler_level_vk_hash,\n                    recursion_node_level_vk_hash,\n                    recursion_leaf_level_vk_hash,\n                    recursion_circuits_set_vks_hash,\n                    created_at,\n                    protocol_version_patch\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), $6)\n            ON CONFLICT (id, protocol_version_patch) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d16278c6025eb3a205266fb5273f029e262be45614404159908af1624349700b"
+}

@@ -8,6 +8,8 @@ use vise::{
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
 
+pub mod rustc;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub enum SnapshotRecoveryStage {
@@ -27,7 +29,9 @@ pub enum InitStage {
     EthTxAggregator,
     EthTxManager,
     Tree,
+    TeeVerifierInputProducer,
     Consensus,
+    DADispatcher,
 }
 
 impl fmt::Display for InitStage {
@@ -41,7 +45,9 @@ impl fmt::Display for InitStage {
             Self::EthTxAggregator => formatter.write_str("eth_tx_aggregator"),
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
             Self::Tree => formatter.write_str("tree"),
+            Self::TeeVerifierInputProducer => formatter.write_str("tee_verifier_input_producer"),
             Self::Consensus => formatter.write_str("consensus"),
+            Self::DADispatcher => formatter.write_str("da_dispatcher"),
         }
     }
 }

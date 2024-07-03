@@ -1,3 +1,6 @@
+use std::num::NonZeroU64;
+
+use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
@@ -9,7 +12,7 @@ use crate::ProtocolVersionId;
 /// versions of Era prior to 1.4.1 integration.
 /// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependent on one another. This options is more suitable for the
 /// versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
     PubdataIndependent(PubdataIndependentBatchFeeModelInput),
@@ -137,7 +140,7 @@ impl BatchFeeInput {
 }
 
 /// Pubdata is only published via calldata and so its price is pegged to the L1 gas price.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct L1PeggedBatchFeeModelInput {
     /// Fair L2 gas price to provide
     pub fair_l2_gas_price: u64,
@@ -157,10 +160,10 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+/// - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 /// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 /// processing the batch on L1.
-/// - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
+/// - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 /// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 /// processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -236,9 +239,86 @@ pub struct FeeParamsV1 {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
-    pub config: FeeModelConfigV2,
-    pub l1_gas_price: u64,
-    pub l1_pubdata_price: u64,
+    config: FeeModelConfigV2,
+    l1_gas_price: u64,
+    l1_pubdata_price: u64,
+    conversion_ratio: BaseTokenConversionRatio,
+}
+
+impl FeeParamsV2 {
+    pub fn new(
+        config: FeeModelConfigV2,
+        l1_gas_price: u64,
+        l1_pubdata_price: u64,
+        conversion_ratio: BaseTokenConversionRatio,
+    ) -> Self {
+        Self {
+            config,
+            l1_gas_price,
+            l1_pubdata_price,
+            conversion_ratio,
+        }
+    }
+
+    /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
+    pub fn config(&self) -> FeeModelConfigV2 {
+        FeeModelConfigV2 {
+            minimal_l2_gas_price: self.convert_to_base_token(self.config.minimal_l2_gas_price),
+            ..self.config
+        }
+    }
+
+    /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
+    pub fn l1_gas_price(&self) -> u64 {
+        self.convert_to_base_token(self.l1_gas_price)
+    }
+
+    /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
+    pub fn l1_pubdata_price(&self) -> u64 {
+        self.convert_to_base_token(self.l1_pubdata_price)
+    }
+
+    /// Converts the fee param to the base token.
+    fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
+        let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator.get())
+            / BigDecimal::from(self.conversion_ratio.denominator.get());
+        let converted_price_bd = BigDecimal::from(price_in_wei) * conversion_ratio;
+
+        // Match on the converted price to ensure it can be represented as a u64
+        match converted_price_bd.to_u64() {
+            Some(converted_price) => converted_price,
+            None => {
+                if converted_price_bd > BigDecimal::from(u64::MAX) {
+                    tracing::warn!(
+                        "Conversion to base token price failed: converted price is too large: {}. Using u64::MAX instead.",
+                        converted_price_bd
+                    );
+                } else {
+                    panic!(
+                        "Conversion to base token price failed: converted price is not a valid u64: {}",
+                        converted_price_bd
+                    );
+                }
+                u64::MAX
+            }
+        }
+    }
+}
+
+/// The struct that represents the BaseToken<->ETH conversion ratio.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct BaseTokenConversionRatio {
+    pub numerator: NonZeroU64,
+    pub denominator: NonZeroU64,
+}
+
+impl Default for BaseTokenConversionRatio {
+    fn default() -> Self {
+        Self {
+            numerator: NonZeroU64::new(1).unwrap(),
+            denominator: NonZeroU64::new(1).unwrap(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

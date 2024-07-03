@@ -26,9 +26,6 @@ message DB {
 }
 
 message Postgres {
-  optional string server_url = 1; // optional
-  optional string server_replica_url = 2; // optional
-  optional string prover_url = 3; // optional
   optional uint32 max_connections = 4; // optional
   optional uint64 statement_timeout_sec = 5; // optional; s
   optional uint64 acquire_timeout_sec = 6; // optional; s
@@ -36,6 +33,8 @@ message Postgres {
   optional uint64 slow_query_threshold_ms = 8; // optional; ms
   optional uint32 max_connections_master = 9; // optional
   optional TestDatabase test = 10;
+  reserved 1, 2, 3; reserved "server_url", "server_replica_url", "prover_url";
+
 }
 
 message TestDatabase {

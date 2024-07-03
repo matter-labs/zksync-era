@@ -98,7 +98,7 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
     // Tx panicked
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
 
     let tx = account.get_test_contract_transaction(
         deploy_tx.address,
@@ -172,7 +172,7 @@ fn test_l1_tx_execution_high_gas_limit() {
         Execute {
             contract_address: L1_MESSENGER_ADDRESS,
             value: 0.into(),
-            factory_deps: None,
+            factory_deps: vec![],
             calldata,
         },
         0,

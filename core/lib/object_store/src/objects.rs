@@ -87,11 +87,15 @@ impl StoredObject for SnapshotFactoryDependencies {
     }
 }
 
-impl StoredObject for SnapshotStorageLogsChunk {
+impl<K> StoredObject for SnapshotStorageLogsChunk<K>
+where
+    Self: ProtoFmt,
+{
     const BUCKET: Bucket = Bucket::StorageSnapshot;
     type Key<'a> = SnapshotStorageLogsStorageKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
+        // FIXME: should keys be separated by version?
         format!(
             "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.proto.gzip",
             key.l1_batch_number, key.chunk_id
@@ -127,6 +131,20 @@ impl dyn ObjectStore + '_ {
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
         let bytes = self.get_raw(V::BUCKET, &key).await?;
+        V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+    }
+
+    /// Fetches the value for the given encoded key if it exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an object with the `encoded_key` does not exist, cannot be accessed,
+    /// or cannot be deserialized.
+    pub async fn get_by_encoded_key<V: StoredObject>(
+        &self,
+        encoded_key: String,
+    ) -> Result<V, ObjectStoreError> {
+        let bytes = self.get_raw(V::BUCKET, &encoded_key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
@@ -167,23 +185,23 @@ mod tests {
     use zksync_types::{
         snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
         web3::Bytes,
-        AccountTreeId, StorageKey, H160, H256,
+        H256,
     };
 
     use super::*;
-    use crate::ObjectStoreFactory;
+    use crate::MockObjectStore;
 
     #[test]
     fn test_storage_logs_filesnames_generate_corretly() {
-        let filename1 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename1 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(42),
             chunk_id: 97,
         });
-        let filename2 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename2 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(3),
             chunk_id: 531,
         });
-        let filename3 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
+        let filename3 = <SnapshotStorageLogsChunk>::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
         });
@@ -203,7 +221,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_logs_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(567),
             chunk_id: 5,
@@ -211,13 +229,13 @@ mod tests {
         let storage_logs = SnapshotStorageLogsChunk {
             storage_logs: vec![
                 SnapshotStorageLog {
-                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    key: H256::random(),
                     value: H256::random(),
                     l1_batch_number_of_initial_write: L1BatchNumber(123),
                     enumeration_index: 234,
                 },
                 SnapshotStorageLog {
-                    key: StorageKey::new(AccountTreeId::new(H160::random()), H256::random()),
+                    key: H256::random(),
                     value: H256::random(),
                     l1_batch_number_of_initial_write: L1BatchNumber(345),
                     enumeration_index: 456,
@@ -231,7 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_deps_can_be_serialized_and_deserialized() {
-        let store = ObjectStoreFactory::mock().create_store().await;
+        let store = MockObjectStore::arc();
         let key = L1BatchNumber(123);
         let factory_deps = SnapshotFactoryDependencies {
             factory_deps: vec![

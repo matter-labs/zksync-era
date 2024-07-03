@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+BACKOFF=1
+MAX_ATTEMPTS=5
+attempt=1
+
+while [ $attempt -le $MAX_ATTEMPTS ]; do
+
+    "$@"
+
+    if [ $? -eq 0 ]; then
+        exit 0
+    else
+        echo "Command \"$*\" failed with code $?. Retrying in $BACKOFF seconds..."
+        sleep $BACKOFF
+        let BACKOFF*=2
+        let attempt++
+    fi
+done
+
+echo "Command failed after $MAX_ATTEMPTS attempts."
+exit 1

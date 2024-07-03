@@ -1,0 +1,1 @@
+PLI__DB_URL=postgres://postgres:notsecurepassword@localhost/prover_local

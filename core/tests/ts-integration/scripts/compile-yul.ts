@@ -35,12 +35,18 @@ export function spawn(command: string) {
     });
 }
 
-export async function compile(path: string, files: string[], outputDirName: string | null, type: string) {
+export async function compile(
+    pathToHome: string,
+    path: string,
+    files: string[],
+    outputDirName: string | null,
+    type: string
+) {
     if (!files.length) {
         console.log(`No test files provided in folder ${path}.`);
         return;
     }
-    let paths = preparePaths(path, files, outputDirName);
+    let paths = preparePaths(pathToHome, path, files, outputDirName);
 
     let systemMode = type === 'yul' ? '--system-mode  --optimization 3' : '';
 
@@ -50,23 +56,23 @@ export async function compile(path: string, files: string[], outputDirName: stri
     );
 }
 
-export async function compileFolder(path: string, type: string) {
+export async function compileFolder(pathToHome: string, path: string, type: string) {
     let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith(`.${type}`));
     for (const file of files) {
-        await compile(path, [file], `${file}`, type);
+        await compile(pathToHome, path, [file], `${file}`, type);
     }
 }
 
-function preparePaths(path: string, files: string[], outputDirName: string | null): CompilerPaths {
+function preparePaths(pathToHome: string, path: string, files: string[], outputDirName: string | null): CompilerPaths {
     const filePaths = files
         .map((val, _) => {
             return `sources/${val}`;
         })
         .join(' ');
     const outputDir = outputDirName || files[0];
-    let absolutePathSources = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/${path}`;
+    let absolutePathSources = `${pathToHome}/core/tests/ts-integration/${path}`;
 
-    let absolutePathArtifacts = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/${path}/artifacts`;
+    let absolutePathArtifacts = `${pathToHome}/core/tests/ts-integration/${path}/artifacts`;
 
     return new CompilerPaths(filePaths, outputDir, absolutePathSources, absolutePathArtifacts);
 }
@@ -76,6 +82,7 @@ class CompilerPaths {
     public outputDir: string;
     public absolutePathSources: string;
     public absolutePathArtifacts: string;
+
     constructor(filePath: string, outputDir: string, absolutePathSources: string, absolutePathArtifacts: string) {
         this.filePath = filePath;
         this.outputDir = outputDir;
@@ -85,8 +92,9 @@ class CompilerPaths {
 }
 
 async function main() {
-    await compileFolder('contracts/yul', 'yul');
-    await compileFolder('contracts/zkasm', 'zkasm');
+    const pathToHome = path.join(__dirname, '../../../../');
+    await compileFolder(pathToHome, 'contracts/yul', 'yul');
+    await compileFolder(pathToHome, 'contracts/zkasm', 'zkasm');
 }
 
 main()

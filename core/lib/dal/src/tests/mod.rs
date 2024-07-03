@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
-    block::{L2BlockHasher, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -50,6 +50,17 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         gas_limit: 0,
     }
 }
+pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
+    L1BatchHeader::new(
+        L1BatchNumber(number),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
+        ProtocolVersionId::latest(),
+    )
+}
 
 pub(crate) fn mock_l2_transaction() -> L2Tx {
     let fee = Fee {
@@ -66,7 +77,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         Default::default(),
         L2ChainId::from(270),
         &K256PrivateKey::random(),
-        None,
+        vec![],
         Default::default(),
     )
     .unwrap();
@@ -81,7 +92,6 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         sender: H160::random(),
         canonical_tx_hash: H256::from_low_u64_be(serial_id),
         serial_id: PriorityOpId(serial_id),
-        deadline_block: 100000,
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
@@ -89,17 +99,17 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         gas_per_pubdata_limit: 100.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
-        eth_block: 1,
+        // DEPRECATED.
+        eth_block: 0,
     };
 
     let execute = Execute {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     L1Tx {
@@ -118,7 +128,6 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         gas_limit: U256::from(100_100),
         max_fee_per_gas: U256::from(1u32),
         gas_per_pubdata_limit: 100.into(),
-        eth_hash: H256::random(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
         eth_block: 1,
@@ -128,7 +137,7 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
         contract_address: H160::random(),
         value: Default::default(),
         calldata: vec![],
-        factory_deps: None,
+        factory_deps: vec![],
     };
 
     ProtocolUpgradeTx {
@@ -174,14 +183,14 @@ pub(crate) fn mock_vm_event(index: u8) -> VmEvent {
     }
 }
 
-pub(crate) fn mock_l2_to_l1_log() -> UserL2ToL1Log {
+pub(crate) fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {
     UserL2ToL1Log(L2ToL1Log {
         shard_id: 0,
         is_service: false,
-        tx_number_in_block: 0,
-        sender: Address::repeat_byte(0),
-        key: H256::from_low_u64_be(0),
-        value: H256::repeat_byte(0),
+        tx_number_in_block,
+        sender: Address::repeat_byte(index),
+        key: H256::from_low_u64_be(u64::from(index)),
+        value: H256::repeat_byte(index),
     })
 }
 
@@ -300,6 +309,8 @@ async fn remove_stuck_txs() {
             L2BlockNumber(1),
             &[mock_execution_result(executed_tx.clone())],
             U256::from(1),
+            ProtocolVersionId::latest(),
+            false,
         )
         .await
         .unwrap();

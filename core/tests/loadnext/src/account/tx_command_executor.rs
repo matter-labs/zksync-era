@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use zksync_eth_client::EthInterface;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},

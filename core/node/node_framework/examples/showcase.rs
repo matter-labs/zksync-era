@@ -10,7 +10,7 @@ use std::{
 use zksync_node_framework::{
     resource::Resource,
     service::{ServiceContext, StopReceiver, ZkStackServiceBuilder},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -31,7 +31,7 @@ struct MemoryDatabase {
 /// but in real envs we use GCP. Alternatively, we have different resource implementations for
 /// main node and EN, like `MempoolIO` and `ExternalIO`.
 ///
-/// Whether it makes sense to hdie the actual resource behind a trait often depends on the resource
+/// Whether it makes sense to hide the actual resource behind a trait often depends on the resource
 /// itself. For example, our DAL is massive and cannot realistically be changed easily, so it's OK
 /// for it to be a concrete resource. But for anything that may realistically have two different
 /// implementations, it's often a good idea to hide it behind a trait.
@@ -51,7 +51,7 @@ impl Database for MemoryDatabase {
 }
 
 /// An idiomatic way to create a resource is to prepare a wrapper for it.
-/// This way we separate the logic of framework (which is primarily about glueing things together)
+/// This way we separate the logic of the framework (which is primarily about glueing things together)
 /// from an actual logic of the resource.
 #[derive(Clone)]
 struct DatabaseResource(pub Arc<dyn Database>);
@@ -63,8 +63,6 @@ struct DatabaseResource(pub Arc<dyn Database>);
 ///
 /// For the latter requirement, there exists an `Unique` wrapper that can be used to store non-`Clone`
 /// resources. It's not used in this example, but it's a useful thing to know about.
-///
-/// Finally, there are other wrappers for resources as well, like `ResourceCollection` and `LazyResource`.
 impl Resource for DatabaseResource {
     fn name() -> String {
         // The convention for resource names is `<scope>/<name>`. In this case, the scope is `common`, but
@@ -96,14 +94,14 @@ impl PutTask {
 
 #[async_trait::async_trait]
 impl Task for PutTask {
-    fn name(&self) -> &'static str {
+    fn id(&self) -> TaskId {
         // Task names simply have to be unique. They are used for logging and debugging.
-        "put_task"
+        "put_task".into()
     }
 
     /// This method will be invoked by the framework when the task is started.
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tracing::info!("Starting the task {}", self.name());
+        tracing::info!("Starting the task {}", self.id());
 
         // We have to respect the stop receiver and should exit as soon as we receive
         // a stop signal.
@@ -138,12 +136,12 @@ impl CheckTask {
 
 #[async_trait::async_trait]
 impl Task for CheckTask {
-    fn name(&self) -> &'static str {
-        "check_task"
+    fn id(&self) -> TaskId {
+        "check_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        tracing::info!("Starting the task {}", self.name());
+        tracing::info!("Starting the task {}", self.id());
 
         tokio::select! {
             _ = self.run_inner() => {},
@@ -194,12 +192,12 @@ impl WiringLayer for TasksLayer {
         // We fetch the database resource from the context.
         // Note that we don't really care where it comes from or what's the actual implementation is.
         // We only care whether it's available and bail out if not.
-        let db = context.get_resource::<DatabaseResource>().await?.0;
+        let db = context.get_resource::<DatabaseResource>()?.0;
         let put_task = PutTask { db: db.clone() };
         let check_task = CheckTask { db };
         // These tasks will be launched by the service once the wiring process is complete.
-        context.add_task(Box::new(put_task));
-        context.add_task(Box::new(check_task));
+        context.add_task(put_task);
+        context.add_task(check_task);
         Ok(())
     }
 }

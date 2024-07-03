@@ -1,11 +1,14 @@
 //! Tests for block reverter.
 
+use std::{collections::HashSet, sync::Mutex};
+
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -26,11 +29,16 @@ fn gen_storage_logs() -> Vec<StorageLog> {
 
 fn initialize_merkle_tree(path: &Path, storage_logs: &[StorageLog]) -> Vec<H256> {
     let db = RocksDB::new(path).unwrap().with_sync_writes();
-    let mut tree = ZkSyncTree::new(db.into());
+    let mut tree = ZkSyncTree::new(db.into()).unwrap();
     let hashes = storage_logs.iter().enumerate().map(|(i, log)| {
-        let output =
-            tree.process_l1_batch(&[TreeInstruction::write(log.key, i as u64 + 1, log.value)]);
-        tree.save();
+        let output = tree
+            .process_l1_batch(&[TreeInstruction::write(
+                log.key.hashed_key_u256(),
+                i as u64 + 1,
+                log.value,
+            )])
+            .unwrap();
+        tree.save().unwrap();
         output.root_hash
     });
     hashes.collect()
@@ -92,15 +100,12 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
 
         storage
             .storage_logs_dal()
-            .insert_storage_logs(
-                l2_block_header.number,
-                &[(H256::zero(), vec![*storage_log])],
-            )
+            .insert_storage_logs(l2_block_header.number, &[*storage_log])
             .await
             .unwrap();
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_header.number, &[storage_log.key])
+            .insert_initial_writes(l1_batch_header.number, &[storage_log.key.hashed_key()])
             .await
             .unwrap();
     }
@@ -181,7 +186,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     }
 
     let db = RocksDB::new(&merkle_tree_path).unwrap();
-    let tree = ZkSyncTree::new(db.into());
+    let tree = ZkSyncTree::new(db.into()).unwrap();
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(6));
 
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
@@ -200,8 +205,13 @@ async fn create_mock_snapshot(
     storage: &mut Connection<'_, Core>,
     object_store: &dyn ObjectStore,
     l1_batch_number: L1BatchNumber,
+    chunk_ids: impl Iterator<Item = u64> + Clone,
 ) {
-    let storage_logs_chunk_count = 5;
+    let storage_logs_chunk_count = chunk_ids
+        .clone()
+        .max()
+        .expect("`chunk_ids` cannot be empty")
+        + 1;
 
     let factory_deps_key = object_store
         .put(
@@ -223,7 +233,7 @@ async fn create_mock_snapshot(
         .await
         .unwrap();
 
-    for chunk_id in 0..storage_logs_chunk_count {
+    for chunk_id in chunk_ids {
         let key = SnapshotStorageLogsStorageKey {
             l1_batch_number,
             chunk_id,
@@ -231,7 +241,7 @@ async fn create_mock_snapshot(
         let key = object_store
             .put(
                 key,
-                &SnapshotStorageLogsChunk {
+                &SnapshotStorageLogsChunk::<H256> {
                     storage_logs: vec![],
                 },
             )
@@ -253,8 +263,8 @@ async fn reverting_snapshot(remove_objects: bool) {
     let mut storage = pool.connection().await.unwrap();
     setup_storage(&mut storage, &storage_logs).await;
 
-    let object_store = ObjectStoreFactory::mock().create_store().await;
-    create_mock_snapshot(&mut storage, &object_store, L1BatchNumber(7)).await;
+    let object_store = MockObjectStore::arc();
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
     // Sanity check: snapshot should be visible.
     let all_snapshots = storage
         .snapshots_dal()
@@ -301,5 +311,162 @@ async fn reverting_snapshot(remove_objects: bool) {
         } else {
             chunk_result.unwrap();
         }
+    }
+}
+
+#[tokio::test]
+async fn reverting_snapshot_ignores_not_found_object_store_errors() {
+    let storage_logs = gen_storage_logs();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    setup_storage(&mut storage, &storage_logs).await;
+
+    let object_store = MockObjectStore::arc();
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
+
+    // Manually remove some data from the store.
+    object_store
+        .remove::<SnapshotFactoryDependencies>(L1BatchNumber(7))
+        .await
+        .unwrap();
+    let key = SnapshotStorageLogsStorageKey {
+        l1_batch_number: L1BatchNumber(7),
+        chunk_id: 1,
+    };
+    object_store
+        .remove::<SnapshotStorageLogsChunk>(key)
+        .await
+        .unwrap();
+
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_rolling_back_postgres();
+    block_reverter.enable_rolling_back_snapshot_objects(object_store);
+    block_reverter.roll_back(L1BatchNumber(5)).await.unwrap();
+
+    // Check that snapshot metadata has been removed.
+    let all_snapshots = storage
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
+    assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+}
+
+#[derive(Debug, Default)]
+struct ErroneousStore {
+    object_keys: Mutex<HashSet<(Bucket, String)>>,
+}
+
+#[async_trait]
+impl ObjectStore for ErroneousStore {
+    async fn get_raw(&self, _bucket: Bucket, _key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        unreachable!("not called by reverter")
+    }
+
+    async fn put_raw(
+        &self,
+        bucket: Bucket,
+        key: &str,
+        _value: Vec<u8>,
+    ) -> Result<(), ObjectStoreError> {
+        self.object_keys
+            .lock()
+            .unwrap()
+            .insert((bucket, key.to_owned()));
+        Ok(())
+    }
+
+    async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
+        self.object_keys
+            .lock()
+            .unwrap()
+            .remove(&(bucket, key.to_owned()));
+        Err(ObjectStoreError::Other {
+            is_transient: false,
+            source: "fatal error".into(),
+        })
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        bucket.to_string()
+    }
+}
+
+#[tokio::test]
+async fn reverting_snapshot_propagates_fatal_errors() {
+    let storage_logs = gen_storage_logs();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    setup_storage(&mut storage, &storage_logs).await;
+
+    let object_store = Arc::new(ErroneousStore::default());
+    create_mock_snapshot(&mut storage, &*object_store, L1BatchNumber(7), 0..5).await;
+
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_rolling_back_postgres();
+    block_reverter.enable_rolling_back_snapshot_objects(object_store.clone());
+    let err = block_reverter
+        .roll_back(L1BatchNumber(5))
+        .await
+        .unwrap_err();
+    assert!(err.chain().any(|source| {
+        if let Some(err) = source.downcast_ref::<ObjectStoreError>() {
+            matches!(err, ObjectStoreError::Other { .. })
+        } else {
+            false
+        }
+    }));
+
+    // Check that snapshot metadata has been removed (it's not atomic with snapshot removal).
+    let all_snapshots = storage
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
+    assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+
+    // Check that removal was called for all objects (i.e., the reverter doesn't bail early).
+    let retained_object_keys = object_store.object_keys.lock().unwrap();
+    assert!(retained_object_keys.is_empty(), "{retained_object_keys:?}");
+}
+
+#[tokio::test]
+async fn reverter_handles_incomplete_snapshot() {
+    let storage_logs = gen_storage_logs();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    setup_storage(&mut storage, &storage_logs).await;
+
+    let object_store = MockObjectStore::arc();
+    let chunk_ids = [0, 1, 4].into_iter();
+    create_mock_snapshot(
+        &mut storage,
+        &*object_store,
+        L1BatchNumber(7),
+        chunk_ids.clone(),
+    )
+    .await;
+
+    let mut block_reverter = BlockReverter::new(NodeRole::External, pool.clone());
+    block_reverter.enable_rolling_back_postgres();
+    block_reverter.enable_rolling_back_snapshot_objects(object_store.clone());
+    block_reverter.roll_back(L1BatchNumber(5)).await.unwrap();
+
+    // Check that snapshot metadata has been removed.
+    let all_snapshots = storage
+        .snapshots_dal()
+        .get_all_complete_snapshots()
+        .await
+        .unwrap();
+    assert_eq!(all_snapshots.snapshots_l1_batch_numbers, []);
+
+    // Check that chunk files have been removed.
+    for chunk_id in chunk_ids {
+        let key = SnapshotStorageLogsStorageKey {
+            l1_batch_number: L1BatchNumber(7),
+            chunk_id,
+        };
+        let chunk_result = object_store.get::<SnapshotStorageLogsChunk>(key).await;
+        assert_matches!(chunk_result.unwrap_err(), ObjectStoreError::KeyNotFound(_));
     }
 }

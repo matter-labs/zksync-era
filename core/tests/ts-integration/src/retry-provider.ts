@@ -1,7 +1,6 @@
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
-import { TransactionResponse } from 'zksync-web3/src/types';
 
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
@@ -9,11 +8,16 @@ import { TransactionResponse } from 'zksync-web3/src/types';
 export class RetryProvider extends zksync.Provider {
     private readonly reporter: Reporter;
 
-    constructor(
-        url?: string | ethers.ethers.utils.ConnectionInfo | undefined,
-        network?: ethers.ethers.providers.Networkish | undefined,
-        reporter?: Reporter
-    ) {
+    constructor(_url?: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
+        let url;
+        if (typeof _url === 'object') {
+            const fetchRequest: ethers.FetchRequest = new ethers.FetchRequest(_url.url);
+            fetchRequest.timeout = _url.timeout;
+            url = fetchRequest;
+        } else {
+            url = _url;
+        }
+
         super(url, network);
         this.reporter = reporter ?? new Reporter();
     }
@@ -51,21 +55,15 @@ export class RetryProvider extends zksync.Provider {
         }
     }
 
-    override _wrapTransaction(tx: ethers.Transaction, hash?: string): AugmentedTransactionResponse {
-        const wrapped = super._wrapTransaction(tx, hash);
-        const originalWait = wrapped.wait;
-        wrapped.wait = async (confirmations) => {
-            this.reporter.debug(`Started waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce})`);
-            const receipt = await originalWait(confirmations);
-            this.reporter.debug(
-                `Obtained receipt for transaction ${tx.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
-            );
-            return receipt;
-        };
-        return { ...wrapped, reporter: this.reporter };
+    override _wrapTransactionReceipt(receipt: any): zksync.types.TransactionReceipt {
+        const wrapped = super._wrapTransactionReceipt(receipt);
+        this.reporter.debug(
+            `Obtained receipt for transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+        );
+        return wrapped;
     }
 }
 
-export interface AugmentedTransactionResponse extends TransactionResponse {
+export interface AugmentedTransactionResponse extends zksync.types.TransactionResponse {
     readonly reporter?: Reporter;
 }

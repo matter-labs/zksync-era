@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_verifier_input_producer_jobs\n            SET\n                status = $1,\n                updated_at = NOW(),\n                time_taken = $3,\n                error = $4\n            WHERE\n                l1_batch_number = $2\n                AND status != $5\n            RETURNING\n                tee_verifier_input_producer_jobs.attempts\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempts",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Time",
+        "Text",
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "30e5c8710b1611872da06b72ac681aff512b3a9b2587b8e59848345c07dd8f3b"
+}

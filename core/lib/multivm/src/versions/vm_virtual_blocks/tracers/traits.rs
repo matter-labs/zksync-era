@@ -49,6 +49,7 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait ToTracerPointer<S, H> {
+    #[allow(dead_code)]
     fn into_tracer_pointer(self) -> TracerPointer<S, H>;
 }
 

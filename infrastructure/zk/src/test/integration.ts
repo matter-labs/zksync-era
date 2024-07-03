@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from '../utils';
+import * as utils from 'utils';
 import * as config from '../config';
 import deepExtend from 'deep-extend';
 

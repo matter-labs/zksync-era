@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, H256};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct L2BlockEnv {
     pub number: u32,
     pub timestamp: u64,

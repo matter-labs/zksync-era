@@ -14,13 +14,12 @@ publish = false
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_eth_signer.workspace = true
-zksync_web3_decl = { workspace = true, features = ["client"] }
+zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
-vlog.workspace = true
-prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 
 async-trait.workspace = true
 serde = { workspace = true, features = ["derive"] }

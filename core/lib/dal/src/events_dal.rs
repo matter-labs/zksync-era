@@ -84,7 +84,7 @@ impl EventsDal<'_, '_> {
                 write_str!(
                     &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
-                    topic0 = EventTopic(event.indexed_topics.get(0)),
+                    topic0 = EventTopic(event.indexed_topics.first()),
                     topic1 = EventTopic(event.indexed_topics.get(1)),
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
@@ -307,7 +307,6 @@ impl EventsDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                NULL::bytea AS "block_hash",
                 NULL::BIGINT AS "l1_batch_number?",
                 shard_id,
                 is_service,
@@ -416,7 +415,10 @@ mod tests {
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
-    use crate::{tests::create_l2_block_header, ConnectionPool, Core};
+    use crate::{
+        tests::{create_l2_block_header, create_l2_to_l1_log},
+        ConnectionPool, Core,
+    };
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -454,7 +456,7 @@ mod tests {
             tx_index_in_l2_block: 0,
             tx_initiator_address: Address::default(),
         };
-        let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+        let first_events = [create_vm_event(0, 0), create_vm_event(1, 4)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_l2_block: 1,
@@ -496,17 +498,6 @@ mod tests {
             assert_eq!(log.data.0, [i]);
             assert_eq!(log.topics, *expected_topics);
         }
-    }
-
-    fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {
-        UserL2ToL1Log(L2ToL1Log {
-            shard_id: 0,
-            is_service: false,
-            tx_number_in_block,
-            sender: Address::repeat_byte(index),
-            key: H256::from_low_u64_be(u64::from(index)),
-            value: H256::repeat_byte(index),
-        })
     }
 
     #[tokio::test]

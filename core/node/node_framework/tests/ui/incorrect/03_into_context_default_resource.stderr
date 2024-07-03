@@ -1,0 +1,5 @@
+error: `default` attribute is not allowed in `IntoContext` macro
+  --> tests/ui/incorrect/03_into_context_default_resource.rs:30:5
+   |
+30 |     _field: ResourceA,
+   |     ^^^^^^

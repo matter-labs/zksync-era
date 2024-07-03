@@ -1,13 +1,19 @@
 use crate::{
     configs::{
+        base_token_adjuster::BaseTokenAdjusterConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig,
+        pruning::PruningConfig,
+        snapshot_recovery::SnapshotRecoveryConfig,
+        vm_runner::ProtectiveReadsWriterConfig,
+        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 
 #[derive(Debug)]
@@ -32,4 +38,11 @@ pub struct GeneralConfig {
     pub eth: Option<EthConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
+    pub da_dispatcher_config: Option<DADispatcherConfig>,
+    pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
+    pub pruning: Option<PruningConfig>,
+    pub core_object_store: Option<ObjectStoreConfig>,
+    pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
 }

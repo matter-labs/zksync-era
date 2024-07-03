@@ -14,6 +14,16 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for [`PKSigningClient`].
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+///
+/// ## Adds resources
+///
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (if key for blob operator is provided)
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
@@ -51,7 +61,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             .gas_adjuster
             .as_ref()
             .context("gas_adjuster config is missing")?;
-        let EthInterfaceResource(query_client) = context.get_resource().await?;
+        let EthInterfaceResource(query_client) = context.get_resource()?;
 
         let signing_client = PKSigningClient::new_raw(
             private_key.clone(),

@@ -1,0 +1,26 @@
+[package]
+name = "zksync_tee_verifier_input_producer"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_object_store.workspace = true
+zksync_prover_interface.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_tee_verifier.workspace = true
+zksync_types.workspace = true
+zksync_utils.workspace = true
+zksync_vm_utils.workspace = true
+vise.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["time"] }

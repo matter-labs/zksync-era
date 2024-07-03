@@ -1,4 +1,12 @@
-import { ethers } from 'ethers';
+export enum NodeMode {
+    Main,
+    External
+}
+
+export enum DataAvailabityMode {
+    Rollup = 'Rollup',
+    Validium = 'Validium'
+}
 
 /**
  * Description of an ERC20 token.
@@ -6,7 +14,7 @@ import { ethers } from 'ethers';
 export interface Token {
     name: string;
     symbol: string;
-    decimals: number;
+    decimals: bigint;
     l1Address: string;
     l2Address: string;
 }
@@ -15,6 +23,38 @@ export interface Token {
  * Description of the environment the integration tests are being run in.
  */
 export interface TestEnvironment {
+    /*
+     * Max Logs limit
+     */
+    maxLogsLimit: number;
+    /*
+     * Gas limit for priority txs
+     */
+    priorityTxMaxGasLimit: bigint;
+    /*
+     * Gas limit for computations
+     */
+    validationComputationalGasLimit: number;
+    /*
+     * Minimal gas price of l2
+     */
+    minimalL2GasPrice: bigint;
+    /*
+     * Data availability mode
+     */
+    l1BatchCommitDataGeneratorMode: DataAvailabityMode;
+    /*
+     * Path to code home directory
+     */
+    pathToHome: string;
+    /**
+     * Chain Id of the L2 Network
+     */
+    l2ChainId: bigint;
+    /*
+     * Mode of the l2 node
+     */
+    nodeMode: NodeMode;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */
@@ -26,7 +66,7 @@ export interface TestEnvironment {
      */
     mainWalletPK: string;
     /**
-     * URL of zkSync node's HTTP Web3 API.
+     * URL of ZKsync node's HTTP Web3 API.
      */
     l2NodeUrl: string;
     /**
@@ -34,11 +74,11 @@ export interface TestEnvironment {
      */
     l1NodeUrl: string;
     /**
-     * URL of zkSync node's WS Web3 API.
+     * URL of ZKsync node's WS Web3 API.
      */
     wsL2NodeUrl: string;
     /**
-     * URL of zkSync node's contract verification API.
+     * URL of ZKsync node's contract verification API.
      */
     contractVerificationUrl: string;
     /**
@@ -78,7 +118,7 @@ export interface TestContext {
 }
 
 export interface Fee {
-    feeBeforeRefund: ethers.BigNumber;
-    feeAfterRefund: ethers.BigNumber;
-    refund: ethers.BigNumber;
+    feeBeforeRefund: bigint;
+    feeAfterRefund: bigint;
+    refund: bigint;
 }

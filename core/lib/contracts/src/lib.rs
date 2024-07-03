@@ -1,11 +1,12 @@
 //! Set of utility functions to read contracts both in Yul and Sol format.
 //!
-//! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
+//! Careful: some of the methods are reading the contracts based on the workspace environment variable.
 
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::{
     fs::{self, File},
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
@@ -15,7 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
 
 pub mod test_contracts;
 
@@ -25,44 +26,77 @@ pub enum ContractLanguage {
     Yul,
 }
 
-const BRIDGEHUB_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
-const STATE_TRANSITION_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
-const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
-const DIAMOND_INIT_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
-const GOVERNANCE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/governance/IGovernance.sol/IGovernance.json";
-const MULTICALL3_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
-const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/contracts/state-transition/Verifier.sol/Verifier.json";
+/// During the transition period we have to support both paths for contracts artifacts
+/// One for forge and another for hardhat.
+/// Meanwhile, hardhat has one more intermediate folder. That's why, we have to represent each contract
+/// by two constants, intermediate folder and actual contract name. For Forge we use only second part
+const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
+const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
+
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
+    "state-transition",
+    "IStateTransitionManager.sol/IStateTransitionManager.json",
+);
+const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/",
+    "chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+);
+const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
+    "state-transition",
+    "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
+);
+const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
+const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
+const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
-const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
+const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
-fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+fn home_path() -> &'static Path {
+    workspace_dir_or_current_dir()
+}
+
+fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
+    let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    serde_json::from_reader(
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
-    )
-    .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
+    let file =
+        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e));
+    serde_json::from_reader(BufReader::new(file))
+        .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
         serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
             .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
+    })
+}
+
+fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
+    let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
+    load_contract_if_present(path)
+}
+
+fn load_contract_for_forge(file_path: &str) -> Option<Contract> {
+    let path = Path::new(FORGE_PATH_PREFIX).join(file_path);
+    load_contract_if_present(path)
+}
+
+fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
+    if let Some(contract) = load_contract_for_forge(path.1) {
+        return contract;
+    };
+
+    load_contract_for_hardhat(path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
     })
 }
 
@@ -79,7 +113,7 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
-pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
+pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
     read_file_to_json_value(path)["abi"]
         .as_str()
         .expect("Failed to parse abi")
@@ -87,31 +121,31 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
 }
 
 pub fn bridgehub_contract() -> Contract {
-    load_contract(BRIDGEHUB_CONTRACT_FILE)
+    load_contract_for_both_compilers(BRIDGEHUB_CONTRACT_FILE)
 }
 
 pub fn governance_contract() -> Contract {
-    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
+    load_contract_for_both_compilers(GOVERNANCE_CONTRACT_FILE)
 }
 
 pub fn state_transition_manager_contract() -> Contract {
-    load_contract(STATE_TRANSITION_CONTRACT_FILE)
+    load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
 
 pub fn hyperchain_contract() -> Contract {
-    load_contract(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
+    load_contract_for_both_compilers(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
 
 pub fn diamond_init_contract() -> Contract {
-    load_contract(DIAMOND_INIT_CONTRACT_FILE)
+    load_contract_for_both_compilers(DIAMOND_INIT_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {
-    load_contract(MULTICALL3_CONTRACT_FILE)
+    load_contract_for_both_compilers(MULTICALL3_CONTRACT_FILE)
 }
 
 pub fn verifier_contract() -> Contract {
-    load_contract(VERIFIER_CONTRACT_FILE)
+    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]
@@ -149,6 +183,11 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
+/// Reads bytecode from the path RELATIVE to the Cargo workspace location.
+pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+    read_bytecode_from_path(relative_path)
+}
+
 pub fn eth_contract() -> Contract {
     load_sys_contract("L2BaseToken")
 }
@@ -157,16 +196,9 @@ pub fn known_codes_contract() -> Contract {
     load_sys_contract("KnownCodesStorage")
 }
 
-/// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.
-pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let artifact_path = Path::new(&zksync_home).join(relative_path);
-    read_bytecode_from_path(artifact_path)
-}
-
 /// Reads bytecode from a given path.
-fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
-    let artifact = read_file_to_json_value(artifact_path.clone());
+fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+    let artifact = read_file_to_json_value(&artifact_path);
 
     let bytecode = artifact["bytecode"]
         .as_str()
@@ -187,19 +219,17 @@ static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
-/// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
+/// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.
     pub root: PathBuf,
 }
 
 impl SystemContractsRepo {
-    /// Returns the default system contracts repository with directory based on the ZKSYNC_HOME environment variable.
+    /// Returns the default system contracts repository with directory based on the Cargo workspace location.
     pub fn from_env() -> Self {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
-            root: zksync_home.join("contracts/system-contracts"),
+            root: home_path().join("contracts/system-contracts"),
         }
     }
 
@@ -237,10 +267,9 @@ fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
     read_bootloader_code("playground_batch")
 }
 
-/// Reads zbin bytecode from a given path, relative to ZKSYNC_HOME.
+/// Reads zbin bytecode from a given path, relative to workspace location.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
-    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let bytecode_path = Path::new(&zksync_home).join(relative_zbin_path);
+    let bytecode_path = Path::new(&home_path()).join(relative_zbin_path);
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
@@ -250,13 +279,13 @@ fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
 /// Hash of code and code which consists of 32 bytes words
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
     pub code: Vec<U256>,
     pub hash: H256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
@@ -563,7 +592,8 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
 });
 
 pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
-    let abi = r#"{
+    let abi = r#"
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -650,6 +680,127 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
       ],
       "name": "SetChainIdUpgrade",
       "type": "event"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+// The function that was used in the pre-v23 versions of the contract to upgrade the diamond proxy.
+pub static ADMIN_EXECUTE_UPGRADE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "executeUpgrade",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+// The function that is used in post-v23 chains to upgrade the chain
+pub static ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "_oldProtocolVersion",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "upgradeChainFromVersion",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     }"#;
     serde_json::from_str(abi).unwrap()
 });

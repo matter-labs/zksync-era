@@ -25,7 +25,7 @@
     "l1-contracts": "link:../../contracts/l1-contracts",
     "l2-contracts": "link:../../contracts/l2-contracts",
     "system-contracts": "link:../../contracts/system-contracts",
-    "zksync-web3": "^0.15.5"
+    "zksync-ethers": "5.8.0-beta.5"
   },
   "scripts": {
     "build": "tsc",

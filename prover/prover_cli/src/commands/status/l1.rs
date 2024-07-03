@@ -1,28 +1,35 @@
 use anyhow::Context;
-use prover_dal::{Prover, ProverDal};
 use zksync_basic_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     L1BatchNumber, H256, U256,
 };
-use zksync_config::{ContractsConfig, EthConfig, PostgresConfig};
+use zksync_config::{
+    configs::{DatabaseSecrets, L1Secrets},
+    ContractsConfig, PostgresConfig,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_eth_client::{
     clients::{Client, L1},
     CallFunctionArgs,
 };
+use zksync_prover_dal::{Prover, ProverDal};
+
+use crate::helper;
 
 pub(crate) async fn run() -> anyhow::Result<()> {
     println!(" ====== L1 Status ====== ");
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env")?;
     let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    let eth_config = EthConfig::from_env().context("EthConfig::from_env")?;
-    let query_client = Client::<L1>::http(eth_config.web3_url)?.build();
+
+    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+    let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
+    let query_client = Client::<L1>::http(l1_secrets.l1_rpc_url)?.build();
 
     let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;
@@ -30,13 +37,13 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let total_batches_verified: U256 = CallFunctionArgs::new("getTotalBatchesVerified", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
-        postgres_config
+        database_secrets
             .replica_url()
             .context("postgres_config.replica_url()")?,
         postgres_config
@@ -69,17 +76,14 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     );
 
     let node_verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
-        .for_contract(
-            contracts_config.verifier_addr,
-            &zksync_contracts::verifier_contract(),
-        )
+        .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
         .call(&query_client)
         .await?;
 
     let node_verifier_params: VerifierParams = CallFunctionArgs::new("getVerifierParams", ())
         .for_contract(
             contracts_config.diamond_proxy_addr,
-            &zksync_contracts::hyperchain_contract(),
+            &helper::hyperchain_contract(),
         )
         .call(&query_client)
         .await?;
@@ -90,7 +94,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
-        postgres_config
+        database_secrets
             .prover_url()
             .context("postgres_config.replica_url()")?,
         postgres_config

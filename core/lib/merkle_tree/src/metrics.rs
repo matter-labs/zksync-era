@@ -67,37 +67,37 @@ const LEAF_LEVEL_BUCKETS: Buckets = Buckets::linear(20.0..=40.0, 4.0);
 #[metrics(prefix = "merkle_tree_extend_patch")]
 struct TreeUpdateMetrics {
     // Metrics related to the AR16MT tree architecture
-    /// Number of new leaves inserted during tree traversal while processing a single block.
+    /// Number of new leaves inserted during tree traversal while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     new_leaves: Histogram<u64>,
-    /// Number of new internal nodes inserted during tree traversal while processing a single block.
+    /// Number of new internal nodes inserted during tree traversal while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     new_internal_nodes: Histogram<u64>,
-    /// Number of existing leaves moved to a new location while processing a single block.
+    /// Number of existing leaves moved to a new location while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     moved_leaves: Histogram<u64>,
-    /// Number of existing leaves updated while processing a single block.
+    /// Number of existing leaves updated while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     updated_leaves: Histogram<u64>,
-    /// Average level of leaves moved or created while processing a single block.
+    /// Average level of leaves moved or created while processing a single batch.
     #[metrics(buckets = LEAF_LEVEL_BUCKETS)]
     avg_leaf_level: Histogram<f64>,
-    /// Maximum level of leaves moved or created while processing a single block.
+    /// Maximum level of leaves moved or created while processing a single batch.
     #[metrics(buckets = LEAF_LEVEL_BUCKETS)]
     max_leaf_level: Histogram<u64>,
 
     // Metrics related to input instructions
-    /// Number of keys read while processing a single block (only applicable to the full operation mode).
+    /// Number of keys read while processing a single batch (only applicable to the full operation mode).
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     key_reads: Histogram<u64>,
-    /// Number of missing keys read while processing a single block (only applicable to the full
+    /// Number of missing keys read while processing a single batch (only applicable to the full
     /// operation mode).
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     missing_key_reads: Histogram<u64>,
-    /// Number of nodes of previous versions read from the DB while processing a single block.
+    /// Number of nodes of previous versions read from the DB while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     db_reads: Histogram<u64>,
-    /// Number of nodes of the current version re-read from the patch set while processing a single block.
+    /// Number of nodes of the current version re-read from the patch set while processing a single batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     patch_reads: Histogram<u64>,
 }
@@ -194,13 +194,13 @@ impl ops::AddAssign for TreeUpdaterStats {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree")]
 pub(crate) struct BlockTimings {
-    /// Time spent loading tree nodes from DB per block.
+    /// Time spent loading tree nodes from DB per batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub load_nodes: Histogram<Duration>,
-    /// Time spent traversing the tree and creating new nodes per block.
+    /// Time spent traversing the tree and creating new nodes per batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub extend_patch: Histogram<Duration>,
-    /// Time spent finalizing the block (mainly hash computations).
+    /// Time spent finalizing a batch (mainly hash computations).
     #[metrics(buckets = Buckets::LATENCIES)]
     pub finalize_patch: Histogram<Duration>,
 }
@@ -233,13 +233,13 @@ impl fmt::Display for NibbleCount {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_apply_patch")]
 struct ApplyPatchMetrics {
-    /// Total number of nodes included into a RocksDB patch per block.
+    /// Total number of nodes included into a RocksDB patch per batch.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     nodes: Histogram<u64>,
-    /// Number of nodes included into a RocksDB patch per block, grouped by the key nibble count.
+    /// Number of nodes included into a RocksDB patch per batch, grouped by the key nibble count.
     #[metrics(buckets = NODE_COUNT_BUCKETS)]
     nodes_by_nibble_count: Family<NibbleCount, Histogram<u64>>,
-    /// Total byte size of nodes included into a RocksDB patch per block, grouped by the key nibble count.
+    /// Total byte size of nodes included into a RocksDB patch per batch, grouped by the key nibble count.
     #[metrics(buckets = BYTE_SIZE_BUCKETS)]
     node_bytes: Family<NibbleCount, Histogram<u64>>,
     /// Number of hashes in child references copied from previous tree versions. Allows to estimate
@@ -295,7 +295,7 @@ impl ApplyPatchStats {
         for (nibble_count, stats) in node_bytes {
             let label = NibbleCount::new(nibble_count);
             metrics.nodes_by_nibble_count[&label].observe(stats.count);
-            metrics.nodes_by_nibble_count[&label].observe(stats.bytes);
+            metrics.node_bytes[&label].observe(stats.bytes);
         }
 
         metrics.copied_hashes.observe(self.copied_hashes);
@@ -309,6 +309,21 @@ enum Bound {
     End,
 }
 
+const LARGE_NODE_COUNT_BUCKETS: Buckets = Buckets::values(&[
+    1_000.0,
+    2_000.0,
+    5_000.0,
+    10_000.0,
+    20_000.0,
+    50_000.0,
+    100_000.0,
+    200_000.0,
+    500_000.0,
+    1_000_000.0,
+    2_000_000.0,
+    5_000_000.0,
+]);
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_pruning")]
 struct PruningMetrics {
@@ -316,7 +331,7 @@ struct PruningMetrics {
     /// may not remove all stale keys to this version if there are too many.
     target_retained_version: Gauge<u64>,
     /// Number of pruned node keys on a specific pruning iteration.
-    #[metrics(buckets = NODE_COUNT_BUCKETS)]
+    #[metrics(buckets = LARGE_NODE_COUNT_BUCKETS)]
     key_count: Histogram<usize>,
     /// Lower and upper boundaries on the new stale key versions deleted
     /// during a pruning iteration. The lower boundary is inclusive, the upper one is exclusive.
@@ -359,3 +374,27 @@ pub(crate) struct PruningTimings {
 
 #[vise::register]
 pub(crate) static PRUNING_TIMINGS: Global<PruningTimings> = Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(crate) enum RecoveryStage {
+    Extend,
+    ApplyPatch,
+    ParallelPersistence,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "merkle_tree_recovery")]
+pub(crate) struct RecoveryMetrics {
+    /// Number of entries in a recovered chunk.
+    #[metrics(buckets = LARGE_NODE_COUNT_BUCKETS)]
+    pub chunk_size: Histogram<usize>,
+    /// Latency of a specific stage of recovery for a single chunk.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub stage_latency: Family<RecoveryStage, Histogram<Duration>>,
+    /// Number of buffered commands if parallel persistence is used.
+    pub parallel_persistence_buffer_size: Gauge<usize>,
+}
+
+#[vise::register]
+pub(crate) static RECOVERY_METRICS: Global<RecoveryMetrics> = Global::new();

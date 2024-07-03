@@ -27,13 +27,13 @@ fn recovery_basics() {
     let greatest_key = recovery_entries[99].key;
 
     let recovered_version = 123;
-    let mut recovery = MerkleTreeRecovery::new(PatchSet::default(), recovered_version);
-    recovery.extend_linear(recovery_entries);
+    let mut recovery = MerkleTreeRecovery::new(PatchSet::default(), recovered_version).unwrap();
+    recovery.extend_linear(recovery_entries).unwrap();
 
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let tree = MerkleTree::new(recovery.finalize());
+    let tree = MerkleTree::new(recovery.finalize().unwrap()).unwrap();
     tree.verify_consistency(recovered_version, true).unwrap();
 }
 
@@ -50,14 +50,14 @@ fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk
         .unwrap();
 
     let recovered_version = 123;
-    let mut recovery = MerkleTreeRecovery::new(&mut db, recovered_version);
+    let mut recovery = MerkleTreeRecovery::new(&mut db, recovered_version).unwrap();
     for (i, chunk) in recovery_entries.chunks(chunk_size).enumerate() {
         match kind {
-            RecoveryKind::Linear => recovery.extend_linear(chunk.to_vec()),
-            RecoveryKind::Random => recovery.extend_random(chunk.to_vec()),
+            RecoveryKind::Linear => recovery.extend_linear(chunk.to_vec()).unwrap(),
+            RecoveryKind::Random => recovery.extend_random(chunk.to_vec()).unwrap(),
         }
         if i % 3 == 1 {
-            recovery = MerkleTreeRecovery::new(&mut db, recovered_version);
+            recovery = MerkleTreeRecovery::new(&mut db, recovered_version).unwrap();
             // ^ Simulate recovery interruption and restart
         }
     }
@@ -65,7 +65,7 @@ fn test_recovery_in_chunks(mut db: impl PruneDatabase, kind: RecoveryKind, chunk
     assert_eq!(recovery.last_processed_key(), Some(greatest_key));
     assert_eq!(recovery.root_hash(), *expected_hash);
 
-    let mut tree = MerkleTree::new(recovery.finalize());
+    let mut tree = MerkleTree::new(recovery.finalize().unwrap()).unwrap();
     tree.verify_consistency(recovered_version, true).unwrap();
     // Check that new tree versions can be built and function as expected.
     test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
@@ -101,11 +101,11 @@ fn test_tree_after_recovery<DB: Database>(
         tree_map.extend(chunk);
 
         let new_root_hash = if i % 2 == 0 {
-            let output = tree.extend(chunk.to_vec());
+            let output = tree.extend(chunk.to_vec()).unwrap();
             output.root_hash
         } else {
             let instructions = convert_to_writes(chunk);
-            let output = tree.extend_with_proofs(instructions.clone());
+            let output = tree.extend_with_proofs(instructions.clone()).unwrap();
             output
                 .verify_proofs(&Blake2Hasher, prev_root_hash, &instructions)
                 .unwrap();
@@ -117,6 +117,39 @@ fn test_tree_after_recovery<DB: Database>(
             .unwrap();
         prev_root_hash = new_root_hash;
     }
+}
+
+fn test_parallel_recovery_in_chunks<DB>(db: DB, kind: RecoveryKind, chunk_size: usize)
+where
+    DB: PruneDatabase + Clone + 'static,
+{
+    let (kvs, expected_hash) = &*ENTRIES_AND_HASH;
+    let mut recovery_entries = kvs.clone();
+    if matches!(kind, RecoveryKind::Linear) {
+        recovery_entries.sort_unstable_by_key(|entry| entry.key);
+    }
+
+    let recovered_version = 123;
+    let mut recovery = MerkleTreeRecovery::new(db.clone(), recovered_version).unwrap();
+    recovery.parallelize_persistence(4).unwrap();
+    for (i, chunk) in recovery_entries.chunks(chunk_size).enumerate() {
+        match kind {
+            RecoveryKind::Linear => recovery.extend_linear(chunk.to_vec()).unwrap(),
+            RecoveryKind::Random => recovery.extend_random(chunk.to_vec()).unwrap(),
+        }
+        if i % 3 == 1 {
+            // need this to ensure that the old persistence thread doesn't corrupt DB
+            recovery.wait_for_persistence().unwrap();
+            recovery = MerkleTreeRecovery::new(db.clone(), recovered_version).unwrap();
+            recovery.parallelize_persistence(4).unwrap();
+            // ^ Simulate recovery interruption and restart.
+        }
+    }
+
+    let mut tree = MerkleTree::new(recovery.finalize().unwrap()).unwrap();
+    tree.verify_consistency(recovered_version, true).unwrap();
+    // Check that new tree versions can be built and function as expected.
+    test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
 }
 
 #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
@@ -135,5 +168,12 @@ mod rocksdb {
         let temp_dir = TempDir::new().unwrap();
         let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         test_recovery_in_chunks(db, kind, chunk_size);
+    }
+
+    #[test_casing(8, test_casing::Product((RecoveryKind::ALL, [6, 10, 17, 42])))]
+    fn parallel_recovery_in_chunks(kind: RecoveryKind, chunk_size: usize) {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_parallel_recovery_in_chunks(db, kind, chunk_size);
     }
 }

@@ -14,14 +14,24 @@ use circuit_definitions::{
     },
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
+    L1BatchNumber, ProtocolVersionId,
+};
 
 use crate::keys::FriCircuitKey;
 
 pub mod keys;
 pub mod queue;
 
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
+// THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
+pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(1);
+pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
+    minor: PROVER_PROTOCOL_VERSION,
+    patch: PROVER_PROTOCOL_PATCH,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]

@@ -2,20 +2,15 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-#[cfg(feature = "client")]
 use crate::client::{ForNetwork, L2};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
+    feature = "server",
     rpc(server, client, namespace = "web3", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
+    not(feature = "server"),
     rpc(client, namespace = "web3", client_bounds(Self: ForNetwork<Net = L2>))
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "web3")
 )]
 pub trait Web3Namespace {
     #[method(name = "clientVersion")]

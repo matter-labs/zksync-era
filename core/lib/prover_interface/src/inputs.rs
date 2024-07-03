@@ -58,7 +58,7 @@ impl StorageLogMetadata {
 /// 256 items with the current Merkle tree). The following items may have less hashes in their
 /// Merkle paths; if this is the case, the starting hashes are skipped and are the same
 /// as in the first path.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrepareBasicCircuitsJob {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     merkle_paths: Vec<StorageLogMetadata>,
