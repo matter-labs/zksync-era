@@ -16,7 +16,7 @@ impl ActionQueueSender {
     ///
     /// # Errors
     ///
-    /// Errors correspond incorrect action order, or to `ExternalIO` instance that the queue is connected to shutting down.
+    /// Errors correspond to incorrect action order, or to `ExternalIO` instance that the queue is connected to shutting down.
     /// Hence, returned errors must be treated as unrecoverable by the caller; it is unsound to continue
     /// operating a node if some of the `actions` may be lost.
     pub async fn push_actions(&self, actions: Vec<SyncAction>) -> anyhow::Result<()> {
