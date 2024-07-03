@@ -25,7 +25,9 @@ use zksync_node_framework::{
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
-        node_storage_init::{main_node_role::MainNodeRoleLayer, NodeStorageInitializerLayer},
+        node_storage_init::{
+            main_node_role::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
+        },
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -468,7 +470,7 @@ impl MainNodeBuilder {
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
-        self.node.add_layer(MainNodeRoleLayer {
+        self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
             contracts: self.contracts_config.clone(),
         });

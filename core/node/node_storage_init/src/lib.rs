@@ -1,18 +1,15 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
-use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_block_reverter::BlockReverter;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_health_check::AppHealthCheck;
 use zksync_types::L1BatchNumber;
 
-pub use crate::{external_node::ExternalNodeRole, main_node::MainNodeRole, node_role::NodeRole};
+pub use crate::traits::{InitializeStorage, RevertStorage};
 
-mod external_node;
-mod main_node;
-mod node_role;
+pub mod external_node;
+pub mod main_node;
+mod traits;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryConfig {
@@ -30,6 +27,13 @@ enum InitDecision {
     SnapshotRecovery,
 }
 
+#[derive(Debug)]
+pub struct NodeInitializationStrategy {
+    pub genesis: Box<dyn InitializeStorage>,
+    pub snapshot_recovery: Option<Box<dyn InitializeStorage>>,
+    pub block_reverter: Option<Box<dyn RevertStorage>>,
+}
+
 /// Node storage initializer.
 /// This structure is responsible for making sure that the node storage is initialized.
 ///
@@ -40,36 +44,13 @@ enum InitDecision {
 /// for the whole system.
 #[derive(Debug)]
 pub struct NodeStorageInitializer {
+    strategy: Arc<NodeInitializationStrategy>,
     pool: ConnectionPool<Core>,
-    node_role: Arc<dyn NodeRole>,
-    app_health: Arc<AppHealthCheck>,
-    recovery_config: Option<SnapshotRecoveryConfig>,
-    block_reverter: Option<BlockReverter>,
 }
 
 impl NodeStorageInitializer {
-    pub fn new(
-        node_role: Arc<dyn NodeRole>,
-        pool: ConnectionPool<Core>,
-        app_health: Arc<AppHealthCheck>,
-    ) -> Self {
-        Self {
-            pool,
-            node_role,
-            app_health,
-            recovery_config: None,
-            block_reverter: None,
-        }
-    }
-
-    pub fn with_recovery_config(mut self, recovery_config: Option<SnapshotRecoveryConfig>) -> Self {
-        self.recovery_config = recovery_config;
-        self
-    }
-
-    pub fn with_block_reverter(mut self, block_reverter: Option<BlockReverter>) -> Self {
-        self.block_reverter = block_reverter;
-        self
+    pub fn new(strategy: Arc<NodeInitializationStrategy>, pool: ConnectionPool<Core>) -> Self {
+        Self { strategy, pool }
     }
 
     /// Returns the preferred kind of storage initialization.
@@ -107,7 +88,7 @@ impl NodeStorageInitializer {
             }
             (None, None) => {
                 tracing::info!("Node has neither genesis L1 batch, nor snapshot recovery info");
-                if self.recovery_config.is_some() {
+                if self.strategy.snapshot_recovery.is_some() {
                     InitDecision::SnapshotRecovery
                 } else {
                     InitDecision::Genesis
@@ -126,38 +107,30 @@ impl NodeStorageInitializer {
         match decision {
             InitDecision::Genesis => {
                 tracing::info!("Performing genesis initialization");
-                self.node_role.genesis(&self.pool).await?;
+                self.strategy
+                    .genesis
+                    .initialize_storage(stop_receiver.clone())
+                    .await?;
             }
             InitDecision::SnapshotRecovery => {
                 tracing::info!("Performing snapshot recovery initialization");
-                let recovery_config = self.recovery_config.context(
-                    "Snapshot recovery is required to proceed, but it is not enabled. \
-                    Consult the documentation for more information on how to enable it.",
-                )?;
-                self.node_role
-                    .snapshot_recovery(
-                        stop_receiver.clone(),
-                        &self.pool,
-                        recovery_config,
-                        self.app_health.clone(),
-                    )
-                    .await?;
+                if let Some(recovery) = &self.strategy.snapshot_recovery {
+                    recovery.initialize_storage(stop_receiver.clone()).await?;
+                } else {
+                    anyhow::bail!(
+                        "Snapshot recovery should be performed, but the strategy is not provided"
+                    );
+                }
             }
         }
 
         // Now we may check whether we're in the invalid state and should perform a rollback.
-        if let Some(to_batch) = self
-            .node_role
-            .should_rollback_to(stop_receiver, &self.pool)
-            .await?
-        {
-            tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
-            let Some(reverter) = self.block_reverter else {
-                anyhow::bail!("Blocks must be reverted, but the block reverter is not provided.");
-            };
-
-            tracing::info!("Performing the rollback");
-            self.node_role.perform_rollback(reverter, to_batch).await?;
+        if let Some(reverter) = &self.strategy.block_reverter {
+            if let Some(to_batch) = reverter.is_revert_needed().await? {
+                tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
+                tracing::info!("Performing the rollback");
+                reverter.revert_storage(to_batch, stop_receiver).await?;
+            }
         }
 
         Ok(())
@@ -192,24 +165,28 @@ impl NodeStorageInitializer {
 
     async fn is_database_initialized(&self, decision: InitDecision) -> anyhow::Result<bool> {
         match decision {
-            InitDecision::Genesis => self.node_role.is_genesis_performed(&self.pool).await,
+            InitDecision::Genesis => self.strategy.genesis.is_initialized().await,
             InitDecision::SnapshotRecovery => {
-                self.node_role
-                    .is_snapshot_recovery_completed(&self.pool)
-                    .await
+                if let Some(recovery) = &self.strategy.snapshot_recovery {
+                    recovery.is_initialized().await
+                } else {
+                    anyhow::bail!(
+                        "Snapshot recovery should be performed, but the strategy is not provided"
+                    );
+                }
             }
         }
     }
 
     async fn is_rollback_not_needed(
         &self,
-        stop_receiver: watch::Receiver<bool>,
+        _stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
-        let initialized = self
-            .node_role
-            .should_rollback_to(stop_receiver, &self.pool)
-            .await?
-            .is_none();
+        let initialized = if let Some(reverter) = &self.strategy.block_reverter {
+            reverter.is_revert_needed().await?.is_none()
+        } else {
+            true
+        };
         Ok(initialized)
     }
 }
@@ -223,15 +200,7 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = anyhow::Result<bool>>,
 {
-    loop {
-        if *stop_receiver.borrow() {
-            break;
-        }
-
-        if check().await? {
-            break;
-        }
-
+    while !*stop_receiver.borrow() && !check().await? {
         // Return value will be checked on the next iteration.
         tokio::time::timeout(polling_interval, stop_receiver.changed())
             .await

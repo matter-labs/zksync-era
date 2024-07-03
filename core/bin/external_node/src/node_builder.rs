@@ -24,7 +24,8 @@ use zksync_node_framework::{
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
-            external_node_role::ExternalNodeRoleLayer, NodeStorageInitializerLayer,
+            external_node_role::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
+            NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
@@ -448,8 +449,21 @@ impl ExternalNodeBuilder {
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
-        self.node.add_layer(ExternalNodeRoleLayer {
+        let config = &self.config;
+        let snapshot_recovery_config =
+            config
+                .optional
+                .snapshots_recovery_enabled
+                .then_some(SnapshotRecoveryConfig {
+                    snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+                    drop_storage_key_preimages: config
+                        .experimental
+                        .snapshots_recovery_drop_storage_key_preimages,
+                    object_store_config: config.optional.snapshots_recovery_object_store.clone(),
+                });
+        self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.required.l2_chain_id,
+            snapshot_recovery_config,
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {

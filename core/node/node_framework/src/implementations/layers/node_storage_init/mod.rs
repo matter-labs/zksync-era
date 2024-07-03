@@ -1,13 +1,9 @@
 use std::sync::Arc;
 
-use zksync_node_storage_init::{NodeRole, NodeStorageInitializer, SnapshotRecoveryConfig};
+use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
 
 use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
-        reverter::BlockReverterResource,
-    },
+    implementations::resources::pools::{MasterPool, PoolResource},
     resource::Resource,
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId, TaskKind},
@@ -22,16 +18,13 @@ pub mod main_node_role;
 /// ## Requests resources
 ///
 /// - `PoolResource<MasterPool>`
-/// - `NodeRoleResource`
-/// - `BlockReverterResource` (optional)
-/// - `AppHealthCheckResource` (adds a health check)
+/// - `NodeInitializationStrategyResource`
 ///
 /// ## Adds tasks
 ///
 /// Depends on the mode, either  `NodeStorageInitializer` or `NodeStorageInitializerPrecondition`
 #[derive(Debug, Default)]
 pub struct NodeStorageInitializerLayer {
-    snapshot_recovery_config: Option<SnapshotRecoveryConfig>,
     as_precondition: bool,
 }
 
@@ -43,14 +36,6 @@ impl NodeStorageInitializerLayer {
     /// Changes the wiring logic to treat the initializer as a precondition.
     pub fn as_precondition(mut self) -> Self {
         self.as_precondition = true;
-        self
-    }
-
-    pub fn with_snapshot_recovery_config(
-        mut self,
-        snapshot_recovery_config: SnapshotRecoveryConfig,
-    ) -> Self {
-        self.snapshot_recovery_config = Some(snapshot_recovery_config);
         self
     }
 }
@@ -69,28 +54,9 @@ impl WiringLayer for NodeStorageInitializerLayer {
             .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
-        let NodeRoleResource(role) = context.get_resource()?;
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
+        let NodeInitializationStrategyResource(role) = context.get_resource()?;
 
-        let mut initializer = NodeStorageInitializer::new(role, pool, app_health)
-            .with_recovery_config(self.snapshot_recovery_config);
-
-        // We don't want to give precondition access to the block reverter, just in case.
-        if !self.as_precondition {
-            let block_reverter = match context.get_resource::<BlockReverterResource>() {
-                Ok(reverter) => {
-                    // If reverter was provided, we intend to be its sole consumer.
-                    // We don't want multiple components to attempt reverting blocks.
-                    let reverter = reverter.0.take().ok_or(WiringError::Configuration(
-                        "BlockReverterResource is taken".into(),
-                    ))?;
-                    Some(reverter)
-                }
-                Err(WiringError::ResourceLacking { .. }) => None,
-                Err(err) => return Err(err),
-            };
-            initializer = initializer.with_block_reverter(block_reverter);
-        }
+        let initializer = NodeStorageInitializer::new(role, pool);
 
         // Insert either task or precondition.
         if self.as_precondition {
@@ -144,13 +110,12 @@ impl Task for NodeStorageInitializerPrecondition {
 
 // Note: unlike with other modules, this one keeps within the same file to simplify
 // moving the implementations out of the framework soon.
-/// Resource representing the node role.
-/// Used for storage initialization.
+/// Resource representing the node initialization strategy.
 #[derive(Debug, Clone)]
-pub struct NodeRoleResource(Arc<dyn NodeRole>);
+pub struct NodeInitializationStrategyResource(Arc<NodeInitializationStrategy>);
 
-impl Resource for NodeRoleResource {
+impl Resource for NodeInitializationStrategyResource {
     fn name() -> String {
-        "node_role".into()
+        "node_initialization_strategy".into()
     }
 }
