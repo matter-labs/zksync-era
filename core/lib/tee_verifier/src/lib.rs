@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn test_v1_serialization() {
         let tvi = V1TeeVerifierInput::new(
-            PrepareBasicCircuitsJob::new(0),
+            WitnessInputMerklePaths::new(0),
             vec![],
             L1BatchEnv {
                 previous_batch_hash: Some(H256([1; 32])),
