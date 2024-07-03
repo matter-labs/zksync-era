@@ -245,7 +245,11 @@ impl TeeVerifierInput {
             }
             (false, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
             _ => {
-                tracing::error!("Failed to map LogQuery to TreeInstruction");
+                tracing::error!(
+                    "Failed to map LogQuery to TreeInstruction rw_flag={:?}, tree_log_entry={:?}",
+                    log_query.rw_flag,
+                    *tree_log_entry
+                );
                 anyhow::bail!("Failed to map LogQuery to TreeInstruction");
             }
         })
