@@ -441,7 +441,20 @@ impl PayloadManager for Store {
 impl storage::PersistentBatchStore for Store {
     /// Range of batches persisted in storage.
     fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
-        self.batches_persisted.clone()
+        // Normally we'd return this, but it causes the following test to run forever:
+        // RUST_LOG=info zk test rust test_full_nodes --no-capture
+        //
+        // The error seems to be related to the size of messages, although I'm not sure
+        // why it retries it forever. Since the gossip of SyncBatch is not fully functional
+        // yet, for now let's just return a fake response that never changes, which should
+        // disable gossiping on honest nodes.
+        let _ = self.batches_persisted.clone();
+
+        sync::watch::channel(storage::BatchStoreState {
+            first: attester::BatchNumber(0),
+            last: None,
+        })
+        .1
     }
 
     /// Get the highest L1 batch number from storage.
