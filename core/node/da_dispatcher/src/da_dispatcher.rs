@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use anyhow::Context;
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use rand::Rng;
 use tokio::sync::watch::Receiver;
 use zksync_config::DADispatcherConfig;
@@ -94,9 +94,8 @@ impl DataAvailabilityDispatcher {
             })?;
             let dispatch_latency_duration = dispatch_latency.observe();
 
-            let sent_at = DateTime::from_timestamp_millis(Utc::now().timestamp_millis())
-                .unwrap()
-                .naive_utc();
+            let sent_at =
+                NaiveDateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap();
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
