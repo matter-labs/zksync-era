@@ -15,7 +15,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) struct ShadowVm<S, T> {
+pub struct ShadowVm<S, T> {
     main: T,
     shadow: vm_fast::Vm<S>,
 }

@@ -425,7 +425,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    /*
+    #[allow(dead_code)] // FIXME: doesn't work with the new VM
     fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TeeVerifierInputProducerLayer::new(
             self.genesis_config.l2_chain_id,
@@ -433,7 +433,6 @@ impl MainNodeBuilder {
 
         Ok(self)
     }
-        */
 
     fn add_vm_runner_protective_reads_layer(mut self) -> anyhow::Result<Self> {
         let protective_reads_writer_config =
@@ -514,9 +513,7 @@ impl MainNodeBuilder {
                     self = self.add_state_keeper_layer()?;
                 }
                 Component::TeeVerifierInputProducer => {
-                    /*
-                    self = self.add_tee_verifier_input_producer_layer()?;
-                    */
+                    // FIXME: self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self

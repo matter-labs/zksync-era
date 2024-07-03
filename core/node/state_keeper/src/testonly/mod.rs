@@ -48,7 +48,6 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
-            deduplicated_events_logs: vec![],
             storage_refunds: Vec::new(),
             pubdata_costs: Vec::new(),
         },

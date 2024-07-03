@@ -263,6 +263,7 @@ impl<S: ReadStorage> Vm<S> {
         (result, refunds)
     }
 
+    #[allow(dead_code)] // FIXME: enable validation
     fn run_account_validation(&mut self) -> Result<(), ()> {
         loop {
             match self.inner.resume_with_additional_gas_limit(
@@ -338,8 +339,9 @@ impl<S: ReadStorage> Vm<S> {
         }
     }
 
-    #[cfg(test)]
     /// Returns the current state of the VM in a format that can be compared for equality.
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)] // OK for tests
     pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
         // TODO this doesn't include all the state of ModifiedWorld
         (
@@ -416,6 +418,7 @@ impl<S: ReadStorage> Vm<S> {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
         self.inner.world_diff.get_decommitted_hashes().keys()
     }
@@ -766,12 +769,11 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .code_page()
             .as_ref()
             .iter()
-            .map(|u| {
+            .flat_map(|u| {
                 let mut buffer = [0u8; 32];
                 u.to_big_endian(&mut buffer);
                 buffer
             })
-            .flatten()
             .collect()
     }
 
