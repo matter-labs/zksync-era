@@ -59,17 +59,23 @@ impl ForgeScript {
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args_no_resume = self.args.build();
-        let command = format!("forge script {script_path:?} --legacy");
         if self.args.resume {
             let mut args = args_no_resume.clone();
             args.push(ForgeScriptArg::Resume.to_string());
-            return Ok(Cmd::new(cmd!(shell, "{command} {args...}"))
-                .run()
-                .suppress_resume_not_successful_because_has_not_began()?);
+            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run();
+            if !res.resume_not_successful_because_has_not_began() {
+                return Ok(res?);
+            }
         }
-        Ok(Cmd::new(cmd!(shell, "{command}  {args_no_resume...}"))
-            .run()
-            .suppress_proposal_error()?)
+        let res = Cmd::new(cmd!(
+            shell,
+            "forge script {script_path} --legacy {args_no_resume...}"
+        ))
+        .run();
+        if res.proposal_error() {
+            return Ok(());
+        }
+        Ok(res?)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -377,33 +383,30 @@ pub enum ForgeVerifier {
 trait ForgeErrorHandler {
     // Resume doesn't work if the forge script has never been started on this chain before.
     // So we want to catch it and try again without resume arg if it's the case
-    fn suppress_resume_not_successful_because_has_not_began(self) -> Self;
+    fn resume_not_successful_because_has_not_began(&self) -> bool;
     // Catch the error if upgrade tx has already been processed. We do execute much of
     // txs using upgrade mechanism and if this particular upgrade has already been processed we could assume
     // it as a success
-    fn suppress_proposal_error(self) -> Self;
+    fn proposal_error(&self) -> bool;
 }
 
 impl ForgeErrorHandler for CmdResult<()> {
-    fn suppress_resume_not_successful_because_has_not_began(self) -> Self {
+    fn resume_not_successful_because_has_not_began(&self) -> bool {
         let text = "Deployment not found for chain";
-        suppress_error(self, text)
+        check_error(self, text)
     }
 
-    fn suppress_proposal_error(self) -> Self {
+    fn proposal_error(&self) -> bool {
         let text = "revert: Operation with this proposal id already exists";
-        suppress_error(self, text)
+        check_error(self, text)
     }
 }
 
-fn suppress_error(cmd_result: CmdResult<()>, error_text: &str) -> CmdResult<()> {
+fn check_error(cmd_result: &CmdResult<()>, error_text: &str) -> bool {
     if let Err(cmd_error) = &cmd_result {
         if let Some(stderr) = &cmd_error.stderr {
-            if stderr.contains(error_text) {
-                return Ok(());
-            }
+            return stderr.contains(error_text);
         }
-        return cmd_result;
     }
-    return cmd_result;
+    false
 }
