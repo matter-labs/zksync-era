@@ -186,6 +186,9 @@ impl StoreRunner {
                 }
             });
 
+            // NOTE: Running this update loop will trigger the gossip of `SyncBatches` which is currently
+            // pointless as there is no proof and we have to ignore them. We can disable it, but bear in
+            // mind that any node which gossips the availability will cause pushes and pulls in the consensus.
             s.spawn::<()>(async {
                 // Loop updating `batches_persisted` whenever a new L1 batch is available in the database.
                 // We have to do this because the L1 batch is produced as L2 blocks are executed,
