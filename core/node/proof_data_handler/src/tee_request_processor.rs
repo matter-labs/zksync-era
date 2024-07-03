@@ -2,19 +2,18 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{tee_proof_generation_dal::TeeType, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{
-    GenericProofGenerationDataResponse, RegisterTeeAttestationRequest,
-    RegisterTeeAttestationResponse, SubmitProofResponse, SubmitTeeProofRequest,
-    TeeProofGenerationDataRequest,
+use zksync_prover_interface::{
+    api::{
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+    },
+    inputs::TeeVerifierInput,
 };
-use zksync_tee_verifier::TeeVerifierInput;
 use zksync_types::L1BatchNumber;
 
 use crate::errors::RequestProcessorError;
-
-pub type TeeProofGenerationDataResponse = GenericProofGenerationDataResponse<TeeVerifierInput>;
 
 #[derive(Clone)]
 pub(crate) struct TeeRequestProcessor {
@@ -55,7 +54,7 @@ impl TeeRequestProcessor {
             .map_err(RequestProcessorError::Dal)?;
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
-            None => return Ok(Json(TeeProofGenerationDataResponse::Success(None))),
+            None => return Ok(Json(TeeProofGenerationDataResponse(None))),
         };
 
         let tee_verifier_input: TeeVerifierInput = self
@@ -64,9 +63,9 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        Ok(Json(TeeProofGenerationDataResponse::Success(Some(
-            Box::new(tee_verifier_input),
-        ))))
+        Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(
+            tee_verifier_input,
+        )))))
     }
 
     pub(crate) async fn submit_proof(
@@ -92,7 +91,7 @@ impl TeeRequestProcessor {
             &proof.0.signature,
             &proof.0.pubkey,
             &proof.0.proof,
-            TeeType::Sgx,
+            proof.0.tee_type,
         )
         .await
         .map_err(RequestProcessorError::Dal)?;

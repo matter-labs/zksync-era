@@ -2,8 +2,9 @@ use std::{convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
+use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{L1BatchNumber, H256, U256};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, H256, U256};
 
 const HASH_LEN: usize = H256::len_bytes();
 
@@ -142,6 +143,61 @@ pub struct BasicCircuitWitnessGeneratorInput {
     pub used_bytecodes_hashes: Vec<U256>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub merkle_paths_input: PrepareBasicCircuitsJob,
+}
+
+/// Version 1 of the data used as input for the TEE verifier.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct V1TeeVerifierInput {
+    pub prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+    pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
+    pub used_contracts: Vec<(H256, Vec<u8>)>,
+}
+
+impl V1TeeVerifierInput {
+    pub fn new(
+        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+        l2_blocks_execution_data: Vec<L2BlockExecutionData>,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        used_contracts: Vec<(H256, Vec<u8>)>,
+    ) -> Self {
+        V1TeeVerifierInput {
+            prepare_basic_circuits_job,
+            l2_blocks_execution_data,
+            l1_batch_env,
+            system_env,
+            used_contracts,
+        }
+    }
+}
+
+/// Data used as input for the TEE verifier.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
+pub enum TeeVerifierInput {
+    /// `V0` suppresses warning about irrefutable `let...else` pattern
+    V0,
+    V1(V1TeeVerifierInput),
+}
+
+impl TeeVerifierInput {
+    pub fn new(input: V1TeeVerifierInput) -> Self {
+        TeeVerifierInput::V1(input)
+    }
+}
+
+impl StoredObject for TeeVerifierInput {
+    const BUCKET: Bucket = Bucket::TeeVerifierInput;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("tee_verifier_input_for_l1_batch_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 #[cfg(test)]

@@ -85,7 +85,7 @@ pub mod gpu_socket_listener {
             let mut now = Instant::now();
             loop {
                 if *stop_receiver.borrow() {
-                    tracing::warn!("Stop signal received, shutting down socket listener");
+                    tracing::info!("Stop signal received, shutting down socket listener");
                     return Ok(());
                 }
                 let stream = listener
