@@ -1,5 +1,6 @@
 use crate::{
     configs::{
+        base_token_adjuster::BaseTokenAdjusterConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
         da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
@@ -43,4 +44,5 @@ pub struct GeneralConfig {
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub pruning: Option<PruningConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
 }
