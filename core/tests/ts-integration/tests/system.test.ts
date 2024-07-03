@@ -13,6 +13,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
+import { BigNumberish } from 'ethers';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -381,16 +382,16 @@ describe('System behavior checks', () => {
 
 // Interface encoding the transaction struct used for AA protocol
 export interface TransactionData {
-    txType: ethers.BigNumberish;
-    from: ethers.BigNumberish;
-    to: ethers.BigNumberish;
-    gasLimit: ethers.BigNumberish;
-    gasPerPubdataByteLimit: ethers.BigNumberish;
-    maxFeePerGas: ethers.BigNumberish;
-    maxPriorityFeePerGas: ethers.BigNumberish;
-    paymaster: ethers.BigNumberish;
-    nonce: ethers.BigNumberish;
-    value: ethers.BigNumberish;
+    txType: BigNumberish;
+    from: BigNumberish;
+    to: BigNumberish;
+    gasLimit: BigNumberish;
+    gasPerPubdataByteLimit: BigNumberish;
+    maxFeePerGas: BigNumberish;
+    maxPriorityFeePerGas: BigNumberish;
+    paymaster: BigNumberish;
+    nonce: BigNumberish;
+    value: BigNumberish;
     // In the future, we might want to add some
     // new fields to the struct. The `txData` struct
     // is to be passed to account and any changes to its structure
@@ -399,7 +400,7 @@ export interface TransactionData {
     // It is also recommended that their length is fixed, since
     // it would allow easier proof integration (in case we will need
     // some special circuit for preprocessing transactions).
-    reserved: ethers.BigNumberish[];
+    reserved: BigNumberish[];
     data: ethers.BytesLike;
     signature: ethers.BytesLike;
     factoryDeps: ethers.BytesLike[];

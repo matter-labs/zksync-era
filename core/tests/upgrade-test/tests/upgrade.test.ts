@@ -6,6 +6,7 @@ import { expect } from 'chai';
 import fs from 'fs';
 import { BytesLike } from '@ethersproject/bytes';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
+import { BigNumberish } from 'ethers';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
 const L1_DEFAULT_UPGRADE_ABI = new ethers.Interface(
@@ -360,20 +361,20 @@ async function prepareUpgradeCalldata(
     mainContract: zksync.types.Address,
     params: {
         l2ProtocolUpgradeTx: {
-            txType: ethers.BigNumberish;
-            from: ethers.BigNumberish;
-            to: ethers.BigNumberish;
-            gasLimit: ethers.BigNumberish;
-            gasPerPubdataByteLimit: ethers.BigNumberish;
-            maxFeePerGas: ethers.BigNumberish;
-            maxPriorityFeePerGas: ethers.BigNumberish;
-            paymaster: ethers.BigNumberish;
-            nonce?: ethers.BigNumberish;
-            value: ethers.BigNumberish;
-            reserved: [ethers.BigNumberish, ethers.BigNumberish, ethers.BigNumberish, ethers.BigNumberish];
+            txType: BigNumberish;
+            from: BigNumberish;
+            to: BigNumberish;
+            gasLimit: BigNumberish;
+            gasPerPubdataByteLimit: BigNumberish;
+            maxFeePerGas: BigNumberish;
+            maxPriorityFeePerGas: BigNumberish;
+            paymaster: BigNumberish;
+            nonce?: BigNumberish;
+            value: BigNumberish;
+            reserved: [BigNumberish, BigNumberish, BigNumberish, BigNumberish];
             data: BytesLike;
             signature: BytesLike;
-            factoryDeps: ethers.BigNumberish[];
+            factoryDeps: BigNumberish[];
             paymasterInput: BytesLike;
             reservedDynamic: BytesLike;
         };
@@ -388,7 +389,7 @@ async function prepareUpgradeCalldata(
         };
         l1ContractsUpgradeCalldata?: BytesLike;
         postUpgradeCalldata?: BytesLike;
-        upgradeTimestamp: ethers.BigNumberish;
+        upgradeTimestamp: BigNumberish;
     }
 ) {
     const upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
