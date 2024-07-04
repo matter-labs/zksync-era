@@ -24,7 +24,7 @@ impl Serialize for WitnessStorageState {
             read_storage_key: self
                 .read_storage_key
                 .iter()
-                .map(|(k, v)| (*k, v.clone()))
+                .map(|(k, v)| (*k, *v))
                 .collect(),
             is_write_initial: self
                 .is_write_initial
