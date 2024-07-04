@@ -28,7 +28,7 @@ impl RevertStorage for ExternalNodeReverter {
         Ok(())
     }
 
-    async fn is_revert_needed(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn last_correct_batch_for_reorg(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         let mut reorg_detector = ReorgDetector::new(self.client.clone(), self.pool.clone());
         // We don't need this kind of granularity for detecting stop signal; it's expected to be treated
         // by the caller.

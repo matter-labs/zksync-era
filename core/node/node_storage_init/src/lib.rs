@@ -126,7 +126,7 @@ impl NodeStorageInitializer {
 
         // Now we may check whether we're in the invalid state and should perform a rollback.
         if let Some(reverter) = &self.strategy.block_reverter {
-            if let Some(to_batch) = reverter.is_revert_needed().await? {
+            if let Some(to_batch) = reverter.last_correct_batch_for_reorg().await? {
                 tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
                 tracing::info!("Performing the rollback");
                 reverter.revert_storage(to_batch, stop_receiver).await?;
@@ -183,7 +183,7 @@ impl NodeStorageInitializer {
         _stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            reverter.is_revert_needed().await?.is_none()
+            reverter.last_correct_batch_for_reorg().await?.is_none()
         } else {
             true
         };
