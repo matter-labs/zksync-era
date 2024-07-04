@@ -2,11 +2,11 @@
  * This suite contains tests checking default ERC-20 contract behavior.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber, utils as etherUtils } from 'ethers';
+import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 describe('base ERC20 contract checks', () => {
@@ -27,8 +27,8 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Can perform a deposit', async () => {
-        const amount = 1; // 1 wei is enough.
-        const gasPrice = scaledGasPrice(alice);
+        const amount = 1n; // 1 wei is enough.
+        const gasPrice = await scaledGasPrice(alice);
 
         const initialEthBalance = await alice.getBalanceL1();
         const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
@@ -53,23 +53,26 @@ describe('base ERC20 contract checks', () => {
         await depositTx.wait();
 
         const receipt = await alice._providerL1().getTransactionReceipt(depositHash);
-        const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+        if (!receipt) {
+            throw new Error('No receipt for deposit');
+        }
+        const fee = receipt.gasPrice * receipt.gasUsed;
 
         // TODO: should all the following tests use strict equality?
 
         const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).bnToBeGt(finalEthBalance.add(fee)); // Fee should be taken from the ETH balance on L1.
+        expect(initialEthBalance).toBeGreaterThan(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
-        expect(initialL1Balance).bnToBeGte(finalL1Balance.add(amount));
+        expect(initialL1Balance).toBeGreaterThanOrEqual(finalL1Balance + amount);
 
         const finalL2Balance = await alice.getBalance();
-        expect(initialL2Balance).bnToBeLte(finalL2Balance.add(amount));
+        expect(initialL2Balance).toBeLessThanOrEqual(finalL2Balance + amount);
     });
 
     test('Not enough balance should revert', async () => {
-        const amount = BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-        const gasPrice = scaledGasPrice(alice);
+        const amount = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+        const gasPrice = await scaledGasPrice(alice);
         let errorMessage;
 
         await expect(
@@ -92,7 +95,7 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Can perform a transfer to self', async () => {
-        const amount = BigNumber.from(200);
+        const amount = 200n;
 
         const initialAliceBalance = await alice.getBalance();
 
@@ -107,14 +110,14 @@ describe('base ERC20 contract checks', () => {
         await transferTx.waitFinalize();
 
         const receipt = await alice._providerL2().getTransactionReceipt(transferTx.hash);
-        const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+        const fee = receipt!.gasPrice * receipt!.gasUsed;
 
         const finalAliceBalance = await alice.getBalance();
-        expect(initialAliceBalance.sub(fee)).bnToBeEq(finalAliceBalance);
+        expect(initialAliceBalance - fee).toEqual(finalAliceBalance);
     });
 
     test('Incorrect transfer should revert', async () => {
-        const amount = etherUtils.parseEther('1000000.0');
+        const amount = ethers.parseEther('1000000.0');
 
         const initialAliceBalance = await alice.getBalance();
         const initialBobBalance = await bob.getBalance();
@@ -131,15 +134,15 @@ describe('base ERC20 contract checks', () => {
         const finalAliceBalance = await alice.getBalance();
         const finalBobBalance = await bob.getBalance();
 
-        await expect(finalAliceBalance).bnToBeEq(initialAliceBalance);
-        await expect(finalBobBalance).bnToBeEq(initialBobBalance);
+        await expect(finalAliceBalance).toEqual(initialAliceBalance);
+        await expect(finalBobBalance).toEqual(initialBobBalance);
     });
 
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode() || isETHBasedChain) {
             return;
         }
-        const amount = 1;
+        const amount = 1n;
 
         const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
@@ -151,13 +154,13 @@ describe('base ERC20 contract checks', () => {
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);
-        const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+        const fee = receipt!.gasPrice * receipt!.gasUsed;
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const finalL2Balance = await alice.getBalance();
 
-        expect(finalL1Balance).bnToBeEq(initialL1Balance.add(amount));
-        expect(finalL2Balance.add(amount).add(fee)).bnToBeEq(initialL2Balance);
+        expect(finalL1Balance).toEqual(initialL1Balance + amount);
+        expect(finalL2Balance + amount + fee).toEqual(initialL2Balance);
     });
 
     afterAll(async () => {
