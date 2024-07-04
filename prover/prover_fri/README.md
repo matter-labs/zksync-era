@@ -177,7 +177,7 @@ There is an option to run compressors with the GPU, which will significantly imp
 
    ```console
    git clone https://github.com/matter-labs/era-bellman-cuda
-   cmake -Bbellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+   cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
    cmake --build bellman-cuda/build/
    ```
 

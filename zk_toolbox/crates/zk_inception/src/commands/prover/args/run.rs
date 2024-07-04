@@ -54,7 +54,7 @@ pub enum WitnessGeneratorRound {
 
 impl ProverRunArgs {
     pub fn fill_values_with_prompt(&self) -> anyhow::Result<ProverRunArgs> {
-        let component = self.component.clone().unwrap_or_else(|| {
+        let component = self.component.unwrap_or_else(|| {
             PromptSelect::new(MSG_RUN_COMPONENT_PROMPT, ProverComponent::iter()).ask()
         });
 
