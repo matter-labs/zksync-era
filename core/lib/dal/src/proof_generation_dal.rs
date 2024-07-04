@@ -146,7 +146,7 @@ impl ProofGenerationDal<'_, '_> {
             .await?;
         if result.rows_affected() == 0 {
             let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Cannot save proof_blob_url for a batch number {} that does not exist",
+                "Cannot save vm_run_data_blob_url for a batch number {} that does not exist",
                 batch_number
             ));
             return Err(err);

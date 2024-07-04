@@ -156,8 +156,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         );
 
         let result =
-            get_updates_manager_witness_input_data(&mut connection, updates_manager.clone())
-                .await?;
+            get_updates_manager_witness_input_data(&mut connection, updates_manager).await?;
 
         assert_database_witness_input_data(&mut connection, l1_batch_number, &result).await;
 
@@ -237,9 +236,6 @@ async fn get_updates_manager_witness_input_data(
 
     Ok(VMRunWitnessInputData {
         l1_batch_number,
-        previous_aux_hash: None,
-        previous_meta_hash: None,
-        previous_root_hash: None,
         used_bytecodes,
         initial_heap_content,
 

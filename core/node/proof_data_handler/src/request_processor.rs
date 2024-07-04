@@ -9,7 +9,9 @@ use zksync_prover_interface::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
         SubmitProofRequest, SubmitProofResponse,
     },
-    inputs::{VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths},
+    inputs::{
+        L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
+    },
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -86,11 +88,6 @@ impl RequestProcessor {
             .unwrap()
             .expect("No metadata for previous batch");
 
-        vm_run_data.previous_root_hash = Some(previous_batch_metadata.metadata.root_hash);
-        vm_run_data.previous_meta_hash =
-            Some(previous_batch_metadata.metadata.meta_parameters_hash);
-        vm_run_data.previous_aux_hash = Some(previous_batch_metadata.metadata.aux_data_hash);
-
         let header = self
             .pool
             .connection()
@@ -143,6 +140,11 @@ impl RequestProcessor {
             vm_run_data,
             merkle_paths,
             eip_4844_blobs,
+            previous_batch_metadata: L1BatchMetadataHashes {
+                root_hash: previous_batch_metadata.metadata.root_hash,
+                meta_hash: previous_batch_metadata.metadata.meta_parameters_hash,
+                aux_hash: previous_batch_metadata.metadata.aux_data_hash,
+            },
         };
 
         let proof_gen_data = ProofGenerationData {

@@ -140,9 +140,6 @@ impl WitnessInputMerklePaths {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
-    pub previous_root_hash: Option<H256>,
-    pub previous_meta_hash: Option<H256>,
-    pub previous_aux_hash: Option<H256>,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub protocol_version: ProtocolVersionId,
@@ -169,6 +166,7 @@ impl StoredObject for VMRunWitnessInputData {
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: WitnessInputMerklePaths,
+    pub previous_batch_metadata: L1BatchMetadataHashes,
     pub eip_4844_blobs: Eip4844Blobs,
 }
 
@@ -182,6 +180,13 @@ impl StoredObject for WitnessInputData {
     }
 
     serialize_using_bincode!();
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct L1BatchMetadataHashes {
+    pub root_hash: H256,
+    pub meta_hash: H256,
+    pub aux_hash: H256,
 }
 
 /// Version 1 of the data used as input for the TEE verifier.
