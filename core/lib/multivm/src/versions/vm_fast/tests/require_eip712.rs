@@ -23,7 +23,7 @@ impl VmTester {
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
             &address,
         );
-        h256_to_u256(self.vm.world.storage.borrow_mut().read_value(&key))
+        h256_to_u256(self.vm.world.storage.read_value(&key))
     }
 }
 

@@ -6,7 +6,7 @@ use vm2::{
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
-use zksync_state::{ReadStorage, StoragePtr};
+use zksync_state::ReadStorage;
 use zksync_types::{
     event::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
@@ -50,9 +50,9 @@ use crate::{
             get_vm_hook_position, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
             VM_HOOK_PARAMS_COUNT,
         },
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, HistoryEnabled,
-        L1BatchEnv, L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs,
-        VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
+        L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
     },
 };
 
@@ -377,7 +377,7 @@ impl<S: ReadStorage> Vm<S> {
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
-                    .unwrap_or_else(|| self.world.storage.borrow_mut().is_bytecode_known(&hash))
+                    .unwrap_or_else(|| self.world.storage.is_bytecode_known(&hash))
             })
         };
 
@@ -395,8 +395,8 @@ impl<S: ReadStorage> Vm<S> {
         self.write_to_bootloader_heap(memory);
     }
 
-    fn compute_state_diffs(&self) -> impl Iterator<Item = StateDiffRecord> + '_ {
-        let mut storage = self.world.storage.borrow_mut();
+    fn compute_state_diffs(&mut self) -> impl Iterator<Item = StateDiffRecord> + '_ {
+        let storage = &mut self.world.storage;
 
         self.inner.world_diff.get_storage_changes().map(
             move |((address, key), (initial_value, final_value))| {
@@ -424,14 +424,10 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
-    type TracerDispatcher = ();
-
-    fn new(
-        batch_env: crate::vm_latest::L1BatchEnv,
-        system_env: crate::vm_latest::SystemEnv,
-        storage: StoragePtr<S>,
-    ) -> Self {
+// We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
+// it maintains its own storage cache and a write buffer.
+impl<S: ReadStorage> Vm<S> {
+    pub(crate) fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
@@ -488,6 +484,10 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         me
     }
+}
+
+impl<S: ReadStorage> VmInterface for Vm<S> {
+    type TracerDispatcher = ();
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         self.push_transaction_inner(tx, 0, true);
@@ -495,7 +495,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn inspect(
         &mut self,
-        _dispatcher: Self::TracerDispatcher,
+        (): Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -579,7 +579,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        (): Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (
@@ -587,7 +587,7 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         VmExecutionResultAndLogs,
     ) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect((), VmExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -686,7 +686,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled<S> for Vm<S> {
+impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
@@ -745,7 +745,7 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
 }
 
 pub(crate) struct World<S> {
-    pub(crate) storage: StoragePtr<S>,
+    pub(crate) storage: S,
 
     // TODO: It would be nice to store an LRU cache elsewhere.
     // This one is cleared on change of batch unfortunately.
@@ -754,7 +754,7 @@ pub(crate) struct World<S> {
 }
 
 impl<S: ReadStorage> World<S> {
-    fn new(storage: StoragePtr<S>, program_cache: HashMap<U256, Program>) -> Self {
+    fn new(storage: S, program_cache: HashMap<U256, Program>) -> Self {
         Self {
             storage,
             program_cache,
@@ -783,7 +783,6 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .or_insert_with(|| {
                 bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
                     self.storage
-                        .borrow_mut()
                         .load_factory_dep(u256_to_h256(hash))
                         .expect("vm tried to decommit nonexistent bytecode")
                 }))
@@ -791,27 +790,12 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .clone()
     }
 
-    /*
-    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
-        self.bytecode_cache
-            .entry(hash)
-            .or_insert_with(|| {
-                self.storage
-                    .borrow_mut()
-                    .load_factory_dep(u256_to_h256(hash))
-                    .expect("vm tried to decommit nonexistent bytecode")
-            })
-            .clone()
-    }
-    */
-
-    fn read_storage(&mut self, contract: zksync_types::H160, key: U256) -> Option<U256> {
+    fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-        let mut storage = self.storage.borrow_mut();
-        if storage.is_write_initial(key) {
+        if self.storage.is_write_initial(key) {
             None
         } else {
-            Some(storage.read_value(key).as_bytes().into())
+            Some(self.storage.read_value(key).as_bytes().into())
         }
     }
 

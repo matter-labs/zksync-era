@@ -6,7 +6,7 @@ use vm2::{instruction_handlers::HeapInterface, HeapId, State};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::{ReadStorage, StoragePtr};
+use zksync_state::ReadStorage;
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, H160, U256,
 };
@@ -22,10 +22,10 @@ pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, 
     }
 }
 
-pub(crate) fn get_balance<S: ReadStorage>(
+pub(crate) fn get_balance(
     token_id: AccountTreeId,
     account: &Address,
-    main_storage: StoragePtr<S>,
+    main_storage: &mut impl ReadStorage,
     storage_changes: &BTreeMap<(H160, U256), U256>,
 ) -> U256 {
     let key = storage_key_for_standard_token_balance(token_id, account);
@@ -33,7 +33,7 @@ pub(crate) fn get_balance<S: ReadStorage>(
     storage_changes
         .get(&(*key.account().address(), h256_to_u256(*key.key())))
         .cloned()
-        .unwrap_or_else(|| h256_to_u256(main_storage.borrow_mut().read_value(&key)))
+        .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
 }
 
 pub(crate) fn read_test_contract() -> Vec<u8> {

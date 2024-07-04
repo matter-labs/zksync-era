@@ -22,7 +22,7 @@ use crate::{
 };
 
 pub(crate) struct VmTester {
-    pub(crate) vm: Vm<InMemoryStorage>,
+    pub(crate) vm: Vm<StoragePtr<InMemoryStorage>>,
     pub(crate) storage: StoragePtr<InMemoryStorage>,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
