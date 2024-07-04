@@ -14,32 +14,39 @@ use crate::{
         eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for sequencer L1 gas interfaces.
 /// Adds several resources that depend on L1 gas price.
-///
-/// ## Requests resources
-///
-/// - `EthInterfaceResource`
-///
-/// ## Adds resources
-///
-/// - `FeeInputResource`
-/// - `L1TxParamsResource`
-///
-/// ## Adds tasks
-///
-/// - `GasAdjusterTask` (only runs if someone uses the resourced listed above).
 #[derive(Debug)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub eth_client: EthInterfaceResource,
+    /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
+    #[context(default)]
+    pub base_token_ratio_provider: BaseTokenRatioProviderResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub fee_input: FeeInputResource,
+    pub l1_tx_params: L1TxParamsResource,
+    /// Only runs if someone uses the resources listed above.
+    #[context(task)]
+    pub gas_adjuster_task: GasAdjusterTask,
 }
 
 impl SequencerL1GasLayer {
@@ -60,12 +67,15 @@ impl SequencerL1GasLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for SequencerL1GasLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "sequencer_l1_gas_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let client = context.get_resource::<EthInterfaceResource>()?.0;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let client = input.eth_client.0;
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
@@ -76,19 +86,18 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
-        let ratio_provider = context.get_resource_or_default::<BaseTokenRatioProviderResource>();
+        let ratio_provider = input.base_token_ratio_provider;
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
             ratio_provider.0.clone(),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
-        context.insert_resource(FeeInputResource(batch_fee_input_provider))?;
-
-        context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
-
-        context.add_task(GasAdjusterTask { gas_adjuster });
-        Ok(())
+        Ok(Output {
+            fee_input: batch_fee_input_provider.into(),
+            l1_tx_params: gas_adjuster.clone().into(),
+            gas_adjuster_task: GasAdjusterTask { gas_adjuster },
+        })
     }
 }
 

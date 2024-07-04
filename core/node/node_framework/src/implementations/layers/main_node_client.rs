@@ -9,24 +9,29 @@ use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource, main_node_client::MainNodeClientResource,
     },
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for main node client.
-///
-/// ## Requests resources
-///
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds resources
-///
-/// - `MainNodeClientResource`
 #[derive(Debug)]
 pub struct MainNodeClientLayer {
     url: SensitiveUrl,
     rate_limit_rps: NonZeroUsize,
     l2_chain_id: L2ChainId,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub main_node_client: MainNodeClientResource,
 }
 
 impl MainNodeClientLayer {
@@ -41,11 +46,14 @@ impl MainNodeClientLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for MainNodeClientLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "main_node_client_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_node_client = Client::http(self.url)
             .context("failed creating JSON-RPC client for main node")?
             .for_network(self.l2_chain_id.into())
@@ -53,14 +61,16 @@ impl WiringLayer for MainNodeClientLayer {
             .build();
 
         let client = Box::new(main_node_client) as Box<DynClient<L2>>;
-        context.insert_resource(MainNodeClientResource(client.clone()))?;
 
         // Insert healthcheck
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
-        app_health
-            .insert_custom_component(Arc::new(MainNodeHealthCheck::from(client)))
+        input
+            .app_health
+            .0
+            .insert_custom_component(Arc::new(MainNodeHealthCheck::from(client.clone())))
             .map_err(WiringError::internal)?;
 
-        Ok(())
+        Ok(Output {
+            main_node_client: client.into(),
+        })
     }
 }
