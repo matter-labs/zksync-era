@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
 
 use crate::{
@@ -112,7 +110,7 @@ impl Task for NodeStorageInitializerPrecondition {
 // moving the implementations out of the framework soon.
 /// Resource representing the node initialization strategy.
 #[derive(Debug, Clone)]
-pub struct NodeInitializationStrategyResource(Arc<NodeInitializationStrategy>);
+pub struct NodeInitializationStrategyResource(NodeInitializationStrategy);
 
 impl Resource for NodeInitializationStrategyResource {
     fn name() -> String {

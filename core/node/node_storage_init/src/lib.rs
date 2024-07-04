@@ -27,11 +27,11 @@ enum InitDecision {
     SnapshotRecovery,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NodeInitializationStrategy {
-    pub genesis: Box<dyn InitializeStorage>,
-    pub snapshot_recovery: Option<Box<dyn InitializeStorage>>,
-    pub block_reverter: Option<Box<dyn RevertStorage>>,
+    pub genesis: Arc<dyn InitializeStorage>,
+    pub snapshot_recovery: Option<Arc<dyn InitializeStorage>>,
+    pub block_reverter: Option<Arc<dyn RevertStorage>>,
 }
 
 /// Node storage initializer.
@@ -44,12 +44,12 @@ pub struct NodeInitializationStrategy {
 /// for the whole system.
 #[derive(Debug)]
 pub struct NodeStorageInitializer {
-    strategy: Arc<NodeInitializationStrategy>,
+    strategy: NodeInitializationStrategy,
     pool: ConnectionPool<Core>,
 }
 
 impl NodeStorageInitializer {
-    pub fn new(strategy: Arc<NodeInitializationStrategy>, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(strategy: NodeInitializationStrategy, pool: ConnectionPool<Core>) -> Self {
         Self { strategy, pool }
     }
 

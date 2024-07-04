@@ -64,25 +64,25 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             Err(err) => return Err(err),
         };
 
-        let genesis = Box::new(ExternalNodeGenesis {
+        let genesis = Arc::new(ExternalNodeGenesis {
             l2_chain_id: self.l2_chain_id,
             client: client.clone(),
             pool: pool.clone(),
         });
         let snapshot_recovery = self.snapshot_recovery_config.map(|recovery_config| {
-            Box::new(ExternalNodeSnapshotRecovery {
+            Arc::new(ExternalNodeSnapshotRecovery {
                 client: client.clone(),
                 pool: pool.clone(),
                 recovery_config,
                 app_health,
-            }) as Box<dyn InitializeStorage>
+            }) as Arc<dyn InitializeStorage>
         });
         let block_reverter = block_reverter.map(|block_reverter| {
-            Box::new(ExternalNodeRevert {
+            Arc::new(ExternalNodeRevert {
                 client,
                 pool: pool.clone(),
                 reverter: block_reverter,
-            }) as Box<dyn RevertStorage>
+            }) as Arc<dyn RevertStorage>
         });
         let strategy = NodeInitializationStrategy {
             genesis,
@@ -90,7 +90,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             block_reverter,
         };
 
-        context.insert_resource(NodeInitializationStrategyResource(Arc::new(strategy)))?;
+        context.insert_resource(NodeInitializationStrategyResource(strategy))?;
         Ok(())
     }
 }

@@ -41,7 +41,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
             .get()
             .await?;
         let EthInterfaceResource(l1_client) = context.get_resource()?;
-        let genesis = Box::new(MainNodeGenesis {
+        let genesis = Arc::new(MainNodeGenesis {
             contracts: self.contracts,
             genesis: self.genesis,
             l1_client,
@@ -53,7 +53,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
             block_reverter: None,
         };
 
-        context.insert_resource(NodeInitializationStrategyResource(Arc::new(strategy)))?;
+        context.insert_resource(NodeInitializationStrategyResource(strategy))?;
         Ok(())
     }
 }
