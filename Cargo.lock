@@ -9322,6 +9322,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "backon",
  "chrono",
  "itertools 0.10.5",
  "mini-moka",
