@@ -28,12 +28,12 @@ impl RevertStorage for ExternalNodeReverter {
         Ok(())
     }
 
-    async fn last_correct_batch_for_reorg(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn last_correct_batch_for_reorg(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<L1BatchNumber>> {
         let mut reorg_detector = ReorgDetector::new(self.client.clone(), self.pool.clone());
-        // We don't need this kind of granularity for detecting stop signal; it's expected to be treated
-        // by the caller.
-        let (_mock_tx, mock_rx) = watch::channel(false);
-        let batch = match reorg_detector.run_once(mock_rx).await {
+        let batch = match reorg_detector.run_once(stop_receiver).await {
             Ok(()) => {
                 // Even if stop signal was received, the node will shut down without launching any tasks.
                 tracing::info!("No rollback was detected");

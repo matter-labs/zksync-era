@@ -126,7 +126,10 @@ impl NodeStorageInitializer {
 
         // Now we may check whether we're in the invalid state and should perform a rollback.
         if let Some(reverter) = &self.strategy.block_reverter {
-            if let Some(to_batch) = reverter.last_correct_batch_for_reorg().await? {
+            if let Some(to_batch) = reverter
+                .last_correct_batch_for_reorg(stop_receiver.clone())
+                .await?
+            {
                 tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
                 tracing::info!("Performing the rollback");
                 reverter.revert_storage(to_batch, stop_receiver).await?;
@@ -180,10 +183,14 @@ impl NodeStorageInitializer {
 
     async fn is_rollback_not_needed(
         &self,
-        _stop_receiver: watch::Receiver<bool>,
+        stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
+        // May be `true` if stop signal is received, but the node will shut down without launching any tasks anyway.
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            reverter.last_correct_batch_for_reorg().await?.is_none()
+            reverter
+                .last_correct_batch_for_reorg(stop_receiver)
+                .await?
+                .is_none()
         } else {
             true
         };
