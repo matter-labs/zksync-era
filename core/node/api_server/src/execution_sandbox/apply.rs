@@ -38,7 +38,7 @@ use super::{
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
+type BoxedVm<'a> = Box<VmInstance<PostgresStorage<'a>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -296,7 +296,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(
-        &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
+        &mut VmInstance<PostgresStorage<'_>, HistoryDisabled>,
         Transaction,
         ProtocolVersionId,
     ) -> T,

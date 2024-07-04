@@ -40,7 +40,7 @@ pub use self::{
     },
     shadow_storage::ShadowStorage,
     storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
-    storage_view::{StorageView, StorageViewMetrics},
+    storage_view::{ImmutableStorageView, StorageView, StorageViewMetrics},
 };
 
 /// Functionality to read from the VM storage.
@@ -87,3 +87,21 @@ pub trait WriteStorage: ReadStorage {
 
 /// Smart pointer to [`WriteStorage`].
 pub type StoragePtr<S> = Rc<RefCell<S>>;
+
+impl<S: ReadStorage> ReadStorage for StoragePtr<S> {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        self.borrow_mut().read_value(key)
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        self.borrow_mut().is_write_initial(key)
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        self.borrow_mut().load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.borrow_mut().get_enumeration_index(key)
+    }
+}

@@ -1,4 +1,4 @@
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -13,19 +13,19 @@ use crate::{
     versions::shadow::ShadowVm,
 };
 
-pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<S, H>>;
+pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
 
 #[derive(Debug)]
-pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
-    VmM5(crate::vm_m5::Vm<S, H>),
-    VmM6(crate::vm_m6::Vm<S, H>),
-    Vm1_3_2(crate::vm_1_3_2::Vm<S, H>),
-    VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
-    VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<S, H>),
-    VmBoojumIntegration(crate::vm_boojum_integration::Vm<S, H>),
-    Vm1_4_1(crate::vm_1_4_1::Vm<S, H>),
-    Vm1_4_2(crate::vm_1_4_2::Vm<S, H>),
-    Vm1_5_0(crate::vm_latest::Vm<S, H>),
+pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
+    VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
+    VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
+    Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
+    VmVirtualBlocks(crate::vm_virtual_blocks::Vm<StorageView<S>, H>),
+    VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<StorageView<S>, H>),
+    VmBoojumIntegration(crate::vm_boojum_integration::Vm<StorageView<S>, H>),
+    Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
+    Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
+    Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
     VmFast(FastVm<S, H>),
 }
 
@@ -46,10 +46,14 @@ macro_rules! dispatch_vm {
     };
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H>;
+impl<S: ReadStorage, H: HistoryMode> VmInterface<StorageView<S>, H> for VmInstance<S, H> {
+    type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<StorageView<S>>,
+    ) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
         //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
@@ -136,7 +140,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
     }
 }
 
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S>
+impl<S: ReadStorage> VmInterfaceHistoryEnabled<StorageView<S>>
     for VmInstance<S, crate::vm_latest::HistoryEnabled>
 {
     fn make_snapshot(&mut self) {
@@ -152,11 +156,11 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled<S>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn new_with_specific_version(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        storage_view: StoragePtr<S>,
+        storage_view: StoragePtr<StorageView<S>>,
         vm_version: VmVersion,
     ) -> Self {
         match vm_version {
@@ -243,10 +247,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
         }
     }
 
-    pub fn new_fast_with_specific_version(
+    fn new_fast_with_specific_version(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        storage_view: StoragePtr<S>,
+        storage_view: StoragePtr<StorageView<S>>,
         vm_version: VmVersion,
     ) -> Self {
         match vm_version {

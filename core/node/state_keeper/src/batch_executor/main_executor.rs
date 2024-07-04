@@ -17,7 +17,7 @@ use tokio::{
     sync::{mpsc, watch},
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
+use zksync_state::{ReadStorage, ReadStorageFactory, StorageView};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -153,7 +153,7 @@ impl CommandReceiver {
         tracing::info!("State keeper exited with an unfinished L1 batch");
     }
 
-    fn execute_tx<S: WriteStorage>(
+    fn execute_tx<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -192,13 +192,13 @@ impl CommandReceiver {
         }
     }
 
-    fn rollback_last_tx<S: WriteStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
+    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
         latency.observe();
     }
 
-    fn start_next_l2_block<S: WriteStorage>(
+    fn start_next_l2_block<S: ReadStorage>(
         &self,
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -206,7 +206,7 @@ impl CommandReceiver {
         vm.start_new_l2_block(l2_block_env);
     }
 
-    fn finish_batch<S: WriteStorage>(
+    fn finish_batch<S: ReadStorage>(
         &self,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> FinishedL1Batch {
@@ -226,7 +226,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with or without bytecode compression.
     /// If compression fails, the transaction will be re-executed without compression.
-    fn execute_tx_in_vm_with_optional_compression<S: WriteStorage>(
+    fn execute_tx_in_vm_with_optional_compression<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -293,7 +293,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
-    fn execute_tx_in_vm<S: WriteStorage>(
+    fn execute_tx_in_vm<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,

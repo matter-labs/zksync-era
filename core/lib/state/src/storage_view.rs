@@ -8,7 +8,7 @@ use std::{
 
 use zksync_types::{StorageKey, StorageValue, H256};
 
-use crate::{ReadStorage, WriteStorage};
+use crate::{ReadStorage, StoragePtr, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -201,6 +201,39 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
 
     fn missed_storage_invocations(&self) -> usize {
         self.metrics.storage_invocations_missed
+    }
+}
+
+/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any caching
+/// or modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes and cache.
+#[derive(Debug)]
+pub struct ImmutableStorageView<S>(StoragePtr<StorageView<S>>);
+
+impl<S: ReadStorage> ImmutableStorageView<S> {
+    /// Creates a new view based on the provided storage pointer.
+    pub fn new(ptr: StoragePtr<StorageView<S>>) -> Self {
+        Self(ptr)
+    }
+}
+
+impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        self.0.borrow_mut().storage_handle.read_value(key)
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        self.0.borrow_mut().storage_handle.is_write_initial(key)
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        self.0.borrow_mut().storage_handle.load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.0
+            .borrow_mut()
+            .storage_handle
+            .get_enumeration_index(key)
     }
 }
 
