@@ -16,7 +16,8 @@ use crate::{
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::old_tracers::TracerDispatcher,
     vm_1_3_2::{events::merge_events, VmInstance},
@@ -30,33 +31,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let oracle_tools = crate::vm_1_3_2::OracleTools::new(storage.clone());
-        let block_properties = crate::vm_1_3_2::BlockProperties {
-            default_aa_code_hash: h256_to_u256(
-                system_env.base_system_smart_contracts.default_aa.hash,
-            ),
-            zkporter_is_available: false,
-        };
-        let inner_vm: VmInstance<S, H::Vm1_3_2Mode> =
-            crate::vm_1_3_2::vm_with_bootloader::init_vm_with_gas_limit(
-                oracle_tools,
-                batch_env.clone().glue_into(),
-                block_properties,
-                system_env.execution_mode.glue_into(),
-                &system_env.base_system_smart_contracts.clone().glue_into(),
-                system_env.bootloader_gas_limit,
-            );
-        Self {
-            vm: inner_vm,
-            system_env,
-            batch_env,
-            last_tx_compressed_bytecodes: vec![],
-        }
-    }
 
     fn push_transaction(&mut self, tx: Transaction) {
         crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -120,7 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_full_history, raw_events, l1_messages) = self.vm.state.event_sink.flatten();
+        let (raw_events, l1_messages) = self.vm.state.event_sink.flatten();
         let events = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
@@ -138,14 +114,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 })
             })
             .collect();
-        let total_log_queries = self.vm.state.event_sink.get_log_queries()
-            + self
-                .vm
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.vm.state.storage.get_final_log_queries().len();
 
         let used_contract_hashes = self
             .vm
@@ -171,10 +139,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             used_contract_hashes,
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
-            total_log_queries,
-            cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for vm 1.3.2
-            deduplicated_events_logs: vec![],
+            // Fields below are not produced by VM 1.3.2
             storage_refunds: vec![],
             pubdata_costs: Vec::new(),
         }
@@ -295,7 +260,34 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::HistoryEnabled> {
+impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let oracle_tools = crate::vm_1_3_2::OracleTools::new(storage.clone());
+        let block_properties = crate::vm_1_3_2::BlockProperties {
+            default_aa_code_hash: h256_to_u256(
+                system_env.base_system_smart_contracts.default_aa.hash,
+            ),
+            zkporter_is_available: false,
+        };
+        let inner_vm: VmInstance<S, H::Vm1_3_2Mode> =
+            crate::vm_1_3_2::vm_with_bootloader::init_vm_with_gas_limit(
+                oracle_tools,
+                batch_env.clone().glue_into(),
+                block_properties,
+                system_env.execution_mode.glue_into(),
+                &system_env.base_system_smart_contracts.clone().glue_into(),
+                system_env.bootloader_gas_limit,
+            );
+        Self {
+            vm: inner_vm,
+            system_env,
+            batch_env,
+            last_tx_compressed_bytecodes: vec![],
+        }
+    }
+}
+
+impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::HistoryEnabled> {
     fn make_snapshot(&mut self) {
         self.vm.save_current_vm_as_snapshot()
     }

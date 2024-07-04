@@ -51,25 +51,17 @@ use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::{
-    interface::{
-        types::{
-            errors::BytecodeCompressionError,
-            inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
-            outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
-        },
-        FinishedL1Batch, VmMemoryMetrics,
+use crate::interface::{
+    types::{
+        errors::BytecodeCompressionError,
+        inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
+        outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
     },
-    tracers::TracerDispatcher,
-    vm_latest::HistoryEnabled,
-    HistoryMode,
+    FinishedL1Batch, VmMemoryMetrics,
 };
 
-pub trait VmInterface<S, H: HistoryMode> {
-    type TracerDispatcher: Default + From<TracerDispatcher<S, H>>;
-
-    /// Initialize VM.
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
+pub trait VmInterface {
+    type TracerDispatcher: Default;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
@@ -148,8 +140,14 @@ pub trait VmInterface<S, H: HistoryMode> {
     }
 }
 
+/// Encapsulates creating VM instance based on the provided environment.
+pub trait VmFactory<S>: VmInterface {
+    /// Creates a new VM instance.
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
+}
+
 /// Methods of VM requiring history manipulations.
-pub trait VmInterfaceHistoryEnabled<S>: VmInterface<S, HistoryEnabled> {
+pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Create a snapshot of the current VM state and push it into memory.
     fn make_snapshot(&mut self);
 

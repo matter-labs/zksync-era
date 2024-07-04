@@ -304,7 +304,7 @@ fn test_first_in_batch(
     let l1_tx = get_l1_noop();
 
     // Setting the values provided.
-    let storage_ptr = vm.vm.world.storage.clone();
+    let mut storage_ptr = vm.vm.world.storage.borrow_mut();
     let miniblock_info_slot = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -319,24 +319,23 @@ fn test_first_in_batch(
     );
     let prev_block_hash_position = get_l2_block_hash_key(miniblock_number - 1);
 
-    storage_ptr.borrow_mut().set_value(
+    storage_ptr.set_value(
         miniblock_info_slot,
         u256_to_h256(pack_block_info(
             miniblock_number as u64,
             miniblock_timestamp,
         )),
     );
-    storage_ptr
-        .borrow_mut()
-        .set_value(pending_txs_hash_slot, pending_txs_hash);
-    storage_ptr.borrow_mut().set_value(
+    storage_ptr.set_value(pending_txs_hash_slot, pending_txs_hash);
+    storage_ptr.set_value(
         batch_info_slot,
         u256_to_h256(pack_block_info(batch_number as u64, batch_timestamp)),
     );
-    storage_ptr.borrow_mut().set_value(
+    storage_ptr.set_value(
         prev_block_hash_position,
         L2BlockHasher::legacy_hash(L2BlockNumber(miniblock_number - 1)),
     );
+    drop(storage_ptr);
 
     // In order to skip checks from the Rust side of the VM, we firstly use some definitely correct L2 block info.
     // And then override it with the user-provided value

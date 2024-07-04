@@ -22,9 +22,8 @@ use crate::{
 };
 
 pub(crate) struct VmTester {
-    pub(crate) vm: Vm<InMemoryStorage>,
+    pub(crate) vm: Vm<StoragePtr<InMemoryStorage>>,
     pub(crate) storage: StoragePtr<InMemoryStorage>,
-    pub(crate) fee_account: Address,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
     pub(crate) rich_accounts: Vec<Account>,
@@ -216,14 +215,12 @@ impl VmTesterBuilder {
         if let Some(deployer) = &self.deployer {
             make_account_rich(storage_ptr.clone(), deployer);
         }
-        let fee_account = l1_batch_env.fee_account;
 
         let vm = Vm::new(l1_batch_env, self.system_env, storage_ptr.clone());
 
         VmTester {
             vm,
             storage: storage_ptr,
-            fee_account,
             deployer: self.deployer,
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),

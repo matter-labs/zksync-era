@@ -91,7 +91,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     let new_recipient_balance = get_balance(
         AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &recipient_address,
-        vm.vm.world.storage.clone(),
+        &mut vm.vm.world.storage,
         vm.vm.inner.world_diff.get_storage_state(),
     );
 

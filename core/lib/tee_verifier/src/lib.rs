@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Context;
 use multivm::{
-    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory, VmInterface},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
@@ -20,7 +20,7 @@ use zksync_merkle_tree::{
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
+use zksync_state::{InMemoryStorage, ReadStorage, StorageView};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -184,7 +184,7 @@ impl TeeVerifierInput {
     }
 
     /// Executes the VM and returns `FinishedL1Batch` on success.
-    fn execute_vm<S: WriteStorage>(
+    fn execute_vm<S: ReadStorage>(
         l2_blocks_execution_data: Vec<L2BlockExecutionData>,
         mut vm: VmInstance<S, HistoryEnabled>,
     ) -> anyhow::Result<FinishedL1Batch> {

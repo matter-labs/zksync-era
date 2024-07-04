@@ -3723,6 +3723,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "pretty_assertions",
  "serde",
  "thiserror",
  "tokio",
@@ -7317,7 +7318,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git#9342db726462b76aa7e4ed246684b1316ea79c21"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4931b489dc9e95f88a0b11bd27b110656277c5d2#4931b489dc9e95f88a0b11bd27b110656277c5d2"
 dependencies = [
  "enum_dispatch",
  "primitive-types",

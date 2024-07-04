@@ -724,7 +724,8 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
 
-    if components.contains(&Component::TeeVerifierInputProducer) {
+    // FIXME: return `if components.contains(&Component::TeeVerifierInputProducer)` (not supported by new VM)
+    if false {
         let singleton_connection_pool =
             ConnectionPool::<Core>::singleton(database_secrets.master_url()?)
                 .build()
@@ -1044,7 +1045,6 @@ async fn add_tee_verifier_input_producer_to_task_futures(
     l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    /*
     let started_at = Instant::now();
     tracing::info!("initializing TeeVerifierInputProducer");
     let producer = TeeVerifierInputProducer::new(
@@ -1060,7 +1060,6 @@ async fn add_tee_verifier_input_producer_to_task_futures(
     );
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::TeeVerifierInputProducer].set(elapsed);
-    */
     Ok(())
 }
 

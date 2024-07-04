@@ -14,7 +14,8 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,

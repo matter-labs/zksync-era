@@ -2,7 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},

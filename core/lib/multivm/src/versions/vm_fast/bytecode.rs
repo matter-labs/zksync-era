@@ -16,11 +16,7 @@ impl<S: ReadStorage> Vm<S> {
             .iter()
             .any(|info| {
                 let hash_bytecode = hash_bytecode(&info.original);
-                let is_bytecode_known = self
-                    .world
-                    .storage
-                    .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode);
+                let is_bytecode_known = self.world.storage.is_bytecode_known(&hash_bytecode);
 
                 let is_bytecode_known_cache = self
                     .world
@@ -33,7 +29,7 @@ impl<S: ReadStorage> Vm<S> {
 
 pub(crate) fn compress_bytecodes(
     bytecodes: &[Vec<u8>],
-    is_bytecode_known: impl Fn(H256) -> bool,
+    mut is_bytecode_known: impl FnMut(H256) -> bool,
 ) -> Vec<CompressedBytecodeInfo> {
     bytecodes
         .iter()
