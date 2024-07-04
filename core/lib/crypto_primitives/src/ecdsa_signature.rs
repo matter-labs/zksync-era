@@ -43,7 +43,7 @@ type Public = H512;
 ///
 /// Provides a safe to use `Debug` implementation (outputting the address corresponding to the key).
 /// The key is zeroized on drop.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct K256PrivateKey(SecretKey);
 
 impl fmt::Debug for K256PrivateKey {
