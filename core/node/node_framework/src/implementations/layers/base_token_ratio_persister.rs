@@ -1,9 +1,11 @@
 use zksync_base_token_adjuster::BaseTokenRatioPersister;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 
-use crate::implementations::resources::price_api_client::PriceAPIClientResource;
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+    implementations::resources::{
+        pools::{MasterPool, PoolResource},
+        price_api_client::PriceAPIClientResource,
+    },
     service::{ServiceContext, StopReceiver},
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},

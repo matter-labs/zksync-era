@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::{fmt::Debug, num::NonZero};
+use std::{fmt::Debug, num::NonZero, sync::Arc};
 
 use anyhow::Context as _;
 use chrono::Utc;
