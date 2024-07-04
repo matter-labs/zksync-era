@@ -41,7 +41,7 @@ impl PayloadQueue {
 
     /// Advances the cursor by converting the block into actions and pushing them
     /// to the actions queue.
-    /// Does nothing and returns Ok() if the block has been already processed.
+    /// Does nothing and returns `Ok(())` if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
     pub(crate) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
         let want = self.inner.next_l2_block;
@@ -53,7 +53,7 @@ impl PayloadQueue {
         if block.number < want {
             return Ok(());
         }
-        self.actions.push_actions(self.inner.advance(block)).await;
+        self.actions.push_actions(self.inner.advance(block)).await?;
         Ok(())
     }
 }
