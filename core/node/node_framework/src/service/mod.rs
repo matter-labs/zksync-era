@@ -39,14 +39,14 @@ const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 #[derive(Default, Debug)]
 pub struct ZkStackServiceBuilder {
     /// List of wiring layers.
-    layers: HashMap<&'static str, WireFn>,
+    // Note: It has to be a `Vec` and not e.g. `HashMap` because the order in which we
+    // iterate through it matters.
+    layers: Vec<(&'static str, WireFn)>,
 }
 
 impl ZkStackServiceBuilder {
     pub fn new() -> Self {
-        Self {
-            layers: HashMap::new(),
-        }
+        Self { layers: Vec::new() }
     }
 
     /// Adds a wiring layer.
@@ -60,8 +60,12 @@ impl ZkStackServiceBuilder {
     /// to add it multiple times, and it will only be wired once.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
         let name = layer.layer_name();
-        if !self.layers.contains_key(name) {
-            self.layers.insert(name, layer.into_wire_fn());
+        if !self
+            .layers
+            .iter()
+            .any(|(existing_name, _)| name == *existing_name)
+        {
+            self.layers.push((name, layer.into_wire_fn()));
         }
         self
     }
@@ -99,7 +103,7 @@ pub struct ZkStackService {
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of wiring layers.
-    layers: HashMap<&'static str, WireFn>,
+    layers: Vec<(&'static str, WireFn)>,
     /// Different kinds of tasks for the service.
     runnables: Runnables,
 

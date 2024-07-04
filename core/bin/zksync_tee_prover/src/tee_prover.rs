@@ -16,14 +16,6 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber};
 use crate::{api_client::TeeApiClient, error::TeeProverError};
 
 /// Wiring layer for `TeeProver`
-///
-/// ## Requests resources
-///
-/// no resources requested
-///
-/// ## Adds tasks
-///
-/// - `TeeProver`
 #[derive(Debug)]
 pub(crate) struct TeeProverLayer {
     api_url: Url,
