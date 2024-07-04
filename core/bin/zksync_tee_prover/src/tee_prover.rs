@@ -81,10 +81,9 @@ impl TeeProver {
         &self,
         tvi: TeeVerifierInput,
     ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
-        let verification_started_at = Instant::now();
-
         match tvi {
             TeeVerifierInput::V1(tvi) => {
+                let verification_started_at = Instant::now();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
                 METRICS
                     .proof_generation_time
@@ -102,7 +101,7 @@ impl TeeProver {
         }
     }
 
-    async fn step(&self) -> Result<(), TeeProverError> {
+    async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job().await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
@@ -115,10 +114,13 @@ impl TeeProver {
                         self.tee_type,
                     )
                     .await?;
+                Ok(Some(batch_number))
             }
-            None => tracing::trace!("There are currently no pending batches to be proven"),
+            None => {
+                tracing::trace!("There are currently no pending batches to be proven");
+                Ok(Option::None)
+            }
         }
-        Ok(())
     }
 }
 
@@ -161,6 +163,7 @@ impl Task for TeeProver {
 
         let mut retries = 1;
         let mut backoff = self.config.initial_retry_backoff;
+        let mut started_at = Instant::now();
 
         loop {
             if *stop_receiver.0.borrow() {
@@ -169,9 +172,13 @@ impl Task for TeeProver {
             }
             let result = self.step().await;
             match result {
-                Ok(()) => {
+                Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
+                    if batch_number.is_some() {
+                        METRICS.job_waiting_time.observe(started_at.elapsed());
+                        started_at = Instant::now();
+                    }
                 }
                 Err(err) => {
                     METRICS.network_errors_counter.inc_by(1);
