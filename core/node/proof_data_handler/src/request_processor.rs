@@ -66,7 +66,7 @@ impl RequestProcessor {
             None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
         };
 
-        let mut vm_run_data: VMRunWitnessInputData = self
+        let vm_run_data: VMRunWitnessInputData = self
             .blob_store
             .get(l1_batch_number)
             .await
