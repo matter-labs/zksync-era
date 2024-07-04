@@ -150,10 +150,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         let l1_batch_number = updates_manager.l1_batch.number;
         let mut connection = self.pool.connection().await?;
 
-        tracing::info!(
-            "Started saving VM run data for L1 batch {:?}",
-            l1_batch_number
-        );
+        tracing::info!(%l1_batch_number, "Started saving VM run data");
 
         let result =
             get_updates_manager_witness_input_data(&mut connection, updates_manager).await?;
