@@ -5,6 +5,7 @@
 //! * protobuf json format
 
 mod api;
+mod base_token_adjuster;
 mod chain;
 mod circuit_breaker;
 mod commitment_generator;
