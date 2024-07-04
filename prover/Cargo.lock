@@ -4589,6 +4589,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "circuit_definitions 1.5.0",
  "clap 4.5.4",
  "colored",
@@ -8438,6 +8439,7 @@ dependencies = [
  "serde",
  "serde_with",
  "strum",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
 ]
@@ -8511,6 +8513,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more",
@@ -8526,6 +8529,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

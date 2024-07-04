@@ -351,9 +351,10 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
 impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
         type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..2) {
+        match rng.gen_range(0..3) {
             0 => T::Calldata,
-            _ => T::Blobs,
+            1 => T::Blobs,
+            _ => T::Custom,
         }
     }
 }

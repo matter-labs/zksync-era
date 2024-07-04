@@ -13,11 +13,13 @@ import "zksync/config/house_keeper.proto";
 import "zksync/config/observability.proto";
 import "zksync/config/snapshots_creator.proto";
 import "zksync/config/utils.proto";
+import "zksync/config/da_dispatcher.proto";
 import "zksync/config/vm_runner.proto";
 import "zksync/config/commitment_generator.proto";
 import "zksync/config/snapshot_recovery.proto";
 import "zksync/config/pruning.proto";
 import "zksync/config/object_store.proto";
+import "zksync/config/base_token_adjuster.proto";
 
 message GeneralConfig {
   optional config.database.Postgres postgres = 1;
@@ -45,4 +47,6 @@ message GeneralConfig {
   optional config.snapshot_recovery.SnapshotRecovery snapshot_recovery = 35;
   optional config.pruning.Pruning pruning = 36;
   optional config.commitment_generator.CommitmentGenerator commitment_generator = 37;
+  optional config.da_dispatcher.DataAvailabilityDispatcher da_dispatcher = 38;
+  optional config.base_token_adjuster.BaseTokenAdjuster base_token_adjuster = 39;
 }

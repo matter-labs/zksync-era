@@ -202,6 +202,11 @@ impl GasAdjuster {
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * self.pubdata_byte_gas()
             }
+            PubdataSendingMode::Custom => {
+                // Fix this when we have a better understanding of dynamic pricing for custom DA layers.
+                // GitHub issue: https://github.com/matter-labs/zksync-era/issues/2105
+                0
+            }
         }
     }
 

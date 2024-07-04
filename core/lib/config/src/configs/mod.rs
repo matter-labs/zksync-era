@@ -1,9 +1,11 @@
 // Public re-exports
 pub use self::{
     api::ApiConfig,
+    base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
+    da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
@@ -27,11 +29,13 @@ pub use self::{
 };
 
 pub mod api;
+pub mod base_token_adjuster;
 pub mod chain;
 mod commitment_generator;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
+pub mod da_dispatcher;
 pub mod database;
 pub mod en_config;
 pub mod eth_sender;

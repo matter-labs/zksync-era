@@ -3,7 +3,7 @@ use core::fmt;
 use circuit_sequencer_api_1_5_0::proof::FinalProof;
 use serde::{Deserialize, Serialize};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber};
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
@@ -23,6 +23,8 @@ pub struct L1BatchTeeProofForL1 {
     pub pubkey: Vec<u8>,
     // data that was signed
     pub proof: Vec<u8>,
+    // type of TEE used for attestation
+    pub tee_type: TeeType,
 }
 
 impl fmt::Debug for L1BatchProofForL1 {
