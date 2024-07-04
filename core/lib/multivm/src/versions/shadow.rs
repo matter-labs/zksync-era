@@ -37,7 +37,6 @@ where
     }
 }
 
-// **NB.** Ordering matters for modifying operations; the old VM applies storage changes to the storage after committing transactions.
 impl<S, T> VmInterface for ShadowVm<S, T>
 where
     S: ReadStorage,
@@ -51,8 +50,8 @@ where
     }
 
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        let shadow_result = self.shadow.execute(execution_mode);
         let main_result = self.main.execute(execution_mode);
+        let shadow_result = self.shadow.execute(execution_mode);
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(&main_result, &shadow_result);
         errors
@@ -62,13 +61,21 @@ where
         main_result
     }
 
+    // FIXME: this should show a divergence when validating transactions, but there are no tests covering it.
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        // FIXME: compare outputs here as well
-        self.main.inspect(dispatcher, execution_mode)
+        let shadow_result = self.shadow.inspect((), execution_mode);
+        let main_result = self.main.inspect(dispatcher, execution_mode);
+        let mut errors = DivergenceErrors::default();
+        errors.check_results_match(&main_result, &shadow_result);
+        errors
+            .into_result()
+            .with_context(|| format!("executing VM with mode {execution_mode:?}"))
+            .unwrap();
+        main_result
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
@@ -112,11 +119,11 @@ where
         VmExecutionResultAndLogs,
     ) {
         let tx_hash = tx.hash();
-        let shadow_result = self
-            .shadow
-            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
         let main_result = self
             .main
+            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
+        let shadow_result = self
+            .shadow
             .execute_transaction_with_bytecode_compression(tx, with_compression);
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(&main_result.1, &shadow_result.1);
@@ -129,6 +136,7 @@ where
         main_result
     }
 
+    // FIXME: this should show a divergence when validating transactions, but there are no tests covering it.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: Self::TracerDispatcher,
@@ -139,12 +147,14 @@ where
         VmExecutionResultAndLogs,
     ) {
         let tx_hash = tx.hash();
-        let shadow_result = self
-            .shadow
-            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
-        let main_result =
-            self.main
-                .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression);
+        let main_result = self.main.inspect_transaction_with_bytecode_compression(
+            tracer,
+            tx.clone(),
+            with_compression,
+        );
+        let shadow_result =
+            self.shadow
+                .inspect_transaction_with_bytecode_compression((), tx, with_compression);
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(&main_result.1, &shadow_result.1);
         errors
@@ -168,8 +178,8 @@ where
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let shadow_batch = self.shadow.finish_batch();
         let main_batch = self.main.finish_batch();
+        let shadow_batch = self.shadow.finish_batch();
 
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(
