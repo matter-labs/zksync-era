@@ -12,6 +12,13 @@ categories.workspace = true
 [dependencies]
 async-trait.workspace = true
 anyhow.workspace = true
+url.workspace = true
+bigdecimal.workspace = true
+chrono.workspace = true
+serde.workspace = true
+reqwest.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
+tokio.workspace = true
+httpmock.workspace = true

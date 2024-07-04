@@ -1,5 +1,5 @@
 use zksync_base_token_adjuster::BaseTokenRatioPersister;
-use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
+use zksync_config::{configs::base_token_adjuster::BaseTokenAdjusterConfig, ContractsConfig};
 
 use crate::{
     implementations::resources::{
@@ -26,11 +26,15 @@ use crate::{
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
+    contracts_config: ContractsConfig,
 }
 
 impl BaseTokenRatioPersisterLayer {
-    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
-        Self { config }
+    pub fn new(config: BaseTokenAdjusterConfig, contracts_config: ContractsConfig) -> Self {
+        Self {
+            config,
+            contracts_config,
+        }
     }
 }
 
@@ -44,9 +48,18 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await?;
 
-        let cg_client = context.get_resource::<PriceAPIClientResource>()?.0;
+        let price_api_client = context.get_resource::<PriceAPIClientResource>()?.0;
+        let base_token_addr = self
+            .contracts_config
+            .base_token_addr
+            .expect("base token address is not set");
 
-        let persister = BaseTokenRatioPersister::new(master_pool, self.config, cg_client);
+        let persister = BaseTokenRatioPersister::new(
+            master_pool,
+            self.config,
+            base_token_addr,
+            price_api_client,
+        );
 
         context.add_task(persister);
 

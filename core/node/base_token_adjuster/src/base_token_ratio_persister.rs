@@ -1,29 +1,31 @@
-use std::{fmt::Debug, num::NonZero, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
-use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_external_price_api::PriceAPIClient;
-use zksync_types::base_token_ratio::BaseTokenAPIRatio;
+use zksync_types::{base_token_ratio::BaseTokenAPIPrice, Address};
 
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
-    price_api_client: Box<dyn PriceAPIClient>,
+    base_token_address: Address,
+    price_api_client: Arc<dyn PriceAPIClient>,
 }
 
 impl BaseTokenRatioPersister {
     pub fn new(
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
-        price_api_client: Box<dyn PriceAPIClient>,
+        base_token_address: Address,
+        price_api_client: Arc<dyn PriceAPIClient>,
     ) -> Self {
         Self {
             pool,
             config,
+            base_token_address,
             price_api_client,
         }
     }
@@ -40,8 +42,12 @@ impl BaseTokenRatioPersister {
                 _ = stop_receiver.changed() => break,
             }
 
-            let new_ratio = self.fetch_new_ratio().await?;
-            self.persist_ratio(&new_ratio, &pool).await?;
+            let new_prices = self
+                .price_api_client
+                .fetch_prices(self.base_token_address)
+                .await?;
+
+            self.persist_ratio(new_prices, &pool).await?;
             // TODO(PE-128): Update L1 ratio
         }
 
@@ -49,23 +55,9 @@ impl BaseTokenRatioPersister {
         Ok(())
     }
 
-    // TODO (PE-135): Use real API client to fetch new ratio through self.PriceAPIClient & mock for tests.
-    //  For now, these are hard coded dummy values.
-    async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
-        // either this and then convert prices into ratio
-        let eth_price = self.price_api_client.fetch_price(eth).await?;
-        let token_price = self
-            .price_api_client
-            .fetch_price(contracts_config.base_token_addr)
-            .await?;
-
-        // or
-        self.price_api_client.fetch_ratio
-    }
-
     async fn persist_ratio(
         &self,
-        api_price: &BaseTokenAPIRatio,
+        api_price: BaseTokenAPIPrice,
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<usize> {
         let mut conn = pool
@@ -73,11 +65,12 @@ impl BaseTokenRatioPersister {
             .await
             .context("Failed to obtain connection to the database")?;
 
+        let (numerator, denominator) = api_price.clone().get_fraction()?;
         let id = conn
             .base_token_dal()
             .insert_token_ratio(
-                api_price.numerator,
-                api_price.denominator,
+                numerator,
+                denominator,
                 &api_price.ratio_timestamp.naive_utc(),
             )
             .await

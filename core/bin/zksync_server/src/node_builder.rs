@@ -21,6 +21,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        base_token_external_api_client::BaseTokenExternalPriceApiClient,
         base_token_ratio_persister::BaseTokenRatioPersisterLayer,
         base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -503,10 +504,22 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_coingecko_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.base_token_api_client_config);
+        let contracts_config = self.contracts_config.clone();
+        self.node.add_layer(BaseTokenExternalPriceApiClient::new(
+            config,
+            contracts_config,
+        ));
+
+        Ok(self)
+    }
+
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
+        let contracts_config = self.contracts_config.clone();
         self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config));
+            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
 
         Ok(self)
     }
@@ -602,7 +615,9 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
                 Component::BaseTokenRatioPersister => {
-                    self = self.add_base_token_ratio_persister_layer()?;
+                    self = self
+                        .add_coingecko_api_client_layer()
+                        .add_base_token_ratio_persister_layer()?;
                 }
             }
         }

@@ -3,61 +3,70 @@ use std::{collections::HashMap, str::FromStr};
 use async_trait::async_trait;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
+use reqwest;
 use serde::{Deserialize, Serialize};
-use url::Url;
-use zksync_types::{base_token_price::BaseTokenAPIPrice, Address};
+use zksync_config::configs::BaseTokenApiClientConfig;
+use zksync_types::{base_token_ratio::BaseTokenAPIPrice, Address};
 
 use crate::{address_to_string, PriceAPIClient};
 
 #[derive(Debug)]
 pub struct CoinGeckoPriceAPIClient {
-    base_url: Url,
-    api_key: Option<String>,
+    base_url: url::Url,
     client: reqwest::Client,
 }
 
-const COIN_GECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
+const COINGECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
+const ETH_ID: &str = "ethereum";
+const USD_ID: &str = "usd";
 
 impl CoinGeckoPriceAPIClient {
-    pub fn new(base_url: Url, api_key: Option<String>, client: reqwest::Client) -> Self {
+    pub fn new(config: BaseTokenApiClientConfig) -> Self {
+        let client = if let Some(api_key) = &config.api_key {
+            reqwest::Client::builder()
+                .default_headers(reqwest::header::HeaderMap::from_iter(std::iter::once((
+                    reqwest::header::HeaderName::from_static(COINGECKO_AUTH_HEADER),
+                    reqwest::header::HeaderValue::from_str(api_key)
+                        .expect("Failed to create header value"),
+                ))))
+                .timeout(config.client_timeout())
+                .build()
+                .expect("Failed to build reqwest client")
+        } else {
+            reqwest::Client::new()
+        };
+
         Self {
-            base_url,
-            api_key,
+            base_url: config.base_url(),
             client,
         }
     }
 
     async fn get_token_price_by_address(self: &Self, address: Address) -> anyhow::Result<f64> {
-        let vs_currency = "usd";
         let address_str = address_to_string(&address);
         let price_url = self
             .base_url
             .join(
                 format!(
                     "/api/v3/simple/token_price/ethereum?contract_addresses={}&vs_currencies={}",
-                    address_str, vs_currency
+                    address_str, USD_ID
                 )
                 .as_str(),
             )
             .expect("failed to join URL path");
 
-        let mut builder = self.client.get(price_url);
-
-        if let Some(x) = &self.api_key {
-            builder = builder.header(COIN_GECKO_AUTH_HEADER, x);
-        }
-
-        let response = builder.send().await?;
+        let response = self.client.get(price_url).send().await?;
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
-                "Http error while fetching token price. Status: {}, token: {}, msg: {}",
+                "Http error while fetching token price. Status: {}, token_addr: {}, msg: {}",
                 response.status(),
                 address_str,
-                response.text().await.unwrap_or("".to_string())
+                response.text().await.unwrap_or(String::new())
             ));
         }
+
         let cg_response = response.json::<CoinGeckoPriceResponse>().await?;
-        match cg_response.get_price(&address_str, &String::from(vs_currency)) {
+        match cg_response.get_price(&address_str, &USD_ID.to_string()) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!(
                 "Price not found for token: {}",
@@ -67,35 +76,22 @@ impl CoinGeckoPriceAPIClient {
     }
 
     async fn get_token_price_by_id(self: &Self, id: String) -> anyhow::Result<f64> {
-        let vs_currency = "usd";
         let price_url = self
             .base_url
-            .join(
-                format!(
-                    "/api/v3/simple/price?ids={}&vs_currencies={}",
-                    id, vs_currency
-                )
-                .as_str(),
-            )
+            .join(format!("/api/v3/simple/price?ids={}&vs_currencies={}", id, USD_ID).as_str())
             .expect("Failed to join URL path");
 
-        let mut builder = self.client.get(price_url);
-
-        if let Some(x) = &self.api_key {
-            builder = builder.header(COIN_GECKO_AUTH_HEADER, x)
-        }
-
-        let response = builder.send().await?;
+        let response = self.client.get(price_url).send().await?;
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
-                "Http error while fetching token price. Status: {}, token: {}, msg: {}",
+                "Http error while fetching token price. Status: {}, token_id: {}, msg: {}",
                 response.status(),
                 id,
-                response.text().await.unwrap_or("".to_string())
+                response.text().await.unwrap_or(String::new())
             ));
         }
         let cg_response = response.json::<CoinGeckoPriceResponse>().await?;
-        match cg_response.get_price(&id, &String::from(vs_currency)) {
+        match cg_response.get_price(&id, &USD_ID.to_string()) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!("Price not found for token: {}", id)),
         }
@@ -104,9 +100,9 @@ impl CoinGeckoPriceAPIClient {
 
 #[async_trait]
 impl PriceAPIClient for CoinGeckoPriceAPIClient {
-    async fn fetch_price(&mut self, token_address: Address) -> anyhow::Result<BaseTokenAPIPrice> {
+    async fn fetch_prices(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIPrice> {
         let token_usd_price = self.get_token_price_by_address(token_address).await?;
-        let eth_usd_price = self.get_token_price_by_id("ethereum".to_string()).await?;
+        let eth_usd_price = self.get_token_price_by_id(ETH_ID.to_string()).await?;
         return Ok(BaseTokenAPIPrice {
             base_token_price: BigDecimal::from_str(&token_usd_price.to_string())?,
             eth_price: BigDecimal::from_str(&eth_usd_price.to_string())?,
@@ -138,7 +134,7 @@ mod tests {
 
     use crate::{
         address_to_string,
-        coingecko_api::{CoinGeckoPriceAPIClient, COIN_GECKO_AUTH_HEADER},
+        coingecko_api::{CoinGeckoPriceAPIClient, COINGECKO_AUTH_HEADER},
         tests::tests::{
             add_mock, base_token_price_not_found_test, eth_price_not_found_test, happy_day_test,
             no_base_token_price_404_test, no_eth_price_404_test, server_url,
@@ -157,7 +153,7 @@ mod tests {
             params,
             200,
             format!("{{\"{}\":{{\"usd\":{}}}}}", &id, price),
-            COIN_GECKO_AUTH_HEADER.to_string(),
+            COINGECKO_AUTH_HEADER.to_string(),
             api_key,
         );
     }
@@ -179,7 +175,7 @@ mod tests {
             params,
             200,
             format!("{{\"{}\":{{\"usd\":{}}}}}", address, price),
-            COIN_GECKO_AUTH_HEADER.to_string(),
+            COINGECKO_AUTH_HEADER.to_string(),
             api_key,
         );
     }
@@ -201,7 +197,7 @@ mod tests {
         Box::new(CoinGeckoPriceAPIClient::new(
             server_url(&server),
             api_key.clone(),
-            reqwest::Client::new(),
+            std::time::Duration::from_secs(5),
         ))
     }
 
@@ -229,7 +225,7 @@ mod tests {
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
                     api_key,
-                    reqwest::Client::new(),
+                    std::time::Duration::from_secs(5),
                 ))
             },
         )
@@ -257,13 +253,13 @@ mod tests {
                     params,
                     200,
                     "{}".to_string(),
-                    COIN_GECKO_AUTH_HEADER.to_string(),
+                    COINGECKO_AUTH_HEADER.to_string(),
                     api_key.clone(),
                 );
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
                     api_key,
-                    reqwest::Client::new(),
+                    std::time::Duration::from_secs(5),
                 ))
             },
         )
@@ -284,7 +280,7 @@ mod tests {
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
                     api_key,
-                    reqwest::Client::new(),
+                    std::time::Duration::from_secs(5),
                 ))
             },
         )
@@ -315,13 +311,13 @@ mod tests {
                     params,
                     200,
                     "{}".to_string(),
-                    COIN_GECKO_AUTH_HEADER.to_string(),
+                    COINGECKO_AUTH_HEADER.to_string(),
                     api_key.clone(),
                 );
                 Box::new(CoinGeckoPriceAPIClient::new(
                     server_url(&server),
                     api_key,
-                    reqwest::Client::new(),
+                    std::time::Duration::from_secs(5),
                 ))
             },
         )

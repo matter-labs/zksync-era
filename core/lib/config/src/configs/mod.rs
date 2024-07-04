@@ -2,6 +2,7 @@
 pub use self::{
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
+    base_token_api_client::BaseTokenApiClientConfig,
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
@@ -30,6 +31,7 @@ pub use self::{
 
 pub mod api;
 pub mod base_token_adjuster;
+pub mod base_token_api_client;
 pub mod chain;
 mod commitment_generator;
 pub mod consensus;

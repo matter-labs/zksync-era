@@ -50,6 +50,8 @@ impl ProtoRepr for proto::GeneralConfig {
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
             snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
                 .context("snapshot_recovery")?,
+            // TODO: add conf
+            base_token_api_client_config: None,
         })
     }
 

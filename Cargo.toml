@@ -178,6 +178,8 @@ tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.21.0"
 url = "2"
 web3 = "0.19.0"
+httpmock = "0.7.0"
+fraction = "0.15.3"
 
 # Proc-macro
 syn = "2.0"

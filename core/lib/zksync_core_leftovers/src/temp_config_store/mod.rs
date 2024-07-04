@@ -11,10 +11,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
+        BaseTokenApiClientConfig, CommitmentGeneratorConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, GeneralConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -71,6 +71,7 @@ pub struct TempConfigStore {
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
+    pub base_token_api_client_config: Option<BaseTokenApiClientConfig>,
 }
 
 impl TempConfigStore {
@@ -103,6 +104,7 @@ impl TempConfigStore {
             commitment_generator: self.commitment_generator.clone(),
             snapshot_recovery: self.snapshot_recovery.clone(),
             pruning: self.pruning.clone(),
+            base_token_api_client_config: self.base_token_api_client_config.clone(),
         }
     }
 
