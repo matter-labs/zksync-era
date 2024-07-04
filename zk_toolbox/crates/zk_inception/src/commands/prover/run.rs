@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use common::{cmd::Cmd, logger};
 use config::{ChainConfig, EcosystemConfig};
 use path_absolutize::Absolutize;
-use std::path::PathBuf;
 use xshell::{cmd, Shell};
 
 use super::{
