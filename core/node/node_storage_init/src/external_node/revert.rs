@@ -34,7 +34,7 @@ impl RevertStorage for ExternalNodeReverter {
         // by the caller.
         let (_mock_tx, mock_rx) = watch::channel(false);
         let batch = match reorg_detector.run_once(mock_rx).await {
-            Ok(_) => {
+            Ok(()) => {
                 // Even if stop signal was received, the node will shut down without launching any tasks.
                 tracing::info!("No rollback was detected");
                 None
