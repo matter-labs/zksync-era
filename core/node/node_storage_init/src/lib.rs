@@ -58,7 +58,7 @@ impl NodeStorageInitializer {
     /// Note that the decision does not guarantee that the initialization has not been performed
     /// already, so any returned decision should be checked before performing the initialization.
     async fn decision(&self) -> anyhow::Result<InitDecision> {
-        let mut storage = self.pool.connection().await?;
+        let mut storage = self.pool.connection_tagged("node_init").await?;
         let genesis_l1_batch = storage
             .blocks_dal()
             .get_l1_batch_header(L1BatchNumber(0))

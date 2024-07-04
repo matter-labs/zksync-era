@@ -23,7 +23,7 @@ impl InitializeStorage for MainNodeGenesis {
         &self,
         _stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection_tagged("genesis").await?;
 
         if !storage.blocks_dal().is_genesis_needed().await? {
             return Ok(());
@@ -47,7 +47,7 @@ impl InitializeStorage for MainNodeGenesis {
     }
 
     async fn is_initialized(&self) -> anyhow::Result<bool> {
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection_tagged("genesis").await?;
         let needed = zksync_node_genesis::is_genesis_needed(&mut storage).await?;
         Ok(!needed)
     }
