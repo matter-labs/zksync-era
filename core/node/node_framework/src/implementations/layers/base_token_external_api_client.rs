@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
 use zksync_config::configs::BaseTokenApiClientConfig;
-use zksync_da_client::DataAvailabilityClient;
 use zksync_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
 
 use crate::{
-    implementations::resources::{
-        da_client::DAClientResource, price_api_client::PriceAPIClientResource,
-    },
+    implementations::resources::price_api_client::PriceAPIClientResource,
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -22,6 +19,12 @@ use crate::{
 #[derive(Debug)]
 pub struct BaseTokenExternalPriceApiClient {
     config: BaseTokenApiClientConfig,
+}
+
+impl BaseTokenExternalPriceApiClient {
+    pub fn new(config: BaseTokenApiClientConfig) -> Self {
+        Self { config }
+    }
 }
 
 #[async_trait::async_trait]

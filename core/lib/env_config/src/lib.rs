@@ -28,6 +28,7 @@ mod genesis;
 mod test_utils;
 mod vm_runner;
 mod wallets;
+mod base_token_api_client;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

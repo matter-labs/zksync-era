@@ -20,6 +20,7 @@ use zksync_config::{
     EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
     SnapshotsCreatorConfig,
 };
+use zksync_config::configs::BaseTokenApiClientConfig;
 use zksync_core_leftovers::{
     genesis_init, is_genesis_needed,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
@@ -276,5 +277,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
+        base_token_api_client_config: BaseTokenApiClientConfig::from_env().ok(),
     })
 }

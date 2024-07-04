@@ -506,10 +506,8 @@ impl MainNodeBuilder {
 
     fn add_coingecko_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_api_client_config);
-        let contracts_config = self.contracts_config.clone();
         self.node.add_layer(BaseTokenExternalPriceApiClient::new(
             config,
-            contracts_config,
         ));
 
         Ok(self)
@@ -616,7 +614,7 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenRatioPersister => {
                     self = self
-                        .add_coingecko_api_client_layer()
+                        .add_coingecko_api_client_layer()?
                         .add_base_token_ratio_persister_layer()?;
                 }
             }
