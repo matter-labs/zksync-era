@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let config = general_config
         .witness_generator
         .context("witness generator config")?;
-    let mut prometheus_config = general_config
+    let prometheus_config = general_config
         .prometheus_config
         .context("prometheus config")?;
 
