@@ -21,14 +21,6 @@ use crate::{
 ///
 /// If the base token is ETH, a default, no-op impl of the BaseTokenRatioProviderResource is used by other
 /// layers to always return a conversion ratio of 1.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-///
-/// ## Adds tasks
-///
-/// - `BaseTokenRatioProvider`
 #[derive(Debug)]
 pub struct BaseTokenRatioProviderLayer;
 
