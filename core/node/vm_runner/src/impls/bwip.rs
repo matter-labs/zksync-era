@@ -178,7 +178,7 @@ async fn get_updates_manager_witness_input_data(
     connection: &mut Connection<'_, Core>,
     updates_manager: Arc<UpdatesManager>,
 ) -> anyhow::Result<VMRunWitnessInputData> {
-    let l1_batch_number = updates_manager.l1_batch.number.clone();
+    let l1_batch_number = updates_manager.l1_batch.number;
     let finished_batch = updates_manager
         .l1_batch
         .finished
@@ -186,14 +186,8 @@ async fn get_updates_manager_witness_input_data(
         .ok_or_else(|| anyhow!("L1 batch {l1_batch_number:?} is not finished"))?;
 
     let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
-    let default_aa = updates_manager
-        .base_system_contract_hashes()
-        .default_aa
-        .clone();
-    let bootloader = updates_manager
-        .base_system_contract_hashes()
-        .bootloader
-        .clone();
+    let default_aa = updates_manager.base_system_contract_hashes().default_aa;
+    let bootloader = updates_manager.base_system_contract_hashes().bootloader;
     let bootloader_code_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(bootloader)
@@ -230,7 +224,7 @@ async fn get_updates_manager_witness_input_data(
     }
 
     let storage_refunds = finished_batch.final_execution_state.storage_refunds;
-    let pubdata_costs = Some(finished_batch.final_execution_state.pubdata_costs);
+    let pubdata_costs = finished_batch.final_execution_state.pubdata_costs;
 
     let storage_view_cache = updates_manager
         .storage_view_cache()
@@ -254,7 +248,7 @@ async fn get_updates_manager_witness_input_data(
         bootloader_code,
         default_account_code_hash: account_code_hash,
         storage_refunds,
-        pubdata_costs: pubdata_costs.unwrap(),
+        pubdata_costs,
         witness_block_state,
     })
 }
