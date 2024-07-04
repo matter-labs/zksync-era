@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{fmt::Debug, num::NonZero};
 
 use anyhow::Context as _;
@@ -5,17 +6,27 @@ use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_external_price_api::PriceAPIClient;
 use zksync_types::base_token_ratio::BaseTokenAPIRatio;
 
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
+    price_api_client: Box<dyn PriceAPIClient>,
 }
 
 impl BaseTokenRatioPersister {
-    pub fn new(pool: ConnectionPool<Core>, config: BaseTokenAdjusterConfig) -> Self {
-        Self { pool, config }
+    pub fn new(
+        pool: ConnectionPool<Core>,
+        config: BaseTokenAdjusterConfig,
+        price_api_client: Box<dyn PriceAPIClient>,
+    ) -> Self {
+        Self {
+            pool,
+            config,
+            price_api_client,
+        }
     }
 
     /// Main loop for the base token ratio persister.
@@ -42,13 +53,15 @@ impl BaseTokenRatioPersister {
     // TODO (PE-135): Use real API client to fetch new ratio through self.PriceAPIClient & mock for tests.
     //  For now, these are hard coded dummy values.
     async fn fetch_new_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
-        let ratio_timestamp = Utc::now();
+        // either this and then convert prices into ratio
+        let eth_price = self.price_api_client.fetch_price(eth).await?;
+        let token_price = self
+            .price_api_client
+            .fetch_price(contracts_config.base_token_addr)
+            .await?;
 
-        Ok(BaseTokenAPIRatio {
-            numerator: NonZero::new(1).unwrap(),
-            denominator: NonZero::new(100000).unwrap(),
-            ratio_timestamp,
-        })
+        // or
+        self.price_api_client.fetch_ratio
     }
 
     async fn persist_ratio(

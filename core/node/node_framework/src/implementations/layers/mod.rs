@@ -1,3 +1,4 @@
+pub mod base_token_external_price_provider;
 pub mod base_token_ratio_persister;
 pub mod base_token_ratio_provider;
 pub mod batch_status_updater;

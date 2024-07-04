@@ -1,6 +1,7 @@
 use zksync_base_token_adjuster::BaseTokenRatioPersister;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 
+use crate::implementations::resources::price_api_client::PriceAPIClientResource;
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
     service::{ServiceContext, StopReceiver},
@@ -41,7 +42,9 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await?;
 
-        let persister = BaseTokenRatioPersister::new(master_pool, self.config);
+        let cg_client = context.get_resource::<PriceAPIClientResource>()?.0;
+
+        let persister = BaseTokenRatioPersister::new(master_pool, self.config, cg_client);
 
         context.add_task(persister);
 

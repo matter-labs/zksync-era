@@ -1,3 +1,5 @@
+mod coingecko_api;
+
 use std::fmt;
 
 use async_trait::async_trait;
