@@ -3,7 +3,7 @@ use std::sync::Arc;
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
 use zksync_node_storage_init::{
-    external_node::{ExternalNodeGenesis, ExternalNodeRevert, ExternalNodeSnapshotRecovery},
+    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage,
 };
 use zksync_types::L2ChainId;
@@ -78,7 +78,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             }) as Arc<dyn InitializeStorage>
         });
         let block_reverter = block_reverter.map(|block_reverter| {
-            Arc::new(ExternalNodeRevert {
+            Arc::new(ExternalNodeReverter {
                 client,
                 pool: pool.clone(),
                 reverter: block_reverter,

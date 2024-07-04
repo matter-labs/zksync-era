@@ -9,14 +9,14 @@ use zksync_web3_decl::client::{DynClient, L2};
 use crate::RevertStorage;
 
 #[derive(Debug)]
-pub struct ExternalNodeRevert {
+pub struct ExternalNodeReverter {
     pub client: Box<DynClient<L2>>,
     pub pool: ConnectionPool<Core>,
     pub reverter: BlockReverter,
 }
 
 #[async_trait::async_trait]
-impl RevertStorage for ExternalNodeRevert {
+impl RevertStorage for ExternalNodeReverter {
     async fn revert_storage(
         &self,
         to_batch: L1BatchNumber,

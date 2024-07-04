@@ -1,5 +1,5 @@
 pub use self::{
-    genesis::ExternalNodeGenesis, revert::ExternalNodeRevert,
+    genesis::ExternalNodeGenesis, revert::ExternalNodeReverter,
     snapshot_recovery::ExternalNodeSnapshotRecovery,
 };
 
