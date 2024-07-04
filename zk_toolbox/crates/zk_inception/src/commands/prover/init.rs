@@ -90,7 +90,8 @@ fn download_setup_key(
     let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
     let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    Cmd::new(cmd!(shell, "wget {url} -P {parent} -O {file_name}")).run()?;
+    Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
+    Cmd::new(cmd!(shell, "mv {parent}/setup_2^24.key {path}")).run()?;
 
     spinner.finish();
     Ok(())
