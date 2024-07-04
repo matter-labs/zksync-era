@@ -128,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
 
     // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-        port;
+        port
     } else {
         prometheus_config.listener_port
     };
