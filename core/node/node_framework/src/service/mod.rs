@@ -9,6 +9,7 @@ pub use self::{
     context::ServiceContext,
     context_traits::{FromContext, IntoContext},
     error::ZkStackServiceError,
+    shutdown_hook::ShutdownHook,
     stop_receiver::StopReceiver,
 };
 use crate::{
@@ -26,6 +27,7 @@ mod context_traits;
 mod error;
 mod named_future;
 mod runnables;
+mod shutdown_hook;
 mod stop_receiver;
 #[cfg(test)]
 mod tests;

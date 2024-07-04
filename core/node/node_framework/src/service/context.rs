@@ -1,6 +1,4 @@
-use std::{any::type_name, future::Future};
-
-use futures::FutureExt as _;
+use std::any::type_name;
 
 use crate::{
     resource::{Resource, ResourceId, StoredResource},
@@ -8,6 +6,8 @@ use crate::{
     task::Task,
     wiring_layer::WiringError,
 };
+
+use super::shutdown_hook::ShutdownHook;
 
 /// An interface to the service provided to the tasks during initialization.
 /// This the main point of interaction between with the service.
@@ -63,20 +63,16 @@ impl<'a> ServiceContext<'a> {
     ///
     /// The future is guaranteed to only be polled after all the node tasks are stopped or timed out.
     /// All the futures will be awaited sequentially.
-    pub fn add_shutdown_hook(
-        &mut self,
-        name: &'static str,
-        hook: impl Future<Output = anyhow::Result<()>> + Send + 'static,
-    ) -> &mut Self {
+    pub fn add_shutdown_hook(&mut self, hook: ShutdownHook) -> &mut Self {
         tracing::info!(
             "Layer {} has added a new shutdown hook: {}",
             self.layer,
-            name
+            hook.id
         );
         self.service
             .runnables
             .shutdown_hooks
-            .push(NamedFuture::new(hook.boxed(), name.into()));
+            .push(NamedFuture::new(hook.future, hook.id));
         self
     }
 
