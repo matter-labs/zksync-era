@@ -115,6 +115,10 @@ async fn main() -> anyhow::Result<()> {
     );
     env::set_var("CRS_FILE", config.universal_setup_path.clone());
 
+    if let Some(bellman_cuda_path) = config.bellman_cuda_path {
+        env::set_var("BELLMAN_CUDA_DIR", bellman_cuda_path);
+    }
+
     tracing::info!("Starting proof compressor");
 
     let prometheus_config = PrometheusExporterConfig::push(
