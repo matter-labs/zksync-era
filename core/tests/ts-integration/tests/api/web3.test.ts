@@ -752,7 +752,7 @@ describe('web3 API compatibility tests', () => {
             amount: 1,
             token: l2Token
         });
-        const receipt = await tx.wait();
+        await tx.wait();
         const response = await alice.provider.send('eth_getLogs', [
             {
                 fromBlock: 'latest',
