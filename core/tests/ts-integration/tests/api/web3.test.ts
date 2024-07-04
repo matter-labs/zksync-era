@@ -742,6 +742,32 @@ describe('web3 API compatibility tests', () => {
         expect(logs[0].transactionHash).toEqual(tx.hash);
     });
 
+    test('Should check getLogs returns block_timestamp', async () => {
+        // We're sending a transfer from the wallet, so we'll use a new account to make event unique.
+        let uniqueRecipient = testMaster.newEmptyAccount().address;
+        const tx = await alice.transfer({
+            to: uniqueRecipient,
+            amount: 1,
+            token: l2Token
+        });
+        const receipt = await tx.wait();
+        const response = await alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: 'latest',
+                toBlock: 'latest',
+                address: l2Token,
+                topics: [
+                    '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+                    ethers.utils.hexZeroPad(alice.address, 32),
+                    ethers.utils.hexZeroPad(uniqueRecipient, 32)
+                ]
+            }
+        ]);
+        expect(response).toHaveLength(1);
+        // TODO: switch to provider.getLogs once blockTimestamp is added to zksync ethers.js
+        expect(response[0].blockTimestamp).toBeDefined();
+    });
+
     test('Should check getLogs endpoint works properly with block tags', async () => {
         const earliestLogs = alice.provider.send('eth_getLogs', [
             {

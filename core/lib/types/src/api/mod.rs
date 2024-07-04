@@ -265,7 +265,7 @@ pub struct TransactionReceipt {
     #[serde(rename = "effectiveGasPrice")]
     pub effective_gas_price: Option<U256>,
     /// L2 block timestamp
-    #[serde(rename = "blockTimestamp")]
+    #[serde(skip_serializing)]
     pub block_timestamp: Option<i64>,
 }
 
