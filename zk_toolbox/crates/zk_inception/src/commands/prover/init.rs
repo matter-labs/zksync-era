@@ -1,11 +1,4 @@
-use std::path::PathBuf;
-
-use common::{
-    check_prover_prequisites,
-    cmd::Cmd,
-    logger,
-    spinner::{self, Spinner},
-};
+use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 use zksync_config::{
@@ -19,7 +12,7 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::{
-    consts::PROVER_STORE_MAX_RETRIES,
+    consts::{BELLMAN_CUDA_DIR, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_BUILDING_BELLMAN_CUDA_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_CLONING_BELLMAN_CUDA_SPINNER, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
@@ -141,6 +134,10 @@ fn get_object_store_config(
 }
 
 fn init_bellman_cuda(shell: &Shell) -> anyhow::Result<()> {
+    if shell.path_exists(BELLMAN_CUDA_DIR) {
+        return Ok(());
+    }
+
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     Cmd::new(cmd!(
         shell,
