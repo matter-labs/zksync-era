@@ -383,11 +383,7 @@ async fn generate_witness(
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths,
-        input
-            .previous_batch_metadata
-            .root_hash
-            .expect("Previous root hash should exist")
-            .0,
+        input.previous_batch_metadata.root_hash.0,
     );
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
