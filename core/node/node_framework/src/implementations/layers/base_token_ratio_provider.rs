@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use zksync_base_token_adjuster::DBBaseTokenRatioProvider;
+use zksync_config::BaseTokenAdjusterConfig;
 
 use crate::{
     implementations::resources::{
@@ -29,7 +30,15 @@ use crate::{
 ///
 /// - `BaseTokenRatioProvider`
 #[derive(Debug)]
-pub struct BaseTokenRatioProviderLayer;
+pub struct BaseTokenRatioProviderLayer {
+    config: BaseTokenAdjusterConfig,
+}
+
+impl BaseTokenRatioProviderLayer {
+    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
+        Self { config }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenRatioProviderLayer {
@@ -41,7 +50,7 @@ impl WiringLayer for BaseTokenRatioProviderLayer {
         let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool).await?;
+        let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool, self.config).await?;
 
         context.insert_resource(BaseTokenRatioProviderResource(Arc::new(
             ratio_provider.clone(),

@@ -153,7 +153,9 @@ impl MainNodeBuilder {
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
         if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
-            self.node.add_layer(BaseTokenRatioProviderLayer {});
+            let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
+            self.node
+                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
 
         let gas_adjuster_config = try_load_config!(self.configs.eth)
