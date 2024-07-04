@@ -31,7 +31,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .get_zksync_general_config()
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
-    let setup_key_path = get_setup_key_path(&ecosystem_config)?;
+    let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
 
     let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
@@ -96,7 +96,7 @@ fn download_setup_key(
     Ok(())
 }
 
-fn get_setup_key_path(ecosystem_config: &EcosystemConfig) -> anyhow::Result<String> {
+fn get_default_setup_key_path(ecosystem_config: &EcosystemConfig) -> anyhow::Result<String> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
     let path = link_to_prover.join("keys/setup/setup_2^24.key");
     let string = path.to_str().unwrap();
