@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use reqwest::Client;
 use secp256k1::{ecdsa::Signature, PublicKey};
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,7 +15,7 @@ use zksync_prover_interface::{
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::error::TeeProverError;
+use crate::{error::TeeProverError, metrics::METRICS};
 
 /// Implementation of the API client for the proof data handler, run by
 /// [`zksync_proof_data_handler::run_server`].
@@ -76,9 +78,13 @@ impl TeeApiClient {
     /// verification is successful.
     pub async fn get_job(&self) -> Result<Option<Box<TeeVerifierInput>>, TeeProverError> {
         let request = TeeProofGenerationDataRequest {};
+        let upload_started_at = Instant::now();
         let response = self
             .post::<_, TeeProofGenerationDataResponse, _>("/tee/proof_inputs", request)
             .await?;
+        METRICS
+            .job_waiting_time
+            .observe(upload_started_at.elapsed());
         Ok(response.0)
     }
 
@@ -97,11 +103,16 @@ impl TeeApiClient {
             proof: root_hash.as_bytes().into(),
             tee_type,
         }));
+        let upload_started_at = Instant::now();
         self.post::<_, SubmitTeeProofResponse, _>(
             format!("/tee/submit_proofs/{batch_number}").as_str(),
             request,
         )
         .await?;
+        METRICS
+            .proof_submitting_time
+            .observe(upload_started_at.elapsed());
+        METRICS.block_number_processed.set(batch_number.0 as u64);
         tracing::info!(
             "Proof submitted successfully for batch number {}",
             batch_number

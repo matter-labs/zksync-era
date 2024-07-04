@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use url::Url;
@@ -12,7 +12,7 @@ use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::{api_client::TeeApiClient, error::TeeProverError};
+use crate::{api_client::TeeApiClient, error::TeeProverError, metrics::METRICS};
 
 /// Wiring layer for `TeeProver`
 ///
@@ -81,9 +81,14 @@ impl TeeProver {
         &self,
         tvi: TeeVerifierInput,
     ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
+        let verification_started_at = Instant::now();
+
         match tvi {
             TeeVerifierInput::V1(tvi) => {
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
+                METRICS
+                    .proof_generation_time
+                    .observe(verification_started_at.elapsed());
                 let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
@@ -169,6 +174,7 @@ impl Task for TeeProver {
                     backoff = self.config.initial_retry_backoff;
                 }
                 Err(err) => {
+                    METRICS.network_errors_counter.inc_by(1);
                     if !err.is_transient() || retries > self.config.max_retries {
                         return Err(err.into());
                     }

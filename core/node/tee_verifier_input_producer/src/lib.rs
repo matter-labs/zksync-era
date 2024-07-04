@@ -247,7 +247,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as u64);
         Ok(())
     }
 
