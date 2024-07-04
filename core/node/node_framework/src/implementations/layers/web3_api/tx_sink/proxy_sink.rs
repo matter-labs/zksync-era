@@ -14,7 +14,7 @@ use crate::{
 
 /// Wiring layer for [`TxProxy`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 #[derive(Debug)]
-pub struct TxProxySinkLayer;
+pub struct ProxySinkLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -32,12 +32,12 @@ pub struct Output {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for TxProxySinkLayer {
+impl WiringLayer for ProxySinkLayer {
     type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "tx_proxy_sink_layer"
+        "proxy_sink_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
