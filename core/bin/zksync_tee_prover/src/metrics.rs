@@ -14,7 +14,7 @@ pub(crate) struct TeeProverMetrics {
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub proof_submitting_time: Histogram<Duration>,
     pub network_errors_counter: Gauge<u64>,
-    pub block_number_processed: Gauge<u64>,
+    pub last_batch_number_processed: Gauge<u64>,
 }
 
 #[vise::register]
