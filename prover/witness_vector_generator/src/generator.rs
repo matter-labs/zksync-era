@@ -38,6 +38,7 @@ pub struct WitnessVectorGenerator {
 }
 
 impl WitnessVectorGenerator {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
