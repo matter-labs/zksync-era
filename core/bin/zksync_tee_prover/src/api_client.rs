@@ -106,7 +106,6 @@ impl TeeApiClient {
         )
         .await?;
         METRICS.proof_submitting_time.observe(started_at.elapsed());
-        METRICS.block_number_processed.set(batch_number.0 as u64);
         tracing::info!(
             "Proof submitted successfully for batch number {}",
             batch_number

@@ -175,8 +175,9 @@ impl Task for TeeProver {
                 Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
-                    if batch_number.is_some() {
+                    if let Some(batch_number) = batch_number {
                         METRICS.job_waiting_time.observe(started_at.elapsed());
+                        METRICS.block_number_processed.set(batch_number.0 as u64);
                         started_at = Instant::now();
                     }
                 }
