@@ -6,8 +6,8 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     versions::shadow::ShadowVm,
@@ -46,19 +46,8 @@ macro_rules! dispatch_vm {
     };
 }
 
-impl<S: ReadStorage, H: HistoryMode> VmInterface<StorageView<S>, H> for VmInstance<S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
-
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage_view: StoragePtr<StorageView<S>>,
-    ) -> Self {
-        let protocol_version = system_env.version;
-        let vm_version: VmVersion = protocol_version.into();
-        //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
-        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
-    }
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
@@ -140,9 +129,20 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface<StorageView<S>, H> for VmInstan
     }
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled<StorageView<S>>
-    for VmInstance<S, crate::vm_latest::HistoryEnabled>
-{
+impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S, H> {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let protocol_version = system_env.version;
+        let vm_version: VmVersion = protocol_version.into();
+        //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
+    }
+}
+
+impl<S: ReadStorage> VmInterfaceHistoryEnabled for VmInstance<S, crate::vm_latest::HistoryEnabled> {
     fn make_snapshot(&mut self) {
         dispatch_vm!(self.make_snapshot())
     }

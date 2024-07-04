@@ -1,40 +1,49 @@
 use std::{collections::BTreeMap, fmt};
 
 use anyhow::Context as _;
-use zksync_state::{ReadStorage, StoragePtr};
+use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
-    vm_fast, HistoryMode,
+    vm_fast,
 };
 
 #[derive(Debug)]
 pub struct ShadowVm<S, T> {
     main: T,
-    shadow: vm_fast::Vm<S>,
+    shadow: vm_fast::Vm<ImmutableStorageView<S>>,
+}
+
+impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
+where
+    S: ReadStorage,
+    T: VmFactory<StorageView<S>>,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        Self {
+            main: T::new(batch_env.clone(), system_env.clone(), storage.clone()),
+            shadow: vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage)),
+        }
+    }
 }
 
 // **NB.** Ordering matters for modifying operations; the old VM applies storage changes to the storage after committing transactions.
-impl<S, T, H> VmInterface<S, H> for ShadowVm<S, T>
+impl<S, T> VmInterface for ShadowVm<S, T>
 where
     S: ReadStorage,
-    H: HistoryMode,
-    T: VmInterface<S, H>,
+    T: VmInterface,
 {
     type TracerDispatcher = T::TracerDispatcher;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        Self {
-            main: T::new(batch_env.clone(), system_env.clone(), storage.clone()),
-            shadow: vm_fast::Vm::new(batch_env, system_env, storage),
-        }
-    }
 
     fn push_transaction(&mut self, tx: Transaction) {
         self.shadow.push_transaction(tx.clone());
@@ -58,6 +67,7 @@ where
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        // FIXME: compare outputs here as well
         self.main.inspect(dispatcher, execution_mode)
     }
 
@@ -129,11 +139,9 @@ where
         VmExecutionResultAndLogs,
     ) {
         let tx_hash = tx.hash();
-        let shadow_result = self.shadow.inspect_transaction_with_bytecode_compression(
-            (),
-            tx.clone(),
-            with_compression,
-        );
+        let shadow_result = self
+            .shadow
+            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
         let main_result =
             self.main
                 .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression);
@@ -325,10 +333,10 @@ impl UniqueStorageLogs {
     }
 }
 
-impl<S, T> VmInterfaceHistoryEnabled<S> for ShadowVm<S, T>
+impl<S, T> VmInterfaceHistoryEnabled for ShadowVm<S, T>
 where
     S: ReadStorage,
-    T: VmInterfaceHistoryEnabled<S>,
+    T: VmInterfaceHistoryEnabled,
 {
     fn make_snapshot(&mut self) {
         self.shadow.make_snapshot();

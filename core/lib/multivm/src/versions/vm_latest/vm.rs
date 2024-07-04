@@ -11,8 +11,8 @@ use crate::{
     glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_latest::{
         bootloader_state::BootloaderState,
@@ -72,18 +72,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let vm_version: VmVersion = system_env.version.into();
-        Self::new_with_subversion(
-            batch_env,
-            system_env,
-            storage,
-            vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
-        )
-    }
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -206,6 +196,18 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
+impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let vm_version: VmVersion = system_env.version.into();
+        Self::new_with_subversion(
+            batch_env,
+            system_env,
+            storage,
+            vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
+        )
+    }
+}
+
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn new_with_subversion(
         batch_env: L1BatchEnv,
@@ -228,7 +230,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 /// Methods of vm, which required some history manipulations
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
+impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
         self.make_snapshot_inner()

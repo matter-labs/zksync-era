@@ -13,7 +13,8 @@ use crate::{
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     vm_m5::{
         events::merge_events,
@@ -64,19 +65,9 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
     }
 }
 
-impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Tracers are not supported for here we use `()` as a placeholder
     type TracerDispatcher = ();
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let vm_version: VmVersion = system_env.version.into();
-        let vm_sub_version = match vm_version {
-            VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
-            VmVersion::M5WithRefunds => MultiVMSubversion::V2,
-            _ => panic!("Unsupported protocol version for vm_m5: {:?}", vm_version),
-        };
-        Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
-    }
 
     fn push_transaction(&mut self, tx: Transaction) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -223,7 +214,19 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-impl<S: Storage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::HistoryEnabled> {
+impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let vm_version: VmVersion = system_env.version.into();
+        let vm_sub_version = match vm_version {
+            VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
+            VmVersion::M5WithRefunds => MultiVMSubversion::V2,
+            _ => panic!("Unsupported protocol version for vm_m5: {:?}", vm_version),
+        };
+        Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
+    }
+}
+
+impl<S: Storage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::HistoryEnabled> {
     fn make_snapshot(&mut self) {
         self.vm.save_current_vm_as_snapshot()
     }

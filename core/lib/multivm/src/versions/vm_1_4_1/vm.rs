@@ -11,8 +11,8 @@ use crate::{
     glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_1_4_1::{
         bootloader_state::BootloaderState,
@@ -38,21 +38,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
-        Self {
-            bootloader_state,
-            state,
-            storage,
-            system_env,
-            batch_env,
-            snapshots: vec![],
-            _phantom: Default::default(),
-        }
-    }
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -171,8 +158,23 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
+impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        Self {
+            bootloader_state,
+            state,
+            storage,
+            system_env,
+            batch_env,
+            snapshots: vec![],
+            _phantom: Default::default(),
+        }
+    }
+}
+
 /// Methods of vm, which required some history manipulations
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::HistoryEnabled> {
+impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
         self.make_snapshot_inner()

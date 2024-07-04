@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Context;
 use multivm::{
-    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory, VmInterface},
     vm_latest::HistoryEnabled,
     VmInstance,
 };

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,

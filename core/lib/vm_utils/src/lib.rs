@@ -1,8 +1,6 @@
-pub mod storage;
-
 use anyhow::{anyhow, Context};
 use multivm::{
-    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    interface::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
@@ -12,6 +10,8 @@ use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 use crate::storage::L1BatchParamsProvider;
+
+pub mod storage;
 
 pub type VmAndStorage<'a> = (
     VmInstance<PostgresStorage<'a>, HistoryEnabled>,
