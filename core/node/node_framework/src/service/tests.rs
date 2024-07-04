@@ -182,14 +182,9 @@ impl WiringLayer for TasksLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let successful_task = SuccessfulTask(
-            Arc::new(Barrier::new(2)),
-            self.successful_task_was_run.clone(),
-        );
-        let remaining_task = RemainingTask(
-            Arc::new(Barrier::new(2)),
-            self.remaining_task_was_run.clone(),
-        );
+        let barrier = Arc::new(Barrier::new(2));
+        let successful_task = SuccessfulTask(barrier.clone(), self.successful_task_was_run.clone());
+        let remaining_task = RemainingTask(barrier, self.remaining_task_was_run.clone());
         Ok(TasksLayerOutput {
             successful_task,
             remaining_task,
