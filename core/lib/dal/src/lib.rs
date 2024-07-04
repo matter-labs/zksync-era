@@ -12,8 +12,9 @@ pub use zksync_db_connection::{
 };
 
 use crate::{
-    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
-    contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
+    base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
+    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    data_availability_dal::DataAvailabilityDal, eth_sender_dal::EthSenderDal,
     events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
@@ -26,11 +27,13 @@ use crate::{
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
+pub mod base_token_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
+mod data_availability_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
@@ -124,7 +127,11 @@ where
 
     fn pruning_dal(&mut self) -> PruningDal<'_, 'a>;
 
+    fn data_availability_dal(&mut self) -> DataAvailabilityDal<'_, 'a>;
+
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
+
+    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -240,7 +247,15 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         PruningDal { storage: self }
     }
 
+    fn data_availability_dal(&mut self) -> DataAvailabilityDal<'_, 'a> {
+        DataAvailabilityDal { storage: self }
+    }
+
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a> {
         VmRunnerDal { storage: self }
+    }
+
+    fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> {
+        BaseTokenDal { storage: self }
     }
 }

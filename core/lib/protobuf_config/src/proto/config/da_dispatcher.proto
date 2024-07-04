@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package zksync.config.da_dispatcher;
+
+import "zksync/config/object_store.proto";
+
+message DataAvailabilityDispatcher {
+  optional uint32 polling_interval_ms = 1;
+  optional uint32 max_rows_to_dispatch = 2;
+  optional uint32 max_retries = 3;
+}
