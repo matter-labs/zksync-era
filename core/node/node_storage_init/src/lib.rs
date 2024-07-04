@@ -146,11 +146,9 @@ impl NodeStorageInitializer {
     ) -> anyhow::Result<()> {
         const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
-        let decision = self.decision().await?;
-
         // Wait until data is added to the database.
         poll(stop_receiver.clone(), POLLING_INTERVAL, || {
-            self.is_database_initialized(decision)
+            self.is_database_initialized()
         })
         .await?;
         if *stop_receiver.borrow() {
@@ -159,29 +157,26 @@ impl NodeStorageInitializer {
 
         // Wait until the rollback is no longer needed.
         poll(stop_receiver.clone(), POLLING_INTERVAL, || {
-            self.is_rollback_not_needed(stop_receiver.clone())
+            self.is_chain_tip_correct(stop_receiver.clone())
         })
         .await?;
 
         Ok(())
     }
 
-    async fn is_database_initialized(&self, decision: InitDecision) -> anyhow::Result<bool> {
-        match decision {
-            InitDecision::Genesis => self.strategy.genesis.is_initialized().await,
-            InitDecision::SnapshotRecovery => {
-                if let Some(recovery) = &self.strategy.snapshot_recovery {
-                    recovery.is_initialized().await
-                } else {
-                    anyhow::bail!(
-                        "Snapshot recovery should be performed, but the strategy is not provided"
-                    );
-                }
-            }
+    async fn is_database_initialized(&self) -> anyhow::Result<bool> {
+        // We're fine if the database is initialized in any meaningful way we can check.
+        if self.strategy.genesis.is_initialized().await? {
+            return Ok(true);
         }
+        if let Some(snapshot_recovery) = &self.strategy.snapshot_recovery {
+            return snapshot_recovery.is_initialized().await;
+        }
+        Ok(false)
     }
 
-    async fn is_rollback_not_needed(
+    /// Checks if the head of the chain has correct state, e.g. no rollback needed.
+    async fn is_chain_tip_correct(
         &self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
