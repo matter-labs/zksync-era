@@ -86,11 +86,11 @@ fn download_setup_key(
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
         .clone();
     let url = compressor_config.universal_setup_download_url;
-    let parent = std::path::Path::new(path)
-        .parent()
-        .expect(MSG_SETUP_KEY_PATH_ERROR);
+    let path = std::path::Path::new(path);
+    let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
+    let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
+    Cmd::new(cmd!(shell, "wget {url} -P {parent} -O {file_name}")).run()?;
 
     spinner.finish();
     Ok(())
