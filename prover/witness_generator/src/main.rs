@@ -122,9 +122,12 @@ async fn main() -> anyhow::Result<()> {
     let config = general_config
         .witness_generator
         .context("witness generator config")?;
-    let prometheus_config = general_config
+    let mut prometheus_config = general_config
         .prometheus_config
         .context("prometheus config")?;
+    if let Some(prometheus_listener_port) = config.prometheus_listener_port {
+        prometheus_config.listener_port = prometheus_listener_port;
+    }
     let postgres_config = general_config.postgres_config.context("postgres config")?;
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
