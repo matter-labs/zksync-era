@@ -83,11 +83,9 @@ impl TeeProver {
     ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
         match tvi {
             TeeVerifierInput::V1(tvi) => {
-                let verification_started_at = Instant::now();
+                let started_at = Instant::now();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
-                METRICS
-                    .proof_generation_time
-                    .observe(verification_started_at.elapsed());
+                METRICS.proof_generation_time.observe(started_at.elapsed());
                 let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
@@ -118,7 +116,7 @@ impl TeeProver {
             }
             None => {
                 tracing::trace!("There are currently no pending batches to be proven");
-                Ok(Option::None)
+                Ok(None)
             }
         }
     }
