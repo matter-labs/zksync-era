@@ -85,12 +85,12 @@ impl TeeProver {
             TeeVerifierInput::V1(tvi) => {
                 let started_at = Instant::now();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
-                METRICS.proof_generation_time.observe(started_at.elapsed());
                 let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
                     .map_err(|e| TeeProverError::Verification(e.into()))?;
                 let signature = self.signing_key.sign_ecdsa(msg_to_sign);
+                METRICS.proof_generation_time.observe(started_at.elapsed());
                 Ok((signature, batch_number, verification_result.value_hash))
             }
             _ => Err(TeeProverError::Verification(anyhow::anyhow!(
@@ -161,7 +161,7 @@ impl Task for TeeProver {
 
         let mut retries = 1;
         let mut backoff = self.config.initial_retry_backoff;
-        let mut started_at = Instant::now();
+        let mut job_wait_started_at = Instant::now();
 
         loop {
             if *stop_receiver.0.borrow() {
@@ -174,11 +174,13 @@ impl Task for TeeProver {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
                     if let Some(batch_number) = batch_number {
-                        METRICS.job_waiting_time.observe(started_at.elapsed());
+                        METRICS
+                            .job_waiting_time
+                            .observe(job_wait_started_at.elapsed());
                         METRICS
                             .last_batch_number_processed
                             .set(batch_number.0 as u64);
-                        started_at = Instant::now();
+                        job_wait_started_at = Instant::now();
                     }
                 }
                 Err(err) => {
