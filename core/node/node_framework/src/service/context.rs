@@ -1,13 +1,12 @@
 use std::any::type_name;
 
+use super::shutdown_hook::ShutdownHook;
 use crate::{
     resource::{Resource, ResourceId, StoredResource},
     service::{named_future::NamedFuture, ZkStackService},
     task::Task,
     wiring_layer::WiringError,
 };
-
-use super::shutdown_hook::ShutdownHook;
 
 /// An interface to the service provided to the tasks during initialization.
 /// This the main point of interaction between with the service.
