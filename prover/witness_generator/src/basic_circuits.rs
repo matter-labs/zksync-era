@@ -471,16 +471,8 @@ async fn generate_witness(
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
 
-    scheduler_witness.previous_block_meta_hash = input
-        .previous_batch_metadata
-        .meta_hash
-        .expect("Previous metadata hash should exist")
-        .0;
-    scheduler_witness.previous_block_aux_hash = input
-        .previous_batch_metadata
-        .aux_hash
-        .expect("Previous aux data hash should exist")
-        .0;
+    scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
+    scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;
 
     (
         circuit_urls,
