@@ -755,8 +755,6 @@ describe('web3 API compatibility tests', () => {
         await tx.wait();
         const response = await alice.provider.send('eth_getLogs', [
             {
-                fromBlock: 'latest',
-                toBlock: 'latest',
                 address: l2Token,
                 topics: [
                     '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
