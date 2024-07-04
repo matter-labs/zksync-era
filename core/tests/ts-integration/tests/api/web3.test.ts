@@ -760,8 +760,8 @@ describe('web3 API compatibility tests', () => {
                 address: l2Token,
                 topics: [
                     '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
-                    ethers.utils.hexZeroPad(alice.address, 32),
-                    ethers.utils.hexZeroPad(uniqueRecipient, 32)
+                    ethers.zeroPadValue(alice.address, 32),
+                    ethers.zeroPadValueuniqueRecipient, 32)
                 ]
             }
         ]);
