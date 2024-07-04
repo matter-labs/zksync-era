@@ -9,7 +9,7 @@ use zksync_types::{
 };
 
 use crate::{
-    inputs::PrepareBasicCircuitsJob,
+    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
@@ -25,21 +25,29 @@ pub struct ProofGenerationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum GenericProofGenerationDataResponse<T> {
-    Success(Option<Box<T>>),
+pub enum ProofGenerationDataResponse {
+    Success(Option<Box<ProofGenerationData>>),
     Error(String),
 }
 
-pub type ProofGenerationDataResponse = GenericProofGenerationDataResponse<ProofGenerationData>;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeeProofGenerationDataResponse(pub Option<Box<TeeVerifierInput>>);
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SimpleResponse {
+pub enum SubmitProofResponse {
     Success,
     Error(String),
 }
 
-pub type SubmitProofResponse = SimpleResponse;
-pub type RegisterTeeAttestationResponse = SimpleResponse;
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SubmitTeeProofResponse {
+    Success,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum RegisterTeeAttestationResponse {
+    Success,
+}
 
 // Structs to hold data necessary for making HTTP requests
 

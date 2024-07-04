@@ -10,6 +10,7 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
+    "core/bin/zksync_tee_prover",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",
@@ -33,6 +34,7 @@ members = [
     "core/node/contract_verification_server",
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
+    "core/node/base_token_adjuster",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -69,6 +71,7 @@ members = [
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
+    "core/lib/external_price_api",
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",
@@ -248,6 +251,7 @@ zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
+zksync_external_price_api = { path = "core/lib/external_price_api" }
 
 # Framework and components
 zksync_node_framework = { path = "core/node/node_framework" }
@@ -274,3 +278,4 @@ zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }
+zksync_base_token_adjuster = {path = "core/node/base_token_adjuster"}

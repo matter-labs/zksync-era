@@ -1,7 +1,7 @@
 use zksync_basic_types::{Address, H160, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AddressWallet {
     address: Address,
 }
@@ -16,7 +16,7 @@ impl AddressWallet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Wallet {
     address: Address,
     private_key: K256PrivateKey,
@@ -58,18 +58,18 @@ impl Wallet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EthSender {
     pub operator: Wallet,
     pub blob_operator: Option<Wallet>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StateKeeper {
     pub fee_account: AddressWallet,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Wallets {
     pub eth_sender: Option<EthSender>,
     pub state_keeper: Option<StateKeeper>,
