@@ -28,6 +28,7 @@ mod tests {
                 "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
                     .to_string(),
             verify_wrapper_proof: false,
+            bellman_cuda_path: Some("era-bellman-cuda".to_string()),
         }
     }
 
@@ -44,6 +45,7 @@ mod tests {
             FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH="keys/setup/setup_2^26.key"
             FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_DOWNLOAD_URL="https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
             FRI_PROOF_COMPRESSOR_VERIFY_WRAPPER_PROOF=false
+            FRI_PROOF_COMPRESSOR_BELLMAN_CUDA_PATH="era-bellman-cuda"
         "#;
         lock.set_env(config);
 

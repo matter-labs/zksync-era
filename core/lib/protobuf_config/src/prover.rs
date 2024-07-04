@@ -33,6 +33,7 @@ impl ProtoRepr for proto::ProofCompressor {
                 .clone(),
             verify_wrapper_proof: *required(&self.verify_wrapper_proof)
                 .context("verify_wrapper_proof")?,
+            bellman_cuda_path: self.bellman_cuda_path.clone(),
         })
     }
 
@@ -47,6 +48,7 @@ impl ProtoRepr for proto::ProofCompressor {
             universal_setup_path: Some(this.universal_setup_path.clone()),
             universal_setup_download_url: Some(this.universal_setup_download_url.clone()),
             verify_wrapper_proof: Some(this.verify_wrapper_proof),
+            bellman_cuda_path: this.bellman_cuda_path.clone(),
         }
     }
 }

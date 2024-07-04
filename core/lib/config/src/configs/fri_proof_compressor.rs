@@ -23,8 +23,12 @@ pub struct FriProofCompressorConfig {
     /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
     pub universal_setup_download_url: String,
 
-    // Whether to verify wrapper proof or not.
+    /// Whether to verify wrapper proof or not.
     pub verify_wrapper_proof: bool,
+
+    /// Path to bellman cuda
+    /// https://github.com/matter-labs/era-bellman-cuda
+    pub bellman_cuda_path: Option<String>,
 }
 
 impl FriProofCompressorConfig {
