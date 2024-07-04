@@ -54,7 +54,7 @@ pub struct Output {
     pub state_keeper_io: StateKeeperIOResource,
     pub conditional_sealer: ConditionalSealerResource,
     #[context(task)]
-    pub mempool_fetcher: MempoolFetcherTask,
+    pub mempool_fetcher: MempoolFetcher,
 }
 
 impl MempoolIOLayer {
@@ -138,27 +138,18 @@ impl WiringLayer for MempoolIOLayer {
         Ok(Output {
             state_keeper_io: io.into(),
             conditional_sealer: sealer.into(),
-            mempool_fetcher: mempool_fetcher.into(),
+            mempool_fetcher,
         })
     }
 }
 
-#[derive(Debug)]
-struct MempoolFetcherTask(MempoolFetcher);
-
 #[async_trait::async_trait]
-impl Task for MempoolFetcherTask {
+impl Task for MempoolFetcher {
     fn id(&self) -> TaskId {
         "state_keeper/mempool_fetcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.0.run(stop_receiver.0).await
-    }
-}
-
-impl From<MempoolFetcher> for MempoolFetcherTask {
-    fn from(fetcher: MempoolFetcher) -> Self {
-        Self(fetcher)
+        (*self).run(stop_receiver.0).await
     }
 }

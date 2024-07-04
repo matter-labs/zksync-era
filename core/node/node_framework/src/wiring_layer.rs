@@ -9,6 +9,7 @@ use crate::{resource::ResourceId, service::ServiceContext, FromContext, IntoCont
 /// so instead we preserve the layer type within the closure, and represent the actual wiring logic
 /// as a function of the service context instead.
 /// See [`WiringLayerExt`] trait for more context.
+#[allow(clippy::type_complexity)] // False positive, already a dedicated type.
 pub(crate) struct WireFn(
     pub Box<dyn FnOnce(&runtime::Handle, &mut ServiceContext<'_>) -> Result<(), WiringError>>,
 );

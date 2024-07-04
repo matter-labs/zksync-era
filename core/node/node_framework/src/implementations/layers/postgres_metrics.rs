@@ -47,7 +47,7 @@ impl WiringLayer for PostgresMetricsLayer {
 }
 
 #[derive(Debug)]
-struct PostgresMetricsScrapingTask {
+pub struct PostgresMetricsScrapingTask {
     pool_for_metrics: ConnectionPool<Core>,
 }
 

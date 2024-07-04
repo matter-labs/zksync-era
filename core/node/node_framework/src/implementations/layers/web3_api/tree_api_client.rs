@@ -22,6 +22,7 @@ pub struct TreeApiClientLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    /// Fetched to check whether the `TreeApiClientResource` was already provided by another layer.
     pub tree_api_client: Option<TreeApiClientResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,

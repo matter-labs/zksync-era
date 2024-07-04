@@ -74,7 +74,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 }
 
 #[derive(Debug)]
-struct ProofDataHandlerTask {
+pub struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,

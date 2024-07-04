@@ -51,7 +51,7 @@ impl WiringLayer for MainNodeFeeParamsFetcherLayer {
 }
 
 #[derive(Debug)]
-struct MainNodeFeeParamsFetcherTask {
+pub struct MainNodeFeeParamsFetcherTask {
     fetcher: Arc<MainNodeFeeParamsFetcher>,
 }
 

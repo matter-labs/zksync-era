@@ -79,7 +79,7 @@ impl WiringLayer for ExternalIOLayer {
             sync_state: sync_state.into(),
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
-            sealer: sealer.into(),
+            sealer,
         })
     }
 }

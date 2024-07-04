@@ -102,7 +102,7 @@ impl WiringLayer for SequencerL1GasLayer {
 }
 
 #[derive(Debug)]
-struct GasAdjusterTask {
+pub struct GasAdjusterTask {
     gas_adjuster: Arc<GasAdjuster>,
 }
 

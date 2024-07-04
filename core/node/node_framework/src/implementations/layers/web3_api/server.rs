@@ -241,7 +241,7 @@ impl WiringLayer for Web3ServerLayer {
 // TODO (QIT-26): Once we switch the codebase to only use the framework, we need to properly refactor the API to only
 // use abstractions provided by this framework and not spawn any tasks on its own.
 #[derive(Debug)]
-struct Web3ApiTask {
+pub struct Web3ApiTask {
     transport: Transport,
     server: ApiServer,
     task_sender: oneshot::Sender<Vec<ApiJoinHandle>>,
@@ -271,7 +271,7 @@ impl Task for Web3ApiTask {
 /// Helper task that waits for a list of task join handles and then awaits them all.
 /// For more details, see [`Web3ApiTask`].
 #[derive(Debug)]
-struct ApiTaskGarbageCollector {
+pub struct ApiTaskGarbageCollector {
     task_receiver: oneshot::Receiver<Vec<ApiJoinHandle>>,
 }
 

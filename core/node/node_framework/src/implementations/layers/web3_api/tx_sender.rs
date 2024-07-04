@@ -221,7 +221,7 @@ impl Task for VmConcurrencyBarrier {
 }
 
 #[derive(Debug)]
-struct WhitelistedTokensForAaUpdateTask {
+pub struct WhitelistedTokensForAaUpdateTask {
     whitelisted_tokens: Arc<RwLock<Vec<Address>>>,
     main_node_client: Box<DynClient<L2>>,
 }
