@@ -4,37 +4,45 @@ use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{PoolResource, ReplicaPool},
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Wiring layer for the Postgres metrics exporter.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-///
-/// ## Adds tasks
-///
-/// - `PostgresMetricsScrapingTask`
 #[derive(Debug)]
 pub struct PostgresMetricsLayer;
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub replica_pool: PoolResource<ReplicaPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: PostgresMetricsScrapingTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for PostgresMetricsLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "postgres_metrics_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
-        let pool_for_metrics = replica_pool_resource.get_singleton().await?;
-        context.add_task(PostgresMetricsScrapingTask { pool_for_metrics });
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool_for_metrics = input.replica_pool.get_singleton().await?;
+        let task = PostgresMetricsScrapingTask { pool_for_metrics };
 
-        Ok(())
+        Ok(Output { task })
     }
 }
 
