@@ -6,9 +6,10 @@ use zksync_node_api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for health check server
@@ -16,33 +17,40 @@ use crate::{
 /// Expects other layers to insert different components' health checks
 /// into [`AppHealthCheck`] aggregating heath using [`AppHealthCheckResource`].
 /// The added task spawns a health check server that only exposes the state provided by other tasks.
-///
-/// ## Requests resources
-///
-/// - `AppHealthCheckResource`
-///
-/// ## Adds tasks
-///
-/// - `HealthCheckTask`
 #[derive(Debug)]
 pub struct HealthCheckLayer(pub HealthCheckConfig);
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    #[context(default)]
+    pub app_health_check: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub health_check_task: HealthCheckTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for HealthCheckLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "healthcheck_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        let AppHealthCheckResource(app_health_check) = node.get_resource_or_default();
-
-        let task = HealthCheckTask {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let AppHealthCheckResource(app_health_check) = input.app_health_check;
+        let health_check_task = HealthCheckTask {
             config: self.0,
             app_health_check,
         };
 
-        node.add_task(task);
-        Ok(())
+        Ok(Output { health_check_task })
     }
 }
 
