@@ -1,7 +1,9 @@
 use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
-use crate::commands::{self, config, debug_proof, delete, get_file_info, requeue, restart, stats};
+use crate::commands::{
+    config, debug_proof, delete, get_file_info, requeue, restart, stats, status::StatusCommand,
+};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -32,7 +34,7 @@ enum ProverCommand {
     Config(ProverCLIConfig),
     Delete(delete::Args),
     #[command(subcommand)]
-    Status(commands::StatusCommand),
+    Status(StatusCommand),
     Requeue(requeue::Args),
     Restart(restart::Args),
     #[command(about = "Displays L1 Batch proving stats for a given period")]

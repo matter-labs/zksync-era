@@ -1,7 +1,7 @@
 use assert_cmd::Command;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
-use prover_dal::{
+use zksync_prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
 use zksync_types::{
