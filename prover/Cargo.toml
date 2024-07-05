@@ -75,7 +75,6 @@ zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
 zksync_vlog = { path = "../core/lib/vlog" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-zkevm_test_harness_1_3_3 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3", package = "zkevm_test_harness" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_config = { path = "../core/lib/config" }
 zksync_dal = { path = "../core/lib/dal" }

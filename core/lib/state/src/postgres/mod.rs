@@ -1,9 +1,11 @@
 use std::{
     mem,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use anyhow::Context as _;
+use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{
     runtime::Handle,
     sync::{
@@ -489,11 +491,26 @@ impl ReadStorage for PostgresStorage<'_> {
             values_cache.and_then(|cache| cache.get(self.l2_block_number, hashed_key));
 
         let value = cached_value.unwrap_or_else(|| {
+            const RETRY_INTERVAL: Duration = Duration::from_millis(500);
+            const MAX_TRIES: usize = 20;
+
             let mut dal = self.connection.storage_web3_dal();
-            let value = self
-                .rt_handle
-                .block_on(dal.get_historical_value_unchecked(hashed_key, self.l2_block_number))
-                .expect("Failed executing `read_value`");
+            let value = (|| {
+                self.rt_handle
+                    .block_on(dal.get_historical_value_unchecked(hashed_key, self.l2_block_number))
+            })
+            .retry(
+                &ConstantBuilder::default()
+                    .with_delay(RETRY_INTERVAL)
+                    .with_max_times(MAX_TRIES),
+            )
+            .when(|e| {
+                e.inner()
+                    .as_database_error()
+                    .is_some_and(|e| e.message() == "canceling statement due to statement timeout")
+            })
+            .call()
+            .expect("Failed executing `read_value`");
             if let Some(cache) = self.values_cache() {
                 cache.insert(self.l2_block_number, hashed_key, value);
             }

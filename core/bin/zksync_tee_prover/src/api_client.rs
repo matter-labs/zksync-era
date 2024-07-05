@@ -13,7 +13,7 @@ use zksync_prover_interface::{
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::error::TeeProverError;
+use crate::{error::TeeProverError, metrics::METRICS};
 
 /// Implementation of the API client for the proof data handler, run by
 /// [`zksync_proof_data_handler::run_server`].
@@ -97,11 +97,13 @@ impl TeeApiClient {
             proof: root_hash.as_bytes().into(),
             tee_type,
         }));
+        let observer = METRICS.proof_submitting_time.start();
         self.post::<_, SubmitTeeProofResponse, _>(
             format!("/tee/submit_proofs/{batch_number}").as_str(),
             request,
         )
         .await?;
+        observer.observe();
         tracing::info!(
             "Proof submitted successfully for batch number {}",
             batch_number

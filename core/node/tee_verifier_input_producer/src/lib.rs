@@ -216,15 +216,13 @@ impl JobProcessor for TeeVerifierInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
+        let observer: vise::LatencyObserver = METRICS.upload_input_time.start();
         let object_path = self
             .object_store
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for TeeVerifierInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
+        observer.observe();
         let mut connection = self
             .connection_pool
             .connection()
@@ -247,7 +245,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as u64);
         Ok(())
     }
 
