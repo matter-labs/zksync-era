@@ -1,4 +1,4 @@
-use zksync_state::{ReadStorage, StoragePtr, StorageView};
+use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -10,10 +10,9 @@ use crate::{
         VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    versions::shadow::ShadowVm,
 };
 
-pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
+//pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
 
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -26,7 +25,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
-    VmFast(FastVm<S, H>),
+    VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
 }
 
 macro_rules! dispatch_vm {
@@ -137,8 +136,8 @@ impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S,
     ) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
-        //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
-        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        //Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 }
 
@@ -247,6 +246,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         }
     }
 
+    #[allow(dead_code)]
     fn new_fast_with_specific_version(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -255,8 +255,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     ) -> Self {
         match vm_version {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => VmInstance::VmFast(
-                //crate::vm_fast::Vm::new(l1_batch_env, system_env, storage_view),
-                FastVm::new(l1_batch_env, system_env, storage_view),
+                crate::vm_fast::Vm::new(
+                    l1_batch_env,
+                    system_env,
+                    ImmutableStorageView::new(storage_view),
+                ),
+                //FastVm::new(l1_batch_env, system_env, storage_view),
             ),
             _ => unimplemented!("version not supported by fast VM"),
         }
