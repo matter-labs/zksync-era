@@ -169,7 +169,7 @@ impl CommandReceiver {
             } else {
                 self.execute_tx_in_vm(tx, vm)
             };
-        latency.observe();
+        let latency = latency.observe();
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
         APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
 
@@ -181,6 +181,7 @@ impl CommandReceiver {
         }
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
+        tracing::info!("Transaction {tx:?} executed in {latency:?} with {tx_metrics:?}"); // FIXME: remove
         let gas_remaining = vm.gas_remaining();
 
         TxExecutionResult::Success {

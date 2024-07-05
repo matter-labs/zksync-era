@@ -244,7 +244,8 @@ impl IoSealCriteria for TimeoutSealer {
 
         if should_seal_timeout {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
-            tracing::debug!(
+            // FIXME: revert to `debug!`
+            tracing::info!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
                 display_timestamp(manager.batch_timestamp())
