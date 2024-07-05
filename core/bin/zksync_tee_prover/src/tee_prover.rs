@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
+use tokio::task;
 use url::Url;
 use zksync_basic_types::H256;
 use zksync_node_framework::{
@@ -67,6 +68,7 @@ impl WiringLayer for TeeProverLayer {
     }
 }
 
+#[derive(Debug, Clone)]
 struct TeeProver {
     config: TeeProverConfig,
     signing_key: SecretKey,
@@ -98,21 +100,34 @@ impl TeeProver {
     }
 
     async fn step(&self) -> Result<(), TeeProverError> {
-        match self.api_client.get_job().await? {
-            Some(job) => {
-                let (signature, batch_number, root_hash) = self.verify(*job)?;
-                self.api_client
-                    .submit_proof(
-                        batch_number,
-                        signature,
-                        &self.public_key,
-                        root_hash,
-                        self.tee_type,
-                    )
-                    .await?;
-            }
-            None => tracing::trace!("There are currently no pending batches to be proven"),
+        if let Some(job) = self.api_client.get_job().await? {
+            let prover_verify_clone = self.clone();
+            let handle: task::JoinHandle<Result<(Signature, L1BatchNumber, H256), TeeProverError>> =
+                task::spawn_blocking(move || {
+                    let (signature, batch_number, root_hash) = prover_verify_clone.verify(*job)?;
+                    Ok((signature, batch_number, root_hash))
+                });
+
+            let prover_submit_clone = self.clone();
+            tokio::spawn(async move {
+                if let Ok(result) = handle.await {
+                    let (signature, batch_number, root_hash) = result.unwrap();
+                    let _ = prover_submit_clone
+                        .api_client
+                        .submit_proof(
+                            batch_number,
+                            signature,
+                            &prover_submit_clone.public_key,
+                            root_hash,
+                            prover_submit_clone.tee_type,
+                        )
+                        .await;
+                }
+            });
+        } else {
+            tracing::trace!("There are currently no pending batches to be proven");
         }
+
         Ok(())
     }
 }

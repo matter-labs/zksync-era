@@ -17,7 +17,7 @@ use crate::error::TeeProverError;
 
 /// Implementation of the API client for the proof data handler, run by
 /// [`zksync_proof_data_handler::run_server`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct TeeApiClient {
     api_base_url: Url,
     http_client: Client,
