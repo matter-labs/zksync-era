@@ -10,7 +10,7 @@ use zksync_dal::Core;
 use zksync_node_sync::{sync_action::ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
 
-use super::{en, storage::ConnectionPool};
+use super::{en, mn, storage::ConnectionPool};
 
 /// Runs the consensus task in the main node mode.
 pub async fn run_main_node(
@@ -22,7 +22,7 @@ pub async fn run_main_node(
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = super::run_main_node(ctx, cfg, secrets, ConnectionPool(pool)).await {
+    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, ConnectionPool(pool)).await {
         tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");
@@ -33,7 +33,7 @@ pub async fn run_main_node(
 /// Runs the consensus node for the external node.
 /// If `cfg` is `None`, it will just fetch blocks from the main node
 /// using JSON RPC, without starting the consensus node.
-pub async fn run_en(
+pub async fn run_external_node(
     ctx: &ctx::Ctx,
     cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: zksync_dal::ConnectionPool<Core>,

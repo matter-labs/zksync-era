@@ -305,6 +305,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "backon"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d67782c3f868daa71d3533538e98a8e13713231969def7536e8039606fc46bf0"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "pin-project",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4589,6 +4601,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "circuit_definitions 1.5.0",
  "clap 4.5.4",
  "colored",
@@ -8438,6 +8451,7 @@ dependencies = [
  "serde",
  "serde_with",
  "strum",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
 ]
@@ -8471,6 +8485,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "backon",
  "chrono",
  "itertools 0.10.5",
  "mini-moka",
@@ -8511,6 +8526,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more",
@@ -8526,6 +8542,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

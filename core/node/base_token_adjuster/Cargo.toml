@@ -1,0 +1,23 @@
+[package]
+name = "zksync_base_token_adjuster"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_types.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+rand.workspace = true
+async-trait.workspace = true

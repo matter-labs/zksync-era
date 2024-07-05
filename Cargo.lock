@@ -1796,7 +1796,7 @@ checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
  "der 0.7.8",
  "digest 0.10.7",
- "elliptic-curve 0.13.7",
+ "elliptic-curve 0.13.8",
  "rfc6979 0.4.0",
  "signature 2.2.0",
  "spki 0.7.2",
@@ -1857,9 +1857,9 @@ dependencies = [
 
 [[package]]
 name = "elliptic-curve"
-version = "0.13.7"
+version = "0.13.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9775b22bc152ad86a0cf23f0f348b884b26add12bf741e7ffc4d4ab2ab4d205"
+checksum = "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47"
 dependencies = [
  "base16ct 0.2.0",
  "crypto-bigint 0.5.3",
@@ -3338,13 +3338,13 @@ dependencies = [
 
 [[package]]
 name = "k256"
-version = "0.13.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f01b677d82ef7a676aa37e099defd83a28e15687112cafdd112d60236b6115b"
+checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
 dependencies = [
  "cfg-if 1.0.0",
  "ecdsa 0.16.9",
- "elliptic-curve 0.13.7",
+ "elliptic-curve 0.13.8",
  "once_cell",
  "sha2 0.10.8",
  "signature 2.2.0",
@@ -4226,7 +4226,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
  "ecdsa 0.16.9",
- "elliptic-curve 0.13.7",
+ "elliptic-curve 0.13.8",
  "primeorder",
  "sha2 0.10.8",
 ]
@@ -4567,7 +4567,7 @@ version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
- "elliptic-curve 0.13.7",
+ "elliptic-curve 0.13.8",
 ]
 
 [[package]]
@@ -7946,7 +7946,7 @@ dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ethereum-types",
- "k256 0.13.2",
+ "k256 0.13.3",
  "lazy_static",
  "sha2 0.10.8",
  "sha3 0.10.8",
@@ -7960,12 +7960,27 @@ dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ethereum-types",
- "k256 0.13.2",
+ "k256 0.13.3",
  "lazy_static",
  "p256",
  "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
+]
+
+[[package]]
+name = "zksync_base_token_adjuster"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8119,10 +8134,10 @@ dependencies = [
  "anyhow",
  "blst",
  "ed25519-dalek",
- "elliptic-curve 0.13.7",
+ "elliptic-curve 0.13.8",
  "ff_ce",
  "hex",
- "k256 0.13.2",
+ "k256 0.13.3",
  "num-bigint 0.4.4",
  "num-traits",
  "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git?rev=d24f2c5871089c4cd4f54c0ca266bb9fef6115eb)",
@@ -8383,6 +8398,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_da_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_da_dispatcher"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures 0.3.28",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_da_client",
+ "zksync_dal",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_dal"
 version = "0.1.0"
 dependencies = [
@@ -8432,6 +8477,23 @@ dependencies = [
  "vise",
  "zksync_basic_types",
  "zksync_health_check",
+]
+
+[[package]]
+name = "zksync_default_da_clients"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "flate2",
+ "serde",
+ "tracing",
+ "zksync_config",
+ "zksync_da_client",
+ "zksync_env_config",
+ "zksync_node_framework",
+ "zksync_object_store",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8579,6 +8641,16 @@ dependencies = [
  "zksync_utils",
  "zksync_vlog",
  "zksync_web3_decl",
+]
+
+[[package]]
+name = "zksync_external_price_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "zksync_config",
+ "zksync_types",
 ]
 
 [[package]]
@@ -8865,10 +8937,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "test-casing",
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",
@@ -8892,6 +8966,7 @@ dependencies = [
  "tokio",
  "tracing",
  "trybuild",
+ "zksync_base_token_adjuster",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -8900,6 +8975,8 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
+ "zksync_da_client",
+ "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -9134,6 +9211,7 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
+ "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
 ]
@@ -9188,6 +9266,7 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_core_leftovers",
+ "zksync_default_da_clients",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_metadata_calculator",
@@ -9242,6 +9321,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "backon",
  "chrono",
  "itertools 0.10.5",
  "mini-moka",
@@ -9276,6 +9356,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -9316,6 +9397,29 @@ dependencies = [
  "once_cell",
  "zksync_basic_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_tee_prover"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "reqwest 0.12.5",
+ "secp256k1",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_node_framework",
+ "zksync_prover_interface",
+ "zksync_tee_verifier",
+ "zksync_types",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -9380,6 +9484,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
@@ -9397,6 +9502,7 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
