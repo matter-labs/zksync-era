@@ -194,6 +194,9 @@ impl VmRunner {
                 .create_handler(next_batch)
                 .await?;
 
+            self.io
+                .mark_l1_batch_as_processing(&mut self.pool.connection().await?, next_batch)
+                .await?;
             let handle = tokio::task::spawn(Self::process_batch(
                 batch_executor,
                 batch_data.l2_blocks,

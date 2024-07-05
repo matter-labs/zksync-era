@@ -1,12 +1,6 @@
 //! Tests for the metadata calculator component life cycle.
 
-use std::{
-    future::Future,
-    ops, panic,
-    path::Path,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{future::Future, ops, panic, path::Path, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use itertools::Itertools;
@@ -551,7 +545,12 @@ async fn test_postgres_backup_recovery(
             .unwrap();
         storage
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(batch_without_metadata.number, Instant::now())
+            .mark_protective_reads_batch_as_processing(batch_without_metadata.number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_without_metadata.number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -581,7 +580,11 @@ async fn test_postgres_backup_recovery(
             .await
             .unwrap();
         txn.vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(batch_header.number, Instant::now())
+            .mark_protective_reads_batch_as_processing(batch_header.number)
+            .await
+            .unwrap();
+        txn.vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_header.number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -818,7 +821,12 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(batch_number, Instant::now())
+            .mark_protective_reads_batch_as_processing(batch_number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(storage, batch_number).await;

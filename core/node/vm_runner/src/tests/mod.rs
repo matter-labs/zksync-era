@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
@@ -60,11 +55,18 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         Ok(io.current + io.max)
     }
 
+    async fn mark_l1_batch_as_processing(
+        &self,
+        _conn: &mut Connection<'_, Core>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn mark_l1_batch_as_completed(
         &self,
         _conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-        _started_at: Instant,
     ) -> anyhow::Result<()> {
         self.write().await.current = l1_batch_number;
         Ok(())

@@ -1,9 +1,4 @@
-use std::time::Instant;
-
-use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt,
-    utils::duration_to_naive_time,
-};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::L1BatchNumber;
 
 use crate::Core;
@@ -24,6 +19,8 @@ impl VmRunnerDal<'_, '_> {
                 COALESCE(MAX(l1_batch_number), $1) AS "last_processed_l1_batch!"
             FROM
                 vm_runner_protective_reads
+            WHERE
+                time_taken IS NOT NULL
             "#,
             default_batch.0 as i32
         )
@@ -53,6 +50,8 @@ impl VmRunnerDal<'_, '_> {
                         COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
                     FROM
                         vm_runner_protective_reads
+                    WHERE
+                        time_taken IS NOT NULL
                 )
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
@@ -70,25 +69,54 @@ impl VmRunnerDal<'_, '_> {
         Ok(L1BatchNumber(row.last_ready_batch as u32))
     }
 
-    pub async fn mark_protective_reads_batch_as_completed(
+    pub async fn mark_protective_reads_batch_as_processing(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        started_at: Instant,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
-                vm_runner_protective_reads (l1_batch_number, created_at, updated_at, time_taken)
+                vm_runner_protective_reads (l1_batch_number, created_at, updated_at, processing_started_at)
             VALUES
-                ($1, NOW(), NOW(), $2)
+                ($1, NOW(), NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
+            UPDATE
+            SET
+                updated_at = NOW(),
+                processing_started_at = NOW()
             "#,
             i64::from(l1_batch_number.0),
-            duration_to_naive_time(started_at.elapsed()),
+        )
+        .instrument("mark_protective_reads_batch_as_processing")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn mark_protective_reads_batch_as_completed(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let update_result = sqlx::query!(
+            r#"
+            UPDATE vm_runner_protective_reads
+            SET
+                time_taken = NOW() - processing_started_at
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0),
         )
         .instrument("mark_protective_reads_batch_as_completed")
         .report_latency()
         .execute(self.storage)
         .await?;
+        if update_result.rows_affected() == 0 {
+            anyhow::bail!(
+                "Trying to mark an L1 batch as completed while it is not being processed"
+            );
+        }
         Ok(())
     }
 
