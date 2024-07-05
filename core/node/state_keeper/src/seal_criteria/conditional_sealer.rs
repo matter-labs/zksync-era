@@ -99,7 +99,8 @@ impl ConditionalSealer for SequencerSealer {
                 SealResolution::IncludeAndSeal
                 | SealResolution::ExcludeAndSeal
                 | SealResolution::Unexecutable(_) => {
-                    tracing::debug!(
+                    // FIXME: revert to `debug!`
+                    tracing::info!(
                         "L1 batch #{l1_batch_number} processed by `{name}` with resolution {seal_resolution:?}",
                         name = sealer.prom_criterion_name()
                     );
