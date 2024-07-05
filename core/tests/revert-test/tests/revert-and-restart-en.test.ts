@@ -64,7 +64,7 @@ if (fileConfig.loadFromFile) {
     ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
     apiWeb3JsonRpcHttpUrl = env.API_WEB3_JSON_RPC_HTTP_URL;
     baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
-    env.EN_ETH_CLIENT_URL`http://127.0.0.1:${env.EN_HTTP_PORT}`;
+    env.EN_ETH_CLIENT_URL = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
 }
 
 interface SuggestedValues {
@@ -153,7 +153,7 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -209,7 +209,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
