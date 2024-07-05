@@ -11,17 +11,6 @@ use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
-#[cfg(not(feature = "gpu"))]
-use zkevm_test_harness_1_3_3::bellman::bn256::Bn256;
-use zkevm_test_harness_1_3_3::{
-    abstract_zksync_circuit::concrete_circuits::{
-        ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
-    },
-    bellman::plonk::better_better_cs::{
-        proof::Proof, setup::VerificationKey as SnarkVerificationKey,
-    },
-    witness::oracle::VmWitnessOracle,
-};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
