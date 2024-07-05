@@ -16,7 +16,7 @@ use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMo
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::{
     api::SubmitTeeProofRequest,
-    inputs::{PrepareBasicCircuitsJob, TeeVerifierInput, V1TeeVerifierInput},
+    inputs::{TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths},
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
@@ -34,7 +34,7 @@ async fn request_tee_proof_inputs() {
 
     let batch_number = L1BatchNumber::from(1);
     let tvi = V1TeeVerifierInput::new(
-        PrepareBasicCircuitsJob::new(0),
+        WitnessInputMerklePaths::new(0),
         vec![],
         L1BatchEnv {
             previous_batch_hash: Some(H256([1; 32])),

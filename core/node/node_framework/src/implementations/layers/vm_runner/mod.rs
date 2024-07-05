@@ -5,6 +5,7 @@ use crate::{
     task::{Task, TaskId},
 };
 
+pub mod bwip;
 pub mod protective_reads;
 
 #[async_trait::async_trait]
