@@ -41,6 +41,10 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("da_dispatcher")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
                 .context("protective_reads_writer")?,
+            basic_witness_input_producer_config: read_optional_repr(
+                &self.basic_witness_input_producer,
+            )
+            .context("basic_witness_input_producer")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
             base_token_adjuster: read_optional_repr(&self.base_token_adjuster)
@@ -86,6 +90,10 @@ impl ProtoRepr for proto::GeneralConfig {
             da_dispatcher: this.da_dispatcher_config.as_ref().map(ProtoRepr::build),
             protective_reads_writer: this
                 .protective_reads_writer_config
+                .as_ref()
+                .map(ProtoRepr::build),
+            basic_witness_input_producer: this
+                .basic_witness_input_producer_config
                 .as_ref()
                 .map(ProtoRepr::build),
             commitment_generator: this.commitment_generator.as_ref().map(ProtoRepr::build),

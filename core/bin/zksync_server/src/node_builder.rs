@@ -49,7 +49,9 @@ use zksync_node_framework::{
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
-        vm_runner::protective_reads::ProtectiveReadsWriterLayer,
+        vm_runner::{
+            bwip::BasicWitnessInputProducerLayer, protective_reads::ProtectiveReadsWriterLayer,
+        },
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
@@ -511,6 +513,17 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_vm_runner_bwip_layer(mut self) -> anyhow::Result<Self> {
+        let basic_witness_input_producer_config =
+            try_load_config!(self.configs.basic_witness_input_producer_config);
+        self.node.add_layer(BasicWitnessInputProducerLayer::new(
+            basic_witness_input_producer_config,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
@@ -614,6 +627,9 @@ impl MainNodeBuilder {
                     self = self
                         .add_coingecko_api_client_layer()?
                         .add_base_token_ratio_persister_layer()?;
+                }
+                Component::VmRunnerBwip => {
+                    self = self.add_vm_runner_bwip_layer()?;
                 }
             }
         }

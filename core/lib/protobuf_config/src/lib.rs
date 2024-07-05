@@ -31,7 +31,6 @@ mod snapshots_creator;
 
 mod external_price_api_client;
 mod snapshot_recovery;
-pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;

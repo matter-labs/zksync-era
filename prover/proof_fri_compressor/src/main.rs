@@ -93,7 +93,6 @@ async fn main() -> anyhow::Result<()> {
         blob_store,
         pool,
         config.compression_mode,
-        config.verify_wrapper_proof,
         config.max_attempts,
         protocol_version,
     );

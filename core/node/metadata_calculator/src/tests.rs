@@ -17,7 +17,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_object_store::{MockObjectStore, ObjectStore};
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::inputs::WitnessInputMerklePaths;
 use zksync_storage::RocksDB;
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
@@ -248,7 +248,7 @@ async fn basic_workflow(sealed_protective_reads: bool) {
     let expected_tree_hash = expected_tree_hash(&pool, sealed_protective_reads).await;
     assert_eq!(merkle_tree_hash, expected_tree_hash);
 
-    let job: PrepareBasicCircuitsJob = object_store.get(L1BatchNumber(1)).await.unwrap();
+    let job: WitnessInputMerklePaths = object_store.get(L1BatchNumber(1)).await.unwrap();
     assert!(job.next_enumeration_index() > 0);
     let merkle_paths: Vec<_> = job.clone().into_merkle_paths().collect();
     assert!(!merkle_paths.is_empty() && merkle_paths.len() <= 100);
@@ -275,9 +275,10 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>, sealed_protective_reads
     } else {
         storage
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
+            .get_protective_reads_latest_processed_batch()
             .await
             .unwrap()
+            .unwrap_or_default()
     };
     let mut all_logs = vec![];
     for i in 0..=processed_l1_batch_number.0 {
@@ -370,7 +371,7 @@ async fn multi_l1_batch_workflow(sealed_protective_reads: bool) {
     let mut prev_index = None;
     for l1_batch_number in 1..=10 {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let job: PrepareBasicCircuitsJob = object_store.get(l1_batch_number).await.unwrap();
+        let job: WitnessInputMerklePaths = object_store.get(l1_batch_number).await.unwrap();
         let next_enumeration_index = job.next_enumeration_index();
         let merkle_paths: Vec<_> = job.into_merkle_paths().collect();
         assert!(!merkle_paths.is_empty() && merkle_paths.len() <= 10);

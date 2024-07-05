@@ -26,7 +26,7 @@ pub use self::{
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
-    vm_runner::ProtectiveReadsWriterConfig,
+    vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
 };
 
 pub mod api;
