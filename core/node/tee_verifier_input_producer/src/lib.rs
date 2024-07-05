@@ -216,15 +216,13 @@ impl JobProcessor for TeeVerifierInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
+        let observer: vise::LatencyObserver = METRICS.upload_input_time.start();
         let object_path = self
             .object_store
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for TeeVerifierInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
+        observer.observe();
         let mut connection = self
             .connection_pool
             .connection()
