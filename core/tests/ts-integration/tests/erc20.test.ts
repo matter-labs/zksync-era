@@ -209,36 +209,40 @@ describe('ERC20 contract checks', () => {
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
-        const maxAmountBase = await alice.getBalanceL1(baseTokenDetails.l1Address);
-        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
-        const nonce = await alice.getNonce();
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+        }
 
-        console.log('nonce1', nonce);
-
-        // Approving the needed allowance to ensure that the user has enough funds.
-        await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmountBase, { nonce })).wait();
-        console.log('nonce2', await alice.getNonce());
-
-        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount, { nonce: nonce + 1 })).wait();
-        console.log('nonce3', await alice.getNonce());
+        console.log('LOG1');
 
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
         });
-        console.log('nonce5', await alice.getNonce());
+        console.log('LOG2');
 
         const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
         const l2Fee = depositFee.baseCost;
         const aliceETHBalance = await alice.getBalanceL1();
-        console.log('nonce6', await alice.getNonce());
+        console.log('LOG3');
 
         if (aliceETHBalance < l1Fee + l2Fee) {
             throw new Error('Not enough ETH to perform a deposit');
         }
+
+        // Approving the needed allowance to ensure that the user has enough funds.
+        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
+        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
+
+        console.log('LOG4');
+
         const l2ERC20BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: maxAmount }
         ]);
-        console.log('nonce7', await alice.getNonce());
+        console.log('LOG5');
 
         const overrides: ethers.Overrides = depositFee.gasPrice
             ? { gasPrice: depositFee.gasPrice }
@@ -253,8 +257,7 @@ describe('ERC20 contract checks', () => {
             l2GasLimit: depositFee.l2GasLimit,
             overrides
         });
-        console.log('nonce8', await alice.getNonce());
-
+        console.log('LOG6');
         await expect(depositOp).toBeAccepted([l2ERC20BalanceChange]);
     });
 
