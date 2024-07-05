@@ -9412,6 +9412,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "vise",
  "zksync_basic_types",
  "zksync_config",
  "zksync_env_config",
