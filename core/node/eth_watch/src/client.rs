@@ -1,8 +1,11 @@
 use std::fmt;
 
 use zksync_contracts::verifier_contract;
-pub(super) use zksync_eth_client::Error as EthClientError;
-use zksync_eth_client::{CallFunctionArgs, ClientError, EthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
+    EthInterface,
+};
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
@@ -18,11 +21,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<Log>, EthClientError>;
+    ) -> EnrichedClientResult<Vec<Log>>;
     /// Returns finalized L1 block number.
-    async fn finalized_block_number(&self) -> Result<u64, EthClientError>;
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64>;
     /// Returns scheduler verification key hash by verifier address.
-    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError>;
+    async fn scheduler_vk_hash(&self, verifier_address: Address)
+        -> Result<H256, ContractCallError>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
 }
@@ -34,7 +38,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Box<dyn EthInterface>,
+    client: Box<DynClient<L1>>,
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
@@ -46,14 +50,14 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Box<dyn EthInterface>,
+        client: Box<DynClient<L1>>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
             diamond_proxy_addr,
             governance_address
         );
@@ -73,7 +77,7 @@ impl EthHttpQueryClient {
         from: BlockNumber,
         to: BlockNumber,
         topics: Vec<H256>,
-    ) -> Result<Vec<Log>, EthClientError> {
+    ) -> EnrichedClientResult<Vec<Log>> {
         let filter = FilterBuilder::default()
             .address(
                 [
@@ -89,13 +93,16 @@ impl EthHttpQueryClient {
             .to_block(to)
             .topics(Some(topics), None, None, None)
             .build();
-        self.client.logs(filter).await
+        self.client.logs(&filter).await
     }
 }
 
 #[async_trait::async_trait]
 impl EthClient for EthHttpQueryClient {
-    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, EthClientError> {
+    async fn scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
         // New verifier returns the hash of the verification key.
         CallFunctionArgs::new("verificationKeyHash", ())
             .for_contract(verifier_address, &self.verifier_contract_abi)
@@ -108,15 +115,15 @@ impl EthClient for EthHttpQueryClient {
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<Log>, EthClientError> {
+    ) -> EnrichedClientResult<Vec<Log>> {
         let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
-        if let Err(EthClientError::EthereumGateway(err)) = &result {
-            tracing::warn!("Provider returned error message: {:?}", err);
-            let err_message = err.to_string();
-            let err_code = if let ClientError::Call(err) = err {
+        if let Err(err) = &result {
+            tracing::warn!("Provider returned error message: {err}");
+            let err_message = err.as_ref().to_string();
+            let err_code = if let ClientError::Call(err) = err.as_ref() {
                 Some(err.code())
             } else {
                 None
@@ -178,7 +185,7 @@ impl EthClient for EthHttpQueryClient {
         result
     }
 
-    async fn finalized_block_number(&self) -> Result<u64, EthClientError> {
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
             let latest_block_number = self.client.block_number().await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
@@ -188,11 +195,13 @@ impl EthClient for EthHttpQueryClient {
                 .block(BlockId::Number(BlockNumber::Finalized))
                 .await?
                 .ok_or_else(|| {
-                    ClientError::Custom("Finalized block must be present on L1".into())
+                    let err = ClientError::Custom("Finalized block must be present on L1".into());
+                    EnrichedClientError::new(err, "block")
                 })?;
-            let block_number = block
-                .number
-                .ok_or_else(|| ClientError::Custom("Finalized block must contain number".into()))?;
+            let block_number = block.number.ok_or_else(|| {
+                let err = ClientError::Custom("Finalized block must contain number".into());
+                EnrichedClientError::new(err, "block").with_arg("block", &block)
+            })?;
             Ok(block_number.as_u64())
         }
     }

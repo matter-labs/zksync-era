@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tx_sender::{master_pool_sink::MasterPoolSink, proxy::TxProxy};
+use zksync_node_api_server::tx_sender::{
+    master_pool_sink::MasterPoolSink,
+    proxy::{AccountNonceSweeperTask, TxProxy},
+};
 
 use crate::{
     implementations::resources::{
@@ -8,10 +11,24 @@ use crate::{
         pools::{MasterPool, PoolResource},
         web3_api::TxSinkResource,
     },
-    service::ServiceContext,
+    service::{ServiceContext, StopReceiver},
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `TxSink` -- an abstraction that handles outputs from `TxSender`.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds resources
+///
+/// - `TxSinkResource`
+///
+/// ## Adds tasks
+///
+/// - `AccountNonceSweeperTask` (only for `ProxySink`)
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TxSinkLayer {
@@ -29,18 +46,37 @@ impl WiringLayer for TxSinkLayer {
         let tx_sink = match self.as_ref() {
             TxSinkLayer::MasterPoolSink => {
                 let pool = context
-                    .get_resource::<PoolResource<MasterPool>>()
-                    .await?
+                    .get_resource::<PoolResource<MasterPool>>()?
                     .get()
                     .await?;
                 TxSinkResource(Arc::new(MasterPoolSink::new(pool)))
             }
             TxSinkLayer::ProxySink => {
-                let MainNodeClientResource(client) = context.get_resource().await?;
-                TxSinkResource(Arc::new(TxProxy::new(client)))
+                let MainNodeClientResource(client) = context.get_resource()?;
+                let proxy = TxProxy::new(client);
+
+                let pool = context
+                    .get_resource::<PoolResource<MasterPool>>()?
+                    .get_singleton()
+                    .await?;
+                let task = proxy.account_nonce_sweeper_task(pool);
+                context.add_task(task);
+
+                TxSinkResource(Arc::new(proxy))
             }
         };
         context.insert_resource(tx_sink)?;
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for AccountNonceSweeperTask {
+    fn id(&self) -> TaskId {
+        "account_nonce_sweeper_task".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

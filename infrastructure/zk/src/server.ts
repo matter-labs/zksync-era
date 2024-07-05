@@ -1,17 +1,17 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { clean } from './clean';
 import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, useNodeFramework?: boolean) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components) {
+    if (rebuildTree || components || useNodeFramework) {
         options += ' --';
     }
     if (rebuildTree) {
@@ -84,7 +84,7 @@ export const serverCommand = new Command('server')
         if (cmd.genesis) {
             await genesisFromSources();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework);
         }
     });
 

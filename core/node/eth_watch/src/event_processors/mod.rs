@@ -1,12 +1,13 @@
 use std::fmt;
 
 use zksync_dal::{Connection, Core};
+use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::{web3::Log, H256};
 
 pub(crate) use self::{
     governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,
 };
-use crate::client::{EthClient, EthClientError};
+use crate::client::EthClient;
 
 mod governance_upgrades;
 mod priority_ops;
@@ -21,7 +22,9 @@ pub(super) enum EventProcessorError {
         source: anyhow::Error,
     },
     #[error("Eth client error: {0}")]
-    Client(#[from] EthClientError),
+    Client(#[from] EnrichedClientError),
+    #[error("Contract call error: {0}")]
+    ContractCall(#[from] ContractCallError),
     /// Internal errors are considered fatal (i.e., they bubble up and lead to the watcher termination).
     #[error("internal processing error: {0:?}")]
     Internal(#[from] anyhow::Error),

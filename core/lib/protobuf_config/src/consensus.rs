@@ -1,10 +1,72 @@
 use anyhow::Context as _;
+use zksync_basic_types::L2ChainId;
 use zksync_config::configs::consensus::{
-    ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, ValidatorSecretKey,
+    ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion, RpcConfig,
+    ValidatorPublicKey, WeightedValidator,
 };
-use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
 
-use crate::proto::consensus as proto;
+use crate::{proto::consensus as proto, read_optional_repr};
+
+impl ProtoRepr for proto::WeightedValidator {
+    type Type = WeightedValidator;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            key: ValidatorPublicKey(required(&self.key).context("key")?.clone()),
+            weight: *required(&self.weight).context("weight")?,
+        })
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            key: Some(this.key.0.clone()),
+            weight: Some(this.weight),
+        }
+    }
+}
+
+impl ProtoRepr for proto::GenesisSpec {
+    type Type = GenesisSpec;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            chain_id: required(&self.chain_id)
+                .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
+                .context("chain_id")?,
+            protocol_version: ProtocolVersion(
+                *required(&self.protocol_version).context("protocol_version")?,
+            ),
+            validators: self
+                .validators
+                .iter()
+                .enumerate()
+                .map(|(i, x)| x.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("validators")?,
+            leader: ValidatorPublicKey(required(&self.leader).context("leader")?.clone()),
+        })
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            chain_id: Some(this.chain_id.as_u64()),
+            protocol_version: Some(this.protocol_version.0),
+            validators: this.validators.iter().map(ProtoRepr::build).collect(),
+            leader: Some(this.leader.0.clone()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::RpcConfig {
+    type Type = RpcConfig;
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            get_block_rate: read_optional(&self.get_block_rate).context("get_block_rate")?,
+        })
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            get_block_rate: this.get_block_rate.as_ref().map(ProtoFmt::build),
+        }
+    }
+}
 
 impl ProtoRepr for proto::Config {
     type Type = ConsensusConfig;
@@ -36,6 +98,8 @@ impl ProtoRepr for proto::Config {
                 .enumerate()
                 .map(|(i, e)| read_addr(e).context(i))
                 .collect::<Result<_, _>>()?,
+            genesis_spec: read_optional_repr(&self.genesis_spec).context("genesis_spec")?,
+            rpc: read_optional_repr(&self.rpc_config).context("rpc_config")?,
         })
     }
 
@@ -60,26 +124,8 @@ impl ProtoRepr for proto::Config {
                     addr: Some(x.1 .0.clone()),
                 })
                 .collect(),
-        }
-    }
-}
-
-impl ProtoRepr for proto::Secrets {
-    type Type = ConsensusSecrets;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            validator_key: self
-                .validator_key
-                .as_ref()
-                .map(|x| ValidatorSecretKey(x.clone())),
-            node_key: self.node_key.as_ref().map(|x| NodeSecretKey(x.clone())),
-        })
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            validator_key: this.validator_key.as_ref().map(|x| x.0.clone()),
-            node_key: this.node_key.as_ref().map(|x| x.0.clone()),
+            genesis_spec: this.genesis_spec.as_ref().map(ProtoRepr::build),
+            rpc_config: this.rpc.as_ref().map(ProtoRepr::build),
         }
     }
 }

@@ -3,10 +3,27 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
+#[cfg(feature = "gpu")]
+use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CONFIG};
+#[cfg(not(feature = "gpu"))]
+use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
+#[allow(unused_imports)]
+use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
+#[cfg(not(feature = "gpu"))]
+use zkevm_test_harness_1_3_3::bellman::bn256::Bn256;
+use zkevm_test_harness_1_3_3::{
+    abstract_zksync_circuit::concrete_circuits::{
+        ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
+    },
+    bellman::plonk::better_better_cs::{
+        proof::Proof, setup::VerificationKey as SnarkVerificationKey,
+    },
+    witness::oracle::VmWitnessOracle,
+};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -19,7 +36,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
@@ -29,7 +46,7 @@ pub struct ProofCompressor {
     pool: ConnectionPool<Prover>,
     compression_mode: u8,
     max_attempts: u32,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl ProofCompressor {
@@ -38,7 +55,7 @@ impl ProofCompressor {
         pool: ConnectionPool<Prover>,
         compression_mode: u8,
         max_attempts: u32,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             blob_store,
@@ -49,9 +66,30 @@ impl ProofCompressor {
         }
     }
 
+    fn verify_proof(keystore: Keystore, serialized_proof: Vec<u8>) -> anyhow::Result<()> {
+        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
+            bincode::deserialize(&serialized_proof)
+                .expect("Failed to deserialize proof with ZkSyncCircuit");
+        // We're fetching the key as String and deserializing it here
+        // as we don't want to include the old version of prover in the main libraries.
+        let existing_vk_serialized = keystore
+            .load_snark_verification_key()
+            .context("get_snark_vk()")?;
+        let existing_vk = serde_json::from_str::<
+            SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+        >(&existing_vk_serialized)?;
+
+        let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
+        let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
+        match vk.verify_proof(&scheduler_proof) {
+            true => tracing::info!("Compressed proof verified successfully"),
+            false => anyhow::bail!("Compressed proof verification failed "),
+        }
+        Ok(())
+    }
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
-        compression_mode: u8,
+        _compression_mode: u8,
     ) -> anyhow::Result<FinalProof> {
         let keystore = Keystore::default();
         let scheduler_vk = keystore
@@ -59,12 +97,30 @@ impl ProofCompressor {
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
             )
             .context("get_recursiver_layer_vk_for_circuit_type()")?;
-        let config = WrapperConfig::new(compression_mode);
 
-        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
-        let inner = wrapper_proof.into_inner();
+        #[cfg(feature = "gpu")]
+        let wrapper_proof = {
+            let crs = get_trusted_setup();
+            let wrapper_config = DEFAULT_WRAPPER_CONFIG;
+            let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
+
+            prover
+                .generate_setup_data(scheduler_vk.into_inner())
+                .unwrap();
+            prover.generate_proofs(proof.into_inner()).unwrap();
+
+            prover.get_wrapper_proof().unwrap()
+        };
+        #[cfg(not(feature = "gpu"))]
+        let wrapper_proof = {
+            let config = WrapperConfig::new(_compression_mode);
+
+            let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
+            wrapper_proof.into_inner()
+        };
+
         // (Re)serialization should always succeed.
-        let serialized = bincode::serialize(&inner)
+        let serialized = bincode::serialize(&wrapper_proof)
             .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
 
         // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
@@ -101,7 +157,7 @@ impl JobProcessor for ProofCompressor {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
-            .get_next_proof_compression_job(&pod_name, &self.protocol_version)
+            .get_next_proof_compression_job(&pod_name, self.protocol_version)
             .await
         else {
             return Ok(None);
@@ -177,11 +233,12 @@ impl JobProcessor for ProofCompressor {
         let l1_batch_proof = L1BatchProofForL1 {
             aggregation_result_coords,
             scheduler_proof: artifacts,
+            protocol_version: self.protocol_version,
         };
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store
-            .put(job_id, &l1_batch_proof)
+            .put((job_id, self.protocol_version), &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS

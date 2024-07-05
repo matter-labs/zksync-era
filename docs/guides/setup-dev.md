@@ -27,11 +27,15 @@ cargo install sqlx-cli --version 0.7.3
 sudo systemctl stop postgresql
 # Start docker.
 sudo systemctl start docker
+
+# Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup --branch master
 ```
 
 ## Supported operating systems
 
-zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
@@ -39,7 +43,7 @@ Additionally, if you are going to use WSL 2, make sure that your project is loca
 accessing NTFS partitions from within WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
-(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with zkSync code via
+(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
@@ -217,7 +221,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install sqlx-cli --version 0.7.3
+cargo install --locked sqlx-cli --version 0.7.3
 ```
 
 ## Solidity compiler `solc`
@@ -254,8 +258,12 @@ Install `nix`. Enable the nix command and flakes.
 Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
 enable nix-ld.
 
-Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
-dependencies.
+Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
+
+## Foundry
+
+[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
+commands related to deployment, you can pass flags for Foundry integration.
 
 ## Environment
 

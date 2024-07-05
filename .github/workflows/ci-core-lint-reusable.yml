@@ -8,7 +8,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -21,18 +21,21 @@ jobs:
       - name: Start services
         run: |
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: Setup db
         run: |
           ci_run zk
+          ci_run run_retried rustup show
           ci_run zk db migrate
 
       - name: Lints
         run: |
           ci_run zk fmt --check
           ci_run zk lint rust --check
+          ci_run zk lint toolbox --check
           ci_run zk lint js --check
           ci_run zk lint ts --check
           ci_run zk lint md --check

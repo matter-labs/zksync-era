@@ -1,9 +1,11 @@
-use zksync_eth_client::{BoundEthInterface, EthInterface};
+use zksync_eth_client::BoundEthInterface;
+use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::resource::Resource;
 
+/// A resource that provides L1 interface object to the service.
 #[derive(Debug, Clone)]
-pub struct EthInterfaceResource(pub Box<dyn EthInterface>);
+pub struct EthInterfaceResource(pub Box<DynClient<L1>>);
 
 impl Resource for EthInterfaceResource {
     fn name() -> String {
@@ -11,6 +13,7 @@ impl Resource for EthInterfaceResource {
     }
 }
 
+/// A resource that provides L1 interface with signing capabilities to the service.
 #[derive(Debug, Clone)]
 pub struct BoundEthInterfaceResource(pub Box<dyn BoundEthInterface>);
 
@@ -20,6 +23,7 @@ impl Resource for BoundEthInterfaceResource {
     }
 }
 
+/// Same as `BoundEthInterfaceResource`, but for managing EIP-4844 blobs.
 #[derive(Debug, Clone)]
 pub struct BoundEthInterfaceForBlobsResource(pub Box<dyn BoundEthInterface>);
 

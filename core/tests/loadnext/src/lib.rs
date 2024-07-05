@@ -9,6 +9,7 @@ pub mod constants;
 pub mod corrupted_tx;
 pub mod executor;
 pub mod fs_utils;
+pub(crate) mod metrics;
 pub mod report;
 pub mod report_collector;
 pub mod rng;

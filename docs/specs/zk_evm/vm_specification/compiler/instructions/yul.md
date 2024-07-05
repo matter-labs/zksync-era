@@ -41,7 +41,7 @@ destination. For more information, see
 Writes immutables to the auxiliary heap.
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#setimmutable-loadimmutable).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable).
 
 LLVM IR codegen references:
 
@@ -54,7 +54,7 @@ Reads immutables from the
 [ImmutableSimulator](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/system_contracts.md#simulator-of-immutables).
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#setimmutable-loadimmutable).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable).
 
 LLVM IR codegen references:
 
@@ -71,7 +71,7 @@ compiler will return the list of deployable libraries not provided with `--libra
 like Hardhat to automatically deploy libraries.
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#libraries).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/libraries).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L956).
 

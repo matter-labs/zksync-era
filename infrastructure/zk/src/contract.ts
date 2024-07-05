@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
 
@@ -78,7 +78,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
-    includePaymaster,
+    includePaymaster = true,
     localLegacyBridgeTesting
 }: {
     includePaymaster: boolean;
@@ -224,9 +224,8 @@ export async function registerHyperchain({
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode === DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
     ];
-
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
@@ -312,13 +311,15 @@ command
 command
     .command('register-hyperchain')
     .description('register hyperchain')
-    .action(() => {
-        registerHyperchain({});
-    });
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
-    .action(() => {
-        deployL2ThroughL1({ includePaymaster: true });
-    });
+    .option(
+        '--local-legacy-bridge-testing',
+        'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
+    )
+    .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

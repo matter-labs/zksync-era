@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_upgrade::GovernanceOperation, web3::Log, Address, ProtocolUpgrade,
-    ProtocolVersionId, H256,
+    ethabi::Contract, protocol_upgrade::GovernanceOperation,
+    protocol_version::ProtocolSemanticVersion, web3::Log, Address, ProtocolUpgrade, H256,
 };
 
 use crate::{
@@ -14,22 +14,22 @@ use crate::{
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct GovernanceUpgradesEventProcessor {
-    // zkSync diamond proxy if pre-shared bridge; state transition manager if post shared bridge.
+    // ZKsync diamond proxy
     target_contract_address: Address,
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
-    last_seen_version_id: ProtocolVersionId,
+    last_seen_protocol_version: ProtocolSemanticVersion,
     upgrade_proposal_signature: H256,
 }
 
 impl GovernanceUpgradesEventProcessor {
     pub fn new(
         target_contract_address: Address,
-        last_seen_version_id: ProtocolVersionId,
+        last_seen_protocol_version: ProtocolSemanticVersion,
         governance_contract: &Contract,
     ) -> Self {
         Self {
             target_contract_address,
-            last_seen_version_id,
+            last_seen_protocol_version,
             upgrade_proposal_signature: governance_contract
                 .event("TransparentOperationScheduled")
                 .context("TransparentOperationScheduled event is missing in ABI")
@@ -79,39 +79,60 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
 
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
-            .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
+            .skip_while(|(v, _)| v.version <= self.last_seen_protocol_version)
             .collect();
 
         let Some((last_upgrade, _)) = new_upgrades.last() else {
             return Ok(());
         };
-        let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
-        tracing::debug!("Received upgrades with ids: {ids:?}");
+        let versions: Vec<_> = new_upgrades
+            .iter()
+            .map(|(u, _)| u.version.to_string())
+            .collect();
+        tracing::debug!("Received upgrades with versions: {versions:?}");
 
-        let last_id = last_upgrade.id;
+        let last_version = last_upgrade.version;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
-            let previous_version = storage
+            let latest_semantic_version = storage
                 .protocol_versions_dal()
-                .load_previous_version(upgrade.id)
+                .latest_semantic_version()
                 .await
                 .map_err(DalError::generalize)?
-                .with_context(|| {
-                    format!(
-                        "expected some version preceding {:?} to be present in DB",
-                        upgrade.id
-                    )
-                })?;
-            let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
-            storage
-                .protocol_versions_dal()
-                .save_protocol_version_with_tx(&new_version)
-                .await
-                .map_err(DalError::generalize)?;
+                .context("expected some version to be present in DB")?;
+
+            if upgrade.version > latest_semantic_version {
+                let latest_version = storage
+                    .protocol_versions_dal()
+                    .get_protocol_version_with_latest_patch(latest_semantic_version.minor)
+                    .await
+                    .map_err(DalError::generalize)?
+                    .with_context(|| {
+                        format!(
+                            "expected minor version {} to be present in DB",
+                            latest_semantic_version.minor as u16
+                        )
+                    })?;
+
+                let new_version = latest_version.apply_upgrade(upgrade, scheduler_vk_hash);
+                if new_version.version.minor == latest_semantic_version.minor {
+                    // Only verification parameters may change if only patch is bumped.
+                    assert_eq!(
+                        new_version.base_system_contracts_hashes,
+                        latest_version.base_system_contracts_hashes
+                    );
+                    assert!(new_version.tx.is_none());
+                }
+                storage
+                    .protocol_versions_dal()
+                    .save_protocol_version_with_tx(&new_version)
+                    .await
+                    .map_err(DalError::generalize)?;
+            }
         }
         stage_latency.observe();
 
-        self.last_seen_version_id = last_id;
+        self.last_seen_protocol_version = last_version;
         Ok(())
     }
 

@@ -6,8 +6,8 @@ This document presumes familiarity with Rollups. For a better understanding, con
 Rollups inherit security and decentralization guarantees from Ethereum, on which they store information about changes in
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
-the L2 contracts on Ethereum Layer 1. We also have contracts that support the hyperchain ecosystem, we cover those in
-the [Shared Bridge](./the_hyperchain/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in the
+[Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
 
 ## Diamond
 
@@ -32,7 +32,7 @@ then the diamond will be frozen forever.
 The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by
 their logical meaning, removes the limit of bytecode size per contract and implements security features such as
 freezing. In the future, it can also be viewed as [EIP-6900](https://eips.ethereum.org/EIPS/eip-6900) for
-[zkStack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each hyperchain can implement a
+[ZK Stack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each ZK Chain can implement a
 sub-set of allowed implementation contracts.
 
 ### GettersFacet
@@ -59,7 +59,7 @@ The admin facet is controlled by two entities:
 ### MailboxFacet
 
 The facet that handles L2 <-> L1 communication, an overview for which can be found in
-[docs](https://era.zksync.io/docs/dev/developer-guides/bridging/l1-l2-interop.html).
+[docs](https://docs.zksync.io/build/developer-reference/l1-l2-interoperability).
 
 The Mailbox performs three functions:
 
@@ -235,8 +235,8 @@ The diagram below outlines the complete journey from the initiation of an operat
 
 ## ValidatorTimelock
 
-An intermediate smart contract between the validator EOA account and the zkSync smart contract. Its primary purpose is
-to provide a trustless means of delaying batch execution without modifying the main zkSync contract. zkSync actively
+An intermediate smart contract between the validator EOA account and the ZKsync smart contract. Its primary purpose is
+to provide a trustless means of delaying batch execution without modifying the main ZKsync contract. ZKsync actively
 monitors the chain activity and reacts to any suspicious activity by freezing the chain. This allows time for
 investigation and mitigation before resuming normal operations.
 
@@ -246,12 +246,12 @@ the Alpha stage.
 This contract consists of four main functions `commitBatches`, `proveBatches`, `executeBatches`, and `revertBatches`,
 which can be called only by the validator.
 
-When the validator calls `commitBatches`, the same calldata will be propagated to the zkSync contract (`DiamondProxy`
+When the validator calls `commitBatches`, the same calldata will be propagated to the ZKsync contract (`DiamondProxy`
 through `call` where it invokes the `ExecutorFacet` through `delegatecall`), and also a timestamp is assigned to these
 batches to track the time these batches are committed by the validator to enforce a delay between committing and
 execution of batches. Then, the validator can prove the already committed batches regardless of the mentioned timestamp,
-and again the same calldata (related to the `proveBatches` function) will be propagated to the zkSync contract. After
-the `delay` is elapsed, the validator is allowed to call `executeBatches` to propagate the same calldata to zkSync
+and again the same calldata (related to the `proveBatches` function) will be propagated to the ZKsync contract. After
+the `delay` is elapsed, the validator is allowed to call `executeBatches` to propagate the same calldata to ZKsync
 contract.
 
 The owner of the ValidatorTimelock contract is the same as the owner of the Governance contract - Matter Labs multisig.

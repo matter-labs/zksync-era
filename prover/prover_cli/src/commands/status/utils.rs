@@ -1,10 +1,13 @@
 use std::fmt::Debug;
 
-use colored::*;
 use strum::{Display, EnumString};
 use zksync_types::{
     basic_fri_types::AggregationRound,
-    prover_dal::{ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus, WitnessJobStatus},
+    prover_dal::{
+        BasicWitnessGeneratorJobInfo, LeafWitnessGeneratorJobInfo, NodeWitnessGeneratorJobInfo,
+        ProofCompressionJobInfo, ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, WitnessJobStatus,
+    },
     L1BatchNumber,
 };
 
@@ -13,83 +16,21 @@ pub struct BatchData {
     /// The number of the batch.
     pub batch_number: L1BatchNumber,
     /// The basic witness generator data.
-    pub basic_witness_generator: Task,
+    pub basic_witness_generator: StageInfo,
     /// The leaf witness generator data.
-    pub leaf_witness_generator: Task,
+    pub leaf_witness_generator: StageInfo,
     /// The node witness generator data.
-    pub node_witness_generator: Task,
+    pub node_witness_generator: StageInfo,
     /// The recursion tip data.
-    pub recursion_tip: Task,
+    pub recursion_tip_witness_generator: StageInfo,
     /// The scheduler data.
-    pub scheduler_witness_generator: Task,
+    pub scheduler_witness_generator: StageInfo,
     /// The compressor data.
-    pub compressor: Task,
-}
-
-impl Debug for BatchData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "== {} ==",
-            format!("Batch {} Status", self.batch_number).bold()
-        )?;
-        writeln!(f)?;
-        writeln!(f, "= {} =", "Proving Stages".to_owned().bold())?;
-        writeln!(f, "{:?}", self.basic_witness_generator)?;
-        writeln!(f, "{:?}", self.leaf_witness_generator)?;
-        writeln!(f, "{:?}", self.node_witness_generator)?;
-        writeln!(f, "{:?}", self.recursion_tip)?;
-        writeln!(f, "{:?}", self.scheduler_witness_generator)?;
-        writeln!(f, "{:?}", self.compressor)
-    }
-}
-
-impl Default for BatchData {
-    fn default() -> Self {
-        BatchData {
-            batch_number: L1BatchNumber::default(),
-            basic_witness_generator: Task::BasicWitnessGenerator {
-                status: TaskStatus::default(),
-                aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::BasicCircuits,
-                    prover_jobs_status: TaskStatus::default(),
-                },
-            },
-            leaf_witness_generator: Task::LeafWitnessGenerator {
-                status: TaskStatus::default(),
-                aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::LeafAggregation,
-                    prover_jobs_status: TaskStatus::default(),
-                },
-            },
-            node_witness_generator: Task::NodeWitnessGenerator {
-                status: TaskStatus::default(),
-                aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::NodeAggregation,
-                    prover_jobs_status: TaskStatus::default(),
-                },
-            },
-            recursion_tip: Task::RecursionTip {
-                status: TaskStatus::default(),
-                aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::Scheduler,
-                    prover_jobs_status: TaskStatus::default(),
-                },
-            },
-            scheduler_witness_generator: Task::SchedulerWitnessGenerator {
-                status: TaskStatus::default(),
-                aggregation_round_info: AggregationRoundInfo {
-                    round: AggregationRound::Scheduler,
-                    prover_jobs_status: TaskStatus::default(),
-                },
-            },
-            compressor: Task::Compressor(TaskStatus::JobsNotFound),
-        }
-    }
+    pub compressor: StageInfo,
 }
 
 #[derive(Default, Debug, EnumString, Clone, Display)]
-pub enum TaskStatus {
+pub enum Status {
     /// A custom status that can be set manually.
     /// Mostly used when a task has singular status.
     Custom(String),
@@ -114,230 +55,207 @@ pub enum TaskStatus {
     JobsNotFound,
 }
 
-// This implementation will change to From<Vec<ProverJobFriInfo>> for `AggregationRoundInfo`
-// once the --verbose flag is implemented.
-impl From<Vec<ProverJobFriInfo>> for TaskStatus {
-    fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
-        if jobs_vector.is_empty() {
-            TaskStatus::JobsNotFound
-        } else if jobs_vector
-            .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::Queued))
-        {
-            TaskStatus::Queued
-        } else if jobs_vector
-            .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::InProgress(_)))
-        {
-            TaskStatus::Successful
-        } else {
-            TaskStatus::InProgress
-        }
-    }
-}
-
-impl From<ProofCompressionJobStatus> for TaskStatus {
-    fn from(status: ProofCompressionJobStatus) -> Self {
+impl From<WitnessJobStatus> for Status {
+    fn from(status: WitnessJobStatus) -> Self {
         match status {
-            ProofCompressionJobStatus::Queued => TaskStatus::Queued,
-            ProofCompressionJobStatus::InProgress => TaskStatus::InProgress,
-            ProofCompressionJobStatus::Successful => TaskStatus::Successful,
-            ProofCompressionJobStatus::Failed => TaskStatus::InProgress,
-            ProofCompressionJobStatus::SentToServer => {
-                TaskStatus::Custom("Sent to server 📤".to_owned())
+            WitnessJobStatus::Queued => Status::Queued,
+            WitnessJobStatus::InProgress => Status::InProgress,
+            WitnessJobStatus::Successful(_) => Status::Successful,
+            WitnessJobStatus::Failed(_) => Status::InProgress,
+            WitnessJobStatus::WaitingForArtifacts => {
+                Status::Custom("Waiting for Artifacts ⏱️".to_owned())
             }
-            ProofCompressionJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
+            WitnessJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
+            WitnessJobStatus::WaitingForProofs => Status::WaitingForProofs,
         }
     }
 }
 
-impl From<Vec<WitnessJobStatus>> for TaskStatus {
+impl From<Vec<WitnessJobStatus>> for Status {
     fn from(status_vector: Vec<WitnessJobStatus>) -> Self {
         if status_vector.is_empty() {
-            TaskStatus::JobsNotFound
-        } else if status_vector
-            .iter()
-            .all(|job| matches!(job, WitnessJobStatus::Queued))
-        {
-            TaskStatus::Queued
+            Status::JobsNotFound
         } else if status_vector
             .iter()
             .all(|job| matches!(job, WitnessJobStatus::WaitingForProofs))
         {
-            TaskStatus::WaitingForProofs
+            Status::WaitingForProofs
+        } else if status_vector.iter().all(|job| {
+            matches!(job, WitnessJobStatus::Queued)
+                || matches!(job, WitnessJobStatus::WaitingForProofs)
+        }) {
+            Status::Queued
         } else if status_vector
             .iter()
-            .all(|job| matches!(job, WitnessJobStatus::InProgress))
+            .all(|job| matches!(job, WitnessJobStatus::Successful(_)))
         {
-            TaskStatus::Successful
+            Status::Successful
         } else {
-            TaskStatus::InProgress
+            Status::InProgress
         }
     }
 }
 
+impl From<Vec<LeafWitnessGeneratorJobInfo>> for Status {
+    fn from(leaf_info_vector: Vec<LeafWitnessGeneratorJobInfo>) -> Self {
+        leaf_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<NodeWitnessGeneratorJobInfo>> for Status {
+    fn from(node_info_vector: Vec<NodeWitnessGeneratorJobInfo>) -> Self {
+        node_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<RecursionTipWitnessGeneratorJobInfo>> for Status {
+    fn from(scheduler_info_vector: Vec<RecursionTipWitnessGeneratorJobInfo>) -> Self {
+        scheduler_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<SchedulerWitnessGeneratorJobInfo>> for Status {
+    fn from(scheduler_info_vector: Vec<SchedulerWitnessGeneratorJobInfo>) -> Self {
+        scheduler_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<ProofCompressionJobStatus> for Status {
+    fn from(status: ProofCompressionJobStatus) -> Self {
+        match status {
+            ProofCompressionJobStatus::Queued => Status::Queued,
+            ProofCompressionJobStatus::InProgress => Status::InProgress,
+            ProofCompressionJobStatus::Successful => Status::Successful,
+            ProofCompressionJobStatus::Failed => Status::InProgress,
+            ProofCompressionJobStatus::SentToServer => {
+                Status::Custom("Sent to server 📤".to_owned())
+            }
+            ProofCompressionJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
+        }
+    }
+}
+
+impl From<Vec<ProverJobFriInfo>> for Status {
+    fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
+        if jobs_vector.is_empty() {
+            Status::JobsNotFound
+        } else if jobs_vector
+            .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+        {
+            Status::Custom("In GPU Proof ⚡️".to_owned())
+        } else if jobs_vector
+            .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::Queued))
+        {
+            Status::Queued
+        } else if jobs_vector
+            .iter()
+            .all(|job| matches!(job.status, ProverJobStatus::Successful(_)))
+        {
+            Status::Successful
+        } else {
+            Status::InProgress
+        }
+    }
+}
+
+#[allow(clippy::large_enum_variant)]
 #[derive(EnumString, Clone, Display)]
-pub enum Task {
-    /// Represents the basic witness generator task and its status.
+pub enum StageInfo {
     #[strum(to_string = "Basic Witness Generator")]
     BasicWitnessGenerator {
-        status: TaskStatus,
-        aggregation_round_info: AggregationRoundInfo,
+        witness_generator_job_info: Option<BasicWitnessGeneratorJobInfo>,
+        prover_jobs_info: Vec<ProverJobFriInfo>,
     },
-    /// Represents the leaf witness generator task, its status and the aggregation round 0 prover jobs data.
     #[strum(to_string = "Leaf Witness Generator")]
     LeafWitnessGenerator {
-        status: TaskStatus,
-        aggregation_round_info: AggregationRoundInfo,
+        witness_generator_jobs_info: Vec<LeafWitnessGeneratorJobInfo>,
+        prover_jobs_info: Vec<ProverJobFriInfo>,
     },
-    /// Represents the node witness generator task, its status and the aggregation round 1 prover jobs data.
     #[strum(to_string = "Node Witness Generator")]
     NodeWitnessGenerator {
-        status: TaskStatus,
-        aggregation_round_info: AggregationRoundInfo,
+        witness_generator_jobs_info: Vec<NodeWitnessGeneratorJobInfo>,
+        prover_jobs_info: Vec<ProverJobFriInfo>,
     },
-    /// Represents the recursion tip task, its status and the aggregation round 2 prover jobs data.
     #[strum(to_string = "Recursion Tip")]
-    RecursionTip {
-        status: TaskStatus,
-        aggregation_round_info: AggregationRoundInfo,
-    },
-    /// Represents the scheduler task and its status.
+    RecursionTipWitnessGenerator(Option<RecursionTipWitnessGeneratorJobInfo>),
     #[strum(to_string = "Scheduler")]
-    SchedulerWitnessGenerator {
-        status: TaskStatus,
-        aggregation_round_info: AggregationRoundInfo,
-    },
-    /// Represents the compressor task and its status.
+    SchedulerWitnessGenerator(Option<SchedulerWitnessGeneratorJobInfo>),
     #[strum(to_string = "Compressor")]
-    Compressor(TaskStatus),
+    Compressor(Option<ProofCompressionJobInfo>),
 }
 
-impl Task {
-    fn status(&self) -> TaskStatus {
+impl StageInfo {
+    pub fn aggregation_round(&self) -> Option<AggregationRound> {
         match self {
-            Task::BasicWitnessGenerator { status, .. }
-            | Task::LeafWitnessGenerator { status, .. }
-            | Task::NodeWitnessGenerator { status, .. }
-            | Task::RecursionTip { status, .. }
-            | Task::SchedulerWitnessGenerator { status, .. }
-            | Task::Compressor(status) => status.clone(),
+            StageInfo::BasicWitnessGenerator { .. } => Some(AggregationRound::BasicCircuits),
+            StageInfo::LeafWitnessGenerator { .. } => Some(AggregationRound::LeafAggregation),
+            StageInfo::NodeWitnessGenerator { .. } => Some(AggregationRound::NodeAggregation),
+            StageInfo::RecursionTipWitnessGenerator { .. } => Some(AggregationRound::RecursionTip),
+            StageInfo::SchedulerWitnessGenerator { .. } => Some(AggregationRound::Scheduler),
+            StageInfo::Compressor(_) => None,
         }
     }
 
-    fn aggregation_round(&self) -> Option<AggregationRound> {
-        match self {
-            Task::BasicWitnessGenerator {
-                aggregation_round_info,
-                ..
+    pub fn prover_jobs_status(&self) -> Option<Status> {
+        match self.clone() {
+            StageInfo::BasicWitnessGenerator {
+                prover_jobs_info, ..
             }
-            | Task::LeafWitnessGenerator {
-                aggregation_round_info,
-                ..
+            | StageInfo::LeafWitnessGenerator {
+                prover_jobs_info, ..
             }
-            | Task::NodeWitnessGenerator {
-                aggregation_round_info,
-                ..
-            }
-            | Task::RecursionTip {
-                aggregation_round_info,
-                ..
-            }
-            | Task::SchedulerWitnessGenerator {
-                aggregation_round_info,
-                ..
-            } => Some(aggregation_round_info.round),
-            Task::Compressor(_) => None,
+            | StageInfo::NodeWitnessGenerator {
+                prover_jobs_info, ..
+            } => Some(Status::from(prover_jobs_info)),
+            StageInfo::RecursionTipWitnessGenerator(_)
+            | StageInfo::SchedulerWitnessGenerator(_)
+            | StageInfo::Compressor(_) => None,
         }
     }
 
-    /// Returns the status of the prover jobs.
-    /// If the task is not in progress or successful, returns None.
-    /// Otherwise, returns the status of the prover jobs if the task
-    /// has prover jobs.
-    fn prover_jobs_status(&self) -> Option<TaskStatus> {
-        match self {
-            Task::BasicWitnessGenerator {
-                status,
-                aggregation_round_info,
-            }
-            | Task::LeafWitnessGenerator {
-                status,
-                aggregation_round_info,
-            }
-            | Task::NodeWitnessGenerator {
-                status,
-                aggregation_round_info,
-            }
-            | Task::RecursionTip {
-                status,
-                aggregation_round_info,
-            }
-            | Task::SchedulerWitnessGenerator {
-                status,
-                aggregation_round_info,
-            } => match status {
-                TaskStatus::InProgress | TaskStatus::Successful => {
-                    Some(aggregation_round_info.prover_jobs_status.clone())
-                }
-                _ => None,
-            },
-            Task::Compressor(_) => None,
-        }
-    }
-}
-
-impl Debug for Task {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(aggregation_round_number) = self.aggregation_round() {
-            writeln!(
-                f,
-                "-- {} --",
-                format!("Aggregation Round {}", aggregation_round_number as u8).bold()
-            )?;
-            if let TaskStatus::Custom(msg) = self.status() {
-                writeln!(f, "{}: {}", self.to_string().bold(), msg)?;
-            } else {
-                writeln!(f, "{}: {}", self.to_string().bold(), self.status())?;
-            }
-            if let Some(prover_jobs_status) = self.prover_jobs_status() {
-                writeln!(f, "> Prover Jobs: {prover_jobs_status}")?;
-            }
-        } else {
-            writeln!(f, "-- {} --", self.to_string().bold())?;
-            writeln!(f, "{}", self.status())?;
-        }
-        Ok(())
-    }
-}
-
-impl From<WitnessJobStatus> for TaskStatus {
-    fn from(status: WitnessJobStatus) -> Self {
-        match status {
-            WitnessJobStatus::Queued => TaskStatus::Queued,
-            WitnessJobStatus::InProgress => TaskStatus::InProgress,
-            WitnessJobStatus::Successful(_) => TaskStatus::Successful,
-            WitnessJobStatus::Failed(_) => TaskStatus::InProgress,
-            WitnessJobStatus::WaitingForArtifacts => {
-                TaskStatus::Custom("Waiting for Artifacts ⏱️".to_owned())
-            }
-            WitnessJobStatus::Skipped => TaskStatus::Custom("Skipped ⏩".to_owned()),
-            WitnessJobStatus::WaitingForProofs => TaskStatus::WaitingForProofs,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AggregationRoundInfo {
-    pub round: AggregationRound,
-    pub prover_jobs_status: TaskStatus,
-}
-
-impl Default for AggregationRoundInfo {
-    fn default() -> Self {
-        AggregationRoundInfo {
-            round: AggregationRound::BasicCircuits,
-            prover_jobs_status: TaskStatus::default(),
+    pub fn witness_generator_jobs_status(&self) -> Status {
+        match self.clone() {
+            StageInfo::BasicWitnessGenerator {
+                witness_generator_job_info,
+                ..
+            } => witness_generator_job_info
+                .map(|witness_generator_job_info| Status::from(witness_generator_job_info.status))
+                .unwrap_or_default(),
+            StageInfo::LeafWitnessGenerator {
+                witness_generator_jobs_info,
+                ..
+            } => Status::from(witness_generator_jobs_info),
+            StageInfo::NodeWitnessGenerator {
+                witness_generator_jobs_info,
+                ..
+            } => Status::from(witness_generator_jobs_info),
+            StageInfo::RecursionTipWitnessGenerator(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
+            StageInfo::SchedulerWitnessGenerator(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
+            StageInfo::Compressor(status) => status
+                .map(|job| Status::from(job.status))
+                .unwrap_or_default(),
         }
     }
 }

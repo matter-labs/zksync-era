@@ -56,7 +56,8 @@ impl FactoryDepsDal<'_, '_> {
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
-    pub async fn get_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
+    /// Returns bytecodes only from sealed miniblocks.
+    pub async fn get_sealed_factory_dep(&mut self, hash: H256) -> DalResult<Option<Vec<u8>>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -65,10 +66,24 @@ impl FactoryDepsDal<'_, '_> {
                 factory_deps
             WHERE
                 bytecode_hash = $1
+                AND miniblock_number <= COALESCE(
+                    (
+                        SELECT
+                            MAX(number)
+                        FROM
+                            miniblocks
+                    ),
+                    (
+                        SELECT
+                            miniblock_number
+                        FROM
+                            snapshot_recovery
+                    )
+                )
             "#,
             hash.as_bytes(),
         )
-        .instrument("get_factory_dep")
+        .instrument("get_sealed_factory_dep")
         .with_arg("hash", &hash)
         .fetch_optional(self.storage)
         .await?
@@ -81,7 +96,7 @@ impl FactoryDepsDal<'_, '_> {
         default_aa_hash: H256,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
-            .get_factory_dep(bootloader_hash)
+            .get_sealed_factory_dep(bootloader_hash)
             .await
             .context("failed loading bootloader code")?
             .with_context(|| format!("bootloader code with hash {bootloader_hash:?} should be present in the database"))?;
@@ -91,7 +106,7 @@ impl FactoryDepsDal<'_, '_> {
         };
 
         let default_aa_bytecode = self
-            .get_factory_dep(default_aa_hash)
+            .get_sealed_factory_dep(default_aa_hash)
             .await
             .context("failed loading default account code")?
             .with_context(|| format!("default account code with hash {default_aa_hash:?} should be present in the database"))?;

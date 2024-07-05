@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::ProverDal;
+use zksync_prover_dal::ProverDal;
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
@@ -7,20 +7,20 @@ use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
 impl PeriodicApiStruct {
     async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
-        let (l1_batch_number, status) = self
+        let (l1_batch_number, protocol_version, status) = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
-            .get_least_proven_block_number_not_sent_to_server()
+            .get_least_proven_block_not_sent_to_server()
             .await?;
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
                 let proof = self
                     .blob_store
-                    .get(l1_batch_number)
+                    .get((l1_batch_number, protocol_version))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(Box::new(proof))

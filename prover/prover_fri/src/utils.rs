@@ -2,10 +2,10 @@
 
 use std::{sync::Arc, time::Instant};
 
-use prover_dal::{Connection, Prover, ProverDal};
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -24,7 +24,8 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    L1BatchNumber, ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion,
+    L1BatchNumber,
 };
 
 use crate::metrics::METRICS;
@@ -64,7 +65,7 @@ pub async fn save_proof(
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
     connection: &mut Connection<'_, Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",

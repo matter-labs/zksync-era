@@ -35,7 +35,6 @@ impl ProtoRepr for proto::Observability {
                 .as_ref()
                 .map(|cfg| cfg.read().context("opentelemetry"))
                 .transpose()?,
-            sporadic_crypto_errors_substrs: self.sporadic_crypto_errors_substrs.clone(),
             log_directives: self.log_directives.clone(),
         })
     }
@@ -55,7 +54,6 @@ impl ProtoRepr for proto::Observability {
             sentry,
             log_format: Some(this.log_format.clone()),
             opentelemetry: this.opentelemetry.as_ref().map(ProtoRepr::build),
-            sporadic_crypto_errors_substrs: this.sporadic_crypto_errors_substrs.clone(),
             log_directives: this.log_directives.clone(),
         }
     }

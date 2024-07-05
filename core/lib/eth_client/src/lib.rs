@@ -1,7 +1,6 @@
 use std::fmt;
 
 use async_trait::async_trait;
-pub use jsonrpsee::core::ClientError;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     ethabi, web3,
@@ -11,10 +10,15 @@ use zksync_types::{
     },
     Address, L1ChainId, H160, H256, U256, U64,
 };
+use zksync_web3_decl::client::{DynClient, L1};
+pub use zksync_web3_decl::{
+    error::{EnrichedClientError, EnrichedClientResult},
+    jsonrpsee::core::ClientError,
+};
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractError, Error,
-    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractCallError,
+    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult, SigningError,
 };
 
 pub mod clients;
@@ -61,8 +65,16 @@ impl Options {
     }
 }
 
+/// Information about the base fees provided by the L1 client.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BaseFees {
+    pub base_fee_per_gas: u64,
+    pub base_fee_per_blob_gas: U256,
+}
+
 /// Common Web3 interface, as seen by the core applications.
-/// Encapsulates the raw Web3 interaction, providing a high-level interface.
+/// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
+/// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
 ///
 /// ## Trait contents
 ///
@@ -71,24 +83,17 @@ impl Options {
 /// If you want to add a method to this trait, make sure that it doesn't depend on any particular
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
-pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
-    /// Clones this client.
-    fn clone_boxed(&self) -> Box<dyn EthInterface>;
-
-    /// Tags this client as working for a specific component. The component name can be used in logging,
-    /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn EthInterface>;
-
+pub trait EthInterface: Sync + Send {
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
-    async fn fetch_chain_id(&self) -> Result<L1ChainId, Error>;
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
 
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,
         account: Address,
         block: BlockNumber,
-    ) -> Result<U256, Error>;
+    ) -> EnrichedClientResult<U256>;
 
     /// Collects the base fee history for the specified block range.
     ///
@@ -98,25 +103,25 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
         &self,
         from_block: usize,
         block_count: usize,
-    ) -> Result<Vec<u64>, Error>;
+    ) -> EnrichedClientResult<Vec<BaseFees>>;
 
     /// Returns the `base_fee_per_gas` value for the currently pending L1 block.
-    async fn get_pending_block_base_fee_per_gas(&self) -> Result<U256, Error>;
+    async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256>;
 
     /// Returns the current gas price.
-    async fn get_gas_price(&self) -> Result<U256, Error>;
+    async fn get_gas_price(&self) -> EnrichedClientResult<U256>;
 
     /// Returns the current block number.
-    async fn block_number(&self) -> Result<U64, Error>;
+    async fn block_number(&self) -> EnrichedClientResult<U64>;
 
     /// Sends a transaction to the Ethereum network.
-    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error>;
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> EnrichedClientResult<H256>;
 
     /// Fetches the transaction status for a specified transaction hash.
     ///
     /// Returns `Ok(None)` if the transaction is either not found or not executed yet.
     /// Returns `Err` only if the request fails (e.g. due to network issues).
-    async fn get_tx_status(&self, hash: H256) -> Result<Option<ExecutedTxStatus>, Error>;
+    async fn get_tx_status(&self, hash: H256) -> EnrichedClientResult<Option<ExecutedTxStatus>>;
 
     /// For a reverted transaction, attempts to recover information on the revert reason.
     ///
@@ -124,46 +129,37 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     /// Returns `Ok(None)` if the transaction isn't found, wasn't executed yet, or if it was
     /// executed successfully.
     /// Returns `Err` only if the request fails (e.g. due to network issues).
-    async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error>;
+    async fn failure_reason(&self, tx_hash: H256) -> EnrichedClientResult<Option<FailureInfo>>;
 
     /// Returns the transaction for the specified hash.
-    async fn get_tx(&self, hash: H256) -> Result<Option<Transaction>, Error>;
+    async fn get_tx(&self, hash: H256) -> EnrichedClientResult<Option<Transaction>>;
 
     /// Returns the receipt for the specified transaction hash.
-    async fn tx_receipt(&self, tx_hash: H256) -> Result<Option<TransactionReceipt>, Error>;
+    async fn tx_receipt(&self, tx_hash: H256) -> EnrichedClientResult<Option<TransactionReceipt>>;
 
     /// Returns the ETH balance of the specified token for the specified address.
-    async fn eth_balance(&self, address: Address) -> Result<U256, Error>;
+    async fn eth_balance(&self, address: Address) -> EnrichedClientResult<U256>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
     async fn call_contract_function(
         &self,
         request: web3::CallRequest,
         block: Option<BlockId>,
-    ) -> Result<web3::Bytes, Error>;
+    ) -> EnrichedClientResult<web3::Bytes>;
 
     /// Returns the logs for the specified filter.
-    async fn logs(&self, filter: Filter) -> Result<Vec<Log>, Error>;
+    async fn logs(&self, filter: &Filter) -> EnrichedClientResult<Vec<Log>>;
 
     /// Returns the block header for the specified block number or hash.
-    async fn block(&self, block_id: BlockId) -> Result<Option<Block<H256>>, Error>;
+    async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
 }
-
-impl Clone for Box<dyn EthInterface> {
-    fn clone(&self) -> Self {
-        self.clone_boxed()
-    }
-}
-
-#[cfg(test)]
-static_assertions::assert_obj_safe!(EthInterface);
 
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
 /// The example use cases for this trait would be:
 ///
-/// - An operator that sends transactions and interacts with zkSync contract.
+/// - An operator that sends transactions and interacts with ZKsync contract.
 /// - A wallet implementation in the SDK that is tied to a user's account.
 ///
 /// When adding a method to this trait:
@@ -172,7 +168,7 @@ static_assertions::assert_obj_safe!(EthInterface);
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 ///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + fmt::Debug {
+pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt::Debug {
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
@@ -201,7 +197,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         token_address: Address,
         address: Address,
         erc20_abi: &ethabi::Contract,
-    ) -> Result<U256, Error>;
+    ) -> Result<U256, ContractCallError>;
 
     /// Signs the transaction and sends it to the Ethereum network.
     /// Expected to use credentials associated with `Self::sender_account()`.
@@ -210,7 +206,7 @@ pub trait BoundEthInterface: AsRef<dyn EthInterface> + 'static + Sync + Send + f
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-    ) -> Result<SignedCallResult, Error>;
+    ) -> Result<SignedCallResult, SigningError>;
 }
 
 impl Clone for Box<dyn BoundEthInterface> {
@@ -221,19 +217,19 @@ impl Clone for Box<dyn BoundEthInterface> {
 
 impl dyn BoundEthInterface {
     /// Returns the nonce of the `Self::sender_account()` at the specified block.
-    pub async fn nonce_at(&self, block: BlockNumber) -> Result<U256, Error> {
+    pub async fn nonce_at(&self, block: BlockNumber) -> EnrichedClientResult<U256> {
         self.as_ref()
             .nonce_at_for_account(self.sender_account(), block)
             .await
     }
 
     /// Returns the current nonce of the `Self::sender_account()`.
-    pub async fn current_nonce(&self) -> Result<U256, Error> {
+    pub async fn current_nonce(&self) -> EnrichedClientResult<U256> {
         self.nonce_at(BlockNumber::Latest).await
     }
 
     /// Returns the pending nonce of the `Self::sender_account()`.
-    pub async fn pending_nonce(&self) -> Result<U256, Error> {
+    pub async fn pending_nonce(&self) -> EnrichedClientResult<U256> {
         self.nonce_at(BlockNumber::Pending).await
     }
 
@@ -242,13 +238,13 @@ impl dyn BoundEthInterface {
         &self,
         data: Vec<u8>,
         options: Options,
-    ) -> Result<SignedCallResult, Error> {
+    ) -> Result<SignedCallResult, SigningError> {
         self.sign_prepared_tx_for_addr(data, self.contract_addr(), options)
             .await
     }
 
     /// Returns the ETH balance of `Self::sender_account()`.
-    pub async fn sender_eth_balance(&self) -> Result<U256, Error> {
+    pub async fn sender_eth_balance(&self) -> EnrichedClientResult<U256> {
         self.as_ref().eth_balance(self.sender_account()).await
     }
 

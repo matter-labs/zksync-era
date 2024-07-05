@@ -1,6 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use itertools::Itertools;
+use zk_evm_1_5_0::{
+    abstractions::DecommittmentProcessor,
+    aux_structures::{DecommittmentQuery, MemoryPage, Timestamp},
+    zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
+};
 use zksync_state::WriteStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
@@ -70,7 +78,7 @@ fn test_get_used_contracts() {
             contract_address: CONTRACT_DEPLOYER_ADDRESS,
             calldata: big_calldata,
             value: Default::default(),
-            factory_deps: Some(vec![vec![1; 32]]),
+            factory_deps: vec![vec![1; 32]],
         },
         1,
     );
@@ -81,7 +89,7 @@ fn test_get_used_contracts() {
 
     assert!(res2.result.is_failed());
 
-    for factory_dep in tx2.execute.factory_deps.unwrap() {
+    for factory_dep in tx2.execute.factory_deps {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
         assert!(known_bytecodes_without_aa_code(&vm.vm)
@@ -89,6 +97,47 @@ fn test_get_used_contracts() {
             .contains(&hash_to_u256));
         assert!(!vm.vm.get_used_contracts().contains(&hash_to_u256));
     }
+}
+
+#[test]
+fn test_contract_is_used_right_after_prepare_to_decommit() {
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .build();
+
+    assert!(vm.vm.get_used_contracts().is_empty());
+
+    let bytecode_hash =
+        U256::from_str("0x100067ff3124f394104ab03481f7923f0bc4029a2aa9d41cc1d848c81257185")
+            .unwrap();
+    vm.vm
+        .state
+        .decommittment_processor
+        .populate(vec![(bytecode_hash, vec![])], Timestamp(0));
+
+    let header = hex::decode("0100067f").unwrap();
+    let normalized_preimage =
+        hex::decode("f3124f394104ab03481f7923f0bc4029a2aa9d41cc1d848c81257185").unwrap();
+    vm.vm
+        .state
+        .decommittment_processor
+        .prepare_to_decommit(
+            0,
+            DecommittmentQuery {
+                header: VersionedHashHeader(header.try_into().unwrap()),
+                normalized_preimage: VersionedHashNormalizedPreimage(
+                    normalized_preimage.try_into().unwrap(),
+                ),
+                timestamp: Timestamp(0),
+                memory_page: MemoryPage(0),
+                decommitted_length: 0,
+                is_fresh: false,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(vm.vm.get_used_contracts(), vec![bytecode_hash]);
 }
 
 fn known_bytecodes_without_aa_code<S: WriteStorage, H: HistoryMode>(

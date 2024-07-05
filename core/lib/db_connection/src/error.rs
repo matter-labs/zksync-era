@@ -100,6 +100,7 @@ enum ConnectionAction {
     AcquireConnection,
     StartTransaction,
     CommitTransaction,
+    RollbackTransaction,
 }
 
 impl ConnectionAction {
@@ -108,6 +109,7 @@ impl ConnectionAction {
             Self::AcquireConnection => "acquiring DB connection",
             Self::StartTransaction => "starting DB transaction",
             Self::CommitTransaction => "committing DB transaction",
+            Self::RollbackTransaction => "rolling back DB transaction",
         }
     }
 }
@@ -162,6 +164,17 @@ impl DalConnectionError {
         Self {
             inner,
             action: ConnectionAction::CommitTransaction,
+            connection_tags,
+        }
+    }
+
+    pub(crate) fn rollback_transaction(
+        inner: sqlx::Error,
+        connection_tags: Option<ConnectionTags>,
+    ) -> Self {
+        Self {
+            inner,
+            action: ConnectionAction::RollbackTransaction,
             connection_tags,
         }
     }

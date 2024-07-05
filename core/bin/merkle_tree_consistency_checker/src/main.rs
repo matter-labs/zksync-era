@@ -23,12 +23,14 @@ struct Cli {
 }
 
 impl Cli {
-    fn run(self, config: &DBConfig) {
+    fn run(self, config: &DBConfig) -> anyhow::Result<()> {
         let db_path = &config.merkle_tree.path;
         tracing::info!("Verifying consistency of Merkle tree at {db_path}");
         let start = Instant::now();
-        let db = RocksDB::new(Path::new(db_path)).unwrap();
-        let tree = ZkSyncTree::new_lightweight(db.into());
+        let db =
+            RocksDB::new(Path::new(db_path)).context("failed initializing Merkle tree RocksDB")?;
+        let tree =
+            ZkSyncTree::new_lightweight(db.into()).context("cannot initialize Merkle tree")?;
 
         let l1_batch_number = if let Some(number) = self.l1_batch {
             L1BatchNumber(number)
@@ -36,25 +38,27 @@ impl Cli {
             let next_number = tree.next_l1_batch_number();
             if next_number == L1BatchNumber(0) {
                 tracing::info!("Merkle tree is empty, skipping");
-                return;
+                return Ok(());
             }
             next_number - 1
         };
 
         tracing::info!("L1 batch number to check: {l1_batch_number}");
-        tree.verify_consistency(l1_batch_number);
+        tree.verify_consistency(l1_batch_number)
+            .context("Merkle tree is inconsistent")?;
         tracing::info!("Merkle tree verified in {:?}", start.elapsed());
+        Ok(())
     }
 }
 
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
@@ -64,6 +68,5 @@ fn main() -> anyhow::Result<()> {
     let _guard = builder.build();
 
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    Cli::parse().run(&db_config);
-    Ok(())
+    Cli::parse().run(&db_config)
 }

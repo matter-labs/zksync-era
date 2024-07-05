@@ -4,7 +4,8 @@ use std::slice;
 
 use crate::{
     hasher::HasherWithStats,
-    types::{ChildRef, InternalNode, LeafNode, Node, ValueHash, TREE_DEPTH},
+    types::{ChildRef, InternalNode, LeafNode, Node, Root, ValueHash, TREE_DEPTH},
+    HashTree,
 };
 
 impl LeafNode {
@@ -253,6 +254,15 @@ impl Node {
             Self::Internal(node) => node.hash(hasher, level),
             Self::Leaf(leaf) => leaf.hash(hasher, level),
         }
+    }
+}
+
+impl Root {
+    pub(crate) fn hash(&self, hasher: &dyn HashTree) -> ValueHash {
+        let Self::Filled { node, .. } = self else {
+            return hasher.empty_tree_hash();
+        };
+        node.hash(&mut HasherWithStats::new(&hasher), 0)
     }
 }
 

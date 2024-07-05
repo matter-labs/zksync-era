@@ -7,10 +7,9 @@ use zksync_db_connection::{
     instrument::{CopyStatement, InstrumentExt},
 };
 use zksync_types::{
-    snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
-    StorageKey, H256,
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog,
+    H256,
 };
-use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
 use crate::Core;
@@ -24,7 +23,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_protective_reads(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        read_logs: &[LogQuery],
+        read_logs: &[StorageLog],
     ) -> DalResult<()> {
         let read_logs_len = read_logs.len();
         let copy = CopyStatement::new(
@@ -40,8 +39,8 @@ impl StorageLogsDedupDal<'_, '_> {
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
         for log in read_logs.iter() {
-            let address_str = format!("\\\\x{}", hex::encode(log.address.0));
-            let key_str = format!("\\\\x{}", hex::encode(u256_to_h256(log.key).0));
+            let address_str = format!("\\\\x{}", hex::encode(log.key.address()));
+            let key_str = format!("\\\\x{}", hex::encode(log.key.key()));
             let row = format!(
                 "{}|{}|{}|{}|{}\n",
                 l1_batch_number, address_str, key_str, now, now
@@ -69,14 +68,10 @@ impl StorageLogsDedupDal<'_, '_> {
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
-        for log in snapshot_storage_logs.iter() {
+        for log in snapshot_storage_logs {
             let row = format!(
                 "\\\\x{:x}|{}|{}|{}|{}\n",
-                log.key.hashed_key(),
-                log.enumeration_index,
-                log.l1_batch_number_of_initial_write,
-                now,
-                now,
+                log.key, log.enumeration_index, log.l1_batch_number_of_initial_write, now, now,
             );
             bytes.extend_from_slice(row.as_bytes());
         }
@@ -86,12 +81,9 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        written_storage_keys: &[StorageKey],
+        written_hashed_keys: &[H256],
     ) -> DalResult<()> {
-        let hashed_keys: Vec<_> = written_storage_keys
-            .iter()
-            .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
-            .collect();
+        let hashed_keys: Vec<_> = written_hashed_keys.iter().map(H256::as_bytes).collect();
 
         let last_index = self.max_enumeration_index().await?.unwrap_or(0);
         let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
@@ -111,7 +103,7 @@ impl StorageLogsDedupDal<'_, '_> {
             FROM
                 UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)
             "#,
-            &hashed_keys,
+            &hashed_keys as &[&[u8]],
             &indices,
             i64::from(l1_batch_number.0)
         )
@@ -166,6 +158,36 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
         )
         .instrument("max_enumeration_index")
+        .fetch_one(self.storage)
+        .await?
+        .max
+        .map(|max| max as u64))
+    }
+
+    /// Returns the max enumeration index by the provided L1 batch number.
+    pub async fn max_enumeration_index_by_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<u64>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                MAX(INDEX) AS "max?"
+            FROM
+                initial_writes
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        MAX(l1_batch_number) AS "max?"
+                    FROM
+                        initial_writes
+                    WHERE
+                        l1_batch_number <= $1
+                )
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("max_enumeration_index_by_l1_batch")
         .fetch_one(self.storage)
         .await?
         .max
@@ -293,5 +315,63 @@ impl StorageLogsDedupDal<'_, '_> {
                 index: row.index as u64,
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ConnectionPool, CoreDal};
+
+    #[tokio::test]
+    async fn getting_max_enumeration_index_in_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, None);
+
+        let account = AccountTreeId::new(Address::repeat_byte(1));
+        let initial_writes = [
+            StorageKey::new(account, H256::zero()).hashed_key(),
+            StorageKey::new(account, H256::repeat_byte(1)).hashed_key(),
+        ];
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(0), &initial_writes)
+            .await
+            .unwrap();
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(2));
+
+        let initial_writes = [
+            StorageKey::new(account, H256::repeat_byte(2)).hashed_key(),
+            StorageKey::new(account, H256::repeat_byte(3)).hashed_key(),
+        ];
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(1), &initial_writes)
+            .await
+            .unwrap();
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(2));
+
+        let max_index = conn
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(max_index, Some(4));
     }
 }

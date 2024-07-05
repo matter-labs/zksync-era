@@ -2,13 +2,16 @@ use std::{path::Path, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
-use tokio::fs;
-use zksync_config::{configs::chain::NetworkConfig, ContractsConfig, EthConfig};
+use tokio::{fs, sync::Semaphore};
+use zksync_config::{ContractsConfig, EthConfig};
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.
 pub use zksync_eth_client as eth_client;
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    BoundEthInterface, CallFunctionArgs, EthInterface, Options,
+};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
@@ -33,15 +36,13 @@ pub struct BlockReverterEthConfig {
     validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
-    era_chain_id: L2ChainId,
 }
 
 impl BlockReverterEthConfig {
     pub fn new(
         eth_config: &EthConfig,
         contract: &ContractsConfig,
-        network_config: &NetworkConfig,
-        era_chain_id: L2ChainId,
+        hyperchain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             diamond_proxy_addr: contract.diamond_proxy_addr,
@@ -51,8 +52,7 @@ impl BlockReverterEthConfig {
                 .as_ref()
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
-            hyperchain_id: network_config.zksync_network_id,
-            era_chain_id,
+            hyperchain_id,
         })
     }
 }
@@ -165,7 +165,7 @@ impl BlockReverter {
             vec![]
         };
 
-        if let Some(object_store) = &self.snapshots_object_store {
+        if let Some(object_store) = self.snapshots_object_store.as_deref() {
             Self::delete_snapshot_files(object_store, &deleted_snapshots).await?;
         } else if !deleted_snapshots.is_empty() {
             tracing::info!(
@@ -245,13 +245,15 @@ impl BlockReverter {
         storage_root_hash: H256,
     ) -> anyhow::Result<()> {
         let db = RocksDB::new(path).context("failed initializing RocksDB for Merkle tree")?;
-        let mut tree = ZkSyncTree::new_lightweight(db.into());
+        let mut tree =
+            ZkSyncTree::new_lightweight(db.into()).context("failed initializing Merkle tree")?;
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
             tracing::info!("Tree is behind the L1 batch to roll back to; skipping");
             return Ok(());
         }
-        tree.roll_back_logs(last_l1_batch_to_keep);
+        tree.roll_back_logs(last_l1_batch_to_keep)
+            .context("cannot roll back Merkle tree")?;
 
         tracing::info!("Checking match of the tree root hash and root hash from Postgres");
         let tree_root_hash = tree.root_hash();
@@ -260,7 +262,7 @@ impl BlockReverter {
             "Mismatch between the tree root hash {tree_root_hash:?} and storage root hash {storage_root_hash:?} after rollback"
         );
         tracing::info!("Saving tree changes to disk");
-        tree.save();
+        tree.save().context("failed saving tree changes")?;
         Ok(())
     }
 
@@ -377,6 +379,8 @@ impl BlockReverter {
         object_store: &dyn ObjectStore,
         deleted_snapshots: &[SnapshotMetadata],
     ) -> anyhow::Result<()> {
+        const CONCURRENT_REMOVE_REQUESTS: usize = 20;
+
         fn ignore_not_found_errors(err: ObjectStoreError) -> Result<(), ObjectStoreError> {
             match err {
                 ObjectStoreError::KeyNotFound(err) => {
@@ -416,18 +420,46 @@ impl BlockReverter {
                 });
             combine_results(&mut overall_result, result);
 
-            for chunk_id in 0..snapshot.storage_logs_filepaths.len() as u64 {
+            let mut is_incomplete_snapshot = false;
+            let chunk_ids_iter = (0_u64..)
+                .zip(&snapshot.storage_logs_filepaths)
+                .filter_map(|(chunk_id, path)| {
+                    if path.is_none() {
+                        if !is_incomplete_snapshot {
+                            is_incomplete_snapshot = true;
+                            tracing::warn!(
+                                "Snapshot for L1 batch #{} is incomplete (misses al least storage logs chunk ID {chunk_id}). \
+                                 It is probable that it's currently being created, in which case you'll need to clean up produced files \
+                                 manually afterwards",
+                                snapshot.l1_batch_number
+                            );
+                        }
+                        return None;
+                    }
+                    Some(chunk_id)
+                });
+
+            let remove_semaphore = &Semaphore::new(CONCURRENT_REMOVE_REQUESTS);
+            let remove_futures = chunk_ids_iter.map(|chunk_id| async move {
+                let _permit = remove_semaphore
+                    .acquire()
+                    .await
+                    .context("semaphore is never closed")?;
+
                 let key = SnapshotStorageLogsStorageKey {
                     l1_batch_number: snapshot.l1_batch_number,
                     chunk_id,
                 };
                 tracing::info!("Removing storage logs chunk {key:?}");
-
-                let result = object_store
+                object_store
                     .remove::<SnapshotStorageLogsChunk>(key)
                     .await
                     .or_else(ignore_not_found_errors)
-                    .with_context(|| format!("failed removing storage logs chunk {key:?}"));
+                    .with_context(|| format!("failed removing storage logs chunk {key:?}"))
+            });
+            let remove_results = futures::future::join_all(remove_futures).await;
+
+            for result in remove_results {
                 combine_results(&mut overall_result, result);
             }
         }
@@ -449,27 +481,15 @@ impl BlockReverter {
 
         let contract = hyperchain_contract();
 
-        // It is expected that for all new chains `revertBatchesSharedBridge` can be used.
-        // For Era, we are using `revertBatches` function for backwards compatibility in case the migration
-        // to the shared bridge is not yet complete.
-        let data = if eth_config.hyperchain_id == eth_config.era_chain_id {
-            let revert_function = contract
-                .function("revertBatches")
-                .context("`revertBatches` function must be present in contract")?;
-            revert_function
-                .encode_input(&[Token::Uint(last_l1_batch_to_keep.0.into())])
-                .context("failed encoding `revertBatches` input")?
-        } else {
-            let revert_function = contract
-                .function("revertBatchesSharedBridge")
-                .context("`revertBatchesSharedBridge` function must be present in contract")?;
-            revert_function
-                .encode_input(&[
-                    Token::Uint(eth_config.hyperchain_id.as_u64().into()),
-                    Token::Uint(last_l1_batch_to_keep.0.into()),
-                ])
-                .context("failed encoding `revertBatchesSharedBridge` input")?
-        };
+        let revert_function = contract
+            .function("revertBatchesSharedBridge")
+            .context("`revertBatchesSharedBridge` function must be present in contract")?;
+        let data = revert_function
+            .encode_input(&[
+                Token::Uint(eth_config.hyperchain_id.as_u64().into()),
+                Token::Uint(last_l1_batch_to_keep.0.into()),
+            ])
+            .context("failed encoding `revertBatchesSharedBridge` input")?;
 
         let options = Options {
             nonce: Some(nonce.into()),
@@ -511,7 +531,7 @@ impl BlockReverter {
 
     #[tracing::instrument(err)]
     async fn get_l1_batch_number_from_contract(
-        eth_client: &dyn EthInterface,
+        eth_client: &DynClient<L1>,
         contract_address: Address,
         op: AggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
@@ -533,7 +553,7 @@ impl BlockReverter {
     /// Returns suggested values for a reversion.
     pub async fn suggested_values(
         &self,
-        eth_client: &dyn EthInterface,
+        eth_client: &DynClient<L1>,
         eth_config: &BlockReverterEthConfig,
         reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {

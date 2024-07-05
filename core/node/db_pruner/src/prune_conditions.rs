@@ -5,12 +5,17 @@ use chrono::Utc;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
-use crate::PruneCondition;
+#[async_trait]
+pub(crate) trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
+    fn metric_label(&self) -> &'static str;
+
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
+}
 
 #[derive(Debug)]
 pub(super) struct L1BatchOlderThanPruneCondition {
     pub minimum_age: Duration,
-    pub conn: ConnectionPool<Core>,
+    pub pool: ConnectionPool<Core>,
 }
 
 impl fmt::Display for L1BatchOlderThanPruneCondition {
@@ -21,8 +26,12 @@ impl fmt::Display for L1BatchOlderThanPruneCondition {
 
 #[async_trait]
 impl PruneCondition for L1BatchOlderThanPruneCondition {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_older_than_minimum_age"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.connection().await?;
+        let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let l1_batch_header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -36,19 +45,23 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
 
 #[derive(Debug)]
 pub(super) struct NextL1BatchWasExecutedCondition {
-    pub conn: ConnectionPool<Core>,
+    pub pool: ConnectionPool<Core>,
 }
 
 impl fmt::Display for NextL1BatchWasExecutedCondition {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "next L1 batch was executed")
+        formatter.write_str("next L1 batch was executed")
     }
 }
 
 #[async_trait]
 impl PruneCondition for NextL1BatchWasExecutedCondition {
+    fn metric_label(&self) -> &'static str {
+        "next_l1_batch_was_executed"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.connection().await?;
+        let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
         let last_executed_batch = storage
             .blocks_dal()
@@ -62,53 +75,68 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
 
 #[derive(Debug)]
 pub(super) struct NextL1BatchHasMetadataCondition {
-    pub conn: ConnectionPool<Core>,
+    pub pool: ConnectionPool<Core>,
 }
 
 impl fmt::Display for NextL1BatchHasMetadataCondition {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "next L1 batch has metadata")
+        formatter.write_str("next L1 batch has metadata")
     }
 }
 
 #[async_trait]
 impl PruneCondition for NextL1BatchHasMetadataCondition {
+    fn metric_label(&self) -> &'static str {
+        "next_l1_batch_has_metadata"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.connection().await?;
+        let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
-        let protocol_version = storage
+        let Some(batch) = storage
             .blocks_dal()
-            .get_batch_protocol_version_id(next_l1_batch_number)
-            .await?;
-        // That old l1 batches must have been processed and those old batches are problematic
-        // as they have metadata that is not easily retrievable(misses some fields in db)
-        let old_protocol_version = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
-        if old_protocol_version {
-            return Ok(true);
-        }
-        let l1_batch_metadata = storage
-            .blocks_dal()
-            .get_l1_batch_metadata(next_l1_batch_number)
-            .await?;
-        Ok(l1_batch_metadata.is_some())
+            .get_optional_l1_batch_metadata(next_l1_batch_number)
+            .await?
+        else {
+            return Ok(false);
+        };
+
+        Ok(if let Err(err) = &batch.metadata {
+            // Metadata may be incomplete for very old batches on full nodes.
+            let protocol_version = batch.header.protocol_version;
+            let is_old = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
+            if is_old {
+                tracing::info!(
+                    "Error getting metadata for L1 batch #{next_l1_batch_number} \
+                    with old protocol version {protocol_version:?}: {err}"
+                );
+            }
+            is_old
+        } else {
+            true
+        })
     }
 }
 
 #[derive(Debug)]
 pub(super) struct L1BatchExistsCondition {
-    pub conn: ConnectionPool<Core>,
+    pub pool: ConnectionPool<Core>,
 }
 
 impl fmt::Display for L1BatchExistsCondition {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "L1 batch exists")
+        formatter.write_str("L1 batch exists")
     }
 }
 
 #[async_trait]
 impl PruneCondition for L1BatchExistsCondition {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_exists"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.connection().await?;
+        let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let l1_batch_header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -119,19 +147,23 @@ impl PruneCondition for L1BatchExistsCondition {
 
 #[derive(Debug)]
 pub(super) struct ConsistencyCheckerProcessedBatch {
-    pub conn: ConnectionPool<Core>,
+    pub pool: ConnectionPool<Core>,
 }
 
 impl fmt::Display for ConsistencyCheckerProcessedBatch {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "L1 batch was processed by consistency checker")
+        formatter.write_str("L1 batch was processed by consistency checker")
     }
 }
 
 #[async_trait]
 impl PruneCondition for ConsistencyCheckerProcessedBatch {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_consistency_checked"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.connection().await?;
+        let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let last_processed_l1_batch = storage
             .blocks_dal()
             .get_consistency_checker_last_processed_l1_batch()

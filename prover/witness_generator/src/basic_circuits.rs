@@ -12,15 +12,15 @@ use circuit_definitions::{
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
-use multivm::vm_latest::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
-};
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{Core, CoreDal};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
+};
+use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -42,8 +42,8 @@ use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     block::StorageOracleInfo,
-    protocol_version::ProtocolVersionId,
-    Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256,
+    protocol_version::ProtocolSemanticVersion,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -89,21 +89,21 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     connection_pool: ConnectionPool<Core>,
     prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
 }
 
 impl BasicWitnessGenerator {
-    pub async fn new(
+    pub fn new(
         config: FriWitnessGeneratorConfig,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Core>,
         prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            object_store: store_factory.create_store().await,
+            object_store,
             public_blob_store,
             connection_pool,
             prover_connection_pool,
@@ -485,14 +485,14 @@ async fn generate_witness(
 
     let bootloader_code_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.bootloader)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.bootloader)
         .await
         .expect("Failed fetching bootloader bytecode from DB")
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
         .factory_deps_dal()
-        .get_factory_dep(header.base_system_contracts_hashes.default_aa)
+        .get_sealed_factory_dep(header.base_system_contracts_hashes.default_aa)
         .await
         .expect("Failed fetching default account bytecode from DB")
         .expect("Default account bytecode should exist");

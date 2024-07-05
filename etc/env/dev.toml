@@ -1,6 +1,5 @@
 [_metadata]
 base = [
-    'base/alerts.toml',
     'base/api.toml',
     'base/chain.toml',
     'base/contract_verifier.toml',

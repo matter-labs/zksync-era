@@ -3,7 +3,7 @@ use zk_evm_1_5_0::aux_structures::MemoryPage;
 pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
+use zksync_system_constants::MAX_NEW_FACTORY_DEPS;
 
 use super::vm::MultiVMSubversion;
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
@@ -160,7 +160,7 @@ pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
 pub const BATCH_GAS_LIMIT: u64 = 1 << 50;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
-pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
+pub const ETH_CALL_GAS_LIMIT: u64 = BATCH_GAS_LIMIT;
 
 /// ID of the transaction from L1
 pub const L1_TX_TYPE: u8 = 255;

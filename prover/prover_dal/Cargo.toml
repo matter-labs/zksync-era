@@ -1,5 +1,5 @@
 [package]
-name = "prover_dal"
+name = "zksync_prover_dal"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

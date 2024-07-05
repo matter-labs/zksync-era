@@ -37,6 +37,7 @@ pub struct ContractsConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
+    // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Option<Address>,
 }
 

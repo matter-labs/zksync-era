@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::{
-    configs::eth_sender::SenderConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
+    configs::{eth_sender::SenderConfig, L1Secrets},
+    EthConfig, EthWatchConfig, GasAdjusterConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -11,7 +12,14 @@ impl FromEnv for EthConfig {
             sender: SenderConfig::from_env().ok(),
             gas_adjuster: GasAdjusterConfig::from_env().ok(),
             watcher: EthWatchConfig::from_env().ok(),
-            web3_url: std::env::var("ETH_CLIENT_WEB3_URL")
+        })
+    }
+}
+
+impl FromEnv for L1Secrets {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            l1_rpc_url: std::env::var("ETH_CLIENT_WEB3_URL")
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
@@ -33,58 +41,59 @@ impl FromEnv for GasAdjusterConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::eth_sender::{
-        ProofLoadingMode, ProofSendingMode, PubdataSendingMode,
-    };
+    use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
 
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> EthConfig {
-        EthConfig {
-            sender: Some(SenderConfig {
-                aggregated_proof_sizes: vec![1, 5],
-                aggregated_block_commit_deadline: 30,
-                aggregated_block_prove_deadline: 3_000,
-                aggregated_block_execute_deadline: 4_000,
-                max_aggregated_tx_gas: 4_000_000,
-                max_eth_tx_data_size: 120_000,
+    fn expected_config() -> (EthConfig, L1Secrets) {
+        (
+            EthConfig {
+                sender: Some(SenderConfig {
+                    aggregated_proof_sizes: vec![1, 5],
+                    aggregated_block_commit_deadline: 30,
+                    aggregated_block_prove_deadline: 3_000,
+                    aggregated_block_execute_deadline: 4_000,
+                    max_aggregated_tx_gas: 4_000_000,
+                    max_eth_tx_data_size: 120_000,
 
-                timestamp_criteria_max_allowed_lag: 30,
-                max_aggregated_blocks_to_commit: 3,
-                max_aggregated_blocks_to_execute: 4,
-                wait_confirmations: Some(1),
-                tx_poll_period: 3,
-                aggregate_tx_poll_period: 3,
-                max_txs_in_flight: 3,
-                proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                l1_batch_min_age_before_execute_seconds: Some(1000),
-                max_acceptable_priority_fee_in_gwei: 100_000_000_000,
-                proof_loading_mode: ProofLoadingMode::OldProofFromDb,
-                pubdata_sending_mode: PubdataSendingMode::Calldata,
-            }),
-            gas_adjuster: Some(GasAdjusterConfig {
-                default_priority_fee_per_gas: 20000000000,
-                max_base_fee_samples: 10000,
-                pricing_formula_parameter_a: 1.5,
-                pricing_formula_parameter_b: 1.0005,
-                internal_l1_pricing_multiplier: 0.8,
-                internal_enforced_l1_gas_price: None,
-                internal_enforced_pubdata_price: None,
-                poll_period: 15,
-                max_l1_gas_price: Some(100000000),
-                num_samples_for_blob_base_fee_estimate: 10,
-                internal_pubdata_pricing_multiplier: 1.0,
-                max_blob_base_fee: None,
-            }),
-            watcher: Some(EthWatchConfig {
-                confirmations_for_eth_event: Some(0),
-                eth_node_poll_interval: 300,
-            }),
-            web3_url: "http://127.0.0.1:8545".parse().unwrap(),
-        }
+                    timestamp_criteria_max_allowed_lag: 30,
+                    max_aggregated_blocks_to_commit: 3,
+                    max_aggregated_blocks_to_execute: 4,
+                    wait_confirmations: Some(1),
+                    tx_poll_period: 3,
+                    aggregate_tx_poll_period: 3,
+                    max_txs_in_flight: 3,
+                    proof_sending_mode: ProofSendingMode::SkipEveryProof,
+                    l1_batch_min_age_before_execute_seconds: Some(1000),
+                    max_acceptable_priority_fee_in_gwei: 100_000_000_000,
+                    pubdata_sending_mode: PubdataSendingMode::Calldata,
+                }),
+                gas_adjuster: Some(GasAdjusterConfig {
+                    default_priority_fee_per_gas: 20000000000,
+                    max_base_fee_samples: 10000,
+                    pricing_formula_parameter_a: 1.5,
+                    pricing_formula_parameter_b: 1.0005,
+                    internal_l1_pricing_multiplier: 0.8,
+                    internal_enforced_l1_gas_price: None,
+                    internal_enforced_pubdata_price: None,
+                    poll_period: 15,
+                    max_l1_gas_price: Some(100000000),
+                    num_samples_for_blob_base_fee_estimate: 10,
+                    internal_pubdata_pricing_multiplier: 1.0,
+                    max_blob_base_fee: None,
+                }),
+                watcher: Some(EthWatchConfig {
+                    confirmations_for_eth_event: Some(0),
+                    eth_node_poll_interval: 300,
+                }),
+            },
+            L1Secrets {
+                l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
+            },
+        )
     }
 
     #[test]
@@ -121,7 +130,6 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
-            ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
 
@@ -129,7 +137,7 @@ mod tests {
         lock.set_env(config);
 
         let actual = EthConfig::from_env().unwrap();
-        assert_eq!(actual, expected_config());
+        assert_eq!(actual, expected_config().0);
         let private_key = actual
             .sender
             .unwrap()
@@ -140,5 +148,7 @@ mod tests {
             private_key.expose_secret().secret_bytes(),
             hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be").as_bytes()
         );
+        let actual = L1Secrets::from_env().unwrap();
+        assert_eq!(actual, expected_config().1);
     }
 }

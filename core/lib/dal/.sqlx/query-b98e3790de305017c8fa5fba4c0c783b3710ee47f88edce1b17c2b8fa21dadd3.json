@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_version\n            FROM\n                transactions\n                INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number\n            WHERE\n                transactions.hash = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b98e3790de305017c8fa5fba4c0c783b3710ee47f88edce1b17c2b8fa21dadd3"
+}

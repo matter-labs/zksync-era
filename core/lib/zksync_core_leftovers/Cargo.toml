@@ -1,0 +1,21 @@
+[package]
+name = "zksync_core_leftovers"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_protobuf.workspace = true
+zksync_node_genesis.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["time"] }
+serde_yaml.workspace = true
+ctrlc.workspace = true

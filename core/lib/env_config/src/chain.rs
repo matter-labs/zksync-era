@@ -36,8 +36,8 @@ impl FromEnv for MempoolConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::L2ChainId;
-    use zksync_config::configs::chain::{FeeModelVersion, L1BatchCommitDataGeneratorMode};
+    use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+    use zksync_config::configs::chain::FeeModelVersion;
 
     use super::*;
     use crate::test_utils::{addr, hash, EnvMutex};
@@ -70,7 +70,7 @@ mod tests {
 
     #[allow(deprecated)]
     fn expected_state_keeper_config(
-        l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
@@ -104,6 +104,7 @@ mod tests {
             )),
             l1_batch_commit_data_generator_mode,
             max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
         }
     }
 
@@ -152,11 +153,11 @@ mod tests {
     fn state_keeper_from_env() {
         _state_keeper_from_env(
             &state_keeper_config(ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
-            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Rollup),
+            expected_state_keeper_config(L1BatchCommitmentMode::Rollup),
         );
         _state_keeper_from_env(
             &state_keeper_config(VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
-            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Validium),
+            expected_state_keeper_config(L1BatchCommitmentMode::Validium),
         );
     }
 
@@ -217,7 +218,7 @@ mod tests {
     fn default_state_keeper_mode() {
         assert_eq!(
             StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
-            L1BatchCommitDataGeneratorMode::Rollup
+            L1BatchCommitmentMode::Rollup
         );
     }
 }

@@ -29,10 +29,31 @@ syntax = "proto3";
 
 package zksync.core.consensus;
 
+import "zksync/std.proto";
+
 // (public key, ip address) of a gossip network node.
 message NodeAddr {
   optional string key = 1; // required; NodePublicKey
   optional string addr = 2; // required; IpAddr
+}
+
+// Weighted member of a validator committee. 
+message WeightedValidator {
+  optional string key = 1; // required; ValidatorPublicKey
+  optional uint64 weight = 2; // required
+}
+
+// Consensus genesis specification.
+message GenesisSpec {
+  optional uint64 chain_id = 1; // required; L2ChainId, should be the same as `l2_chain_id` in the `zksync.config.genesis.Genesis`.
+  optional uint32 protocol_version = 2; // required; validator::ProtocolVersion
+  repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
+  optional string leader = 4; // required; ValidatorPublicKey
+}
+
+// Per peer connection RPC rate limits.
+message RpcConfig {
+  optional std.RateLimit get_block_rate = 1; // optional; defaults to 10 blocks/s.
 }
 
 message Config {
@@ -60,9 +81,14 @@ message Config {
   // Outbound gossip network connections that the node should actively try to
   // establish and maintain.
   repeated NodeAddr gossip_static_outbound = 7;
+
+  // MAIN NODE ONLY: consensus genesis specification.
+  // Used to (re)initialize genesis if needed.
+  // External nodes fetch the genesis from the main node.
+  optional GenesisSpec genesis_spec = 8;
+
+  // RPC rate limits configuration.
+  // If missing, defaults are used.
+  optional RpcConfig rpc_config = 9; // optional
 }
 
-message Secrets {
-  optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
-  optional string node_key = 2; // required for any node; NodeSecretKey
-}

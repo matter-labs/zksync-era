@@ -1,0 +1,48 @@
+[package]
+name = "zksync_metadata_calculator"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_crypto.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_types.workspace = true
+zksync_config.workspace = true
+zksync_storage.workspace = true
+zksync_shared_metrics.workspace = true
+zksync_utils.workspace = true
+zksync_object_store.workspace = true
+vise.workspace = true
+
+async-trait.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["time"] }
+thiserror.workspace = true
+tracing.workspace = true
+once_cell.workspace = true
+futures.workspace = true
+itertools.workspace = true
+
+# dependencies for the tree API server
+reqwest.workspace = true
+axum.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true
+zksync_prover_interface.workspace = true
+
+assert_matches.workspace = true
+tempfile.workspace = true
+test-casing.workspace = true
+itertools.workspace = true

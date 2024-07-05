@@ -6,19 +6,20 @@ use rand::Rng;
 use tokio::time::timeout;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::{Address, K256PrivateKey, L2ChainId, H256};
+use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
     config::LoadtestConfig,
     corrupted_tx::CorruptedSigner,
     fs_utils::{loadnext_contract, TestContract},
     rng::{LoadtestRng, Random},
-    sdk::{signer::Signer, HttpClient, HttpClientBuilder, Wallet, ZksNamespaceClient},
+    sdk::{signer::Signer, Wallet, ZksNamespaceClient},
 };
 
 /// An alias to [`zksync::Wallet`] with HTTP client. Wrapped in `Arc` since
 /// the client cannot be cloned due to limitations in jsonrpsee.
-pub type SyncWallet = Arc<Wallet<PrivateKeySigner, HttpClient>>;
-pub type CorruptedSyncWallet = Arc<Wallet<CorruptedSigner, HttpClient>>;
+pub type SyncWallet = Arc<Wallet<PrivateKeySigner, Client<L2>>>;
+pub type CorruptedSyncWallet = Arc<Wallet<CorruptedSigner, Client<L2>>>;
 
 /// Thread-safe pool of the addresses of accounts used in the loadtest.
 #[derive(Debug, Clone)]
@@ -76,7 +77,7 @@ pub struct TestWallet {
 }
 
 /// Pool of accounts to be used in the test.
-/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with zkSync.
+/// Each account is represented as `zksync::Wallet` in order to provide convenient interface of interaction with ZKsync.
 #[derive(Debug)]
 pub struct AccountPool {
     /// Main wallet that will be used to initialize all the test wallets.
@@ -90,12 +91,18 @@ pub struct AccountPool {
 impl AccountPool {
     /// Generates all the required test accounts and prepares `Wallet` objects.
     pub async fn new(config: &LoadtestConfig) -> anyhow::Result<Self> {
-        let l2_chain_id = L2ChainId::try_from(config.l2_chain_id).unwrap();
+        let l2_chain_id = L2ChainId::try_from(config.l2_chain_id)
+            .map_err(|err| anyhow::anyhow!("invalid L2 chain ID: {err}"))?;
         // Create a client for pinging the RPC.
-        let client = HttpClientBuilder::default()
-            .build(&config.l2_rpc_address)
-            .unwrap();
-        // Perform a health check: check whether zkSync server is alive.
+        let client = Client::http(
+            config
+                .l2_rpc_address
+                .parse()
+                .context("invalid L2 RPC URL")?,
+        )?
+        .for_network(l2_chain_id.into())
+        .build();
+        // Perform a health check: check whether ZKsync server is alive.
         let mut server_alive = false;
         for _ in 0usize..3 {
             if let Ok(Ok(_)) = timeout(Duration::from_secs(3), client.get_main_contract()).await {
@@ -104,7 +111,7 @@ impl AccountPool {
             }
         }
         if !server_alive {
-            anyhow::bail!("zkSync server does not respond. Please check RPC address and whether server is launched");
+            anyhow::bail!("ZKsync server does not respond. Please check RPC address and whether server is launched");
         }
 
         let test_contract = loadnext_contract(&config.test_contracts_path)?;

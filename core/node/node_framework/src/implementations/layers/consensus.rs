@@ -1,13 +1,10 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_core::{
-    consensus::{self, MainNodeConfig},
-    sync_layer::{ActionQueueSender, SyncState},
-};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_types::L2ChainId;
-use zksync_web3_decl::client::BoxedL2Client;
+use zksync_node_consensus as consensus;
+use zksync_node_sync::{ActionQueueSender, SyncState};
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{
     implementations::resources::{
@@ -17,7 +14,7 @@ use crate::{
         sync_state::SyncStateResource,
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -27,12 +24,25 @@ pub enum Mode {
     External,
 }
 
+/// Wiring layer for consensus component.
+/// Can work in either "main" or "external" mode.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource` (if `Mode::External`)
+/// - `SyncStateResource` (if `Mode::External`)
+/// - `ActionQueueSenderResource` (if `Mode::External`)
+///
+/// ## Adds tasks
+///
+/// - `MainNodeConsensusTask` (if `Mode::Main`)
+/// - `ExternalNodeTask` (if `Mode::External`)
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
-    pub chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -43,8 +53,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
 
@@ -56,22 +65,18 @@ impl WiringLayer for ConsensusLayer {
                 let secrets = self.secrets.ok_or_else(|| {
                     WiringError::Configuration("Missing private consensus config".to_string())
                 })?;
-
-                let main_node_config =
-                    consensus::config::main_node(&config, &secrets, self.chain_id)?;
-
                 let task = MainNodeConsensusTask {
-                    config: main_node_config,
+                    config,
+                    secrets,
                     pool,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
             Mode::External => {
-                let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
-                let sync_state = context.get_resource::<SyncStateResource>().await?.0;
+                let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
+                let sync_state = context.get_resource::<SyncStateResource>()?.0;
                 let action_queue_sender = context
-                    .get_resource::<ActionQueueSenderResource>()
-                    .await?
+                    .get_resource::<ActionQueueSenderResource>()?
                     .0
                     .take()
                     .ok_or_else(|| {
@@ -94,14 +99,14 @@ impl WiringLayer for ConsensusLayer {
                     }
                 };
 
-                let task = FetcherTask {
+                let task = ExternalNodeTask {
                     config,
                     pool,
                     main_node_client,
                     sync_state,
                     action_queue_sender,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
         }
         Ok(())
@@ -110,26 +115,32 @@ impl WiringLayer for ConsensusLayer {
 
 #[derive(Debug)]
 pub struct MainNodeConsensusTask {
-    config: MainNodeConfig,
+    config: ConsensusConfig,
+    secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]
 impl Task for MainNodeConsensusTask {
-    fn name(&self) -> &'static str {
-        "consensus"
+    fn id(&self) -> TaskId {
+        "consensus".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async move {
-            s.spawn_bg(consensus::era::run_main_node(ctx, self.config, self.pool));
+            s.spawn_bg(consensus::era::run_main_node(
+                ctx,
+                self.config,
+                self.secrets,
+                self.pool,
+            ));
             let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })
@@ -138,38 +149,38 @@ impl Task for MainNodeConsensusTask {
 }
 
 #[derive(Debug)]
-pub struct FetcherTask {
+pub struct ExternalNodeTask {
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
-    main_node_client: BoxedL2Client,
+    main_node_client: Box<DynClient<L2>>,
     sync_state: SyncState,
     action_queue_sender: ActionQueueSender,
 }
 
 #[async_trait::async_trait]
-impl Task for FetcherTask {
-    fn name(&self) -> &'static str {
-        "consensus_fetcher"
+impl Task for ExternalNodeTask {
+    fn id(&self) -> TaskId {
+        "consensus_fetcher".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We instantiate the root context here, since the consensus task is the only user of the
-        // structured concurrency framework (`MainNodeConsensusTask` and `FetcherTask` are considered mutually
+        // structured concurrency framework (`MainNodeConsensusTask` and `ExternalNodeTask` are considered mutually
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
-            s.spawn_bg(zksync_core::consensus::era::run_fetcher(
-                &root_ctx,
+            s.spawn_bg(consensus::era::run_external_node(
+                ctx,
                 self.config,
                 self.pool,
                 self.sync_state,
                 self.main_node_client,
                 self.action_queue_sender,
             ));
-            ctx.wait(stop_receiver.0.wait_for(|stop| *stop)).await??;
+            let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })
         .await

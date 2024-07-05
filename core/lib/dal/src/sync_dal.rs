@@ -15,11 +15,15 @@ pub struct SyncDal<'a, 'c> {
 }
 
 impl SyncDal<'_, '_> {
-    pub(super) async fn sync_block_inner(
+    pub(super) async fn sync_blocks_inner(
         &mut self,
-        block_number: L2BlockNumber,
-    ) -> DalResult<Option<SyncBlock>> {
-        let block = sqlx::query_as!(
+        numbers: std::ops::Range<L2BlockNumber>,
+    ) -> DalResult<Vec<SyncBlock>> {
+        // Check if range is non-empty, because BETWEEN in SQL in `unordered`.
+        if numbers.is_empty() {
+            return Ok(vec![]);
+        }
+        let blocks = sqlx::query_as!(
             StorageSyncBlock,
             r#"
             SELECT
@@ -39,14 +43,7 @@ impl SyncDal<'_, '_> {
                             snapshot_recovery
                     )
                 ) AS "l1_batch_number!",
-                (
-                    SELECT
-                        MAX(m2.number)
-                    FROM
-                        miniblocks m2
-                    WHERE
-                        miniblocks.l1_batch_number = m2.l1_batch_number
-                ) AS "last_batch_miniblock?",
+                (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
@@ -60,35 +57,44 @@ impl SyncDal<'_, '_> {
             FROM
                 miniblocks
             WHERE
-                miniblocks.number = $1
+                miniblocks.number BETWEEN $1 AND $2
             "#,
-            i64::from(block_number.0)
+            i64::from(numbers.start.0),
+            i64::from(numbers.end.0 - 1),
         )
         .try_map(SyncBlock::try_from)
-        .instrument("sync_dal_sync_block.block")
-        .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage)
+        .instrument("sync_dal_sync_blocks.block")
+        .with_arg("numbers", &numbers)
+        .fetch_all(self.storage)
         .await?;
 
-        Ok(block)
+        Ok(blocks)
     }
 
     pub async fn sync_block(
         &mut self,
-        block_number: L2BlockNumber,
+        number: L2BlockNumber,
         include_transactions: bool,
     ) -> DalResult<Option<en::SyncBlock>> {
         let _latency = MethodLatency::new("sync_dal_sync_block");
-        let Some(block) = self.sync_block_inner(block_number).await? else {
+        let numbers = number..number + 1;
+        let Some(block) = self
+            .sync_blocks_inner(numbers.clone())
+            .await?
+            .into_iter()
+            .next()
+        else {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            let transactions = self
+            let mut transactions = self
                 .storage
                 .transactions_web3_dal()
-                .get_raw_l2_block_transactions(block_number)
+                .get_raw_l2_blocks_transactions(numbers)
                 .await?;
-            Some(transactions)
+            // If there are no transactions in the block,
+            // return `Some(vec![])`.
+            Some(transactions.remove(&number).unwrap_or_default())
         } else {
             None
         };
@@ -152,6 +158,7 @@ mod tests {
         // Insert another block in the store.
         let miniblock_header = L2BlockHeader {
             fee_account_address: Address::repeat_byte(0x42),
+            l2_tx_count: 1,
             ..create_l2_block_header(1)
         };
         let tx = mock_l2_transaction();
@@ -168,6 +175,8 @@ mod tests {
                 L2BlockNumber(1),
                 &[mock_execution_result(tx.clone())],
                 1.into(),
+                ProtocolVersionId::latest(),
+                false,
             )
             .await
             .unwrap();
@@ -210,6 +219,16 @@ mod tests {
         let transactions = block.transactions.unwrap();
         assert_eq!(transactions, [Transaction::from(tx)]);
 
+        let miniblock_header = L2BlockHeader {
+            fee_account_address: Address::repeat_byte(0x42),
+            l2_tx_count: 0,
+            ..create_l2_block_header(2)
+        };
+        conn.blocks_dal()
+            .insert_l2_block(&miniblock_header)
+            .await
+            .unwrap();
+
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
@@ -223,7 +242,7 @@ mod tests {
 
         let block = conn
             .sync_dal()
-            .sync_block(L2BlockNumber(1), true)
+            .sync_block(L2BlockNumber(2), true)
             .await
             .unwrap()
             .expect("no sync block");

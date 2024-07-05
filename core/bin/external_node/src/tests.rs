@@ -2,11 +2,17 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_basic_types::protocol_version::ProtocolVersionId;
+use zksync_dal::CoreDal;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{api, ethabi, fee_model::FeeParams, L1BatchNumber, L2BlockNumber, H256, U64};
-use zksync_web3_decl::client::{BoxedL2Client, MockL2Client};
+use zksync_types::{
+    api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    H256, U64,
+};
+use zksync_web3_decl::{
+    client::{MockClient, L1},
+    jsonrpsee::core::ClientError,
+};
 
 use super::*;
 
@@ -28,6 +34,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -94,11 +101,39 @@ fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str>
     output
 }
 
+fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
+    let mock = MockEthereum::builder().with_call_handler(move |call, _| {
+        tracing::info!("L1 call: {call:?}");
+        if call.to == Some(diamond_proxy_addr) {
+            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
+            let call_signature = &call.data.as_ref().unwrap().0[..4];
+            let contract = zksync_contracts::hyperchain_contract();
+            let pricing_mode_sig = contract
+                .function("getPubdataPricingMode")
+                .unwrap()
+                .short_signature();
+            let protocol_version_sig = contract
+                .function("getProtocolVersion")
+                .unwrap()
+                .short_signature();
+            match call_signature {
+                sig if sig == pricing_mode_sig => {
+                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
+                }
+                sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
+                _ => { /* unknown call; panic below */ }
+            }
+        }
+        panic!("Unexpected L1 call: {call:?}");
+    });
+    mock.build().into_client()
+}
+
 #[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
-    let _guard = vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
@@ -120,9 +155,13 @@ async fn external_node_basics(components_str: &'static str) {
     let components: ComponentsToRun = components_str.parse().unwrap();
     let expected_health_components = expected_health_components(&components);
     let opt = Cli {
-        revert_pending_l1_batch: false,
         enable_consensus: false,
         components,
+        config_path: None,
+        secrets_path: None,
+        external_node_config_path: None,
+        consensus_path: None,
+        use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
     if opt.components.0.contains(&Component::TreeApi) {
@@ -131,67 +170,33 @@ async fn external_node_basics(components_str: &'static str) {
 
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
 
-    let l2_client = MockL2Client::new(move |method, params| {
-        tracing::info!("Called L2 client: {method}({params:?})");
-        match method {
-            "eth_chainId" => Ok(serde_json::json!(U64::from(270))),
-            "zks_L1ChainId" => Ok(serde_json::json!(U64::from(9))),
-
-            "zks_L1BatchNumber" => Ok(serde_json::json!("0x0")),
-            "zks_getL1BatchDetails" => {
-                let (number,): (L1BatchNumber,) = serde_json::from_value(params)?;
-                assert_eq!(number, L1BatchNumber(0));
-                Ok(serde_json::to_value(api::L1BatchDetails {
-                    number: L1BatchNumber(0),
-                    base: block_details_base(genesis_params.root_hash),
-                })?)
-            }
-            "eth_blockNumber" => Ok(serde_json::json!("0x0")),
-            "eth_getBlockByNumber" => {
-                let (number, _): (api::BlockNumber, bool) = serde_json::from_value(params)?;
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || Ok(U64::from(0)))
+        .method("zks_getL1BatchDetails", move |number: L1BatchNumber| {
+            assert_eq!(number, L1BatchNumber(0));
+            Ok(api::L1BatchDetails {
+                number: L1BatchNumber(0),
+                base: block_details_base(genesis_params.root_hash),
+            })
+        })
+        .method("eth_blockNumber", || Ok(U64::from(0)))
+        .method(
+            "eth_getBlockByNumber",
+            move |number: api::BlockNumber, _with_txs: bool| {
                 assert_eq!(number, api::BlockNumber::Number(0.into()));
-                Ok(serde_json::to_value(
-                    api::Block::<api::TransactionVariant> {
-                        hash: genesis_l2_block.hash,
-                        ..api::Block::default()
-                    },
-                )?)
-            }
-
-            "zks_getFeeParams" => Ok(serde_json::to_value(FeeParams::sensible_v1_default())?),
-            "en_whitelistedTokensForAA" => Ok(serde_json::json!([])),
-
-            _ => panic!("Unexpected call: {method}({params:?})"),
-        }
-    });
-    let l2_client = BoxedL2Client::new(l2_client);
-
-    let eth_client = MockEthereum::default().with_call_handler(move |call, _| {
-        tracing::info!("L1 call: {call:?}");
-        if call.to == Some(diamond_proxy_addr) {
-            let call_signature = &call.data.as_ref().unwrap().0[..4];
-            let contract = zksync_contracts::hyperchain_contract();
-            let pricing_mode_sig = contract
-                .function("getPubdataPricingMode")
-                .unwrap()
-                .short_signature();
-            let protocol_version_sig = contract
-                .function("getProtocolVersion")
-                .unwrap()
-                .short_signature();
-            match call_signature {
-                sig if sig == pricing_mode_sig => {
-                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
-                }
-                sig if sig == protocol_version_sig => {
-                    return ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
-                }
-                _ => { /* unknown call; panic below */ }
-            }
-        }
-        panic!("Unexpected L1 call: {call:?}");
-    });
-    let eth_client = Box::new(eth_client);
+                Ok(api::Block::<api::TransactionVariant> {
+                    hash: genesis_l2_block.hash,
+                    ..api::Block::default()
+                })
+            },
+        )
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let l2_client = Box::new(l2_client);
+    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
 
     let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::spawn(async move {
@@ -247,4 +252,70 @@ async fn external_node_basics(components_str: &'static str) {
         let component_health = &health_data.components()[name];
         assert_matches!(component_health.status(), HealthStatus::ShutDown);
     }
+}
+
+#[tokio::test]
+async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let temp_dir = tempfile::TempDir::new().unwrap();
+
+    let connection_pool = ConnectionPool::test_pool().await;
+    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
+    let mut storage = connection_pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    let opt = Cli {
+        enable_consensus: false,
+        components: "core".parse().unwrap(),
+        config_path: None,
+        secrets_path: None,
+        external_node_config_path: None,
+        consensus_path: None,
+        use_node_framework: false,
+    };
+    let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+    if opt.components.0.contains(&Component::TreeApi) {
+        config.tree_component.api_port = Some(0);
+    }
+
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("eth_blockNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let l2_client = Box::new(l2_client);
+    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
+
+    let (env, env_handles) = TestEnvironment::new();
+    let mut node_handle = tokio::spawn(async move {
+        run_node(
+            env,
+            &opt,
+            &config,
+            connection_pool,
+            singleton_pool_builder,
+            l2_client,
+            eth_client,
+        )
+        .await
+    });
+
+    // Check that the node doesn't stop on its own.
+    let timeout_result = tokio::time::timeout(Duration::from_millis(50), &mut node_handle).await;
+    assert_matches!(timeout_result, Err(tokio::time::error::Elapsed { .. }));
+
+    // Send a stop signal and check that the node reacts to it.
+    env_handles.sigint_sender.send(()).unwrap();
+    node_handle.await.unwrap().unwrap();
 }

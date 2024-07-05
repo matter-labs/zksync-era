@@ -1,4 +1,4 @@
-//! Definition of errors that can occur in the zkSync Web3 API.
+//! Definition of errors that can occur in the ZKsync Web3 API.
 
 use std::{
     collections::HashMap,
@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use jsonrpsee::core::ClientError;
+use jsonrpsee::{core::ClientError, types::error::ErrorCode};
 use pin_project_lite::pin_project;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, L2BlockNumber};
@@ -39,10 +39,12 @@ pub enum Web3Error {
     LogsLimitExceeded(usize, u32, u32),
     #[error("invalid filter: if blockHash is supplied fromBlock and toBlock must not be")]
     InvalidFilterBlockHash,
-    #[error("Not implemented")]
-    NotImplemented,
-
-    #[error("Tree API is not available")]
+    /// Weaker form of a "method not found" error; the method implementation is technically present,
+    /// but the node configuration prevents the method from functioning.
+    #[error("Method not implemented")]
+    MethodNotImplemented,
+    /// Unavailability caused by node configuration is returned as [`Self::MethodNotImplemented`].
+    #[error("Tree API is temporarily unavailable")]
     TreeApiUnavailable,
     #[error("Internal error")]
     InternalError(#[from] anyhow::Error),
@@ -85,10 +87,15 @@ impl EnrichedClientError {
 
     /// Whether the error should be considered transient.
     pub fn is_transient(&self) -> bool {
-        matches!(
-            self.as_ref(),
-            ClientError::Transport(_) | ClientError::RequestTimeout
-        )
+        match self.as_ref() {
+            ClientError::Transport(_) | ClientError::RequestTimeout => true,
+            ClientError::Call(err) => {
+                // At least some RPC providers use "internal error" in case of the server being overloaded
+                err.code() == ErrorCode::ServerIsBusy.code()
+                    || err.code() == ErrorCode::InternalError.code()
+            }
+            _ => false,
+        }
     }
 }
 

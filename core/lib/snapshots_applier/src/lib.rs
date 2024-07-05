@@ -1,6 +1,8 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    cmp::Ordering, collections::HashMap, fmt, mem, num::NonZeroUsize, sync::Arc, time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -16,11 +18,11 @@ use zksync_types::{
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
-    L1BatchNumber, L2BlockNumber, H256,
+    L1BatchNumber, L2BlockNumber, StorageKey, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
-    client::BoxedL2Client,
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::client,
     namespaces::{EnNamespaceClient, SnapshotsNamespaceClient, ZksNamespaceClient},
@@ -78,13 +80,10 @@ enum SnapshotsApplierError {
 
 impl SnapshotsApplierError {
     fn object_store(err: ObjectStoreError, context: String) -> Self {
-        match err {
-            ObjectStoreError::KeyNotFound(_) | ObjectStoreError::Serialization(_) => {
-                Self::Fatal(anyhow::Error::from(err).context(context))
-            }
-            ObjectStoreError::Other(_) => {
-                Self::Retryable(anyhow::Error::from(err).context(context))
-            }
+        if err.is_transient() {
+            Self::Retryable(anyhow::Error::from(err).context(context))
+        } else {
+            Self::Fatal(anyhow::Error::from(err).context(context))
         }
     }
 }
@@ -126,7 +125,14 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
         number: L2BlockNumber,
     ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>>;
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>>;
 
     async fn fetch_tokens(
         &self,
@@ -135,7 +141,7 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
 }
 
 #[async_trait]
-impl SnapshotsApplierMainNodeClient for BoxedL2Client {
+impl SnapshotsApplierMainNodeClient for Box<DynClient<L2>> {
     async fn fetch_l1_batch_details(
         &self,
         number: L1BatchNumber,
@@ -156,17 +162,23 @@ impl SnapshotsApplierMainNodeClient for BoxedL2Client {
             .await
     }
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>> {
         let snapshots = self
             .get_all_snapshots()
             .rpc_context("get_all_snapshots")
             .await?;
-        let Some(newest_snapshot) = snapshots.snapshots_l1_batch_numbers.first() else {
-            return Ok(None);
-        };
-        self.get_snapshot_by_l1_batch_number(*newest_snapshot)
+        Ok(snapshots.snapshots_l1_batch_numbers.first().copied())
+    }
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        self.get_snapshot_by_l1_batch_number(l1_batch_number)
             .rpc_context("get_snapshot_by_l1_batch_number")
-            .with_arg("number", newest_snapshot)
+            .with_arg("number", &l1_batch_number)
             .await
     }
 
@@ -181,8 +193,19 @@ impl SnapshotsApplierMainNodeClient for BoxedL2Client {
     }
 }
 
+/// Reported status of the snapshot recovery progress.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RecoveryCompletionStatus {
+    /// There is no infomration about snapshot recovery in the database.
+    NoRecoveryDetected,
+    /// Snapshot recovery is not finished yet.
+    InProgress,
+    /// Snapshot recovery is completed.
+    Completed,
+}
+
 /// Snapshot applier configuration options.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
     /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
@@ -226,6 +249,8 @@ pub struct SnapshotApplierTaskStats {
 
 #[derive(Debug)]
 pub struct SnapshotsApplierTask {
+    snapshot_l1_batch: Option<L1BatchNumber>,
+    drop_storage_key_preimages: bool,
     config: SnapshotsApplierConfig,
     health_updater: HealthUpdater,
     connection_pool: ConnectionPool<Core>,
@@ -241,12 +266,64 @@ impl SnapshotsApplierTask {
         blob_store: Arc<dyn ObjectStore>,
     ) -> Self {
         Self {
+            snapshot_l1_batch: None,
+            drop_storage_key_preimages: false,
             config,
             health_updater: ReactiveHealthCheck::new("snapshot_recovery").1,
             connection_pool,
             main_node_client,
             blob_store,
         }
+    }
+
+    /// Checks whether the snapshot recovery is already completed.
+    ///
+    /// Returns `None` if no snapshot recovery information is detected in the DB.
+    /// Returns `Some(true)` if the recovery is completed.
+    /// Returns `Some(false)` if the recovery is not completed.
+    pub async fn is_recovery_completed(
+        conn: &mut Connection<'_, Core>,
+        client: &dyn SnapshotsApplierMainNodeClient,
+    ) -> anyhow::Result<RecoveryCompletionStatus> {
+        let Some(applied_snapshot_status) = conn
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?
+        else {
+            return Ok(RecoveryCompletionStatus::NoRecoveryDetected);
+        };
+        // If there are unprocessed storage logs chunks, the recovery is not complete.
+        if applied_snapshot_status.storage_logs_chunks_left_to_process() != 0 {
+            return Ok(RecoveryCompletionStatus::InProgress);
+        }
+        // Currently, migrating tokens is the last step of the recovery.
+        // The number of tokens is not a part of the snapshot header, so we have to re-query the main node.
+        let added_tokens = conn
+            .tokens_web3_dal()
+            .get_all_tokens(Some(applied_snapshot_status.l2_block_number))
+            .await?
+            .len();
+        let tokens_on_main_node = client
+            .fetch_tokens(applied_snapshot_status.l2_block_number)
+            .await?
+            .len();
+
+        match added_tokens.cmp(&tokens_on_main_node) {
+            Ordering::Less => Ok(RecoveryCompletionStatus::InProgress),
+            Ordering::Equal => Ok(RecoveryCompletionStatus::Completed),
+            Ordering::Greater => anyhow::bail!("DB contains more tokens than the main node"),
+        }
+    }
+
+    /// Specifies the L1 batch to recover from. This setting is ignored if recovery is complete or resumed.
+    pub fn set_snapshot_l1_batch(&mut self, number: L1BatchNumber) {
+        self.snapshot_l1_batch = Some(number);
+    }
+
+    /// Enables dropping storage key preimages when recovering storage logs from a snapshot with version 0.
+    /// This is a temporary flag that will eventually be removed together with version 0 snapshot support.
+    pub fn drop_storage_key_preimages(&mut self) {
+        self.drop_storage_key_preimages = true;
     }
 
     /// Returns the health check for snapshot recovery.
@@ -268,14 +345,7 @@ impl SnapshotsApplierTask {
         let mut backoff = self.config.initial_retry_backoff;
         let mut last_error = None;
         for retry_id in 0..self.config.retry_count {
-            let result = SnapshotsApplier::load_snapshot(
-                &self.connection_pool,
-                self.main_node_client.as_ref(),
-                &self.blob_store,
-                &self.health_updater,
-                self.config.max_concurrency.get(),
-            )
-            .await;
+            let result = SnapshotsApplier::load_snapshot(&self).await;
 
             match result {
                 Ok((strategy, final_status)) => {
@@ -316,9 +386,9 @@ impl SnapshotsApplierTask {
 #[derive(Debug, Clone, Copy)]
 enum SnapshotRecoveryStrategy {
     /// Snapshot recovery should proceed from scratch with the specified params.
-    New,
+    New(SnapshotVersion),
     /// Snapshot recovery should continue with the specified params.
-    Resumed,
+    Resumed(SnapshotVersion),
     /// Snapshot recovery has already been completed.
     Completed,
 }
@@ -327,6 +397,7 @@ impl SnapshotRecoveryStrategy {
     async fn new(
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        snapshot_l1_batch: Option<L1BatchNumber>,
     ) -> Result<(Self, SnapshotRecoveryStatus), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
@@ -341,9 +412,20 @@ impl SnapshotRecoveryStrategy {
                 return Ok((Self::Completed, applied_snapshot_status));
             }
 
+            let l1_batch_number = applied_snapshot_status.l1_batch_number;
+            let snapshot_header = main_node_client
+                .fetch_snapshot(l1_batch_number)
+                .await?
+                .with_context(|| {
+                    format!("snapshot for L1 batch #{l1_batch_number} is no longer present on main node")
+                })?;
+            // Old snapshots can theoretically be removed by the node, but in this case the snapshot data may be removed as well,
+            // so returning an error looks appropriate here.
+            let snapshot_version = Self::check_snapshot_version(snapshot_header.version)?;
+
             let latency = latency.observe();
             tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
-            Ok((Self::Resumed, applied_snapshot_status))
+            Ok((Self::Resumed(snapshot_version), applied_snapshot_status))
         } else {
             let is_genesis_needed = storage.blocks_dal().is_genesis_needed().await?;
             if !is_genesis_needed {
@@ -353,7 +435,8 @@ impl SnapshotRecoveryStrategy {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
-            let recovery_status = Self::create_fresh_recovery_status(main_node_client).await?;
+            let (recovery_status, snapshot_version) =
+                Self::create_fresh_recovery_status(main_node_client, snapshot_l1_batch).await?;
 
             let storage_logs_count = storage
                 .storage_logs_dal()
@@ -370,18 +453,26 @@ impl SnapshotRecoveryStrategy {
 
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-            Ok((Self::New, recovery_status))
+            Ok((Self::New(snapshot_version), recovery_status))
         }
     }
 
     async fn create_fresh_recovery_status(
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
-    ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
-        let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
+        snapshot_l1_batch: Option<L1BatchNumber>,
+    ) -> Result<(SnapshotRecoveryStatus, SnapshotVersion), SnapshotsApplierError> {
+        let l1_batch_number = match snapshot_l1_batch {
+            Some(num) => num,
+            None => main_node_client
+                .fetch_newest_snapshot_l1_batch_number()
+                .await?
+                .context("no snapshots on main node; snapshot recovery is impossible")?,
+        };
+        let snapshot_response = main_node_client.fetch_snapshot(l1_batch_number).await?;
 
-        let snapshot = snapshot_response
-            .context("no snapshots on main node; snapshot recovery is impossible")?;
-        let l1_batch_number = snapshot.l1_batch_number;
+        let snapshot = snapshot_response.with_context(|| {
+            format!("snapshot for L1 batch #{l1_batch_number} is not present on main node")
+        })?;
         let l2_block_number = snapshot.l2_block_number;
         tracing::info!(
             "Found snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
@@ -389,7 +480,7 @@ impl SnapshotRecoveryStrategy {
             version = snapshot.version,
             chunk_count = snapshot.storage_logs_chunks.len()
         );
-        Self::check_snapshot_version(snapshot.version)?;
+        let snapshot_version = Self::check_snapshot_version(snapshot.version)?;
 
         let l1_batch = main_node_client
             .fetch_l1_batch_details(l1_batch_number)
@@ -417,7 +508,7 @@ impl SnapshotRecoveryStrategy {
             return Err(err.into());
         }
 
-        Ok(SnapshotRecoveryStatus {
+        let status = SnapshotRecoveryStatus {
             l1_batch_number,
             l1_batch_timestamp: l1_batch.base.timestamp,
             l1_batch_root_hash,
@@ -426,21 +517,104 @@ impl SnapshotRecoveryStrategy {
             l2_block_hash,
             protocol_version,
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
-        })
+        };
+        Ok((status, snapshot_version))
     }
 
-    fn check_snapshot_version(raw_version: u16) -> anyhow::Result<()> {
+    fn check_snapshot_version(raw_version: u16) -> anyhow::Result<SnapshotVersion> {
         let version = SnapshotVersion::try_from(raw_version).with_context(|| {
             format!(
                 "Unrecognized snapshot version: {raw_version}; make sure you're running the latest version of the node"
             )
         })?;
         anyhow::ensure!(
-            matches!(version, SnapshotVersion::Version0),
-            "Cannot recover from a snapshot with version {version:?}; the only supported version is {:?}",
-            SnapshotVersion::Version0
+            matches!(version, SnapshotVersion::Version0 | SnapshotVersion::Version1),
+            "Cannot recover from a snapshot with version {version:?}; the only supported versions are {:?}",
+            [SnapshotVersion::Version0, SnapshotVersion::Version1]
         );
+        Ok(version)
+    }
+}
+
+/// Versioned storage logs chunk.
+#[derive(Debug)]
+enum StorageLogs {
+    V0(Vec<SnapshotStorageLog<StorageKey>>),
+    V1(Vec<SnapshotStorageLog>),
+}
+
+impl StorageLogs {
+    async fn load(
+        blob_store: &dyn ObjectStore,
+        key: SnapshotStorageLogsStorageKey,
+        version: SnapshotVersion,
+    ) -> Result<Self, ObjectStoreError> {
+        match version {
+            SnapshotVersion::Version0 => {
+                let logs: SnapshotStorageLogsChunk<StorageKey> = blob_store.get(key).await?;
+                Ok(Self::V0(logs.storage_logs))
+            }
+            SnapshotVersion::Version1 => {
+                let logs: SnapshotStorageLogsChunk = blob_store.get(key).await?;
+                Ok(Self::V1(logs.storage_logs))
+            }
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::V0(logs) => logs.len(),
+            Self::V1(logs) => logs.len(),
+        }
+    }
+
+    /// Performs basic sanity check for a storage logs chunk.
+    fn validate(&self, snapshot_status: &SnapshotRecoveryStatus) -> anyhow::Result<()> {
+        match self {
+            Self::V0(logs) => Self::validate_inner(logs, snapshot_status),
+            Self::V1(logs) => Self::validate_inner(logs, snapshot_status),
+        }
+    }
+
+    fn validate_inner<K: fmt::Debug>(
+        storage_logs: &[SnapshotStorageLog<K>],
+        snapshot_status: &SnapshotRecoveryStatus,
+    ) -> anyhow::Result<()> {
+        for log in storage_logs {
+            anyhow::ensure!(
+                log.enumeration_index > 0,
+                "invalid storage log with zero enumeration_index: {log:?}"
+            );
+            anyhow::ensure!(
+                log.l1_batch_number_of_initial_write <= snapshot_status.l1_batch_number,
+                "invalid storage log with `l1_batch_number_of_initial_write` from the future: {log:?}"
+            );
+        }
         Ok(())
+    }
+
+    fn drop_key_preimages(&mut self) {
+        match self {
+            Self::V0(logs) => {
+                *self = Self::V1(
+                    mem::take(logs)
+                        .into_iter()
+                        .map(SnapshotStorageLog::drop_key_preimage)
+                        .collect(),
+                );
+            }
+            Self::V1(_) => { /* do nothing */ }
+        }
+    }
+
+    fn without_preimages(self) -> Vec<SnapshotStorageLog> {
+        match self {
+            Self::V0(logs) => logs
+                .into_iter()
+                .map(SnapshotStorageLog::drop_key_preimage)
+                .collect(),
+            Self::V1(logs) => logs,
+        }
     }
 }
 
@@ -452,7 +626,9 @@ struct SnapshotsApplier<'a> {
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
     health_updater: &'a HealthUpdater,
+    snapshot_version: SnapshotVersion,
     max_concurrency: usize,
+    drop_storage_key_preimages: bool,
     factory_deps_recovered: bool,
     tokens_recovered: bool,
 }
@@ -460,12 +636,12 @@ struct SnapshotsApplier<'a> {
 impl<'a> SnapshotsApplier<'a> {
     /// Returns final snapshot recovery status.
     async fn load_snapshot(
-        connection_pool: &'a ConnectionPool<Core>,
-        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-        health_updater: &'a HealthUpdater,
-        max_concurrency: usize,
+        task: &'a SnapshotsApplierTask,
     ) -> Result<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus), SnapshotsApplierError> {
+        let health_updater = &task.health_updater;
+        let connection_pool = &task.connection_pool;
+        let main_node_client = task.main_node_client.as_ref();
+
         // While the recovery is in progress, the node is healthy (no error has occurred),
         // but is affected (its usual APIs don't work).
         health_updater.update(HealthStatus::Affected.into());
@@ -475,22 +651,28 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
-        let (strategy, applied_snapshot_status) =
-            SnapshotRecoveryStrategy::new(&mut storage_transaction, main_node_client).await?;
+        let (strategy, applied_snapshot_status) = SnapshotRecoveryStrategy::new(
+            &mut storage_transaction,
+            main_node_client,
+            task.snapshot_l1_batch,
+        )
+        .await?;
         tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
-        let created_from_scratch = match strategy {
+        let (created_from_scratch, snapshot_version) = match strategy {
             SnapshotRecoveryStrategy::Completed => return Ok((strategy, applied_snapshot_status)),
-            SnapshotRecoveryStrategy::New => true,
-            SnapshotRecoveryStrategy::Resumed => false,
+            SnapshotRecoveryStrategy::New(version) => (true, version),
+            SnapshotRecoveryStrategy::Resumed(version) => (false, version),
         };
 
         let mut this = Self {
             connection_pool,
             main_node_client,
-            blob_store,
+            blob_store: task.blob_store.as_ref(),
             applied_snapshot_status,
             health_updater,
-            max_concurrency,
+            snapshot_version,
+            max_concurrency: task.config.max_concurrency.get(),
+            drop_storage_key_preimages: task.drop_storage_key_preimages,
             factory_deps_recovered: !created_from_scratch,
             tokens_recovered: false,
         };
@@ -588,18 +770,22 @@ impl<'a> SnapshotsApplier<'a> {
             factory_deps.factory_deps.len()
         );
 
-        let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
-            .factory_deps
-            .into_iter()
-            .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0))
-            .collect();
-        storage
-            .factory_deps_dal()
-            .insert_factory_deps(
-                self.applied_snapshot_status.l2_block_number,
-                &all_deps_hashmap,
-            )
-            .await?;
+        // we cannot insert all factory deps because of field size limit triggered by UNNEST
+        // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
+        // there were around 100 thousand contracts on mainnet, where this issue first manifested
+        for chunk in factory_deps.factory_deps.chunks(1000) {
+            let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
+                .iter()
+                .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0.clone()))
+                .collect();
+            storage
+                .factory_deps_dal()
+                .insert_factory_deps(
+                    self.applied_snapshot_status.l2_block_number,
+                    &chunk_deps_hashmap,
+                )
+                .await?;
+        }
 
         let latency = latency.observe();
         tracing::info!("Applied factory dependencies in {latency:?}");
@@ -621,16 +807,30 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn insert_storage_logs_chunk(
         &self,
-        storage_logs: &[SnapshotStorageLog],
+        storage_logs: &StorageLogs,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
-        storage
-            .storage_logs_dal()
-            .insert_storage_logs_from_snapshot(
-                self.applied_snapshot_status.l2_block_number,
-                storage_logs,
-            )
-            .await?;
+        match storage_logs {
+            StorageLogs::V0(logs) => {
+                #[allow(deprecated)]
+                storage
+                    .storage_logs_dal()
+                    .insert_storage_logs_with_preimages_from_snapshot(
+                        self.applied_snapshot_status.l2_block_number,
+                        logs,
+                    )
+                    .await?;
+            }
+            StorageLogs::V1(logs) => {
+                storage
+                    .storage_logs_dal()
+                    .insert_storage_logs_from_snapshot(
+                        self.applied_snapshot_status.l2_block_number,
+                        logs,
+                    )
+                    .await?;
+            }
+        }
         Ok(())
     }
 
@@ -651,14 +851,19 @@ impl<'a> SnapshotsApplier<'a> {
             chunk_id,
             l1_batch_number: self.applied_snapshot_status.l1_batch_number,
         };
-        let storage_snapshot_chunk: SnapshotStorageLogsChunk =
-            self.blob_store.get(storage_key).await.map_err(|err| {
-                let context =
-                    format!("cannot fetch storage logs {storage_key:?} from object store");
-                SnapshotsApplierError::object_store(err, context)
-            })?;
-        let storage_logs = &storage_snapshot_chunk.storage_logs;
-        self.validate_storage_logs_chunk(storage_logs)?;
+        let mut storage_logs =
+            StorageLogs::load(self.blob_store, storage_key, self.snapshot_version)
+                .await
+                .map_err(|err| {
+                    let context =
+                        format!("cannot fetch storage logs {storage_key:?} from object store");
+                    SnapshotsApplierError::object_store(err, context)
+                })?;
+
+        storage_logs.validate(&self.applied_snapshot_status)?;
+        if self.drop_storage_key_preimages {
+            storage_logs.drop_key_preimages();
+        }
         let latency = latency.observe();
         tracing::info!(
             "Loaded {} storage logs from GCS for chunk {chunk_id} in {latency:?}",
@@ -675,9 +880,11 @@ impl<'a> SnapshotsApplier<'a> {
         let mut storage_transaction = storage.start_transaction().await?;
 
         tracing::info!("Loading {} storage logs into Postgres", storage_logs.len());
-        self.insert_storage_logs_chunk(storage_logs, &mut storage_transaction)
+
+        self.insert_storage_logs_chunk(&storage_logs, &mut storage_transaction)
             .await?;
-        self.insert_initial_writes_chunk(storage_logs, &mut storage_transaction)
+        let storage_logs = storage_logs.without_preimages();
+        self.insert_initial_writes_chunk(&storage_logs, &mut storage_transaction)
             .await?;
 
         storage_transaction
@@ -690,24 +897,6 @@ impl<'a> SnapshotsApplier<'a> {
         let latency = latency.observe();
         tracing::info!("Saved storage logs for chunk {chunk_id} in {latency:?}, there are {chunks_left} left to process");
 
-        Ok(())
-    }
-
-    /// Performs basic sanity check for a storage logs chunk.
-    fn validate_storage_logs_chunk(
-        &self,
-        storage_logs: &[SnapshotStorageLog],
-    ) -> anyhow::Result<()> {
-        for log in storage_logs {
-            anyhow::ensure!(
-                log.enumeration_index > 0,
-                "invalid storage log with zero enumeration_index: {log:?}"
-            );
-            anyhow::ensure!(
-                log.l1_batch_number_of_initial_write <= self.applied_snapshot_status.l1_batch_number,
-                "invalid storage log with `l1_batch_number_of_initial_write` from the future: {log:?}"
-            );
-        }
         Ok(())
     }
 

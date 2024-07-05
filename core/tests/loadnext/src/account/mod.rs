@@ -8,7 +8,10 @@ use futures::{channel::mpsc, SinkExt};
 use tokio::sync::RwLock;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_web3_decl::jsonrpsee::core::ClientError as CoreError;
+use zksync_web3_decl::{
+    client::{Client, L2},
+    jsonrpsee::core::ClientError as CoreError,
+};
 
 use crate::{
     account::tx_command_executor::SubmitResult,
@@ -17,7 +20,7 @@ use crate::{
     config::{LoadtestConfig, RequestLimiters},
     constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
-    sdk::{error::ClientError, operations::SyncTransactionHandle, HttpClient},
+    sdk::{error::ClientError, operations::SyncTransactionHandle},
     utils::format_gwei,
 };
 
@@ -351,7 +354,7 @@ impl AccountLifespan {
         }
     }
 
-    /// Generic submitter for zkSync network: it can operate individual transactions,
+    /// Generic submitter for ZKsync network: it can operate individual transactions,
     /// as long as we can provide a `SyncTransactionHandle` to wait for the commitment and the
     /// execution result.
     /// Once result is obtained, it's compared to the expected operation outcome in order to check whether
@@ -359,7 +362,7 @@ impl AccountLifespan {
     async fn submit(
         &mut self,
         modifier: IncorrectnessModifier,
-        send_result: Result<SyncTransactionHandle<'_, HttpClient>, ClientError>,
+        send_result: Result<SyncTransactionHandle<'_, Client<L2>>, ClientError>,
     ) -> Result<SubmitResult, ClientError> {
         let expected_outcome = modifier.expected_outcome();
 

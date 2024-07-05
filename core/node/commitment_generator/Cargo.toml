@@ -16,7 +16,9 @@ zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_utils.workspace = true
-multivm.workspace = true
+zksync_eth_client.workspace = true
+zksync_contracts.workspace = true
+zksync_multivm.workspace = true
 circuit_sequencer_api_1_4_0.workspace = true
 circuit_sequencer_api_1_4_1.workspace = true
 circuit_sequencer_api_1_5_0.workspace = true
@@ -26,8 +28,16 @@ zk_evm_1_4_1.workspace = true
 zk_evm_1_3_3.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
+futures.workspace = true
+num_cpus.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 itertools.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+zksync_web3_decl.workspace = true
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true
+
+rand.workspace = true

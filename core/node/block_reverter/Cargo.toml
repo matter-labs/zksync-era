@@ -21,11 +21,13 @@ zksync_state.workspace = true
 zksync_merkle_tree.workspace = true
 
 anyhow.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["time", "fs"] }
 serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+async-trait.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true

@@ -5,19 +5,21 @@ use std::time::Duration;
 use jsonrpsee::{core::client, http_client::transport};
 use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Info,
-    Metrics, Unit,
+    LabeledFamily, Metrics, Unit,
 };
 
 use super::{AcquireStats, CallOrigin, SharedRateLimit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct RequestLabels {
+    pub network: String,
     pub component: &'static str,
     pub method: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct RpcErrorLabels {
+    pub network: String,
     pub component: &'static str,
     pub method: String,
     pub code: i32,
@@ -25,6 +27,7 @@ pub(super) struct RpcErrorLabels {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct HttpErrorLabels {
+    pub network: String,
     pub component: &'static str,
     pub method: String,
     pub status: Option<u16>,
@@ -40,6 +43,7 @@ pub(super) enum CallErrorKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct GenericErrorLabels {
+    network: String,
     component: &'static str,
     method: String,
     kind: CallErrorKind,
@@ -56,7 +60,8 @@ struct L2ClientConfigLabels {
 #[metrics(prefix = "l2_client")]
 pub(super) struct L2ClientMetrics {
     /// Client configuration.
-    info: Info<L2ClientConfigLabels>,
+    #[metrics(labels = ["network"])]
+    info: LabeledFamily<String, Info<L2ClientConfigLabels>>,
     /// Number of requests timed out in the rate-limiting logic.
     pub rate_limit_timeout: Family<RequestLabels, Counter>,
     /// Latency of rate-limiting logic for rate-limited requests.
@@ -71,28 +76,31 @@ pub(super) struct L2ClientMetrics {
 }
 
 impl L2ClientMetrics {
-    pub fn observe_config(&self, rate_limit: &SharedRateLimit) {
+    pub fn observe_config(&self, network: String, rate_limit: &SharedRateLimit) {
         let config_labels = L2ClientConfigLabels {
             rate_limit: rate_limit.rate_limit,
             rate_limit_window: rate_limit.rate_limit_window.into(),
         };
-        if let Err(err) = self.info.set(config_labels) {
-            tracing::warn!(
+        let info = &self.info[&network];
+        if let Err(err) = info.set(config_labels) {
+            tracing::debug!(
                 "Error setting configuration info {:?} for L2 client; already set to {:?}",
                 err.into_inner(),
-                self.info.get()
+                info.get()
             );
         }
     }
 
     pub fn observe_rate_limit_latency(
         &self,
+        network: &str,
         component: &'static str,
         origin: CallOrigin<'_>,
         stats: &AcquireStats,
     ) {
         for method in origin.distinct_method_names() {
             let request_labels = RequestLabels {
+                network: network.to_owned(),
                 component,
                 method: method.to_owned(),
             };
@@ -100,9 +108,15 @@ impl L2ClientMetrics {
         }
     }
 
-    pub fn observe_rate_limit_timeout(&self, component: &'static str, origin: CallOrigin<'_>) {
+    pub fn observe_rate_limit_timeout(
+        &self,
+        network: &str,
+        component: &'static str,
+        origin: CallOrigin<'_>,
+    ) {
         for method in origin.distinct_method_names() {
             let request_labels = RequestLabels {
+                network: network.to_owned(),
                 component,
                 method: method.to_owned(),
             };
@@ -112,25 +126,34 @@ impl L2ClientMetrics {
 
     pub fn observe_error(
         &self,
+        network: &str,
         component: &'static str,
         origin: CallOrigin<'_>,
         err: &client::Error,
     ) {
         for method in origin.distinct_method_names() {
-            self.observe_error_inner(component, method, err);
+            self.observe_error_inner(network.to_owned(), component, method, err);
         }
     }
 
-    fn observe_error_inner(&self, component: &'static str, method: &str, err: &client::Error) {
+    fn observe_error_inner(
+        &self,
+        network: String,
+        component: &'static str,
+        method: &str,
+        err: &client::Error,
+    ) {
         let kind = match err {
             client::Error::Call(err) => {
                 let labels = RpcErrorLabels {
+                    network,
                     component,
                     method: method.to_owned(),
                     code: err.code(),
                 };
                 if self.rpc_errors[&labels].inc() == 0 {
                     tracing::warn!(
+                        network = labels.network,
                         component,
                         method,
                         code = err.code(),
@@ -144,16 +167,18 @@ impl L2ClientMetrics {
                 let status = err
                     .downcast_ref::<transport::Error>()
                     .and_then(|err| match err {
-                        transport::Error::RequestFailure { status_code } => Some(*status_code),
+                        transport::Error::Rejected { status_code } => Some(*status_code),
                         _ => None,
                     });
                 let labels = HttpErrorLabels {
+                    network,
                     component,
                     method: method.to_owned(),
                     status,
                 };
                 if self.http_errors[&labels].inc() == 0 {
                     tracing::warn!(
+                        network = labels.network,
                         component,
                         method,
                         status,
@@ -168,15 +193,17 @@ impl L2ClientMetrics {
         };
 
         let labels = GenericErrorLabels {
+            network,
             component,
             method: method.to_owned(),
             kind,
         };
         if self.generic_errors[&labels].inc() == 0 {
             tracing::warn!(
+                network = labels.network,
                 component,
                 method,
-                "Request `{method}` from component `{component}` failed with generic error: {err}"
+                "Request `{method}` from component `{component}` failed with generic error: {err}",
             );
         }
     }

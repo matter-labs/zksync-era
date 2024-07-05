@@ -1,8 +1,9 @@
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{web3, Address, H256, U256, U64};
+use zksync_web3_decl::client::{ForNetwork, L1};
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
-#[rpc(client, namespace = "eth")]
+#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L1>))]
 pub(super) trait L1EthNamespace {
     #[method(name = "chainId")]
     async fn chain_id(&self) -> RpcResult<U256>;

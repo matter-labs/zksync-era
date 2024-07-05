@@ -20,10 +20,11 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
+      zk_toolbox: ${{ steps.changed-files.outputs.zk_toolbox_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
           submodules: "recursive"
@@ -60,6 +61,10 @@ jobs:
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
+            zk_toolbox:
+              - 'zk_toolbox/**'
+              - '!**/*.md'
+              - '!**/*.MD'
             docs:
               - '**/*.md'
               - '**/*.MD'
@@ -90,6 +95,12 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
+
+  ci-for-zk-toolbox:
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    name: CI for zk_toolbox
+    uses: ./.github/workflows/ci-zk-toolbox-reusable.yml
 
   ci-for-docs:
     needs: changed_files
@@ -146,7 +157,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images]
     steps:
       - name: Status
         run: |

@@ -67,6 +67,11 @@
         "ordinal": 12,
         "name": "eip_4844_blobs",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -87,7 +92,8 @@
       true,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
   "hash": "e0a6cc885e437aa7ded9def71f3e118cabc67b6e507efefb7b69e102f1b43c58"

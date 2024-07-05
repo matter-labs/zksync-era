@@ -3,36 +3,38 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::clients::QueryClient;
-use zksync_types::url::SensitiveUrl;
+use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId};
+use zksync_web3_decl::client::Client;
 
-use super::PubdataPricing;
 use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
 #[derive(Debug)]
 pub struct GasAdjusterSingleton {
+    chain_id: L1ChainId,
     web3_url: SensitiveUrl,
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
     singleton: Option<Arc<GasAdjuster>>,
-    pubdata_pricing: Arc<dyn PubdataPricing>,
+    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjusterSingleton {
     pub fn new(
+        chain_id: L1ChainId,
         web3_url: SensitiveUrl,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
-        pubdata_pricing: Arc<dyn PubdataPricing>,
+        commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
+            chain_id,
             web3_url,
             gas_adjuster_config,
             pubdata_sending_mode,
             singleton: None,
-            pubdata_pricing,
+            commitment_mode,
         }
     }
 
@@ -40,13 +42,15 @@ impl GasAdjusterSingleton {
         if let Some(adjuster) = &self.singleton {
             Ok(adjuster.clone())
         } else {
-            let query_client =
-                QueryClient::new(self.web3_url.clone()).context("QueryClient::new()")?;
+            let query_client = Client::http(self.web3_url.clone())
+                .context("QueryClient::new()")?
+                .for_network(self.chain_id.into())
+                .build();
             let adjuster = GasAdjuster::new(
                 Box::new(query_client),
                 self.gas_adjuster_config,
                 self.pubdata_sending_mode,
-                self.pubdata_pricing.clone(),
+                self.commitment_mode,
             )
             .await
             .context("GasAdjuster::new()")?;

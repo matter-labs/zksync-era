@@ -20,7 +20,7 @@ fn default_execute() -> Execute {
     8cdfd0000000000000000000000000000000000000000000000000000000157d600d0",
         )
         .unwrap(),
-        factory_deps: None,
+        factory_deps: vec![],
     }
 }
 
@@ -145,8 +145,6 @@ fn storage_tx_to_l1_tx() {
                 .unwrap(),
             l1_data.gas_per_pubdata_limit
         );
-        assert_eq!(0, l1_data.deadline_block);
-        assert_eq!(l1_data.eth_hash, Default::default());
         assert_eq!(stx.l1_block_number.unwrap() as u64, l1_data.eth_block);
         assert_eq!(stx.hash.as_slice(), l1_data.canonical_tx_hash.as_bytes());
     } else {
@@ -211,7 +209,6 @@ fn storage_tx_to_protocol_upgrade_tx() {
                 .unwrap(),
             l1_data.gas_per_pubdata_limit
         );
-        assert_eq!(l1_data.eth_hash, Default::default());
         assert_eq!(stx.l1_block_number.unwrap() as u64, l1_data.eth_block);
         assert_eq!(stx.hash.as_slice(), l1_data.canonical_tx_hash.as_bytes());
     } else {

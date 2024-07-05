@@ -1,34 +1,43 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_config::{
-    configs::{
-        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-        wallets,
-    },
-    ContractsConfig,
+use zksync_config::configs::{
+    chain::{MempoolConfig, StateKeeperConfig},
+    wallets,
 };
-use zksync_core::state_keeper::{
-    self, MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer,
-    StateKeeperPersistence,
-};
+use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
         fee_input::FeeInputResource,
         pools::{MasterPool, PoolResource},
-        state_keeper::{ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource},
+        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
     },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
+///
+/// ## Requests resources
+///
+/// - `FeeInputResource`
+/// - `PoolResource<MasterPool>`
+///
+/// ## Adds resources
+///
+/// - `StateKeeperIOResource`
+/// - `ConditionalSealerResource`
+///
+/// ## Adds tasks
+///
+/// - `MempoolFetcherTask`
 #[derive(Debug)]
 pub struct MempoolIOLayer {
-    network_config: NetworkConfig,
-    contracts_config: ContractsConfig,
+    zksync_network_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
     wallets: wallets::StateKeeper,
@@ -36,15 +45,13 @@ pub struct MempoolIOLayer {
 
 impl MempoolIOLayer {
     pub fn new(
-        network_config: NetworkConfig,
-        contracts_config: ContractsConfig,
+        zksync_network_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
-            network_config,
-            contracts_config,
+            zksync_network_id,
             state_keeper_config,
             mempool_config,
             wallets,
@@ -77,21 +84,8 @@ impl WiringLayer for MempoolIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-
-        // Create miniblock sealer task.
-        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-            master_pool
-                .get_singleton()
-                .await
-                .context("Get master pool")?,
-            self.contracts_config.l2_shared_bridge_addr.unwrap(),
-            self.state_keeper_config.l2_block_seal_queue_capacity,
-        );
-        let output_handler = OutputHandler::new(Box::new(persistence));
-        context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
+        let batch_fee_input_provider = context.get_resource::<FeeInputResource>()?.0;
+        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;
@@ -105,7 +99,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.mempool_config,
             mempool_fetcher_pool,
         );
-        context.add_task(Box::new(MempoolFetcherTask(mempool_fetcher)));
+        context.add_task(MempoolFetcherTask(mempool_fetcher));
 
         // Create mempool IO resource.
         let mempool_db_pool = master_pool
@@ -119,7 +113,7 @@ impl WiringLayer for MempoolIOLayer {
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
-            self.network_config.zksync_network_id,
+            self.zksync_network_id,
         )
         .await?;
         context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
@@ -133,27 +127,12 @@ impl WiringLayer for MempoolIOLayer {
 }
 
 #[derive(Debug)]
-struct L2BlockSealerTask(state_keeper::L2BlockSealerTask);
-
-#[async_trait::async_trait]
-impl Task for L2BlockSealerTask {
-    fn name(&self) -> &'static str {
-        "state_keeper/l2_block_sealer"
-    }
-
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        // Miniblock sealer will exit itself once sender is dropped.
-        self.0.run().await
-    }
-}
-
-#[derive(Debug)]
 struct MempoolFetcherTask(MempoolFetcher);
 
 #[async_trait::async_trait]
 impl Task for MempoolFetcherTask {
-    fn name(&self) -> &'static str {
-        "state_keeper/mempool_fetcher"
+    fn id(&self) -> TaskId {
+        "state_keeper/mempool_fetcher".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

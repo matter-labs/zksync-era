@@ -7,12 +7,10 @@ use std::{
 
 use assert_matches::assert_matches;
 use futures::future;
-use jsonrpsee::{
-    http_client::transport,
-    types::{error::ErrorCode, ErrorObject},
-};
+use jsonrpsee::{http_client::transport, rpc_params, types::error::ErrorCode};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use test_casing::test_casing;
+use zksync_types::{L2ChainId, U64};
 
 use super::{
     metrics::{HttpErrorLabels, RequestLabels, RpcErrorLabels},
@@ -193,32 +191,25 @@ async fn rate_limiting_with_rng_and_threads(rate_limit: usize) {
 async fn wrapping_mock_client() {
     tokio::time::pause();
 
-    let client = MockL2Client::new_async(|method, _| {
-        Box::pin(async move {
-            match method {
-                "ok" => Ok(serde_json::from_value(serde_json::json!("ok"))?),
-                "slow" => {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                    Ok(serde_json::from_value(serde_json::json!("slow"))?)
-                }
-                "rate_limit" => {
-                    let http_err = transport::Error::RequestFailure { status_code: 429 };
-                    Err(Error::Transport(http_err.into()))
-                }
-                "eth_getBlockNumber" => Ok(serde_json::from_value(serde_json::json!("0x1"))?),
-                _ => {
-                    let unknown_method_err =
-                        ErrorObject::borrowed(ErrorCode::MethodNotFound.code(), "oops", None);
-                    Err(Error::Call(unknown_method_err))
-                }
-            }
+    let client = MockClient::builder(L2::default())
+        .method("ok", || Ok("ok"))
+        .method("slow", || async {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            Ok("slow")
         })
-    });
+        .method("rate_limit", || {
+            let http_err = transport::Error::Rejected { status_code: 429 };
+            Err::<(), _>(Error::Transport(http_err.into()))
+        })
+        .method("eth_getBlockNumber", || Ok(U64::from(1)))
+        .build();
 
-    let mut client = L2ClientBuilder::new(client, "http://localhost".parse().unwrap())
+    let mut client = ClientBuilder::<L2, _>::new(client, "http://localhost".parse().unwrap())
+        .for_network(L2ChainId::default().into())
         .with_allowed_requests_per_second(NonZeroUsize::new(100).unwrap())
-        .build()
-        .for_component("test");
+        .build();
+    client.set_component("test");
+
     let metrics = &*Box::leak(Box::default());
     client.metrics = metrics;
     assert_eq!(
@@ -229,24 +220,26 @@ async fn wrapping_mock_client() {
 
     // Check that expected results are passed from the wrapped client.
     for _ in 0..10 {
-        let output: String = client.request("ok", [()]).await.unwrap();
+        let output: String = client.request("ok", rpc_params![]).await.unwrap();
         assert_eq!(output, "ok");
     }
 
     let mut batch_request = BatchRequestBuilder::new();
     for _ in 0..5 {
-        batch_request.insert("ok", [()]).unwrap();
+        batch_request.insert("ok", rpc_params![]).unwrap();
     }
-    batch_request.insert("slow", [()]).unwrap();
+    batch_request.insert("slow", rpc_params![]).unwrap();
     client.batch_request::<String>(batch_request).await.unwrap();
 
     // Check that the batch hit the rate limit.
     let labels = RequestLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "ok".to_string(),
     };
     assert!(metrics.rate_limit_latency.contains(&labels), "{metrics:?}");
     let labels = RequestLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "slow".to_string(),
     };
@@ -254,11 +247,12 @@ async fn wrapping_mock_client() {
 
     // Check error reporting.
     let err = client
-        .request::<String, _>("unknown", [()])
+        .request::<String, _>("unknown", rpc_params![])
         .await
         .unwrap_err();
     assert_matches!(err, Error::Call(_));
     let labels = RpcErrorLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "unknown".to_string(),
         code: ErrorCode::MethodNotFound.code(),
@@ -266,11 +260,12 @@ async fn wrapping_mock_client() {
     assert!(metrics.rpc_errors.contains(&labels), "{metrics:?}");
 
     let err = client
-        .request::<String, _>("rate_limit", [()])
+        .request::<String, _>("rate_limit", rpc_params![])
         .await
         .unwrap_err();
     assert_matches!(err, Error::Transport(_));
     let labels = HttpErrorLabels {
+        network: "l2_270".to_string(),
         component: "test",
         method: "rate_limit".to_string(),
         status: Some(429),

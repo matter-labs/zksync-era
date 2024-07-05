@@ -1,7 +1,8 @@
 use std::time::{Duration, Instant};
 
 use criterion::black_box;
-use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
+use vise::{Gauge, LabeledFamily, Metrics};
+use zksync_vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
     let mut results = vec![];
@@ -34,9 +35,19 @@ fn main() {
         vm_benchmark::with_prometheus::with_prometheus(|| {
             for (name, timings) in results {
                 for (i, timing) in timings.into_iter().enumerate() {
-                    metrics::gauge!("vm_benchmark.timing", timing, "benchmark" => name.clone(), "run_no" => i.to_string());
+                    VM_BENCHMARK_METRICS.timing[&(name.clone(), i.to_string())].set(timing);
                 }
             }
         });
     }
 }
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "vm_benchmark")]
+pub(crate) struct VmBenchmarkMetrics {
+    #[metrics(labels = ["benchmark", "run_no"])]
+    pub timing: LabeledFamily<(String, String), Gauge<Duration>, 2>,
+}
+
+#[vise::register]
+pub(crate) static VM_BENCHMARK_METRICS: vise::Global<VmBenchmarkMetrics> = vise::Global::new();

@@ -30,6 +30,14 @@ impl DeployedContract {
     }
 }
 
+/// Holder for l1 batches data, used in eth sender metrics
+pub struct L1BatchStatistics {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub l2_tx_count: u32,
+    pub l1_tx_count: u32,
+}
+
 /// Holder for the block metadata that is not available from transactions themselves.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchHeader {
@@ -93,7 +101,7 @@ pub struct StorageOracleInfo {
 }
 
 /// Data needed to execute an L2 block in the VM.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct L2BlockExecutionData {
     pub number: L2BlockNumber,
     pub timestamp: u64,
@@ -200,7 +208,7 @@ pub struct L2BlockHasher {
 }
 
 impl L2BlockHasher {
-    /// At the beginning of the zkSync, the hashes of the blocks could be calculated as the hash of their number.
+    /// At the beginning of the ZKsync, the hashes of the blocks could be calculated as the hash of their number.
     /// This method returns the hash of such L2 blocks.
     pub fn legacy_hash(l2_block_number: L2BlockNumber) -> H256 {
         H256(keccak256(&l2_block_number.0.to_be_bytes()))
@@ -248,6 +256,22 @@ impl L2BlockHasher {
         } else {
             Self::legacy_hash(self.number)
         }
+    }
+
+    pub fn hash(
+        number: L2BlockNumber,
+        timestamp: u64,
+        prev_l2_block_hash: H256,
+        txs_rolling_hash: H256,
+        protocol_version: ProtocolVersionId,
+    ) -> H256 {
+        Self {
+            number,
+            timestamp,
+            prev_l2_block_hash,
+            txs_rolling_hash,
+        }
+        .finalize(protocol_version)
     }
 }
 

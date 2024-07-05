@@ -8,7 +8,7 @@ use zksync_types::{
     Address, Eip712Domain, U256,
 };
 use zksync_web3_decl::{
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    client::{Client, L2},
     namespaces::{EthNamespaceClient, NetNamespaceClient, Web3NamespaceClient, ZksNamespaceClient},
 };
 
@@ -26,7 +26,7 @@ pub struct Wallet<S: EthereumSigner, P> {
     pub signer: Signer<S>,
 }
 
-impl<S> Wallet<S, HttpClient>
+impl<S> Wallet<S, Client<L2>>
 where
     S: EthereumSigner,
 {
@@ -38,8 +38,14 @@ where
     pub fn with_http_client(
         rpc_address: &str,
         signer: Signer<S>,
-    ) -> Result<Wallet<S, HttpClient>, ClientError> {
-        let client = HttpClientBuilder::default().build(rpc_address)?;
+    ) -> Result<Wallet<S, Client<L2>>, ClientError> {
+        let rpc_address = rpc_address
+            .parse()
+            .map_err(|err| ClientError::NetworkError(format!("error parsing RPC url: {err}")))?;
+        let client = Client::http(rpc_address)
+            .map_err(|err| ClientError::NetworkError(err.to_string()))?
+            .for_network(signer.chain_id.into())
+            .build();
 
         Ok(Wallet {
             provider: client,
@@ -149,6 +155,7 @@ where
                 meta.custom_signature = None;
             }
             req.from = Some(self.address());
+            req.chain_id = Some(self.signer.chain_id.as_u64());
             req
         };
         let domain = Eip712Domain::new(self.signer.chain_id);
@@ -158,7 +165,9 @@ where
             .sign_typed_data(&domain, &transaction_request)
             .await?;
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, self.signer.chain_id);
+        let encoded_tx = transaction_request
+            .get_signed_bytes(&signature)
+            .map_err(|_| ClientError::Other)?;
         let bytes = Bytes(encoded_tx);
 
         let tx_hash = self.provider.send_raw_transaction(bytes).await?;

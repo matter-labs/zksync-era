@@ -49,14 +49,15 @@ impl Database for WithBatching<'_> {
         self.inner.start_profiling(operation)
     }
 
-    fn apply_patch(&mut self, patch: PatchSet) {
-        self.inner.apply_patch(patch);
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        self.inner.apply_patch(patch)?;
 
         self.in_memory_batch_size += 1;
         if self.in_memory_batch_size >= self.batch_size {
             println!("Flushing changes to underlying DB");
-            self.inner.flush();
+            self.inner.flush()?;
             self.in_memory_batch_size = 0;
         }
+        Ok(())
     }
 }

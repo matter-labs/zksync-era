@@ -10,8 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+zksync_multivm.workspace = true
 zksync_object_store.workspace = true
+zksync_types.workspace = true
 
 # We can use the newest api to send proofs to L1.
 circuit_sequencer_api_1_5_0.workspace = true
@@ -24,3 +25,4 @@ chrono = { workspace = true, features = ["serde"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 bincode.workspace = true
+serde_json.workspace = true

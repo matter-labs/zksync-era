@@ -3,7 +3,7 @@ use std::{num::NonZeroU32, time::Duration};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
+use zksync_node_api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{
@@ -14,7 +14,7 @@ use crate::{
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
     },
     service::{ServiceContext, StopReceiver},
-    task::Task,
+    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -27,8 +27,11 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<MaxResponseSize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    // used by circuit breaker.
+    pub with_extended_tracing: bool,
+    // Used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,
+    // Used by the external node.
+    pub pruning_info_refresh_interval: Option<Duration>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -53,6 +56,7 @@ impl Web3ServerOptionalConfig {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
         }
+        api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
     }
 }
@@ -64,6 +68,22 @@ enum Transport {
     Ws,
 }
 
+/// Wiring layer for Web3 JSON RPC server.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<ReplicaPool>`
+/// - `TxSenderResource`
+/// - `SyncStateResource` (optional)
+/// - `TreeApiClientResource` (optional)
+/// - `MempoolCacheResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `Web3ApiTask` -- wrapper for all the tasks spawned by the API.
+/// - `ApiTaskGarbageCollector` -- maintenance task that manages API tasks.
 #[derive(Debug)]
 pub struct Web3ServerLayer {
     transport: Transport,
@@ -111,28 +131,29 @@ impl WiringLayer for Web3ServerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get required resources.
-        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_resource_pool = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let updaters_pool = replica_resource_pool.get_custom(2).await?;
         let replica_pool = replica_resource_pool.get().await?;
-        let tx_sender = context.get_resource::<TxSenderResource>().await?.0;
-        let sync_state = match context.get_resource::<SyncStateResource>().await {
+        let tx_sender = context.get_resource::<TxSenderResource>()?.0;
+        let sync_state = match context.get_resource::<SyncStateResource>() {
             Ok(sync_state) => Some(sync_state.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let tree_api_client = match context.get_resource::<TreeApiClientResource>().await {
+        let tree_api_client = match context.get_resource::<TreeApiClientResource>() {
             Ok(client) => Some(client.0),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let MempoolCacheResource(mempool_cache) = context.get_resource().await?;
+        let MempoolCacheResource(mempool_cache) = context.get_resource()?;
 
         // Build server.
         let mut api_builder =
             ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
                 .with_updaters_pool(updaters_pool)
                 .with_tx_sender(tx_sender)
-                .with_mempool_cache(mempool_cache);
+                .with_mempool_cache(mempool_cache)
+                .with_extended_tracing(self.optional_config.with_extended_tracing);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
@@ -147,21 +168,25 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
+        if let Some(pruning_info_refresh_interval) =
+            self.optional_config.pruning_info_refresh_interval
+        {
+            api_builder =
+                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
+        }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
         let server = api_builder.build()?;
 
         // Insert healthcheck.
         let api_health_check = server.health_check();
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
         app_health
             .insert_component(api_health_check)
             .map_err(WiringError::internal)?;
 
         // Insert circuit breaker.
-        let circuit_breaker_resource = context
-            .get_resource_or_default::<CircuitBreakersResource>()
-            .await;
+        let circuit_breaker_resource = context.get_resource_or_default::<CircuitBreakersResource>();
         circuit_breaker_resource
             .breakers
             .insert(Box::new(ReplicationLagChecker {
@@ -178,8 +203,8 @@ impl WiringLayer for Web3ServerLayer {
             task_sender,
         };
         let garbage_collector_task = ApiTaskGarbageCollector { task_receiver };
-        context.add_task(Box::new(web3_api_task));
-        context.add_task(Box::new(garbage_collector_task));
+        context.add_task(web3_api_task);
+        context.add_task(garbage_collector_task);
 
         Ok(())
     }
@@ -206,10 +231,10 @@ type ApiJoinHandle = JoinHandle<anyhow::Result<()>>;
 
 #[async_trait::async_trait]
 impl Task for Web3ApiTask {
-    fn name(&self) -> &'static str {
+    fn id(&self) -> TaskId {
         match self.transport {
-            Transport::Http => "web3_http_server",
-            Transport::Ws => "web3_ws_server",
+            Transport::Http => "web3_http_server".into(),
+            Transport::Ws => "web3_ws_server".into(),
         }
     }
 
@@ -232,15 +257,18 @@ struct ApiTaskGarbageCollector {
 
 #[async_trait::async_trait]
 impl Task for ApiTaskGarbageCollector {
-    fn name(&self) -> &'static str {
-        "api_task_garbage_collector"
+    fn id(&self) -> TaskId {
+        "api_task_garbage_collector".into()
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // We can ignore the stop signal here, since we're tied to the main API task through the channel:
         // it'll either get dropped if API cannot be built or will send something through the channel.
         // The tasks it sends are aware of the stop receiver themselves.
-        let tasks = self.task_receiver.await?;
+        let Ok(tasks) = self.task_receiver.await else {
+            // API cannot be built, so there are no tasks to wait for.
+            return Ok(());
+        };
         let _ = futures::future::join_all(tasks).await;
         Ok(())
     }

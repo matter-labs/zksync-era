@@ -4,7 +4,7 @@
 //! as well as contracts/SystemConfig.json
 //!
 
-use multivm::utils::get_bootloader_encoding_space;
+use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersionId, U256};
 
 use crate::utils::{
@@ -74,7 +74,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
                 0,
                 Some(U256::zero()),
                 None,
-                None,
+                vec![],
             )
             .into(),
         ],
@@ -99,7 +99,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
             0,
             Some(U256::zero()),
             Some(vec![0u8; DELTA_IN_TX_SIZE]),
-            None,
+            vec![],
         )
         .into()],
         true,
@@ -117,7 +117,7 @@ pub(crate) fn l2_gas_constants() -> IntrinsicSystemGasConstants {
             0,
             Some(U256::zero()),
             None,
-            Some(vec![vec![0u8; 32]]),
+            vec![vec![0u8; 32]],
         )
         .into()],
         true,

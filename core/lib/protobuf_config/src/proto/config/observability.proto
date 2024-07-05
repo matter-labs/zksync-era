@@ -14,8 +14,9 @@ message Observability {
   optional Sentry sentry = 1;
   optional string log_format = 3; // required
   optional Opentelemetry opentelemetry = 4; // optional
-  repeated string sporadic_crypto_errors_substrs = 5;
   optional string log_directives = 6;
+
+  reserved 5; reserved "sporadic_crypto_errors_substrs";
 }
 
 message Opentelemetry {

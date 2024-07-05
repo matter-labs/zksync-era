@@ -19,8 +19,7 @@ zksync_eth_client.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
-vlog.workspace = true
-prometheus_exporter.workspace = true
+zksync_vlog.workspace = true
 
 async-trait.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -37,5 +36,5 @@ once_cell.workspace = true
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["blocking", "json"] }
 regex.workspace = true
-metrics.workspace = true
+vise.workspace = true
 tracing.workspace = true

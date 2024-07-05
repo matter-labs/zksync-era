@@ -6,7 +6,7 @@ message ETH {
   optional Sender sender = 1; // required
   optional GasAdjuster gas_adjuster = 2; // required
   optional ETHWatch watcher = 3; // required
-  optional string web3_url = 4;
+  reserved 4; reserved "web3_url";
 }
 
 enum ProofSendingMode {
@@ -23,6 +23,7 @@ enum ProofLoadingMode {
 enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
+  CUSTOM = 2;
 }
 
 message Sender {
@@ -43,7 +44,7 @@ message Sender {
   optional uint64 l1_batch_min_age_before_execute_seconds = 15; // optional; s
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
   optional PubdataSendingMode pubdata_sending_mode = 18; // required
-  optional ProofLoadingMode proof_loading_mode = 19;
+  reserved 19; reserved "proof_loading_mode";
 }
 
 message GasAdjuster {
