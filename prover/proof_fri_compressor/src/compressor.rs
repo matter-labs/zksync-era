@@ -10,7 +10,6 @@ use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CO
 use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
-use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
@@ -55,27 +54,6 @@ impl ProofCompressor {
         }
     }
 
-    fn verify_proof(keystore: Keystore, serialized_proof: Vec<u8>) -> anyhow::Result<()> {
-        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
-            bincode::deserialize(&serialized_proof)
-                .expect("Failed to deserialize proof with ZkSyncCircuit");
-        // We're fetching the key as String and deserializing it here
-        // as we don't want to include the old version of prover in the main libraries.
-        let existing_vk_serialized = keystore
-            .load_snark_verification_key()
-            .context("get_snark_vk()")?;
-        let existing_vk = serde_json::from_str::<
-            SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
-        >(&existing_vk_serialized)?;
-
-        let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
-        let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
-        match vk.verify_proof(&scheduler_proof) {
-            true => tracing::info!("Compressed proof verified successfully"),
-            false => anyhow::bail!("Compressed proof verification failed "),
-        }
-        Ok(())
-    }
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
