@@ -1,5 +1,6 @@
 pub mod coingecko_api;
-mod tests;
+#[cfg(test)]
+mod test_utils;
 
 use std::fmt;
 

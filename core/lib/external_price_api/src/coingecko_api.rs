@@ -45,7 +45,7 @@ impl CoinGeckoPriceAPIClient {
         }
     }
 
-    async fn get_token_price_by_address(self: &Self, address: Address) -> anyhow::Result<f64> {
+    async fn get_token_price_by_address(&self, address: Address) -> anyhow::Result<f64> {
         let address_str = address_to_string(&address);
         let price_url = self
             .base_url
@@ -78,7 +78,7 @@ impl CoinGeckoPriceAPIClient {
         }
     }
 
-    async fn get_token_price_by_id(self: &Self, id: String) -> anyhow::Result<f64> {
+    async fn get_token_price_by_id(&self, id: String) -> anyhow::Result<f64> {
         let price_url = self
             .base_url
             .join(format!("/api/v3/simple/price?ids={}&vs_currencies={}", id, USD_ID).as_str())
@@ -121,7 +121,7 @@ struct CoinGeckoPriceResponse {
 }
 
 impl CoinGeckoPriceResponse {
-    fn get_price(self: &Self, address: &String, currency: &String) -> Option<&f64> {
+    fn get_price(&self, address: &String, currency: &String) -> Option<&f64> {
         self.prices
             .get(address)
             .and_then(|price| price.get(currency))
@@ -139,7 +139,7 @@ mod tests {
     use crate::{
         address_to_string,
         coingecko_api::{CoinGeckoPriceAPIClient, COINGECKO_AUTH_HEADER},
-        tests::tests::{
+        test_utils::{
             add_mock, base_token_price_not_found_test, eth_price_not_found_test, happy_day_test,
             no_base_token_price_404_test, no_eth_price_404_test,
         },
@@ -192,12 +192,12 @@ mod tests {
         eth_price: f64,
     ) -> Box<dyn PriceAPIClient> {
         add_mock_by_address(
-            &server,
+            server,
             address_to_string(&address),
             base_token_price,
             api_key.clone(),
         );
-        add_mock_by_id(&server, "ethereum".to_string(), eth_price, api_key.clone());
+        add_mock_by_id(server, "ethereum".to_string(), eth_price, api_key.clone());
         Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
             base_url: server.url(""),
             api_key: api_key.clone(),
@@ -225,7 +225,7 @@ mod tests {
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_address(&server, address_to_string(&address), 198.9, None);
+                add_mock_by_address(server, address_to_string(&address), 198.9, None);
                 Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
                     base_url: server.url(""),
                     api_key,
@@ -246,12 +246,12 @@ mod tests {
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_address(&server, address_to_string(&address), 198.9, None);
+                add_mock_by_address(server, address_to_string(&address), 198.9, None);
                 let mut params = HashMap::new();
                 params.insert("ids".to_string(), "ethereum".to_string());
                 params.insert("vs_currencies".to_string(), "usd".to_string());
                 add_mock(
-                    &server,
+                    server,
                     httpmock::Method::GET,
                     "/api/v3/simple/price".to_string(),
                     params,
@@ -280,7 +280,7 @@ mod tests {
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_id(&server, "ethereum".to_string(), 29.5, None);
+                add_mock_by_id(server, "ethereum".to_string(), 29.5, None);
                 Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
                     base_url: server.url(""),
                     api_key,
@@ -301,7 +301,7 @@ mod tests {
              _base_token_price: f64,
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
-                add_mock_by_id(&server, "ethereum".to_string(), 29.5, None);
+                add_mock_by_id(server, "ethereum".to_string(), 29.5, None);
                 let mut params = HashMap::new();
                 params.insert(
                     "contract_addresses".to_string(),
@@ -309,7 +309,7 @@ mod tests {
                 );
                 params.insert("vs_currencies".to_string(), "usd".to_string());
                 add_mock(
-                    &server,
+                    server,
                     httpmock::Method::GET,
                     "/api/v3/simple/token_price/ethereum".to_string(),
                     params,
