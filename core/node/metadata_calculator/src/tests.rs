@@ -275,9 +275,10 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>, sealed_protective_reads
     } else {
         storage
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
+            .get_protective_reads_latest_processed_batch()
             .await
             .unwrap()
+            .unwrap_or_default()
     };
     let mut all_logs = vec![];
     for i in 0..=processed_l1_batch_number.0 {
