@@ -43,8 +43,6 @@ Additionally, there is a subcommand `zk clean` to remove previously generated da
 zk clean --all # Remove generated configs, database and backups.
 zk clean --config # Remove configs only.
 zk clean --database # Remove database.
-zk clean --backups # Remove backups.
-zk clean --database --backups # Remove database *and* backups, but not configs.
 ```
 
 **When do you need it?**
