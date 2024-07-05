@@ -16,7 +16,6 @@ describe('ERC20 contract checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
-    let baseTokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
     beforeAll(async () => {
@@ -25,7 +24,6 @@ describe('ERC20 contract checks', () => {
         bob = testMaster.newEmptyAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
-        baseTokenDetails = testMaster.environment().baseToken;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
