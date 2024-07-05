@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use reqwest::Client;
 use secp256k1::{ecdsa::Signature, PublicKey};
 use serde::{de::DeserializeOwned, Serialize};
@@ -99,13 +97,13 @@ impl TeeApiClient {
             proof: root_hash.as_bytes().into(),
             tee_type,
         }));
-        let started_at = Instant::now();
+        let observer = METRICS.proof_submitting_time.start();
         self.post::<_, SubmitTeeProofResponse, _>(
             format!("/tee/submit_proofs/{batch_number}").as_str(),
             request,
         )
         .await?;
-        METRICS.proof_submitting_time.observe(started_at.elapsed());
+        observer.observe();
         tracing::info!(
             "Proof submitted successfully for batch number {}",
             batch_number
