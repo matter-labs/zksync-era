@@ -5,7 +5,7 @@ use zkevm_test_harness::{
     kzg::KzgSettings,
     witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf},
 };
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 use zksync_types::U256;
 
 use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
@@ -81,7 +81,7 @@ const fn generate_storage_log_metadata(
 }
 
 fn create_provider() -> PrecalculatedMerklePathsProvider {
-    let mut job = PrepareBasicCircuitsJob::new(4);
+    let mut job = WitnessInputMerklePaths::new(4);
     for (mut log, merkle_path) in LOGS_AND_PATHS {
         log.merkle_paths = vec![merkle_path];
         job.push_merkle_path(log);

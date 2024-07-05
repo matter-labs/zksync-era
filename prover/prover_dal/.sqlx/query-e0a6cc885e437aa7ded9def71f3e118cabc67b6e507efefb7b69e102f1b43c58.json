@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "protocol_version_patch",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "witness_inputs_blob_url",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -93,7 +98,8 @@
       true,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
   "hash": "e0a6cc885e437aa7ded9def71f3e118cabc67b6e507efefb7b69e102f1b43c58"

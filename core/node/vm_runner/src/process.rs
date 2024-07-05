@@ -110,11 +110,15 @@ impl VmRunner {
                 .await
                 .context("VM runner failed to handle L2 block")?;
         }
-        let finished_batch = batch_executor
-            .finish_batch()
+
+        let (finished_batch, storage_view_cache) = batch_executor
+            .finish_batch_with_cache()
             .await
-            .context("failed finishing L1 batch in executor")?;
+            .context("Failed getting storage view cache")?;
         updates_manager.finish_batch(finished_batch);
+        // this is needed for Basic Witness Input Producer to use in memory reads, but not database queries
+        updates_manager.update_storage_view_cache(storage_view_cache);
+
         latency.observe();
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
