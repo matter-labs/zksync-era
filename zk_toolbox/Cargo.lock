@@ -1669,6 +1669,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraction"
+version = "0.15.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f158e3ff0a1b334408dc9fb811cd99b446986f4d8b741bb08f9df1604085ae7"
+dependencies = [
+ "lazy_static",
+ "num",
+]
+
+[[package]]
 name = "fs2"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6373,6 +6383,7 @@ dependencies = [
  "rand",
  "secrecy",
  "serde",
+ "url",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -6512,6 +6523,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more 1.0.0-beta.6",
+ "fraction",
  "hex",
  "itertools 0.10.5",
  "num",
