@@ -13,7 +13,7 @@ use zksync_db_connection::{
     connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
 };
 
-use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
+use crate::{duration_to_naive_time_ms, pg_interval_from_duration, Prover};
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
@@ -265,7 +265,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
             "#,
-            duration_to_naive_time(time_taken),
+            duration_to_naive_time_ms(time_taken),
             blob_url,
             i64::from(id)
         )

@@ -2,7 +2,7 @@ use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
     connection_pool::ConnectionPool,
-    utils::{duration_to_naive_time, pg_interval_from_duration},
+    utils::{duration_to_naive_time, duration_to_naive_time_ms, pg_interval_from_duration},
 };
 
 use crate::{

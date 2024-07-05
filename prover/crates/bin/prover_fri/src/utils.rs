@@ -67,10 +67,11 @@ pub async fn save_proof(
     connection: &mut Connection<'_, Prover>,
     protocol_version: ProtocolSemanticVersion,
 ) {
+    let time_taken = started_at.elapsed();
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",
         job_id,
-        started_at.elapsed()
+        time_taken,
     );
     let proof = artifacts.proof_wrapper;
 
@@ -101,7 +102,7 @@ pub async fn save_proof(
     let mut transaction = connection.start_transaction().await.unwrap();
     transaction
         .fri_prover_jobs_dal()
-        .save_proof(job_id, started_at.elapsed(), &blob_url)
+        .save_proof(job_id, time_taken, &blob_url)
         .await;
     if is_scheduler_proof {
         transaction
