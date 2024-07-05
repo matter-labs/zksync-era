@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"last_processed_l1_batch\"\n            FROM\n                vm_runner_protective_reads\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_processed_l1_batch",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5f09cee144c84ea8f69d017f10ca96a8c4d88eb02b621cfa6aeb4e10c6ec0bc4"
+}
