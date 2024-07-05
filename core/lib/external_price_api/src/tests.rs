@@ -20,10 +20,6 @@ pub(crate) mod tests {
         eth_price: f64,
     ) -> Box<dyn PriceAPIClient>;
 
-    pub(crate) fn server_url(server: &MockServer) -> Url {
-        Url::from_str(server.url("").as_str()).unwrap()
-    }
-
     pub(crate) fn add_mock(
         server: &MockServer,
         method: httpmock::Method,
@@ -53,7 +49,7 @@ pub(crate) mod tests {
         let base_token_price = 198.9;
         let eth_price = 3000.0;
 
-        let mut client = setup(&server, api_key, address, base_token_price, eth_price);
+        let client = setup(&server, api_key, address, base_token_price, eth_price);
         let api_price = client.fetch_prices(address).await.unwrap();
 
         assert_eq!(
