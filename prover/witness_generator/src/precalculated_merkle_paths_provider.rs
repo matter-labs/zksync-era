@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use zk_evm::blake2::Blake2s256;
-use zkevm_test_harness::witness::tree::{
-    BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+use zkevm_test_harness::{
+    witness::tree::{
+        BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+    },
+    zk_evm::blake2::Blake2s256,
 };
 use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 

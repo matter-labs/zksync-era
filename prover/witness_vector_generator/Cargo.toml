@@ -22,6 +22,7 @@ zksync_prover_fri_types.workspace = true
 zksync_prover_config.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_vlog.workspace = true
+vk_setup_data_generator_server_fri.workspace = true
 
 anyhow.workspace = true
 tracing.workspace = true
