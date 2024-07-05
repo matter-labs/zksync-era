@@ -12,7 +12,7 @@ use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::{api_client::TeeApiClient, error::TeeProverError};
+use crate::{api_client::TeeApiClient, error::TeeProverError, metrics::METRICS};
 
 /// Wiring layer for `TeeProver`
 ///
@@ -83,12 +83,14 @@ impl TeeProver {
     ) -> Result<(Signature, L1BatchNumber, H256), TeeProverError> {
         match tvi {
             TeeVerifierInput::V1(tvi) => {
+                let observer = METRICS.proof_generation_time.start();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
                 let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
                     .map_err(|e| TeeProverError::Verification(e.into()))?;
                 let signature = self.signing_key.sign_ecdsa(msg_to_sign);
+                observer.observe();
                 Ok((signature, batch_number, verification_result.value_hash))
             }
             _ => Err(TeeProverError::Verification(anyhow::anyhow!(
@@ -97,7 +99,7 @@ impl TeeProver {
         }
     }
 
-    async fn step(&self) -> Result<(), TeeProverError> {
+    async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job().await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
@@ -110,10 +112,13 @@ impl TeeProver {
                         self.tee_type,
                     )
                     .await?;
+                Ok(Some(batch_number))
             }
-            None => tracing::trace!("There are currently no pending batches to be proven"),
+            None => {
+                tracing::trace!("There are currently no pending batches to be proven");
+                Ok(None)
+            }
         }
-        Ok(())
     }
 }
 
@@ -156,6 +161,7 @@ impl Task for TeeProver {
 
         let mut retries = 1;
         let mut backoff = self.config.initial_retry_backoff;
+        let mut observer = METRICS.job_waiting_time.start();
 
         loop {
             if *stop_receiver.0.borrow() {
@@ -164,11 +170,19 @@ impl Task for TeeProver {
             }
             let result = self.step().await;
             match result {
-                Ok(()) => {
+                Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
+                    if let Some(batch_number) = batch_number {
+                        observer.observe();
+                        observer = METRICS.job_waiting_time.start();
+                        METRICS
+                            .last_batch_number_processed
+                            .set(batch_number.0 as u64);
+                    }
                 }
                 Err(err) => {
+                    METRICS.network_errors_counter.inc_by(1);
                     if !err.is_transient() || retries > self.config.max_retries {
                         return Err(err.into());
                     }

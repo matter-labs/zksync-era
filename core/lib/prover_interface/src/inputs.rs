@@ -1,10 +1,14 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, H256, U256};
+pub use zksync_state::WitnessStorage;
+use zksync_types::{
+    basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
+    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 const HASH_LEN: usize = H256::len_bytes();
 
@@ -60,13 +64,13 @@ impl StorageLogMetadata {
 /// Merkle paths; if this is the case, the starting hashes are skipped and are the same
 /// as in the first path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PrepareBasicCircuitsJob {
+pub struct WitnessInputMerklePaths {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     merkle_paths: Vec<StorageLogMetadata>,
     next_enumeration_index: u64,
 }
 
-impl StoredObject for PrepareBasicCircuitsJob {
+impl StoredObject for WitnessInputMerklePaths {
     const BUCKET: Bucket = Bucket::WitnessInput;
     type Key<'a> = L1BatchNumber;
 
@@ -77,7 +81,7 @@ impl StoredObject for PrepareBasicCircuitsJob {
     serialize_using_bincode!();
 }
 
-impl PrepareBasicCircuitsJob {
+impl WitnessInputMerklePaths {
     /// Creates a new job with the specified leaf index and no included paths.
     pub fn new(next_enumeration_index: u64) -> Self {
         Self {
@@ -133,22 +137,62 @@ impl PrepareBasicCircuitsJob {
     }
 }
 
-/// Enriched `PrepareBasicCircuitsJob`. All the other fields are taken from the `l1_batches` table.
-#[derive(Debug, Clone)]
-pub struct BasicCircuitWitnessGeneratorInput {
-    pub block_number: L1BatchNumber,
-    pub previous_block_hash: H256,
-    pub previous_block_timestamp: u64,
-    pub block_timestamp: u64,
-    pub used_bytecodes_hashes: Vec<U256>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMRunWitnessInputData {
+    pub l1_batch_number: L1BatchNumber,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
     pub initial_heap_content: Vec<(usize, U256)>,
-    pub merkle_paths_input: PrepareBasicCircuitsJob,
+    pub protocol_version: ProtocolVersionId,
+    pub bootloader_code: Vec<[u8; 32]>,
+    pub default_account_code_hash: U256,
+    pub storage_refunds: Vec<u32>,
+    pub pubdata_costs: Vec<i32>,
+    pub witness_block_state: WitnessStorageState,
+}
+
+impl StoredObject for VMRunWitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("vm_run_data_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WitnessInputData {
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: WitnessInputMerklePaths,
+    pub previous_batch_metadata: L1BatchMetadataHashes,
+    pub eip_4844_blobs: Eip4844Blobs,
+}
+
+impl StoredObject for WitnessInputData {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("witness_inputs_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct L1BatchMetadataHashes {
+    pub root_hash: H256,
+    pub meta_hash: H256,
+    pub aux_hash: H256,
 }
 
 /// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1TeeVerifierInput {
-    pub prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+    pub witness_input_merkle_paths: WitnessInputMerklePaths,
     pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     pub l1_batch_env: L1BatchEnv,
     pub system_env: SystemEnv,
@@ -157,14 +201,14 @@ pub struct V1TeeVerifierInput {
 
 impl V1TeeVerifierInput {
     pub fn new(
-        prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+        witness_input_merkle_paths: WitnessInputMerklePaths,
         l2_blocks_execution_data: Vec<L2BlockExecutionData>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         used_contracts: Vec<(H256, Vec<u8>)>,
     ) -> Self {
         V1TeeVerifierInput {
-            prepare_basic_circuits_job,
+            witness_input_merkle_paths,
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
@@ -223,7 +267,7 @@ mod tests {
         });
         let logs: Vec<_> = logs.collect();
 
-        let mut job = PrepareBasicCircuitsJob::new(4);
+        let mut job = WitnessInputMerklePaths::new(4);
         job.reserve(logs.len());
         for log in &logs {
             job.push_merkle_path(log.clone());

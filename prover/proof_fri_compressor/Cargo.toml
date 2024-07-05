@@ -13,7 +13,6 @@ categories.workspace = true
 vise.workspace = true
 zksync_types.workspace = true
 zksync_prover_dal.workspace = true
-zksync_config.workspace = true
 zksync_env_config.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
@@ -24,7 +23,6 @@ zksync_queued_job_processor.workspace = true
 vk_setup_data_generator_server_fri.workspace = true
 zksync_vlog.workspace = true
 
-zkevm_test_harness_1_3_3.workspace = true
 circuit_sequencer_api.workspace = true
 zkevm_test_harness.workspace = true
 

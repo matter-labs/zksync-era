@@ -9213,6 +9213,7 @@ dependencies = [
  "tokio",
  "zksync_multivm",
  "zksync_object_store",
+ "zksync_state",
  "zksync_types",
 ]
 
@@ -9412,6 +9413,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "vise",
  "zksync_basic_types",
  "zksync_config",
  "zksync_env_config",
@@ -9592,6 +9594,8 @@ dependencies = [
  "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
+ "zksync_object_store",
+ "zksync_prover_interface",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",

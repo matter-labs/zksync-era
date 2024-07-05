@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::{
-    PrepareBasicCircuitsJob, TeeVerifierInput, V1TeeVerifierInput,
+    TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::Verify;
@@ -55,7 +55,7 @@ impl TeeVerifierInputProducer {
         object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<TeeVerifierInput> {
-        let prepare_basic_circuits_job: PrepareBasicCircuitsJob = object_store
+        let prepare_basic_circuits_job: WitnessInputMerklePaths = object_store
             .get(l1_batch_number)
             .await
             .context("failed to get PrepareBasicCircuitsJob from object store")?;
@@ -216,15 +216,13 @@ impl JobProcessor for TeeVerifierInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
+        let observer: vise::LatencyObserver = METRICS.upload_input_time.start();
         let object_path = self
             .object_store
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for TeeVerifierInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
+        observer.observe();
         let mut connection = self
             .connection_pool
             .connection()
@@ -247,7 +245,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as u64);
         Ok(())
     }
 
