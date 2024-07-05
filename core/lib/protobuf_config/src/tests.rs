@@ -39,6 +39,9 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);
     test_encode_all_formats::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
     test_encode_all_formats::<ReprConv<proto::observability::Observability>>(rng);
+    test_encode_all_formats::<ReprConv<proto::wallets::Wallets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::genesis::Genesis>>(rng);
+    test_encode_all_formats::<ReprConv<proto::en::ExternalNode>>(rng);
 }
 
 #[test]
