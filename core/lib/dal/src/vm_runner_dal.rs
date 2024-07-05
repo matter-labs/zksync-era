@@ -11,22 +11,20 @@ pub struct VmRunnerDal<'c, 'a> {
 impl VmRunnerDal<'_, '_> {
     pub async fn get_protective_reads_latest_processed_batch(
         &mut self,
-        default_batch: L1BatchNumber,
-    ) -> DalResult<L1BatchNumber> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                COALESCE(MAX(l1_batch_number), $1) AS "last_processed_l1_batch!"
+                MAX(l1_batch_number) AS "last_processed_l1_batch"
             FROM
                 vm_runner_protective_reads
-            "#,
-            default_batch.0 as i32
+            "#
         )
         .instrument("get_protective_reads_latest_processed_batch")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
-        Ok(L1BatchNumber(row.last_processed_l1_batch as u32))
+        Ok(row.last_processed_l1_batch.map(|n| L1BatchNumber(n as u32)))
     }
 
     pub async fn get_protective_reads_last_ready_batch(

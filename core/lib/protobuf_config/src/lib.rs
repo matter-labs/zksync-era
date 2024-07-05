@@ -30,7 +30,6 @@ mod secrets;
 mod snapshots_creator;
 
 mod snapshot_recovery;
-pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;
