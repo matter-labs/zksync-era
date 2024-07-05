@@ -141,7 +141,7 @@ mod tests {
         coingecko_api::{CoinGeckoPriceAPIClient, COINGECKO_AUTH_HEADER},
         tests::tests::{
             add_mock, base_token_price_not_found_test, eth_price_not_found_test, happy_day_test,
-            no_base_token_price_404_test, no_eth_price_404_test, server_url,
+            no_base_token_price_404_test, no_eth_price_404_test,
         },
         PriceAPIClient,
     };

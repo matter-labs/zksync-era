@@ -6,7 +6,7 @@ pub(crate) mod tests {
     use chrono::Utc;
     use httpmock::{Mock, MockServer};
     use url::Url;
-    use zksync_types::{base_token_price::BaseTokenAPIPrice, Address};
+    use zksync_types::{base_token_ratio::BaseTokenAPIPrice, Address};
 
     use crate::PriceAPIClient;
 
@@ -71,7 +71,7 @@ pub(crate) mod tests {
         let server = MockServer::start();
         let address_str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
         let address = Address::from_str(address_str).unwrap();
-        let mut client = setup(&server, api_key, address, 1.0, 1.0);
+        let client = setup(&server, api_key, address, 1.0, 1.0);
         let api_price = client.fetch_prices(address).await;
 
         assert!(api_price.is_err());
@@ -87,7 +87,7 @@ pub(crate) mod tests {
         let address_str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
         let address = Address::from_str("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984").unwrap();
 
-        let mut client = setup(&server, api_key, address, 1.0, 1.0);
+        let client = setup(&server, api_key, address, 1.0, 1.0);
         let api_price = client
             .fetch_prices(Address::from_str(address_str).unwrap())
             .await;
@@ -105,7 +105,7 @@ pub(crate) mod tests {
         let address_str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
         let address = Address::from_str(address_str).unwrap();
 
-        let mut client = setup(&server, api_key, address, 1.0, 1.0);
+        let client = setup(&server, api_key, address, 1.0, 1.0);
         let api_price = client.fetch_prices(address).await;
 
         assert!(api_price.is_err());
@@ -121,7 +121,7 @@ pub(crate) mod tests {
         let address_str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
         let address = Address::from_str(address_str).unwrap();
 
-        let mut client = setup(&server, api_key, address, 1.0, 1.0);
+        let client = setup(&server, api_key, address, 1.0, 1.0);
         let api_price = client.fetch_prices(address).await;
 
         assert!(api_price.is_err());

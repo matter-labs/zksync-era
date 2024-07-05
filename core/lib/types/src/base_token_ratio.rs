@@ -15,7 +15,7 @@ pub struct BaseTokenRatio {
 }
 
 /// Struct to represent API response containing denominator, numerator, and timestamp.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BaseTokenAPIPrice {
     pub base_token_price: BigDecimal,
     pub eth_price: BigDecimal,
