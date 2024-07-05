@@ -16,6 +16,7 @@ describe('ERC20 contract checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
+    let baseTokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
     beforeAll(async () => {
@@ -24,6 +25,7 @@ describe('ERC20 contract checks', () => {
         bob = testMaster.newEmptyAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
+        baseTokenDetails = testMaster.environment().baseToken;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
@@ -208,10 +210,17 @@ describe('ERC20 contract checks', () => {
 
     test('Can perform a deposit with precalculated max value', async () => {
         console.log('nonce0', await alice.getNonce());
+
+        const maxAmountBase = await alice.getBalanceL1(baseTokenDetails.l1Address);
+        console.log('nonce1', await alice.getNonce());
+
         const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
         console.log('nonce2', await alice.getNonce());
 
         // Approving the needed allowance to ensure that the user has enough funds.
+        await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmountBase)).wait();
+        console.log('nonce3', await alice.getNonce());
+
         await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
         console.log('nonce4', await alice.getNonce());
 
