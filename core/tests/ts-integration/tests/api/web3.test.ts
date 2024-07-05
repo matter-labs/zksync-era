@@ -752,9 +752,11 @@ describe('web3 API compatibility tests', () => {
             amount: 1,
             token: l2Token
         });
-        await tx.wait();
+        const receipt = await tx.wait();
         const response = await alice.provider.send('eth_getLogs', [
             {
+                fromBlock: ethers.toBeHex(receipt.blockNumber),
+                toBlock: ethers.toBeHex(receipt.blockNumber),
                 address: l2Token,
                 topics: [
                     '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
