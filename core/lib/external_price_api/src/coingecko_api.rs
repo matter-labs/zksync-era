@@ -5,7 +5,7 @@ use bigdecimal::BigDecimal;
 use chrono::Utc;
 use reqwest;
 use serde::{Deserialize, Serialize};
-use zksync_config::configs::BaseTokenApiClientConfig;
+use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_types::{base_token_ratio::BaseTokenAPIPrice, Address};
 
 use crate::{address_to_string, PriceAPIClient};
@@ -21,14 +21,17 @@ const ETH_ID: &str = "ethereum";
 const USD_ID: &str = "usd";
 
 impl CoinGeckoPriceAPIClient {
-    pub fn new(config: BaseTokenApiClientConfig) -> Self {
+    pub fn new(config: ExternalPriceApiClientConfig) -> Self {
         let client = if let Some(api_key) = &config.api_key {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(
+                reqwest::header::HeaderName::from_static(COINGECKO_AUTH_HEADER),
+                reqwest::header::HeaderValue::from_str(api_key)
+                    .expect("Failed to create header value"),
+            );
+
             reqwest::Client::builder()
-                .default_headers(reqwest::header::HeaderMap::from_iter(std::iter::once((
-                    reqwest::header::HeaderName::from_static(COINGECKO_AUTH_HEADER),
-                    reqwest::header::HeaderValue::from_str(api_key)
-                        .expect("Failed to create header value"),
-                ))))
+                .default_headers(headers)
                 .timeout(config.client_timeout())
                 .build()
                 .expect("Failed to build reqwest client")
@@ -130,6 +133,7 @@ mod tests {
     use std::collections::HashMap;
 
     use httpmock::MockServer;
+    use zksync_config::configs::ExternalPriceApiClientConfig;
     use zksync_types::Address;
 
     use crate::{
@@ -194,11 +198,11 @@ mod tests {
             api_key.clone(),
         );
         add_mock_by_id(&server, "ethereum".to_string(), eth_price, api_key.clone());
-        Box::new(CoinGeckoPriceAPIClient::new(
-            server_url(&server),
-            api_key.clone(),
-            std::time::Duration::from_secs(5),
-        ))
+        Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
+            base_url: server.url(""),
+            api_key: api_key.clone(),
+            client_timeout_ms: 5000,
+        }))
     }
 
     #[tokio::test]
@@ -222,11 +226,11 @@ mod tests {
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
                 add_mock_by_address(&server, address_to_string(&address), 198.9, None);
-                Box::new(CoinGeckoPriceAPIClient::new(
-                    server_url(&server),
+                Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
+                    base_url: server.url(""),
                     api_key,
-                    std::time::Duration::from_secs(5),
-                ))
+                    client_timeout_ms: 5000,
+                }))
             },
         )
         .await;
@@ -256,11 +260,11 @@ mod tests {
                     COINGECKO_AUTH_HEADER.to_string(),
                     api_key.clone(),
                 );
-                Box::new(CoinGeckoPriceAPIClient::new(
-                    server_url(&server),
+                Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
+                    base_url: server.url(""),
                     api_key,
-                    std::time::Duration::from_secs(5),
-                ))
+                    client_timeout_ms: 5000,
+                }))
             },
         )
         .await;
@@ -277,11 +281,11 @@ mod tests {
              _eth_price: f64|
              -> Box<dyn PriceAPIClient> {
                 add_mock_by_id(&server, "ethereum".to_string(), 29.5, None);
-                Box::new(CoinGeckoPriceAPIClient::new(
-                    server_url(&server),
+                Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
+                    base_url: server.url(""),
                     api_key,
-                    std::time::Duration::from_secs(5),
-                ))
+                    client_timeout_ms: 5000,
+                }))
             },
         )
         .await;
@@ -314,11 +318,11 @@ mod tests {
                     COINGECKO_AUTH_HEADER.to_string(),
                     api_key.clone(),
                 );
-                Box::new(CoinGeckoPriceAPIClient::new(
-                    server_url(&server),
+                Box::new(CoinGeckoPriceAPIClient::new(ExternalPriceApiClientConfig {
+                    base_url: server.url(""),
                     api_key,
-                    std::time::Duration::from_secs(5),
-                ))
+                    client_timeout_ms: 5000,
+                }))
             },
         )
         .await;

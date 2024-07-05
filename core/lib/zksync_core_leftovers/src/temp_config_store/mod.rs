@@ -11,7 +11,7 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        BaseTokenApiClientConfig, CommitmentGeneratorConfig, FriProofCompressorConfig,
+        CommitmentGeneratorConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
         FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
         FriWitnessVectorGeneratorConfig, GeneralConfig, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
@@ -71,7 +71,7 @@ pub struct TempConfigStore {
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
-    pub base_token_api_client_config: Option<BaseTokenApiClientConfig>,
+    pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
 }
 
 impl TempConfigStore {
@@ -104,7 +104,7 @@ impl TempConfigStore {
             commitment_generator: self.commitment_generator.clone(),
             snapshot_recovery: self.snapshot_recovery.clone(),
             pruning: self.pruning.clone(),
-            base_token_api_client_config: self.base_token_api_client_config.clone(),
+            external_price_api_client_config: self.external_price_api_client_config.clone(),
         }
     }
 

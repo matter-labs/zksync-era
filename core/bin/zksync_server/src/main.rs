@@ -11,16 +11,15 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        ContractsConfig, DatabaseSecrets, ExternalPriceApiClientConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
     SnapshotsCreatorConfig,
 };
-use zksync_config::configs::BaseTokenApiClientConfig;
 use zksync_core_leftovers::{
     genesis_init, is_genesis_needed,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
@@ -277,6 +276,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
-        base_token_api_client_config: BaseTokenApiClientConfig::from_env().ok(),
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
     })
 }

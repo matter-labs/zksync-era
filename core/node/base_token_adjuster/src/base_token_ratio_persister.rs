@@ -34,7 +34,6 @@ impl BaseTokenRatioPersister {
     /// Orchestrates fetching a new ratio, persisting it, and conditionally updating the L1 with it.
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.config.price_polling_interval());
-        let pool = self.pool.clone();
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
@@ -42,25 +41,32 @@ impl BaseTokenRatioPersister {
                 _ = stop_receiver.changed() => break,
             }
 
-            let new_prices = self
-                .price_api_client
-                .fetch_prices(self.base_token_address)
-                .await?;
-
-            self.persist_ratio(new_prices, &pool).await?;
-            // TODO(PE-128): Update L1 ratio
+            if let Err(err) = self.loop_iteration().await {
+                tracing::error!(
+                    "Failed to execute a base_token_ratio_persister loop iteration: {err}"
+                );
+            }
         }
 
         tracing::info!("Stop signal received, base_token_ratio_persister is shutting down");
         Ok(())
     }
 
-    async fn persist_ratio(
-        &self,
-        api_price: BaseTokenAPIPrice,
-        pool: &ConnectionPool<Core>,
-    ) -> anyhow::Result<usize> {
-        let mut conn = pool
+    async fn loop_iteration(&self) -> anyhow::Result<()> {
+        let new_prices = self
+            .price_api_client
+            .fetch_prices(self.base_token_address)
+            .await?;
+
+        self.persist_ratio(new_prices).await?;
+        // TODO(PE-128): Update L1 ratio
+
+        Ok(())
+    }
+
+    async fn persist_ratio(&self, api_price: BaseTokenAPIPrice) -> anyhow::Result<usize> {
+        let mut conn = self
+            .pool
             .connection_tagged("base_token_ratio_persister")
             .await
             .context("Failed to obtain connection to the database")?;

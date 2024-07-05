@@ -21,7 +21,6 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        base_token_external_api_client::BaseTokenExternalPriceApiClient,
         base_token_ratio_persister::BaseTokenRatioPersisterLayer,
         base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -31,6 +30,7 @@ use zksync_node_framework::{
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
+        external_price_api_client::ExternalPriceApiClient,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
@@ -505,10 +505,8 @@ impl MainNodeBuilder {
     }
 
     fn add_coingecko_api_client_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.base_token_api_client_config);
-        self.node.add_layer(BaseTokenExternalPriceApiClient::new(
-            config,
-        ));
+        let config = try_load_config!(self.configs.external_price_api_client_config);
+        self.node.add_layer(ExternalPriceApiClient::new(config));
 
         Ok(self)
     }

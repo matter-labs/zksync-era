@@ -8,7 +8,7 @@ use crate::{
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::ProtectiveReadsWriterConfig,
-        BaseTokenApiClientConfig, CommitmentGeneratorConfig, FriProofCompressorConfig,
+        CommitmentGeneratorConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
         FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
         FriWitnessVectorGeneratorConfig, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig,
@@ -46,5 +46,5 @@ pub struct GeneralConfig {
     pub pruning: Option<PruningConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
-    pub base_token_api_client_config: Option<BaseTokenApiClientConfig>,
+    pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
 }

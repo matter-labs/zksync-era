@@ -23,12 +23,12 @@ mod utils;
 
 mod base_token_adjuster;
 mod da_dispatcher;
+mod external_price_api_client;
 mod genesis;
 #[cfg(test)]
 mod test_utils;
 mod vm_runner;
 mod wallets;
-mod base_token_api_client;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

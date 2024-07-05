@@ -2,7 +2,6 @@
 pub use self::{
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
-    base_token_api_client::BaseTokenApiClientConfig,
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
@@ -11,6 +10,7 @@ pub use self::{
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
     experimental::ExperimentalDBConfig,
+    external_price_api_client::ExternalPriceApiClientConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
@@ -31,7 +31,6 @@ pub use self::{
 
 pub mod api;
 pub mod base_token_adjuster;
-pub mod base_token_api_client;
 pub mod chain;
 mod commitment_generator;
 pub mod consensus;
@@ -43,6 +42,7 @@ pub mod en_config;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
+pub mod external_price_api_client;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;

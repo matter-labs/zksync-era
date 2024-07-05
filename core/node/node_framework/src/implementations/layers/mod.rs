@@ -1,4 +1,3 @@
-pub mod base_token_external_api_client;
 pub mod base_token_ratio_persister;
 pub mod base_token_ratio_provider;
 pub mod batch_status_updater;
@@ -10,6 +9,7 @@ pub mod contract_verification_api;
 pub mod da_dispatcher;
 pub mod eth_sender;
 pub mod eth_watch;
+pub mod external_price_api_client;
 pub mod healtcheck_server;
 pub mod house_keeper;
 pub mod l1_batch_commitment_mode_validation;

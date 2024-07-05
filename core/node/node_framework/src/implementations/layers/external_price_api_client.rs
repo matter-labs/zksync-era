@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::BaseTokenApiClientConfig;
+use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
 
 use crate::{
@@ -17,18 +17,18 @@ use crate::{
 ///
 /// - PriceAPIClientResource
 #[derive(Debug)]
-pub struct BaseTokenExternalPriceApiClient {
-    config: BaseTokenApiClientConfig,
+pub struct ExternalPriceApiClient {
+    config: ExternalPriceApiClientConfig,
 }
 
-impl BaseTokenExternalPriceApiClient {
-    pub fn new(config: BaseTokenApiClientConfig) -> Self {
+impl ExternalPriceApiClient {
+    pub fn new(config: ExternalPriceApiClientConfig) -> Self {
         Self { config }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for BaseTokenExternalPriceApiClient {
+impl WiringLayer for ExternalPriceApiClient {
     fn layer_name(&self) -> &'static str {
         "base_token_external_price_provider"
     }
