@@ -7,3 +7,9 @@ message ProtectiveReadsWriter {
   optional uint64 window_size = 2; // required
   optional uint64 first_processed_batch = 3; // required
 }
+
+message BasicWitnessInputProducer {
+  optional string db_path = 1; // required; fs path
+  optional uint64 window_size = 2; // required
+  optional uint64 first_processed_batch = 3; // required
+}
