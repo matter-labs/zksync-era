@@ -219,6 +219,12 @@ describe('ERC20 contract checks', () => {
 
         console.log('LOG1');
 
+        // Approving the needed allowance to ensure that the user has enough funds.
+        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
+        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
+
+        console.log('LOG4');
+
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
         });
@@ -232,12 +238,6 @@ describe('ERC20 contract checks', () => {
         if (aliceETHBalance < l1Fee + l2Fee) {
             throw new Error('Not enough ETH to perform a deposit');
         }
-
-        // Approving the needed allowance to ensure that the user has enough funds.
-        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
-        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
-
-        console.log('LOG4');
 
         const l2ERC20BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: maxAmount }
