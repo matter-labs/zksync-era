@@ -539,7 +539,8 @@ impl ZkSyncStateKeeper {
                 tracing::trace!("No new transactions. Waiting!");
                 continue;
             };
-            waiting_latency.observe();
+            let waiting_latency = waiting_latency.observe();
+            tracing::info!("Got next transaction {tx:?} in {waiting_latency:?}"); // FIXME: remove
 
             let tx_hash = tx.hash();
             let (seal_resolution, exec_result) = self
@@ -685,7 +686,8 @@ impl ZkSyncStateKeeper {
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
-        latency.observe();
+        let latency = latency.observe();
+        tracing::info!("Executed {tx:?} in {latency:?}"); // FIXME: remove
 
         let latency = KEEPER_METRICS.determine_seal_resolution.start();
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`,
@@ -804,7 +806,8 @@ impl ZkSyncStateKeeper {
                 )
             }
         };
-        latency.observe();
+        let latency = latency.observe();
+        tracing::info!("Determined resolution for {tx:?} in {latency:?}: {resolution:?}"); // FIXME: remove
         Ok((resolution, exec_result))
     }
 }

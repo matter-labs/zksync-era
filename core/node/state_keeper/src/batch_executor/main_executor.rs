@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -159,7 +159,12 @@ impl CommandReceiver {
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> TxExecutionResult {
         // Save pre-`execute_next_tx` VM snapshot.
+        let started_at = Instant::now();
         vm.make_snapshot();
+        tracing::info!(
+            "Created snapshot before {tx:?} in {:?}",
+            started_at.elapsed()
+        );
 
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();
