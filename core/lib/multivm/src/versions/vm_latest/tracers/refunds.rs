@@ -152,6 +152,10 @@ impl<S> RefundsTracer<S> {
         tracing::trace!("Gas spent on pubdata: {}", gas_spent_on_pubdata);
         tracing::trace!("Pubdata published: {}", pubdata_published);
 
+        if effective_gas_price == 0 {
+            return bootloader_refund;
+        }
+
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u64()
     }
 

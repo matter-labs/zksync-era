@@ -202,7 +202,8 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
 
         // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
-        minimal_l2_gas_price + gas_overhead_wei
+        // minimal_l2_gas_price + gas_overhead_wei
+        0
     };
 
     let fair_pubdata_price = {
@@ -217,7 +218,8 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
 
         // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
-        l1_pubdata_price + pubdata_overhead_wei
+        // l1_pubdata_price + pubdata_overhead_wei
+        0
     };
 
     PubdataIndependentBatchFeeModelInput {
