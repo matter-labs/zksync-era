@@ -1,6 +1,6 @@
 # NFTF -- New Fancy Test Framework
 
-This folder contains a framework for writing integration tests for zkSync Era, as well as set of integration test
+This folder contains a framework for writing integration tests for ZKsync Era, as well as set of integration test
 suites.
 
 This framework is built atop of [jest](https://jestjs.io/). It is _highly recommended_ to familiarize yourself with its
@@ -23,7 +23,7 @@ prepare the context for tests. Context initialization consists of:
 - Creating personal accounts for each test suite.
 - Providing funds to these accounts.
 
-Basically, during initialization, everything is prepared for writing tests that interact with zkSync.
+Basically, during initialization, everything is prepared for writing tests that interact with ZKsync.
 
 After that, each test suite is ran _in parallel_. Each test suite can claim its own account and be sure that this
 account has funds on it and is not used by any other suite.

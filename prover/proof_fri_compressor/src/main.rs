@@ -3,16 +3,16 @@
 use std::{env, time::Duration};
 
 use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover};
-use structopt::StructOpt;
+use clap::Parser;
 use tokio::sync::{oneshot, watch};
-use zksync_config::configs::{DatabaseSecrets, FriProofCompressorConfig, ObservabilityConfig};
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_config::{load_database_secrets, load_general_config};
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
@@ -22,27 +22,36 @@ mod compressor;
 mod initial_setup_keys;
 mod metrics;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "zksync_proof_fri_compressor",
-    about = "Tool for compressing FRI proofs to old bellman proof"
-)]
-struct Opt {
+#[derive(Debug, Parser)]
+#[command(author = "Matter Labs", version)]
+struct Cli {
     /// Number of times proof fri compressor should be run.
-    #[structopt(short = "n", long = "n_iterations")]
+    #[arg(long = "n_iterations")]
+    #[arg(short)]
     number_of_iterations: Option<usize>,
+    #[arg(long)]
+    pub(crate) config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) secrets_path: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let opt = Cli::parse();
+
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+
+    let observability_config = general_config
+        .observability
+        .expect("observability config")
+        .clone();
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
@@ -60,15 +69,20 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let opt = Opt::from_args();
-    let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let database_secrets = DatabaseSecrets::from_env().context("PostgresConfig::from_env()")?;
+    let config = general_config
+        .proof_compressor_config
+        .context("FriProofCompressorConfig")?;
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let object_store_config =
-        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let object_store_config = ProverObjectStoreConfig(
+        general_config
+            .prover_config
+            .expect("ProverConfig")
+            .prover_object_store
+            .context("ProverObjectStoreConfig")?,
+    );
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await?;

@@ -1,0 +1,26 @@
+[package]
+name = "zksync_da_dispatcher"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+
+[dependencies]
+vise.workspace = true
+zksync_dal.workspace = true
+zksync_utils.workspace = true
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_da_client.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+rand.workspace = true
+futures.workspace = true

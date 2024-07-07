@@ -4,18 +4,18 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover, ProverDal};
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_config::{load_database_secrets, load_general_config};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
@@ -78,12 +78,12 @@ async fn main() -> anyhow::Result<()> {
     let observability_config = general_config
         .observability
         .context("observability config")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

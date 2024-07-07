@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_dal.workspace = true
@@ -25,7 +25,7 @@ zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_concurrency.workspace = true
 vise.workspace = true
-vm_utils.workspace = true
+zksync_vm_utils.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

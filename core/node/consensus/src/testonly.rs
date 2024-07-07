@@ -7,7 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
     configs,
     configs::{
-        chain::OperationsManagerConfig,
+        chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
@@ -54,6 +54,7 @@ use crate::{
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
+    protocol_version: ProtocolVersionId,
     // Batch of the `last_block`.
     last_batch: L1BatchNumber,
     last_block: L2BlockNumber,
@@ -99,6 +100,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 }],
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
+            rpc: None,
         },
         config::ConsensusSecrets {
             node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
@@ -130,6 +132,16 @@ impl StateKeeper {
         pool: ConnectionPool,
     ) -> ctx::Result<(Self, StateKeeperRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+        // We fetch the last protocol version from storage.
+        // `protocol_version_id_by_timestamp` does a wrapping conversion to `i64`.
+        let protocol_version = ctx
+            .wait(
+                conn.0
+                    .protocol_versions_dal()
+                    .protocol_version_id_by_timestamp(i64::MAX.try_into().unwrap()),
+            )
+            .await?
+            .context("protocol_version_id_by_timestamp()")?;
         let cursor = ctx
             .wait(IoCursor::for_fetcher(&mut conn.0))
             .await?
@@ -155,8 +167,15 @@ impl StateKeeper {
         let operation_manager_config = OperationsManagerConfig {
             delay_interval: 100, //`100ms`
         };
-        let config =
-            MetadataCalculatorConfig::for_main_node(&merkle_tree_config, &operation_manager_config);
+        let state_keeper_config = StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        };
+        let config = MetadataCalculatorConfig::for_main_node(
+            &merkle_tree_config,
+            &operation_manager_config,
+            &state_keeper_config,
+        );
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;
@@ -164,6 +183,7 @@ impl StateKeeper {
         let account = Account::random();
         Ok((
             Self {
+                protocol_version,
                 last_batch: cursor.l1_batch,
                 last_block: cursor.next_l2_block - 1,
                 last_timestamp: cursor.prev_l2_block_timestamp,
@@ -196,7 +216,7 @@ impl StateKeeper {
             self.batch_sealed = false;
             SyncAction::OpenBatch {
                 params: L1BatchParams {
-                    protocol_version: ProtocolVersionId::latest(),
+                    protocol_version: self.protocol_version,
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
                     fee_input: BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {

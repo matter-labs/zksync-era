@@ -407,7 +407,7 @@ impl EthNamespace {
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&storage_key, block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         Ok(value)
@@ -688,6 +688,10 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
+        let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
@@ -695,6 +699,8 @@ impl EthNamespace {
             base_fee_per_gas,
             gas_used_ratio,
             reward,
+            base_fee_per_blob_gas,
+            blob_gas_used_ratio,
         })
     }
 
@@ -840,17 +846,17 @@ impl EthNamespace {
     }
 
     pub fn uncle_count_impl(&self, _block: BlockId) -> Option<U256> {
-        // We don't have uncles in zkSync.
+        // We don't have uncles in ZKsync.
         Some(0.into())
     }
 
     pub fn hashrate_impl(&self) -> U256 {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         U256::zero()
     }
 
     pub fn mining_impl(&self) -> bool {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         false
     }
 

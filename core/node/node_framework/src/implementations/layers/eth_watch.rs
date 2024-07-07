@@ -18,6 +18,19 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for ethereum watcher
+///
+/// Responsible for initializing and running of [`EthWatch`] component, that polls the Ethereum node for the relevant events,
+/// such as priority operations (aka L1 transactions), protocol upgrades etc.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `EthInterfaceResource`
+///
+/// ## Adds tasks
+///
+/// - `EthWatchTask`
 #[derive(Debug)]
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
@@ -40,11 +53,10 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let main_pool = pool_resource.get().await.unwrap();
-
-        let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>().await?.0;
+        let client = context.get_resource::<EthInterfaceResource>()?.0;
+        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>()?.0;
 
         let eth_client = EthHttpQueryClient::new(
             client,
@@ -55,14 +67,14 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
-        context.add_task(Box::new(EthWatchTask {
+        context.add_task(EthWatchTask {
             main_pool,
             client: eth_client,
             governance_contract: governance_contract(),
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
             priority_merkle_tree,
-        }));
+        });
 
         Ok(())
     }

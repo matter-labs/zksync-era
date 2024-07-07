@@ -32,7 +32,7 @@ impl WiringLayer for PriorityTreeLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let connection_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let connection_pool = context.get_resource::<PoolResource<MasterPool>>()?;
         let priority_op_hashes = connection_pool
             .get()
             .await?

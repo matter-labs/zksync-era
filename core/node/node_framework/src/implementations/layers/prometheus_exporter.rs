@@ -1,19 +1,22 @@
-use prometheus_exporter::PrometheusExporterConfig;
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
     service::{ServiceContext, StopReceiver},
-    task::{Task, TaskId},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Builder for a prometheus exporter.
+/// Wiring layer for Prometheus exporter server.
 ///
-/// ## Effects
+/// ## Requests resources
 ///
-/// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
-/// - Adds `prometheus_exporter` to the node.
+/// - `AppHealthCheckResource` (adds a health check)
+///
+/// ## Adds tasks
+///
+/// - `PrometheusExporterTask`
 #[derive(Debug)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
@@ -33,15 +36,15 @@ impl WiringLayer for PrometheusExporterLayer {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
+        let AppHealthCheckResource(app_health) = node.get_resource_or_default();
         app_health
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
 
-        let task = Box::new(PrometheusExporterTask {
+        let task = PrometheusExporterTask {
             config: self.0,
             prometheus_health_updater,
-        });
+        };
 
         node.add_task(task);
         Ok(())
@@ -50,6 +53,10 @@ impl WiringLayer for PrometheusExporterLayer {
 
 #[async_trait::async_trait]
 impl Task for PrometheusExporterTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "prometheus_exporter".into()
     }

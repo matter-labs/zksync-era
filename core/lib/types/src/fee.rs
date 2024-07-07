@@ -57,9 +57,9 @@ impl Default for TransactionExecutionMetrics {
 pub struct Fee {
     /// The limit of gas that are to be spent on the actual transaction.
     pub gas_limit: U256,
-    /// zkSync version of EIP1559 maxFeePerGas.
+    /// ZKsync version of EIP1559 maxFeePerGas.
     pub max_fee_per_gas: U256,
-    /// zkSync version of EIP1559 maxPriorityFeePerGas.
+    /// ZKsync version of EIP1559 maxPriorityFeePerGas.
     pub max_priority_fee_per_gas: U256,
     /// The maximal gas per pubdata byte the user agrees to.
     pub gas_per_pubdata_limit: U256,

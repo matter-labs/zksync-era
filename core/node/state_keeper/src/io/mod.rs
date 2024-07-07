@@ -1,13 +1,13 @@
 use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
-use multivm::interface::{L1BatchEnv, PubdataParams, SystemEnv};
-use vm_utils::storage::l1_batch_params;
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::interface::{L1BatchEnv, PubdataParams, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
+use zksync_vm_utils::storage::l1_batch_params;
 
 pub use self::{
     common::IoCursor,

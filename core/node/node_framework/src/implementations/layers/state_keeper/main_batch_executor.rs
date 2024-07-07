@@ -1,4 +1,3 @@
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_state_keeper::MainBatchExecutor;
 
 use crate::{
@@ -8,15 +7,22 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `MainBatchExecutor`, part of the state keeper responsible for running the VM.
+///
+/// ## Adds resources
+///
+/// - `MainBatchExecutor`
 #[derive(Debug)]
 pub struct MainBatchExecutorLayer {
-    state_keeper_config: StateKeeperConfig,
+    save_call_traces: bool,
+    optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutorLayer {
-    pub fn new(state_keeper_config: StateKeeperConfig) -> Self {
+    pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
         Self {
-            state_keeper_config,
+            save_call_traces,
+            optional_bytecode_compression,
         }
     }
 }
@@ -28,7 +34,8 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let builder = MainBatchExecutor::new(self.state_keeper_config.save_call_traces, false);
+        let builder =
+            MainBatchExecutor::new(self.save_call_traces, self.optional_bytecode_compression);
 
         context.insert_resource(BatchExecutorResource(Unique::new(Box::new(builder))))?;
         Ok(())

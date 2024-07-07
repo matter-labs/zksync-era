@@ -26,12 +26,12 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     let storage_log = StorageLog::new_write_log(storage_key, H256::repeat_byte(0xff));
     storage
         .storage_logs_dal()
-        .insert_storage_logs(l2_block.number, &[(H256::zero(), vec![storage_log])])
+        .insert_storage_logs(l2_block.number, &[storage_log])
         .await
         .unwrap();
     storage
         .storage_logs_dedup_dal()
-        .insert_initial_writes(number, &[storage_key])
+        .insert_initial_writes(number, &[storage_key.hashed_key()])
         .await
         .unwrap();
 

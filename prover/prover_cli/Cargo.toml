@@ -25,7 +25,7 @@ zksync_basic_types.workspace = true
 zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_interface.workspace = true
-prover_dal.workspace = true
+zksync_prover_dal.workspace = true
 zksync_eth_client.workspace = true
 zksync_contracts.workspace = true
 zksync_dal.workspace = true
@@ -36,6 +36,7 @@ sqlx.workspace = true
 circuit_definitions.workspace = true
 serde_json.workspace = true
 zkevm_test_harness = { workspace = true, optional = true, features = ["verbose_circuits"] }
+chrono.workspace = true
 
 [features]
 # enable verbose circuits, if you want to use debug_circuit command (as it is quite heavy dependency).

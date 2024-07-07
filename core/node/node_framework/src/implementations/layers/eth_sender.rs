@@ -19,6 +19,23 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Wiring layer for `eth_txs` managing
+///
+/// Responsible for initialization and running [`EthTxManager`] component, that manages sending
+/// of `eth_txs`(such as `CommitBlocks`, `PublishProofBlocksOnchain` or `ExecuteBlock` ) to L1.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (optional)
+/// - `L1TxParamsResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+///
+/// ## Adds tasks
+///
+/// - `EthTxManager`
 #[derive(Debug)]
 pub struct EthTxManagerLayer {
     eth_sender_config: EthConfig,
@@ -38,16 +55,13 @@ impl WiringLayer for EthTxManagerLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await.unwrap();
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-        let eth_client_blobs = match context
-            .get_resource::<BoundEthInterfaceForBlobsResource>()
-            .await
-        {
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>()?.0;
+        let eth_client_blobs = match context.get_resource::<BoundEthInterfaceForBlobsResource>() {
             Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
@@ -55,7 +69,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
-        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
+        let gas_adjuster = context.get_resource::<L1TxParamsResource>()?.0;
 
         let eth_tx_manager_actor = EthTxManager::new(
             master_pool,
@@ -65,12 +79,10 @@ impl WiringLayer for EthTxManagerLayer {
             eth_client_blobs,
         );
 
-        context.add_task(Box::new(EthTxManagerTask {
-            eth_tx_manager_actor,
-        }));
+        context.add_task(eth_tx_manager_actor);
 
         // Insert circuit breaker.
-        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default();
         breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
@@ -79,6 +91,24 @@ impl WiringLayer for EthTxManagerLayer {
     }
 }
 
+/// Wiring layer for aggregating l1 batches into `eth_txs`
+///
+/// Responsible for initialization and running of [`EthTxAggregator`], that aggregates L1 batches
+/// into `eth_txs`(such as `CommitBlocks`, `PublishProofBlocksOnchain` or `ExecuteBlock`).
+/// These `eth_txs` will be used as a queue for generating signed txs and will be sent later on L1.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `PoolResource<ReplicaPool>`
+/// - `BoundEthInterfaceResource`
+/// - `BoundEthInterfaceForBlobsResource` (optional)
+/// - `ObjectStoreResource`
+/// - `CircuitBreakersResource` (adds a circuit breaker)
+///
+/// ## Adds tasks
+///
+/// - `EthTxAggregator`
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
@@ -111,22 +141,19 @@ impl WiringLayer for EthTxAggregatorLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Get resources.
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
+        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await.unwrap();
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
+        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
         let replica_pool = replica_pool_resource.get().await.unwrap();
 
-        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
-        let eth_client_blobs = match context
-            .get_resource::<BoundEthInterfaceForBlobsResource>()
-            .await
-        {
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>()?.0;
+        let eth_client_blobs = match context.get_resource::<BoundEthInterfaceForBlobsResource>() {
             Ok(BoundEthInterfaceForBlobsResource(client)) => Some(client),
             Err(WiringError::ResourceLacking { .. }) => None,
             Err(err) => return Err(err),
         };
-        let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
-        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>().await?.0;
+        let object_store = context.get_resource::<ObjectStoreResource>()?.0;
+        let priority_merkle_tree = context.get_resource::<PriorityTreeResource>()?.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -155,12 +182,10 @@ impl WiringLayer for EthTxAggregatorLayer {
         )
         .await;
 
-        context.add_task(Box::new(EthTxAggregatorTask {
-            eth_tx_aggregator_actor,
-        }));
+        context.add_task(eth_tx_aggregator_actor);
 
         // Insert circuit breaker.
-        let CircuitBreakersResource { breakers } = context.get_resource_or_default().await;
+        let CircuitBreakersResource { breakers } = context.get_resource_or_default();
         breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
@@ -169,34 +194,24 @@ impl WiringLayer for EthTxAggregatorLayer {
     }
 }
 
-#[derive(Debug)]
-struct EthTxAggregatorTask {
-    eth_tx_aggregator_actor: EthTxAggregator,
-}
-
 #[async_trait::async_trait]
-impl Task for EthTxAggregatorTask {
+impl Task for EthTxAggregator {
     fn id(&self) -> TaskId {
         "eth_tx_aggregator".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.eth_tx_aggregator_actor.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct EthTxManagerTask {
-    eth_tx_manager_actor: EthTxManager,
-}
-
 #[async_trait::async_trait]
-impl Task for EthTxManagerTask {
+impl Task for EthTxManager {
     fn id(&self) -> TaskId {
         "eth_tx_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.eth_tx_manager_actor.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

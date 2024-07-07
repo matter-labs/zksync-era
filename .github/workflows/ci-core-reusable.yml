@@ -141,7 +141,7 @@ jobs:
         # FIXME: run tests even when not using synclayer
         sync_layer: [true]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -211,7 +211,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server --use-node-framework --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier
@@ -265,9 +265,10 @@ jobs:
       #     fi
       #     ENABLE_CONSENSUS=${{ matrix.consensus }} \
       #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+      #     SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
       #     DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
       #     ETH_CLIENT_WEB3_URL="http://reth:8545" \
-      #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,ETH_CLIENT_WEB3_URL" \
+      #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
       #       ci_run yarn recovery-test snapshot-recovery-test
 
       # - name: Genesis recovery test
@@ -328,6 +329,10 @@ jobs:
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
 
+      - name: Show fee-projection.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
       - name: Show sccache logs
         if: always()
         run: |
@@ -344,9 +349,15 @@ jobs:
   #       base_token: ["Eth", "Custom"]
   #   runs-on: [matterlabs-ci-runner]
 
+<<<<<<< HEAD
     # env:
     #   SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
     #   EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
+=======
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
+>>>>>>> origin/main
 
     # steps:
     #   - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.

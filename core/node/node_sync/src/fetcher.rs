@@ -1,5 +1,5 @@
-use multivm::interface::PubdataParams;
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_multivm::interface::PubdataParams;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{

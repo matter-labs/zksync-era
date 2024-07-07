@@ -6,14 +6,13 @@ use axum::{
     response::Response,
     Router,
 };
-use hyper::body::HttpBody;
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
 use tower::ServiceExt;
 use zksync_basic_types::U256;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, CoreDal};
+use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
 use zksync_tee_verifier::TeeVerifierInput;
@@ -108,7 +107,9 @@ async fn request_tee_proof_inputs() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let json = json
         .get("Success")

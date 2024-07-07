@@ -11,14 +11,13 @@ export async function server(
     rebuildTree: boolean,
     uring: boolean,
     components?: string,
-    useNodeFramework?: boolean,
     timeToLive?: string
 ) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components || useNodeFramework) {
+    if (rebuildTree || components) {
         options += ' --';
     }
     if (rebuildTree) {
@@ -28,14 +27,11 @@ export async function server(
     if (components) {
         options += ` --components=${components}`;
     }
-    if (useNodeFramework) {
-        options += ' --use-node-framework';
-    }
     if (!timeToLive) {
         await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
     } else {
         console.log('Starting server');
-        const child = utils.background(`cargo run --bin zksync_server --release ${options}`);
+        const child = utils.background({ command: `cargo run --bin zksync_server --release ${options}`, stdio: [null, null, null] });
 
         const promise = new Promise((resolve, reject) => {
             child.on('error', reject);
@@ -126,7 +122,6 @@ export const serverCommand = new Command('server')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
-    .option('--use-node-framework', 'use node framework for server')
     .option('--time-to-live <time-to-live>', 'time to live for the server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
@@ -135,7 +130,7 @@ export const serverCommand = new Command('server')
         } else if (cmd.clearL1TxsHistory) {
             await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework, cmd.timeToLive);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive);
         }
     });
 

@@ -24,6 +24,20 @@ pub enum Mode {
     External,
 }
 
+/// Wiring layer for consensus component.
+/// Can work in either "main" or "external" mode.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `MainNodeClientResource` (if `Mode::External`)
+/// - `SyncStateResource` (if `Mode::External`)
+/// - `ActionQueueSenderResource` (if `Mode::External`)
+///
+/// ## Adds tasks
+///
+/// - `MainNodeConsensusTask` (if `Mode::Main`)
+/// - `FetcherTask` (if `Mode::External`)
 #[derive(Debug)]
 pub struct ConsensusLayer {
     pub mode: Mode,
@@ -39,8 +53,7 @@ impl WiringLayer for ConsensusLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
+            .get_resource::<PoolResource<MasterPool>>()?
             .get()
             .await?;
 
@@ -57,14 +70,13 @@ impl WiringLayer for ConsensusLayer {
                     secrets,
                     pool,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
             Mode::External => {
-                let main_node_client = context.get_resource::<MainNodeClientResource>().await?.0;
-                let sync_state = context.get_resource::<SyncStateResource>().await?.0;
+                let main_node_client = context.get_resource::<MainNodeClientResource>()?.0;
+                let sync_state = context.get_resource::<SyncStateResource>()?.0;
                 let action_queue_sender = context
-                    .get_resource::<ActionQueueSenderResource>()
-                    .await?
+                    .get_resource::<ActionQueueSenderResource>()?
                     .0
                     .take()
                     .ok_or_else(|| {
@@ -94,7 +106,7 @@ impl WiringLayer for ConsensusLayer {
                     sync_state,
                     action_queue_sender,
                 };
-                context.add_task(Box::new(task));
+                context.add_task(task);
             }
         }
         Ok(())
@@ -161,14 +173,14 @@ impl Task for FetcherTask {
         let root_ctx = ctx::root();
         scope::run!(&root_ctx, |ctx, s| async {
             s.spawn_bg(consensus::era::run_en(
-                &root_ctx,
+                ctx,
                 self.config,
                 self.pool,
                 self.sync_state,
                 self.main_node_client,
                 self.action_queue_sender,
             ));
-            ctx.wait(stop_receiver.0.wait_for(|stop| *stop)).await??;
+            let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
             Ok(())
         })
         .await

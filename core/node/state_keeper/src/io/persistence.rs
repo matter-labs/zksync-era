@@ -4,11 +4,10 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::H256;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::{writes::TreeWrite, AccountTreeId, Address, StorageKey};
+use zksync_types::{writes::TreeWrite, Address};
 use zksync_utils::u256_to_h256;
 
 use crate::{
@@ -313,17 +312,12 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
         } else {
             let deduplicated_writes = finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter()
-                .filter(|log_query| log_query.rw_flag);
+                .filter(|log_query| log_query.is_write());
             let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
                 .clone()
-                .map(|log| {
-                    H256(StorageKey::raw_hashed_key(
-                        &log.address,
-                        &u256_to_h256(log.key),
-                    ))
-                })
+                .map(|log| log.key.hashed_key())
                 .collect();
             let non_initial_writes = connection
                 .storage_logs_dal()
@@ -331,19 +325,18 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
                 .await?;
             deduplicated_writes
                 .map(|log| {
-                    let key =
-                        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                    let leaf_index =
-                        if let Some((_, leaf_index)) = non_initial_writes.get(&key.hashed_key()) {
-                            *leaf_index
-                        } else {
-                            next_index += 1;
-                            next_index - 1
-                        };
+                    let leaf_index = if let Some((_, leaf_index)) =
+                        non_initial_writes.get(&log.key.hashed_key())
+                    {
+                        *leaf_index
+                    } else {
+                        next_index += 1;
+                        next_index - 1
+                    };
                     TreeWrite {
-                        address: log.address,
-                        key: u256_to_h256(log.key),
-                        value: u256_to_h256(log.written_value),
+                        address: *log.key.address(),
+                        key: *log.key.key(),
+                        value: log.value,
                         leaf_index,
                     }
                 })
@@ -365,15 +358,14 @@ mod tests {
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
-    use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
+    use zksync_multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
-        writes::StateDiffRecord, AccountTreeId, L1BatchNumber, L2BlockNumber, StorageKey,
-        StorageLogQueryType,
+        writes::StateDiffRecord, L1BatchNumber, L2BlockNumber, StorageLogKind,
     };
-    use zksync_utils::u256_to_h256;
+    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::{
@@ -476,7 +468,7 @@ mod tests {
             (U256::from(1), Query::Read(U256::from(0))),
             (U256::from(2), Query::InitialWrite(U256::from(1))),
         ];
-        let tx_result = create_execution_result(0, storage_logs);
+        let tx_result = create_execution_result(storage_logs);
         let storage_logs = tx_result.logs.storage_logs.clone();
         updates.extend_from_executed_transaction(
             tx,
@@ -493,27 +485,19 @@ mod tests {
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result
-            .final_execution_state
-            .deduplicated_storage_log_queries =
-            storage_logs.iter().map(|query| query.log_query).collect();
+        batch_result.final_execution_state.deduplicated_storage_logs =
+            storage_logs.iter().map(|log| log.log).collect();
         batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
-                .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
-                .map(|log| {
-                    let key = StorageKey::new(
-                        AccountTreeId::new(log.log_query.address),
-                        u256_to_h256(log.log_query.key),
-                    );
-                    StateDiffRecord {
-                        address: log.log_query.address,
-                        key: log.log_query.key,
-                        derived_key: key.hashed_key().0,
-                        enumeration_index: 0,
-                        initial_value: log.log_query.read_value,
-                        final_value: log.log_query.written_value,
-                    }
+                .filter(|&log| log.log.kind == StorageLogKind::InitialWrite)
+                .map(|log| StateDiffRecord {
+                    address: *log.log.key.address(),
+                    key: h256_to_u256(*log.log.key.key()),
+                    derived_key: log.log.key.hashed_key().0,
+                    enumeration_index: 0,
+                    initial_value: h256_to_u256(log.previous_value),
+                    final_value: h256_to_u256(log.log.value),
                 })
                 .collect(),
         );

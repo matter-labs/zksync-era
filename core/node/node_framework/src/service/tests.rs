@@ -117,7 +117,7 @@ impl WiringLayer for TaskErrorLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(Box::new(ErrorTask));
+        node.add_task(ErrorTask);
         Ok(())
     }
 }
@@ -160,14 +160,14 @@ impl WiringLayer for TasksLayer {
         // Barrier is needed to make sure that both tasks have started, otherwise the second task
         // may exit even before it starts.
         let barrier = Arc::new(Barrier::new(2));
-        node.add_task(Box::new(SuccessfulTask(
+        node.add_task(SuccessfulTask(
             barrier.clone(),
             self.successful_task_was_run.clone(),
-        )))
-        .add_task(Box::new(RemainingTask(
+        ))
+        .add_task(RemainingTask(
             barrier.clone(),
             self.remaining_task_was_run.clone(),
-        )));
+        ));
         Ok(())
     }
 }

@@ -1,13 +1,13 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use multivm::{
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, PubdataParams, SystemEnv, TxExecutionMode},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     zk_evm_latest::ethereum_types::H256,
 };
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
     block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,

@@ -1,12 +1,12 @@
 use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
-use crate::commands::{self, config, debug_proof, delete, get_file_info, requeue, restart};
+use crate::commands::{self, config, debug_proof, delete, get_file_info, requeue, restart, stats};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
-#[command(name="prover-cli", version=VERSION_STRING, about, long_about = None)]
+#[command(name = "prover-cli", version = VERSION_STRING, about, long_about = None)]
 struct ProverCLI {
     #[command(subcommand)]
     command: ProverCommand,
@@ -35,6 +35,8 @@ enum ProverCommand {
     Status(commands::StatusCommand),
     Requeue(requeue::Args),
     Restart(restart::Args),
+    #[command(about = "Displays L1 Batch proving stats for a given period")]
+    Stats(stats::Options),
 }
 
 pub async fn start() -> anyhow::Result<()> {
@@ -47,6 +49,7 @@ pub async fn start() -> anyhow::Result<()> {
         ProverCommand::Requeue(args) => requeue::run(args, config).await?,
         ProverCommand::Restart(args) => restart::run(args).await?,
         ProverCommand::DebugProof(args) => debug_proof::run(args).await?,
+        ProverCommand::Stats(args) => stats::run(args, config).await?,
     };
 
     Ok(())

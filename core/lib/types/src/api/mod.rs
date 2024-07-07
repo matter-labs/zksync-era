@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
     web3::{AccessList, Bytes, Index},
@@ -27,6 +28,8 @@ pub enum BlockNumber {
     Finalized,
     /// Latest sealed block
     Latest,
+    /// Last block that was committed on L1
+    L1Committed,
     /// Earliest block (genesis)
     Earliest,
     /// Latest block (may be the block that is currently open).
@@ -51,6 +54,7 @@ impl Serialize for BlockNumber {
             BlockNumber::Committed => serializer.serialize_str("committed"),
             BlockNumber::Finalized => serializer.serialize_str("finalized"),
             BlockNumber::Latest => serializer.serialize_str("latest"),
+            BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
         }
@@ -73,6 +77,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "committed" => BlockNumber::Committed,
                     "finalized" => BlockNumber::Finalized,
                     "latest" => BlockNumber::Latest,
+                    "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     "pending" => BlockNumber::Pending,
                     num => {
@@ -89,7 +94,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
     }
 }
 
-/// Block unified identifier in terms of zkSync
+/// Block unified identifier in terms of ZKsync
 ///
 /// This is an utility structure that cannot be (de)serialized, it has to be created manually.
 /// The reason is because Web3 API provides multiple methods for referring block either by hash or number,
@@ -761,6 +766,8 @@ pub struct BlockDetailsBase {
     pub executed_at: Option<DateTime<Utc>>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    // Cost of publishing one byte (in wei).
+    pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 
@@ -813,6 +820,14 @@ pub struct ApiStorageLog {
     pub address: Address,
     pub key: U256,
     pub written_value: U256,
+}
+
+/// Raw transaction execution data.
+/// Data is taken from `TransactionExecutionMetrics`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionExecutionInfo {
+    pub execution_info: Value,
 }
 
 #[cfg(test)]

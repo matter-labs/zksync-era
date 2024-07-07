@@ -1,4 +1,4 @@
-//! Definition of zkSync network priority operations: operations initiated from the L1.
+//! Definition of ZKsync network priority operations: operations initiated from the L1.
 
 use std::convert::TryFrom;
 
@@ -122,7 +122,7 @@ pub struct L1TxCommonData {
     pub op_processing_type: OpProcessingType,
     /// Priority operations queue type.
     pub priority_queue_type: PriorityQueueType,
-    /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
+    /// Tx hash of the transaction in the ZKsync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,

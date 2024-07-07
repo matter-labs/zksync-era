@@ -26,7 +26,7 @@ pub fn update_envfile(
     let prefix = format!("{}=", key.as_ref());
     let kv = format!("{}={}", key.as_ref(), value.as_ref());
     let swapfile = path.as_ref().with_extension(".swp");
-    let mut out = std::io::BufWriter::new(std::fs::File::create_new(&swapfile)?);
+    let mut out = std::io::BufWriter::new(std::fs::File::create(&swapfile)?);
     let mut found = false;
 
     std::fs::read_to_string(path)

@@ -19,3 +19,4 @@ zksync_contracts.workspace = true
 
 hex.workspace = true
 ethabi.workspace = true
+rand.workspace = true

@@ -3,6 +3,7 @@ use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, sync::Arc, time::Du
 use anyhow::Context as _;
 use clap::Parser;
 use metrics::EN_METRICS;
+use node_builder::ExternalNodeBuilder;
 use tokio::{
     sync::{oneshot, watch, RwLock},
     task::{self, JoinHandle},
@@ -63,6 +64,7 @@ mod config;
 mod init;
 mod metadata;
 mod metrics;
+mod node_builder;
 #[cfg(test)]
 mod tests;
 
@@ -137,6 +139,7 @@ async fn run_tree(
             .merkle_tree_include_indices_and_filters_in_block_cache,
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
+        sealed_batches_have_protective_reads: config.optional.protective_reads_persistence_enabled,
         recovery: MetadataCalculatorRecoveryConfig {
             desired_chunk_size: config.experimental.snapshots_recovery_tree_chunk_size,
             parallel_persistence_buffer: config
@@ -182,14 +185,19 @@ async fn run_tree(
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
-        let stop_receiver = stop_receiver.clone();
+        let mut stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
-            tree_reader
-                .wait()
-                .await
-                .context("Cannot initialize tree reader")?
-                .run_api_server(address, stop_receiver)
-                .await
+            if let Some(reader) = tree_reader.wait().await {
+                reader.run_api_server(address, stop_receiver).await
+            } else {
+                // Tree is dropped before initialized, e.g. because the node is getting shut down.
+                // We don't want to treat this as an error since it could mask the real shutdown cause in logs etc.
+                tracing::warn!(
+                    "Tree is dropped before initialized, not starting the tree API server"
+                );
+                stop_receiver.changed().await?;
+                Ok(())
+            }
         }));
     }
 
@@ -430,10 +438,11 @@ async fn run_api(
         .build()
         .await
         .context("failed to build a proxy_cache_updater_pool")?;
-    task_handles.push(tokio::spawn(tx_proxy.run_account_nonce_sweeper(
-        proxy_cache_updater_pool.clone(),
-        stop_receiver.clone(),
-    )));
+    task_handles.push(tokio::spawn(
+        tx_proxy
+            .account_nonce_sweeper_task(proxy_cache_updater_pool.clone())
+            .run(stop_receiver.clone()),
+    ));
 
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -693,7 +702,7 @@ async fn shutdown_components(
     Ok(())
 }
 
-/// External node for zkSync Era.
+/// External node for ZKsync Era.
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
@@ -705,6 +714,25 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+    /// Path to the yaml config. If set, it will be used instead of env vars.
+    #[arg(
+        long,
+        requires = "secrets_path",
+        requires = "external_node_config_path"
+    )]
+    config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long, requires = "config_path", requires = "external_node_config_path")]
+    secrets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with external node specific configuration. If set, it will be used instead of env vars.
+    #[arg(long, requires = "config_path", requires = "secrets_path")]
+    external_node_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with consensus.
+    consensus_path: Option<std::path::PathBuf>,
+
+    /// Run the node using the node framework.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -761,7 +789,19 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
-    let mut config = ExternalNodeConfig::new().context("Failed to load node configuration")?;
+    let mut config = if let Some(config_path) = opt.config_path.clone() {
+        let secrets_path = opt.secrets_path.clone().unwrap();
+        let external_node_config_path = opt.external_node_config_path.clone().unwrap();
+        ExternalNodeConfig::from_files(
+            config_path,
+            external_node_config_path,
+            secrets_path,
+            opt.consensus_path.clone(),
+        )?
+    } else {
+        ExternalNodeConfig::new().context("Failed to load node configuration")?
+    };
+
     if !opt.enable_consensus {
         config.consensus = None;
     }
@@ -788,6 +828,22 @@ async fn main() -> anyhow::Result<()> {
         .fetch_remote(main_node_client.as_ref())
         .await
         .context("failed fetching remote part of node config from main node")?;
+
+    // If the node framework is used, run the node.
+    if opt.use_node_framework {
+        // We run the node from a different thread, since the current thread is in tokio context.
+        std::thread::spawn(move || {
+            let node =
+                ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            anyhow::Ok(())
+        })
+        .join()
+        .expect("Failed to run the node")?;
+
+        return Ok(());
+    }
+
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
@@ -919,6 +975,10 @@ async fn run_node(
             .snapshots_recovery_enabled
             .then_some(SnapshotRecoveryConfig {
                 snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+                drop_storage_key_preimages: config
+                    .experimental
+                    .snapshots_recovery_drop_storage_key_preimages,
+                object_store_config: config.optional.snapshots_recovery_object_store.clone(),
             });
     ensure_storage_initialized(
         connection_pool.clone(),

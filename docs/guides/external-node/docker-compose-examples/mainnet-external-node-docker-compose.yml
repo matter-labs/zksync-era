@@ -74,6 +74,7 @@ services:
       EN_MAIN_NODE_URL: https://zksync2-mainnet.zksync.io
       EN_L1_CHAIN_ID: 1
       EN_L2_CHAIN_ID: 324
+      # EN_PRUNING_ENABLED: true
 
       EN_STATE_CACHE_PATH: "./db/ext-node/state_keeper"
       EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"
