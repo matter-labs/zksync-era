@@ -6,13 +6,15 @@ Tool for generating different type of circuit related keys:
 - setup keys (for CPU and GPU)
 - commitments
 
+For commands below, please make sure to run from the `prover/` directory.
+
 ## Verification keys
 
 The current set of verification keys is committed under 'data/' directory. If you want to refresh it (for example after
 circuit changes), first please make sure that you have a CRS file (used for SNARK key), and then you can run:
 
 ```shell
-CRS_FILE=yyy ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-vk
+CRS_FILE=yyy cargo run --release --bin key_generator generate-vk --path vk_setup_data_generator_server_fri/data/
 ```
 
 You can also generate multiple keys in parallel (to speed things up), with `--jobs` flag, but you need at least 30 GB of
@@ -33,7 +35,7 @@ You can run it with `dry-run`, to see the results, or set `dry-run` to false to 
 `etc/env/base/contracts.toml`.
 
 ```shell
-ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dry-run=true
+ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dry-run=true --path vk_setup_data_generator_server_fri/data/
 ```
 
 ## Setup keys
@@ -41,15 +43,15 @@ ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dry
 Setup keys are used when you run the actual prover. They are around 15GB for each circuit type, and we have different
 setup keys for GPU vs CPU prover.
 
-For example, the command below will generate the setup keys for the basic circuit of type 3.
+For example, the command below will generate the setup keys for the basic circuit of type 3 and put then in setup path directory.
 
 ```shell
-ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-sk basic 3
+cargo run --release --bin key_generator generate-sk basic 3 --path vk_setup_data_generator_server_fri/data/ --setup_path vk_setup_data_generator_server_fri/data/
 ```
 
 And command below will generate all the GPU keys (notice that we have to build with 'gpu' feature enabled, as this adds
 additional dependencies).
 
 ```shell
-ZKSYNC_HOME=xxx cargo run --feature=gpu --release --bin key_generator generate-sk-gpu all
+cargo run --feature=gpu --release --bin key_generator generate-sk-gpu all --path vk_setup_data_generator_server_fri/data/ --setup_path vk_setup_data_generator_server_fri/data/
 ```
