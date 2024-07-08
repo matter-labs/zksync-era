@@ -573,7 +573,8 @@ mod tests {
         // Insert some mock L2 blocks and L1 batches
         let mut block_number = 0;
         let mut batch_number = 0;
-        for _ in 0..3 {
+        let num_batches = 3;
+        for _ in 0..num_batches {
             for _ in 0..3 {
                 block_number += 1;
                 let l2_block = create_l2_block_header(block_number);
@@ -641,20 +642,25 @@ mod tests {
             .await
             .unwrap();
 
+        let num_batches = num_batches + 1;
+        let num_unsigned = num_batches - 1;
+
         // Check how many unsigned L1 batches we can find.
-        for (min_l1_batch_number, exp_num_unsigned) in [
-            (0, 3),
-            (batch_number - 1, 3),
-            (batch_number, 2),
-            (batch_number + 1, 1),
-            (batch_number + 2, 0),
-        ] {
+        for (i, (min_l1_batch_number, exp_num_unsigned)) in [
+            (0, num_unsigned),
+            (batch_number, 1),     // This one has the corresponding cert
+            (batch_number + 1, 1), // This is the one we inserted later
+            (batch_number + 2, 0), // Querying beyond the last one
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let unsigned = conn
                 .consensus_dal()
-                .unsigned_batch_numbers(attester::BatchNumber(min_l1_batch_number as u64))
+                .unsigned_batch_numbers(attester::BatchNumber(u64::from(min_l1_batch_number)))
                 .await
                 .unwrap();
-            assert_eq!(unsigned.len(), exp_num_unsigned);
+            assert_eq!(unsigned.len(), exp_num_unsigned, "test case {i}");
         }
     }
 }
