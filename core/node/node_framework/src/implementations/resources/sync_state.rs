@@ -11,3 +11,9 @@ impl Resource for SyncStateResource {
         "common/sync_state".into()
     }
 }
+
+impl From<SyncState> for SyncStateResource {
+    fn from(sync_state: SyncState) -> Self {
+        Self(sync_state)
+    }
+}
