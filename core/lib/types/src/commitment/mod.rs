@@ -8,9 +8,10 @@
 
 use std::{collections::HashMap, convert::TryFrom, str::FromStr};
 
+use ethabi::Token;
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_basic_types::Address;
+pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::Tokenize};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto::hasher::Hasher;
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -97,6 +98,31 @@ pub struct L1BatchMetadata {
 
     pub aggregation_root: H256,
     pub local_root: H256,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct PriorityOpsMerkleProof {
+    pub left_path: Vec<H256>,
+    pub right_path: Vec<H256>,
+    pub hashes: Vec<H256>,
+}
+
+impl PriorityOpsMerkleProof {
+    pub fn into_token(&self) -> Token {
+        let array_into_token = |array: &[H256]| {
+            Token::Array(
+                array
+                    .iter()
+                    .map(|hash| Token::FixedBytes(hash.as_bytes().to_vec()))
+                    .collect(),
+            )
+        };
+        Token::Tuple(vec![
+            array_into_token(&self.left_path),
+            array_into_token(&self.right_path),
+            array_into_token(&self.hashes),
+        ])
+    }
 }
 
 impl L1BatchMetadata {

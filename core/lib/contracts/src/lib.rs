@@ -113,6 +113,13 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
+pub fn load_sys_contract_interface(contract_name: &str) -> Contract {
+    load_contract(format!(
+      "contracts/system-contracts/artifacts-zk/contracts-preprocessed/interfaces/{0}.sol/{0}.json",
+      contract_name
+  ))
+}
+
 pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
     read_file_to_json_value(path)["abi"]
         .as_str()
@@ -181,6 +188,12 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn l2_message_root() -> Contract {
+    load_contract(
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+    )
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {

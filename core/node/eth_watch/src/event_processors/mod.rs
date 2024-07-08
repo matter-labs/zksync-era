@@ -10,7 +10,7 @@ pub(crate) use self::{
 use crate::client::EthClient;
 
 mod governance_upgrades;
-mod priority_ops;
+pub mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]

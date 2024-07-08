@@ -22,8 +22,9 @@ use crate::{
             BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
             MAX_VM_PUBDATA_PER_BATCH,
         },
-        tests::tester::{
-            default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder,
+        tests::{
+            tester::{default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder},
+            utils::initialize_message_root_storage,
         },
         tracers::PubdataTracer,
         HistoryEnabled, L1BatchEnv, TracerDispatcher,
@@ -143,6 +144,8 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .with_random_rich_accounts(1)
         .with_l1_batch_env(batch_env)
         .build();
+
+    initialize_message_root_storage(vm.storage);
 
     let bytecodes = test_data
         .bytecodes
@@ -393,8 +396,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        // FIXME: use the 1.5 factor after optimizations
-        max_used_gas.0 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
+        max_used_gas.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
         "BOOTLOADER_BATCH_TIP_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_OVERHEAD = {}",
         max_used_gas.1,
         max_used_gas.0,
@@ -407,8 +409,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        // FIXME: use the 1.5 factor after optimizations
-        circuit_statistics.0 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
+        circuit_statistics.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
         circuit_statistics.1,
         circuit_statistics.0,
@@ -421,8 +422,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        // FIXME: use the 1.5 factor after optimizations
-        execution_metrics_size.0 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
+        execution_metrics_size.0 * 3 / 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
         execution_metrics_size.1,
         execution_metrics_size.0,

@@ -110,6 +110,7 @@ impl ProtoRepr for proto::Sender {
                 .context("pubdata_sending_mode")?
                 .parse(),
             ignore_db_nonce: None,
+            priority_tree_start_index: self.priority_op_start_index.map(|x| x as usize),
         })
     }
 
@@ -140,6 +141,7 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
+            priority_op_start_index: this.priority_tree_start_index.map(|x| x as u64),
         }
     }
 }

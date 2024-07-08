@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi, ethabi,
     ethabi::{Hash, Token},
@@ -204,6 +205,7 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
         Box::new(client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
+        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();
@@ -296,6 +298,7 @@ async fn test_normal_operation_governance_upgrades() {
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
+        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();

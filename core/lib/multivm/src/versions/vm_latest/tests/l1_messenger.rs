@@ -9,7 +9,7 @@ use crate::{
         constants::ZK_SYNC_BYTES_PER_BLOB,
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
+            utils::{initialize_message_root_storage, read_test_contract},
         },
         types::internals::{
             pubdata::{PubdataBuilder, RollupPubdataBuilder},
@@ -19,8 +19,8 @@ use crate::{
     },
 };
 
-pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 13;
-pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 14;
+pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 7;
+pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 8;
 
 pub(crate) fn encoded_uncompressed_state_diffs(input: &PubdataInput) -> Vec<u8> {
     let mut result = vec![];
@@ -77,9 +77,13 @@ fn test_publish_and_clear_state() {
         .with_random_rich_accounts(1)
         .build();
 
+    initialize_message_root_storage(vm.storage);
+
+    let account = &mut vm.rich_accounts[0];
+
     // Firstly, deploy tx. It should publish the bytecode of the "test contract"
     let counter = read_test_contract();
-    let account = &mut vm.rich_accounts[0];
+
     let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
     // We do not use compression here, to have the bytecode published in full.
     vm.vm.push_transaction_with_compression(tx, false);
