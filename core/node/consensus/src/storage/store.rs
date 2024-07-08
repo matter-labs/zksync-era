@@ -457,6 +457,28 @@ impl storage::PersistentBatchStore for Store {
         .1
     }
 
+    /// Get the numbers of L1 batches which are missing the corresponding L1 batch quorum certificates
+    /// and potentially need to be signed by attesters.
+    async fn unsigned_batch_numbers(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Vec<attester::BatchNumber>> {
+        // TODO: In the future external nodes will be able to ask the main node which L1 batch should be considered final.
+        // Later when we're fully decentralized the nodes will have to look at L1 instead.
+        // For now we make a best effort at gossiping votes, and have no way to tell what has been finalized, so we can
+        // just pick a reasonable maximum number of batches for which we might have to re-submit our signatures.
+        let Some(last_batch_number) = self.last_batch(ctx).await? else {
+            return Ok(Vec::new());
+        };
+        let min_batch_number = attester::BatchNumber(last_batch_number.0.saturating_sub(10));
+
+        self.conn(ctx)
+            .await?
+            .unsigned_batch_numbers(ctx, min_batch_number)
+            .await
+            .wrap("unsigned_batch_numbers")
+    }
+
     /// Get the highest L1 batch number from storage.
     async fn last_batch(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
         self.conn(ctx)
@@ -496,6 +518,17 @@ impl storage::PersistentBatchStore for Store {
             .get_batch(ctx, number)
             .await
             .wrap("get_batch")
+    }
+
+    /// Returns the [attester::Batch] with the given number, which is the `message` that
+    /// appears in [attester::BatchQC], and represents the content that needs to be signed
+    /// by the attesters.
+    async fn get_batch_to_sign(
+        &self,
+        _ctx: &ctx::Ctx,
+        _number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::Batch>> {
+        todo!()
     }
 
     /// Returns the QC of the batch with the given number.

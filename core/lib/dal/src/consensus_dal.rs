@@ -480,6 +480,47 @@ impl ConsensusDal<'_, '_> {
             .number
             .map(|number| attester::BatchNumber(number as u64)))
     }
+
+    /// Get the numbers of L1 batches which do not have a corresponding L1 quorum certificate
+    /// and need signatures to be gossiped and collected.
+    ///
+    /// On the main node this means every L1 batch, because we need QC over all of them to be
+    /// able to submit them to L1. Replicas don't necessarily have to have the QC, because once
+    /// the batch is on L1 and it's final, they can get the batch from there and don't need the
+    /// attestations.
+    pub async fn unsigned_batch_numbers(
+        &mut self,
+        min_batch_number: attester::BatchNumber,
+    ) -> DalResult<Vec<attester::BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                b.number
+            FROM
+                l1_batches b
+            WHERE
+                b.number >= $1
+                AND NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        l1_batches_consensus c
+                    WHERE
+                        c.l1_batch_number = b.number
+                )
+            ORDER BY
+                b.number
+            "#,
+            min_batch_number.0 as i64
+        )
+        .instrument("unsigned_batch_numbers")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| attester::BatchNumber(row.number as u64))
+        .collect())
+    }
 }
 
 #[cfg(test)]
