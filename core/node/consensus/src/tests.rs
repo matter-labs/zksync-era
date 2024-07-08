@@ -9,11 +9,7 @@ use zksync_consensus_roles::{
     validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_contracts::l2_rollup_da_validator_bytecode;
-use zksync_dal::CoreDal;
-use zksync_node_test_utils::Snapshot;
-use zksync_state_keeper::testonly::setup_contract;
-use zksync_types::{L1BatchNumber, L2BlockNumber, ProtocolVersionId};
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use super::*;
 
