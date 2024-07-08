@@ -546,6 +546,11 @@ async fn test_postgres_backup_recovery(
             .unwrap();
         storage
             .vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_without_metadata.number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
             .mark_protective_reads_batch_as_completed(batch_without_metadata.number)
             .await
             .unwrap();
@@ -573,6 +578,10 @@ async fn test_postgres_backup_recovery(
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
             .insert_mock_l1_batch(batch_header)
+            .await
+            .unwrap();
+        txn.vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_header.number)
             .await
             .unwrap();
         txn.vm_runner_dal()
@@ -809,6 +818,11 @@ pub(super) async fn extend_db_state_from_l1_batch(
         storage
             .blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(batch_number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_number)
             .await
             .unwrap();
         storage
