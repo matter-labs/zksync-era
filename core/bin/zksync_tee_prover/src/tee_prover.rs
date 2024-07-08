@@ -1,12 +1,13 @@
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use url::Url;
 use zksync_basic_types::H256;
 use zksync_node_framework::{
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
@@ -15,16 +16,8 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber};
 use crate::{api_client::TeeApiClient, error::TeeProverError, metrics::METRICS};
 
 /// Wiring layer for `TeeProver`
-///
-/// ## Requests resources
-///
-/// no resources requested
-///
-/// ## Adds tasks
-///
-/// - `TeeProver`
 #[derive(Debug)]
-pub struct TeeProverLayer {
+pub(crate) struct TeeProverLayer {
     api_url: Url,
     signing_key: SecretKey,
     attestation_quote_bytes: Vec<u8>,
@@ -47,14 +40,23 @@ impl TeeProverLayer {
     }
 }
 
+#[derive(Debug, IntoContext)]
+pub(crate) struct LayerOutput {
+    #[context(task)]
+    pub tee_prover: TeeProver,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TeeProverLayer {
+    type Input = ();
+    type Output = LayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "tee_prover_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let tee_prover_task = TeeProver {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        let tee_prover = TeeProver {
             config: Default::default(),
             signing_key: self.signing_key,
             public_key: self.signing_key.public_key(&Secp256k1::new()),
@@ -62,18 +64,28 @@ impl WiringLayer for TeeProverLayer {
             tee_type: self.tee_type,
             api_client: TeeApiClient::new(self.api_url),
         };
-        context.add_task(tee_prover_task);
-        Ok(())
+        Ok(LayerOutput { tee_prover })
     }
 }
 
-struct TeeProver {
+pub(crate) struct TeeProver {
     config: TeeProverConfig,
     signing_key: SecretKey,
     public_key: PublicKey,
     attestation_quote_bytes: Vec<u8>,
     tee_type: TeeType,
     api_client: TeeApiClient,
+}
+
+impl fmt::Debug for TeeProver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TeeProver")
+            .field("config", &self.config)
+            .field("public_key", &self.public_key)
+            .field("attestation_quote_bytes", &self.attestation_quote_bytes)
+            .field("tee_type", &self.tee_type)
+            .finish()
+    }
 }
 
 impl TeeProver {
@@ -169,7 +181,7 @@ impl Task for TeeProver {
                 return Ok(());
             }
             let result = self.step().await;
-            match result {
+            let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
@@ -179,6 +191,9 @@ impl Task for TeeProver {
                         METRICS
                             .last_batch_number_processed
                             .set(batch_number.0 as u64);
+                        false
+                    } else {
+                        true
                     }
                 }
                 Err(err) => {
@@ -188,14 +203,17 @@ impl Task for TeeProver {
                     }
                     retries += 1;
                     tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
-                    tokio::time::timeout(backoff, stop_receiver.0.changed())
-                        .await
-                        .ok();
                     backoff = std::cmp::min(
                         backoff.mul_f32(self.config.retry_backoff_multiplier),
                         self.config.max_backoff,
                     );
+                    true
                 }
+            };
+            if need_to_sleep {
+                tokio::time::timeout(backoff, stop_receiver.0.changed())
+                    .await
+                    .ok();
             }
         }
     }

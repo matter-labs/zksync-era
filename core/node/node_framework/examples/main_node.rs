@@ -50,7 +50,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::TxSinkLayer,
+            tx_sink::MasterPoolSinkLayer,
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
@@ -215,7 +215,7 @@ impl MainNodeBuilder {
         let wallets = Wallets::from_env()?;
 
         // On main node we always use master pool sink.
-        self.node.add_layer(TxSinkLayer::MasterPoolSink);
+        self.node.add_layer(MasterPoolSinkLayer);
         self.node.add_layer(TxSenderLayer::new(
             TxSenderConfig::new(
                 &state_keeper_config,

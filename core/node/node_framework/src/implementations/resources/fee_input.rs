@@ -13,3 +13,9 @@ impl Resource for FeeInputResource {
         "common/fee_input".into()
     }
 }
+
+impl<T: BatchFeeModelInputProvider> From<Arc<T>> for FeeInputResource {
+    fn from(provider: Arc<T>) -> Self {
+        Self(provider)
+    }
+}

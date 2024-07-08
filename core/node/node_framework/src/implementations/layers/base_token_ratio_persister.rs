@@ -6,27 +6,33 @@ use crate::{
         pools::{MasterPool, PoolResource},
         price_api_client::PriceAPIClientResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for `BaseTokenRatioPersister`
 ///
 /// Responsible for orchestrating communications with external API feeds to get ETH<->BaseToken
 /// conversion ratios and persisting them both in the DB and in the L1.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-///
-/// ## Adds tasks
-///
-/// - `BaseTokenRatioPersister`
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
     contracts_config: ContractsConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub persister: BaseTokenRatioPersister,
 }
 
 impl BaseTokenRatioPersisterLayer {
@@ -40,13 +46,15 @@ impl BaseTokenRatioPersisterLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenRatioPersisterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "base_token_ratio_persister"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
-        let master_pool = master_pool_resource.get().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let master_pool = input.master_pool.get().await?;
 
         let price_api_client = context.get_resource_or_default::<PriceAPIClientResource>();
         let base_token_addr = self
@@ -61,9 +69,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             price_api_client.0,
         );
 
-        context.add_task(persister);
-
-        Ok(())
+        Ok(Output { persister })
     }
 }
 

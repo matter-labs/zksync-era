@@ -337,6 +337,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
