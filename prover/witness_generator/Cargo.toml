@@ -32,7 +32,6 @@ zksync_protobuf_config.workspace = true
 
 zkevm_test_harness = { workspace = true }
 circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
-zk_evm.workspace = true
 
 anyhow.workspace = true
 tracing.workspace = true

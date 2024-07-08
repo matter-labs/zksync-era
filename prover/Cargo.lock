@@ -4606,12 +4606,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "queues"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1475abae4f8ad4998590fe3acfe20104f0a5d48fc420c817cd2c09c3f56151f0"
-
-[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8134,7 +8128,6 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "wrapper-prover",
  "zkevm_test_harness 1.5.0",
- "zksync_config",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_config",
@@ -8505,7 +8498,6 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "zk_evm 1.4.1",
  "zkevm_test_harness 1.5.0",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8535,10 +8527,6 @@ dependencies = [
  "bincode",
  "clap 4.5.4",
  "ctrlc",
- "futures 0.3.30",
- "queues",
- "serde",
- "structopt",
  "tokio",
  "tracing",
  "vise",

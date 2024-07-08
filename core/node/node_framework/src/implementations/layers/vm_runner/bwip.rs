@@ -1,15 +1,19 @@
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
 use zksync_types::L2ChainId;
-use zksync_vm_runner::BasicWitnessInputProducer;
+use zksync_vm_runner::{
+    BasicWitnessInputProducer, BasicWitnessInputProducerIo, ConcurrentOutputHandlerFactoryTask,
+    StorageSyncTask,
+};
 
 use crate::{
     implementations::resources::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 #[derive(Debug)]
@@ -30,15 +34,39 @@ impl BasicWitnessInputProducerLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub object_store: ObjectStoreResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub output_handler_factory_task:
+        ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
+    #[context(task)]
+    pub loader_task: StorageSyncTask<BasicWitnessInputProducerIo>,
+    #[context(task)]
+    pub basic_witness_input_producer: BasicWitnessInputProducer,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for BasicWitnessInputProducerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "vm_runner_bwip"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>()?;
-        let object_store = context.get_resource::<ObjectStoreResource>()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let Input {
+            master_pool,
+            object_store,
+        } = input;
 
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
@@ -62,29 +90,21 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         )
         .await?;
 
-        context.add_task(tasks.loader_task);
-        context.add_task(tasks.output_handler_factory_task);
-        context.add_task(BasicWitnessInputProducerTask {
+        Ok(Output {
+            output_handler_factory_task: tasks.output_handler_factory_task,
+            loader_task: tasks.loader_task,
             basic_witness_input_producer,
-        });
-        Ok(())
+        })
     }
 }
 
-#[derive(Debug)]
-struct BasicWitnessInputProducerTask {
-    basic_witness_input_producer: BasicWitnessInputProducer,
-}
-
 #[async_trait::async_trait]
-impl Task for BasicWitnessInputProducerTask {
+impl Task for BasicWitnessInputProducer {
     fn id(&self) -> TaskId {
         "vm_runner/bwip".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.basic_witness_input_producer
-            .run(&stop_receiver.0)
-            .await
+        (*self).run(&stop_receiver.0).await
     }
 }

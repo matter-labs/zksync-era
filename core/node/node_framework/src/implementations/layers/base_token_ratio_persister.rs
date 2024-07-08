@@ -3,26 +3,32 @@ use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for `BaseTokenRatioPersister`
 ///
 /// Responsible for orchestrating communications with external API feeds to get ETH<->BaseToken
 /// conversion ratios and persisting them both in the DB and in the L1.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-///
-/// ## Adds tasks
-///
-/// - `BaseTokenRatioPersister`
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub persister: BaseTokenRatioPersister,
 }
 
 impl BaseTokenRatioPersisterLayer {
@@ -33,19 +39,17 @@ impl BaseTokenRatioPersisterLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenRatioPersisterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "base_token_ratio_persister"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
-        let master_pool = master_pool_resource.get().await?;
-
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let master_pool = input.master_pool.get().await?;
         let persister = BaseTokenRatioPersister::new(master_pool, self.config);
-
-        context.add_task(persister);
-
-        Ok(())
+        Ok(Output { persister })
     }
 }
 
