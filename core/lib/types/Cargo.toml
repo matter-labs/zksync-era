@@ -35,7 +35,6 @@ hex.workspace = true
 prost.workspace = true
 itertools.workspace = true
 tracing.workspace = true
-fraction.workspace = true
 
 # Crypto stuff
 secp256k1.workspace = true

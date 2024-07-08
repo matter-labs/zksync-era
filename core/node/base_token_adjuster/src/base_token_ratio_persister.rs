@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_external_price_api::PriceAPIClient;
-use zksync_types::{base_token_ratio::BaseTokenAPIPrice, Address};
+use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersister {
@@ -64,20 +64,19 @@ impl BaseTokenRatioPersister {
         Ok(())
     }
 
-    async fn persist_ratio(&self, api_price: BaseTokenAPIPrice) -> anyhow::Result<usize> {
+    async fn persist_ratio(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<usize> {
         let mut conn = self
             .pool
             .connection_tagged("base_token_ratio_persister")
             .await
             .context("Failed to obtain connection to the database")?;
 
-        let (numerator, denominator) = api_price.clone().get_fraction()?;
         let id = conn
             .base_token_dal()
             .insert_token_ratio(
-                numerator,
-                denominator,
-                &api_price.ratio_timestamp.naive_utc(),
+                api_ratio.numerator,
+                api_ratio.denominator,
+                &api_ratio.ratio_timestamp.naive_utc(),
             )
             .await
             .context("Failed to insert base token ratio into the database")?;

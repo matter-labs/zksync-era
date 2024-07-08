@@ -1,8 +1,6 @@
-use std::{num::NonZeroU64, ops::Div};
+use std::num::NonZeroU64;
 
-use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
-use fraction::{Fraction, ToPrimitive};
 
 /// Represents the base token to ETH conversion ratio at a given point in time.
 #[derive(Debug, Clone)]
@@ -16,38 +14,19 @@ pub struct BaseTokenRatio {
 
 /// Struct to represent API response containing denominator, numerator, and timestamp.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BaseTokenAPIPrice {
-    pub base_token_price: BigDecimal,
-    pub eth_price: BigDecimal,
+pub struct BaseTokenAPIRatio {
+    pub numerator: NonZeroU64,
+    pub denominator: NonZeroU64,
     // Either the timestamp of the quote or the timestamp of the request.
     pub ratio_timestamp: DateTime<Utc>,
 }
 
-impl Default for BaseTokenAPIPrice {
+impl Default for BaseTokenAPIRatio {
     fn default() -> Self {
         Self {
-            base_token_price: BigDecimal::from(1),
-            eth_price: BigDecimal::from(1),
+            numerator: NonZeroU64::new(1).unwrap(),
+            denominator: NonZeroU64::new(1).unwrap(),
             ratio_timestamp: Utc::now(),
         }
-    }
-}
-
-impl BaseTokenAPIPrice {
-    /// Using the base token price and eth price, calculate the fraction of the base token to eth.
-    pub fn get_fraction(self) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
-        let rate_fraction = Fraction::from(
-            self.base_token_price
-                .div(self.eth_price)
-                .to_f64()
-                .expect("Failed to convert eth/baseToken ratio to f64"),
-        );
-
-        let numerator = NonZeroU64::new(*rate_fraction.numer().expect("numerator is empty"))
-            .expect("numerator is zero");
-        let denominator = NonZeroU64::new(*rate_fraction.denom().expect("denominator is empty"))
-            .expect("denominator is zero");
-
-        Ok((numerator, denominator))
     }
 }

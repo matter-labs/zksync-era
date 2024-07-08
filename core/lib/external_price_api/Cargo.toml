@@ -17,6 +17,7 @@ bigdecimal.workspace = true
 chrono.workspace = true
 serde.workspace = true
 reqwest.workspace = true
+fraction.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true

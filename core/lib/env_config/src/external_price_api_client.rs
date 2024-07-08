@@ -11,7 +11,7 @@ impl FromEnv for ExternalPriceApiClientConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::external_price_api_client::{
-        ExternalPriceApiClientConfig, DEFAULT_COINGECKO_API_URL, DEFAULT_TIMEOUT_MS,
+        ExternalPriceApiClientConfig, DEFAULT_TIMEOUT_MS,
     };
 
     use super::*;
@@ -21,7 +21,7 @@ mod tests {
 
     fn expected_external_price_api_client_config(api_key: String) -> ExternalPriceApiClientConfig {
         ExternalPriceApiClientConfig {
-            base_url: DEFAULT_COINGECKO_API_URL.to_string(),
+            base_url: Some("https://pro-api.coingecko.com".to_string()),
             api_key: Some(api_key),
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
         }
@@ -31,6 +31,7 @@ mod tests {
     fn from_env_external_price_api_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
+            EXTERNAL_PRICE_API_CLIENT_BASE_URL=https://pro-api.coingecko.com
             EXTERNAL_PRICE_API_CLIENT_API_KEY=qwerty12345
         "#;
         lock.set_env(config);
