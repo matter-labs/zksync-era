@@ -14,7 +14,7 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
 
             price_cache_update_interval_ms: self
                 .price_cache_update_interval_ms
-                .expect("price_cache_update_inerval_ms"),
+                .expect("price_cache_update_interval_ms"),
         })
     }
 
