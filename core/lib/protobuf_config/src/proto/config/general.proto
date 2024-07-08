@@ -49,4 +49,5 @@ message GeneralConfig {
   optional config.commitment_generator.CommitmentGenerator commitment_generator = 37;
   optional config.da_dispatcher.DataAvailabilityDispatcher da_dispatcher = 38;
   optional config.base_token_adjuster.BaseTokenAdjuster base_token_adjuster = 39;
+  optional config.vm_runner.BasicWitnessInputProducer basic_witness_input_producer = 40;
 }

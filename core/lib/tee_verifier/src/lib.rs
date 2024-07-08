@@ -17,7 +17,7 @@ use zksync_multivm::{
     VmInstance,
 };
 use zksync_prover_interface::inputs::{
-    PrepareBasicCircuitsJob, StorageLogMetadata, V1TeeVerifierInput,
+    StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
@@ -49,7 +49,7 @@ impl Verify for V1TeeVerifierInput {
     fn verify(self) -> anyhow::Result<VerificationResult> {
         let old_root_hash = self.l1_batch_env.previous_batch_hash.unwrap();
         let l2_chain_id = self.system_env.chain_id;
-        let enumeration_index = self.prepare_basic_circuits_job.next_enumeration_index();
+        let enumeration_index = self.witness_input_merkle_paths.next_enumeration_index();
 
         let mut raw_storage = InMemoryStorage::with_custom_system_contracts_and_chain_id(
             l2_chain_id,
@@ -63,7 +63,7 @@ impl Verify for V1TeeVerifierInput {
         }
 
         let block_output_with_proofs =
-            get_bowp_and_set_initial_values(self.prepare_basic_circuits_job, &mut raw_storage);
+            get_bowp_and_set_initial_values(self.witness_input_merkle_paths, &mut raw_storage);
 
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
@@ -88,10 +88,10 @@ impl Verify for V1TeeVerifierInput {
 
 /// Sets the initial storage values and returns `BlockOutputWithProofs`
 fn get_bowp_and_set_initial_values(
-    prepare_basic_circuits_job: PrepareBasicCircuitsJob,
+    witness_input_merkle_paths: WitnessInputMerklePaths,
     raw_storage: &mut InMemoryStorage,
 ) -> BlockOutputWithProofs {
-    let logs = prepare_basic_circuits_job
+    let logs = witness_input_merkle_paths
         .into_merkle_paths()
         .map(
             |StorageLogMetadata {
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn test_v1_serialization() {
         let tvi = V1TeeVerifierInput::new(
-            PrepareBasicCircuitsJob::new(0),
+            WitnessInputMerklePaths::new(0),
             vec![],
             L1BatchEnv {
                 previous_batch_hash: Some(H256([1; 32])),
