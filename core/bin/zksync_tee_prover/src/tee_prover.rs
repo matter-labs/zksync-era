@@ -188,15 +188,15 @@ impl Task for TeeProver {
                     }
                     retries += 1;
                     tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
-                    tokio::time::timeout(backoff, stop_receiver.0.changed())
-                        .await
-                        .ok();
                     backoff = std::cmp::min(
                         backoff.mul_f32(self.config.retry_backoff_multiplier),
                         self.config.max_backoff,
                     );
                 }
             }
+            tokio::time::timeout(backoff, stop_receiver.0.changed())
+                .await
+                .ok();
         }
     }
 }
