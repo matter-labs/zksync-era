@@ -108,15 +108,25 @@ impl VmRunnerIo for ProtectiveReadsIo {
             .await?)
     }
 
-    async fn mark_l1_batch_as_completed(
+    async fn mark_l1_batch_as_processing(
         &self,
         conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<()> {
         Ok(conn
             .vm_runner_dal()
-            .mark_protective_reads_batch_as_completed(l1_batch_number)
+            .mark_protective_reads_batch_as_processing(l1_batch_number)
             .await?)
+    }
+
+    async fn mark_l1_batch_as_completed(
+        &self,
+        conn: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        conn.vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(l1_batch_number)
+            .await
     }
 }
 
