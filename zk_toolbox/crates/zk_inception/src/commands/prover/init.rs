@@ -88,9 +88,13 @@ fn download_setup_key(
     let url = compressor_config.universal_setup_download_url;
     let path = std::path::Path::new(path);
     let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
+    let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
 
     Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
-    Cmd::new(cmd!(shell, "mv {parent}/setup_2^24.key {path}")).run()?;
+
+    if file_name != "setup_2^24.key" {
+        Cmd::new(cmd!(shell, "mv {parent}/setup_2^24.key {path}")).run()?;
+    }
 
     spinner.finish();
     Ok(())
