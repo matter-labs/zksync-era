@@ -357,6 +357,10 @@ mod tests {
             .save_vm_runner_artifacts_metadata(L1BatchNumber(1), "vm_run")
             .await
             .unwrap();
+        conn.proof_generation_dal()
+            .save_merkle_paths_artifacts_metadata(L1BatchNumber(1), "data")
+            .await
+            .unwrap();
         conn.blocks_dal()
             .save_l1_batch_tree_data(
                 L1BatchNumber(1),
