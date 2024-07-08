@@ -161,7 +161,7 @@ impl EthWatch {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(level = "trace", skip_all)]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,

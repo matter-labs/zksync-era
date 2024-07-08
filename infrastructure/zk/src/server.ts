@@ -7,12 +7,7 @@ import * as db from './database';
 import * as env from './env';
 // import { time } from 'console';
 
-export async function server(
-    rebuildTree: boolean,
-    uring: boolean,
-    components?: string,
-    timeToLive?: string
-) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, timeToLive?: string) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
@@ -31,7 +26,10 @@ export async function server(
         await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
     } else {
         console.log('Starting server');
-        const child = utils.background({ command: `cargo run --bin zksync_server --release ${options}`, stdio: [null, null, null] });
+        const child = utils.background({
+            command: `cargo run --bin zksync_server --release ${options}`,
+            stdio: [null, null, null]
+        });
 
         const promise = new Promise((resolve, reject) => {
             child.on('error', reject);

@@ -621,7 +621,7 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
-        tracing::info!("Loop iteration at block {}", l1_block_numbers.latest);
+        tracing::trace!("Loop iteration at block {}", l1_block_numbers.latest);
         // We can treat those two operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction

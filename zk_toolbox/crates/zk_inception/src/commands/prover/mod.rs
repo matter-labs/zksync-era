@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-use clap::Subcommand;
-use xshell::Shell;
-mod generate_sk;
-=======
 use args::init::ProverInitArgs;
 use clap::Subcommand;
 use xshell::Shell;
