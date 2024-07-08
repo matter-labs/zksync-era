@@ -123,14 +123,13 @@ async fn main() -> anyhow::Result<()> {
         .witness_generator
         .context("witness generator config")?;
 
+    let prometheus_config = general_config.prometheus_config;
+
     // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
         port
     } else {
-        let prometheus_config = general_config
-            .prometheus_config
-            .clone()
-            .context("prometheus config")?;
+        let prometheus_config = prometheus_config.clone().context("prometheus config")?;
         prometheus_config.listener_port
     };
 
@@ -199,10 +198,9 @@ async fn main() -> anyhow::Result<()> {
         );
 
         let prometheus_config = if use_push_gateway {
-            let prometheus_config = general_config
-                .prometheus_config
+            let prometheus_config = prometheus_config
                 .clone()
-                .context("prometheus config")?;
+                .context("prometheus config needed when use_push_gateway enabled")?;
             PrometheusExporterConfig::push(
                 prometheus_config.gateway_endpoint(),
                 prometheus_config.push_interval(),
