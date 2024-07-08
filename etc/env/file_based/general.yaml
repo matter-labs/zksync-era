@@ -297,6 +297,7 @@ prover_group:
       aggregation_round: 1
 base_token_adjuster:
   price_polling_interval_ms: 30000
+  price_cache_update_interval_ms: 2000
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
