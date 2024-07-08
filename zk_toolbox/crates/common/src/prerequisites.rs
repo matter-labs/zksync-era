@@ -30,7 +30,7 @@ const DOCKER_COMPOSE_PREREQUISITE: Prerequisite = Prerequisite {
     download_link: "https://docs.docker.com/compose/install/",
 };
 
-const PROVER_PREREQUISITES: [Prerequisite; 4] = [
+const PROVER_PREREQUISITES: [Prerequisite; 5] = [
     Prerequisite {
         name: "gcloud",
         download_link: "https://cloud.google.com/sdk/docs/install",
@@ -46,7 +46,11 @@ const PROVER_PREREQUISITES: [Prerequisite; 4] = [
     Prerequisite {
         name: "nvcc",
         download_link: "https://developer.nvidia.com/cuda-downloads",
-    },
+    }, // CUDA toolkit
+    Prerequisite {
+        name: "nvidia-smi",
+        download_link: "https://developer.nvidia.com/cuda-downloads",
+    }, // CUDA GPU driver
 ];
 
 struct Prerequisite {
