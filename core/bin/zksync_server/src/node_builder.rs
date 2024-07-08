@@ -24,18 +24,19 @@ use zksync_node_framework::{
         base_token_ratio_persister::BaseTokenRatioPersisterLayer,
         base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
+        coingecko_client::CoingeckoClientLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
-        external_price_api_client::ExternalPriceApiClientsLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -512,10 +513,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_external_api_clients_layer(mut self) -> anyhow::Result<Self> {
+    fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        self.node
-            .add_layer(ExternalPriceApiClientsLayer::new(config));
+        if config.source == "no-op" {
+            self.node.add_layer(NoOpExternalPriceApiClientLayer {});
+        } else {
+            self.node.add_layer(CoingeckoClientLayer::new(config));
+        }
 
         Ok(self)
     }
@@ -630,11 +634,10 @@ impl MainNodeBuilder {
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
-                Component::ExternalPriceApiClients => {
-                    self = self.add_external_api_clients_layer()?;
-                }
                 Component::BaseTokenRatioPersister => {
-                    self = self.add_base_token_ratio_persister_layer()?;
+                    self = self
+                        .add_external_api_client_layer()?
+                        .add_base_token_ratio_persister_layer()?;
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;

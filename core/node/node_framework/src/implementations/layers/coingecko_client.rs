@@ -9,12 +9,12 @@ use crate::{
     IntoContext,
 };
 
-/// Wiring layer for `ExternalPriceApiClient`
+/// Wiring layer for `CoingeckoApiClient`
 ///
-/// Responsible for inserting all the resources to get base token prices from external price feeds to
-/// be used by the `BaseTokenRatioPersister`.
+/// Responsible for inserting a resource with a client to get base token prices from CoinGecko to be
+/// used by the `BaseTokenRatioPersister`.
 #[derive(Debug)]
-pub struct ExternalPriceApiClientsLayer {
+pub struct CoingeckoClientLayer {
     config: ExternalPriceApiClientConfig,
 }
 
@@ -24,19 +24,19 @@ pub struct Output {
     pub price_api_client: PriceAPIClientResource,
 }
 
-impl ExternalPriceApiClientsLayer {
+impl CoingeckoClientLayer {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
         Self { config }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for ExternalPriceApiClientsLayer {
+impl WiringLayer for CoingeckoClientLayer {
     type Input = ();
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "external_price_api_clients"
+        "coingecko_api_client"
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {

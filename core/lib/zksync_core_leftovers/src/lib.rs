@@ -92,8 +92,6 @@ pub enum Component {
     VmRunnerProtectiveReads,
     /// A component to fetch and persist ETH<->BaseToken conversion ratios for chains with custom base tokens.
     BaseTokenRatioPersister,
-    /// A component to insert all external price feed resources into the framework.
-    ExternalPriceApiClients,
     /// VM runner-based component that saves VM execution data for basic witness generation.
     VmRunnerBwip,
 }
@@ -135,9 +133,6 @@ impl FromStr for Components {
             "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
-            }
-            "external_price_api_clients" => {
-                Ok(Components(vec![Component::ExternalPriceApiClients]))
             }
             "base_token_ratio_persister" => {
                 Ok(Components(vec![Component::BaseTokenRatioPersister]))
