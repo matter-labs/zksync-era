@@ -10,10 +10,6 @@ use crate::{
     L1BatchNumber,
 };
 
-// This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
-// This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
-
 #[derive(Debug, Clone)]
 pub struct FriProverJobMetadata {
     pub id: u32,
@@ -271,6 +267,7 @@ pub struct ProverJobFriInfo {
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
     pub merkle_tree_paths_blob_url: Option<String>,
+    pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
     pub error: Option<String>,
@@ -381,4 +378,13 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
+}
+
+// Used for transferring information about L1 Batches from DAL to public interfaces (currently prover_cli stats).
+/// DTO containing information about L1 Batch Proof.
+#[derive(Debug, Clone)]
+pub struct ProofGenerationTime {
+    pub l1_batch_number: L1BatchNumber,
+    pub time_taken: NaiveTime,
+    pub created_at: NaiveDateTime,
 }

@@ -21,6 +21,8 @@ mod proof_data_handler;
 mod snapshots_creator;
 mod utils;
 
+mod base_token_adjuster;
+mod da_dispatcher;
 mod genesis;
 #[cfg(test)]
 mod test_utils;

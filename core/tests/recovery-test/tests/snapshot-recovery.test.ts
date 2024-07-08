@@ -101,7 +101,7 @@ describe('snapshot recovery', () => {
     before('create test wallet', async () => {
         const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
         console.log(`Using L1 RPC at ${ethRpcUrl}`);
-        const eth = new ethers.providers.JsonRpcProvider(ethRpcUrl);
+        const eth = new ethers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 
@@ -169,7 +169,7 @@ describe('snapshot recovery', () => {
                     const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
                     const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
                     const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
-                    const valueOnBlockchain = await mainNode.getStorageAt(
+                    const valueOnBlockchain = await mainNode.getStorage(
                         snapshotAccountAddress,
                         snapshotKey,
                         l2BlockNumber

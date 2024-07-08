@@ -1,9 +1,12 @@
+pub mod base_token_ratio_persister;
+pub mod base_token_ratio_provider;
 pub mod batch_status_updater;
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod contract_verification_api;
+pub mod da_dispatcher;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod healtcheck_server;

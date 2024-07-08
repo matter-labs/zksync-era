@@ -10,6 +10,7 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
+    "core/bin/zksync_tee_prover",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",
@@ -20,6 +21,7 @@ members = [
     "core/node/shared_metrics",
     "core/node/db_pruner",
     "core/node/fee_model",
+    "core/node/da_dispatcher",
     "core/node/eth_sender",
     "core/node/vm_runner",
     "core/node/test_utils",
@@ -32,6 +34,7 @@ members = [
     "core/node/contract_verification_server",
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
+    "core/node/base_token_adjuster",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -44,6 +47,8 @@ members = [
     "core/lib/circuit_breaker",
     "core/lib/dal",
     "core/lib/env_config",
+    "core/lib/da_client",
+    "core/lib/default_da_clients",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/l1_contract_interface",
@@ -66,6 +71,7 @@ members = [
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
+    "core/lib/external_price_api",
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",
@@ -223,6 +229,8 @@ zksync_dal = { path = "core/lib/dal" }
 zksync_db_connection = { path = "core/lib/db_connection" }
 zksync_env_config = { path = "core/lib/env_config" }
 zksync_eth_client = { path = "core/lib/eth_client" }
+zksync_da_client = { path = "core/lib/da_client" }
+zksync_default_da_clients = { path = "core/lib/default_da_clients" }
 zksync_eth_signer = { path = "core/lib/eth_signer" }
 zksync_health_check = { path = "core/lib/health_check" }
 zksync_l1_contract_interface = { path = "core/lib/l1_contract_interface" }
@@ -243,6 +251,7 @@ zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
+zksync_external_price_api = { path = "core/lib/external_price_api" }
 
 # Framework and components
 zksync_node_framework = { path = "core/node/node_framework" }
@@ -254,6 +263,7 @@ zksync_block_reverter = { path = "core/node/block_reverter" }
 zksync_commitment_generator = { path = "core/node/commitment_generator" }
 zksync_house_keeper = { path = "core/node/house_keeper" }
 zksync_node_genesis = { path = "core/node/genesis" }
+zksync_da_dispatcher = { path = "core/node/da_dispatcher" }
 zksync_eth_sender = { path = "core/node/eth_sender" }
 zksync_node_db_pruner = { path = "core/node/db_pruner" }
 zksync_node_fee_model = { path = "core/node/fee_model" }
@@ -268,3 +278,4 @@ zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }
+zksync_base_token_adjuster = {path = "core/node/base_token_adjuster"}
