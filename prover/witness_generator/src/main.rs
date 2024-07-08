@@ -121,9 +121,19 @@ async fn main() -> anyhow::Result<()> {
     let config = general_config
         .witness_generator
         .context("witness generator config")?;
-    let prometheus_config = general_config
-        .prometheus_config
-        .context("prometheus config")?;
+
+    let prometheus_config = general_config.prometheus_config;
+
+    // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
+    let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
+        port
+    } else {
+        prometheus_config
+            .clone()
+            .context("prometheus config")?
+            .listener_port
+    };
+
     let prover_connection_pool =
         ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
             .build()
@@ -181,13 +191,16 @@ async fn main() -> anyhow::Result<()> {
         );
 
         let prometheus_config = if use_push_gateway {
+            let prometheus_config = prometheus_config
+                .clone()
+                .context("prometheus config needed when use_push_gateway enabled")?;
             PrometheusExporterConfig::push(
                 prometheus_config.gateway_endpoint(),
                 prometheus_config.push_interval(),
             )
         } else {
             // `u16` cast is safe since i is in range [0, 4)
-            PrometheusExporterConfig::pull(prometheus_config.listener_port + i as u16)
+            PrometheusExporterConfig::pull(prometheus_listener_port + i as u16)
         };
         let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
