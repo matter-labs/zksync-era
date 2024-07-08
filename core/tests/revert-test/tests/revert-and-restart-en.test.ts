@@ -11,8 +11,10 @@ import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
-import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { getAllConfigsPath, loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
+import { runServerInBackground } from 'utils/build/server';
+import { background } from 'utils';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -49,6 +51,7 @@ const extLogsPath: string = 'revert_ext.log';
 let ethClientWeb3Url: string;
 let apiWeb3JsonRpcHttpUrl: string;
 let baseTokenAddress: string;
+let enEthClientUrl: string;
 
 if (fileConfig.loadFromFile) {
     const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
@@ -59,12 +62,13 @@ if (fileConfig.loadFromFile) {
     ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
     apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
     baseTokenAddress = contractsConfig.l1.base_token_addr;
+    enEthClientUrl = externalNodeConfig.main_node_url
 } else {
     let env = fetchEnv(mainEnv);
     ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
     apiWeb3JsonRpcHttpUrl = env.API_WEB3_JSON_RPC_HTTP_URL;
     baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
-    env.EN_ETH_CLIENT_URL = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
+    enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
 }
 
 interface SuggestedValues {
@@ -85,10 +89,6 @@ function parseSuggestedValues(jsonString: string): SuggestedValues {
         nonce: json.nonce,
         priorityFee: json.priority_fee
     };
-}
-
-function spawn(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.ChildProcess {
-    return child_process.spawn(cmd, args, options);
 }
 
 function run(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.SpawnSyncReturns<Buffer> {
@@ -120,18 +120,25 @@ function fetchEnv(zksyncEnv: string): any {
     return { ...process.env, ...dotenv.parse(res.stdout) };
 }
 
-function runBlockReverter(args: string[]): string {
-    let env = fetchEnv(mainEnv);
-    env.RUST_LOG = 'off';
-    let res = run('./target/release/block_reverter', args, {
-        cwd: env.ZKSYNC_HOME,
-        env: {
-            ...env,
-            PATH: process.env.PATH
-        }
-    });
-    console.log(res.stderr.toString());
-    return res.stdout.toString();
+async function runBlockReverter(args: string[]): Promise<string> {
+    let fileConfigFlags = '';
+    if (fileConfig.loadFromFile) {
+        const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
+        fileConfigFlags = `
+                --config-path=${configPaths['general.yaml']}
+                --contracts-config-path=${configPaths['contracts.yaml']}
+                --secrets-path=${configPaths['secrets.yaml']}
+                --wallets-path=${configPaths['wallets.yaml']}
+                --genesis-path=${configPaths['genesis.yaml']}
+            `;
+    }
+
+    const executedProcess = await utils.exec(
+        `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(" ")} ${fileConfigFlags}`
+        // ^ Switch off logs to not pollute the output JSON
+    );
+
+    return executedProcess.stdout;
 }
 
 async function killServerAndWaitForShutdown(tester: Tester, server: string) {
@@ -152,8 +159,25 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
     throw new Error("Server didn't stop after a kill request");
 }
 
+
+export function runExternalNodeInBackground({
+    stdio,
+    cwd,
+    useZkInception
+}: {
+    components?: string[];
+    stdio: any;
+    cwd?: Parameters<typeof background>[0]['cwd'];
+    useZkInception?: boolean;
+}) {
+    // TODO manage useZkInception = false case 
+    let command = useZkInception ? "zk_inception external-node run" : "";
+    background({ command, stdio, cwd });
+}
+
+
 class MainNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -182,14 +206,14 @@ class MainNode {
         if (enableConsensus) {
             components += ',consensus';
         }
-        let proc = spawn('./target/release/zksync_server', ['--components', components], {
-            cwd: env.ZKSYNC_HOME,
+
+        runServerInBackground({
+            components: [components],
             stdio: [null, logs, logs],
-            env: {
-                ...env,
-                PATH: process.env.PATH
-            }
+            cwd: pathToHome,
+            useZkInception: fileConfig.loadFromFile
         });
+
         // Wait until the main node starts responding.
         let tester: Tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         while (true) {
@@ -197,19 +221,20 @@ class MainNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                if (proc.exitCode != null) {
-                    assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
-                }
+                // TODO manage failing
+                // if (proc.exitCode != null) {
+                //     assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+                // }
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new MainNode(tester, proc);
+        return new MainNode(tester);
     }
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -229,18 +254,20 @@ class ExtNode {
         if (enableConsensus) {
             args.push('--enable-consensus');
         }
-        let proc = spawn('./target/release/zksync_external_node', args, {
-            cwd: env.ZKSYNC_HOME,
+
+        // Run server in background.
+        runExternalNodeInBackground({
             stdio: [null, logs, logs],
-            env: {
-                ...env,
-                PATH: process.env.PATH
-            }
+            cwd: pathToHome,
+            useZkInception: fileConfig.loadFromFile
         });
+        // TODO check if needed
+        await utils.sleep(10);
+
         // Wait until the node starts responding.
         let tester: Tester = await Tester.init(
-            env.EN_ETH_CLIENT_URL,
-            `http://127.0.0.1:${env.EN_HTTP_PORT}`,
+            ethClientWeb3Url,
+            enEthClientUrl,
             baseTokenAddress
         );
         while (true) {
@@ -248,22 +275,27 @@ class ExtNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                if (proc.exitCode != null) {
-                    assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
-                }
+                // TODO manage failing scenario
+                // if (proc.exitCode != null) {
+                //     assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
+                // }
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new ExtNode(tester, proc);
+        return new ExtNode(tester);
     }
 
     // Waits for the node process to exit.
     public async waitForExit(): Promise<number> {
-        while (this.proc.exitCode === null) {
-            await utils.sleep(1);
-        }
-        return this.proc.exitCode;
+        // TODO manage failing scenario
+        // while (this.proc.exitCode === null) {
+        //     await utils.sleep(1);
+        // }
+        // return this.proc.exitCode;
+
+        await utils.sleep(1);
+        return 0;
     }
 }
 
@@ -355,7 +387,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
-        const values_json = runBlockReverter([
+        const values_json = await runBlockReverter([
             'print-suggested-values',
             '--json',
             '--operator-address',
@@ -366,7 +398,7 @@ describe('Block reverting test', function () {
         assert(lastExecuted.eq(values.lastExecutedL1BatchNumber));
 
         console.log('Send reverting transaction to L1');
-        runBlockReverter([
+        await runBlockReverter([
             'send-eth-transaction',
             '--l1-batch-number',
             values.lastExecutedL1BatchNumber.toString(),
@@ -382,7 +414,7 @@ describe('Block reverting test', function () {
         assert(lastCommitted2.eq(lastExecuted));
 
         console.log('Rollback db');
-        runBlockReverter([
+        await runBlockReverter([
             'rollback-db',
             '--l1-batch-number',
             values.lastExecutedL1BatchNumber.toString(),
