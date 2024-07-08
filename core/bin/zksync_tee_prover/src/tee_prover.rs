@@ -169,9 +169,7 @@ impl Task for TeeProver {
                 return Ok(());
             }
             let result = self.step().await;
-            let mut need_to_sleep = true;
-
-            match result {
+            let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
@@ -181,7 +179,9 @@ impl Task for TeeProver {
                         METRICS
                             .last_batch_number_processed
                             .set(batch_number.0 as u64);
-                        need_to_sleep = false;
+                        false
+                    } else {
+                        true
                     }
                 }
                 Err(err) => {
@@ -195,9 +195,9 @@ impl Task for TeeProver {
                         backoff.mul_f32(self.config.retry_backoff_multiplier),
                         self.config.max_backoff,
                     );
+                    true
                 }
-            }
-
+            };
             if need_to_sleep {
                 tokio::time::timeout(backoff, stop_receiver.0.changed())
                     .await
