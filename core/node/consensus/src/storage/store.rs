@@ -3,11 +3,13 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::consensus_dal::{self, Payload};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
@@ -525,10 +527,29 @@ impl storage::PersistentBatchStore for Store {
     /// by the attesters.
     async fn get_batch_to_sign(
         &self,
-        _ctx: &ctx::Ctx,
-        _number: attester::BatchNumber,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
     ) -> ctx::Result<Option<attester::Batch>> {
-        todo!()
+        let Some(batch) = self
+            .conn(ctx)
+            .await?
+            .batch(
+                ctx,
+                L1BatchNumber(u32::try_from(number.0).context("number")?),
+            )
+            .await
+            .wrap("batch")?
+        else {
+            return Ok(None);
+        };
+
+        let info = StoredBatchInfo::from(&batch);
+        let hash = Keccak256::from_bytes(info.hash().0);
+
+        Ok(Some(attester::Batch {
+            number,
+            hash: attester::BatchHash(hash),
+        }))
     }
 
     /// Returns the QC of the batch with the given number.
