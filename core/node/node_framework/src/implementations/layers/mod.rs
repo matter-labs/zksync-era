@@ -24,8 +24,6 @@ pub mod prometheus_exporter;
 pub mod proof_data_handler;
 pub mod pruning;
 pub mod query_eth_client;
-pub mod reorg_detector_checker;
-pub mod reorg_detector_runner;
 pub mod sigint;
 pub mod state_keeper;
 pub mod sync_state_updater;

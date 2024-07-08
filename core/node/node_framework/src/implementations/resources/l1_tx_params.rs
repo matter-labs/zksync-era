@@ -13,3 +13,9 @@ impl Resource for L1TxParamsResource {
         "common/l1_tx_params".into()
     }
 }
+
+impl<T: L1TxParamsProvider> From<Arc<T>> for L1TxParamsResource {
+    fn from(provider: Arc<T>) -> Self {
+        Self(provider)
+    }
+}
