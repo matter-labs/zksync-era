@@ -15,7 +15,7 @@ zk_evm_1_4_1.workspace = true
 zk_evm_1_4_0.workspace = true
 zk_evm_1_3_3.workspace = true
 zk_evm_1_3_1.workspace = true
-vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "4931b489dc9e95f88a0b11bd27b110656277c5d2" }
+vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "c42830f3f9b2e485ac0562332e08e14ff95e4b55" }
 
 circuit_sequencer_api_1_3_3.workspace = true
 circuit_sequencer_api_1_4_0.workspace = true

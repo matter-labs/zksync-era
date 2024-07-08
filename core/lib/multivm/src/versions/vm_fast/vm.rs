@@ -179,9 +179,8 @@ impl<S: ReadStorage> Vm<S> {
 
                     assert!(fp.offset == 0);
 
-                    let return_data = self.inner.state.heaps[fp.memory_page]
-                        .read_range_big_endian(fp.start..fp.start + fp.length)
-                        .to_vec();
+                    let return_data =
+                        self.inner.state.heaps[fp.memory_page].read_range(fp.start, fp.length);
 
                     last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
@@ -454,7 +453,6 @@ impl<S: ReadStorage> VmInterface<S, HistoryEnabled> for Vm<S> {
         inner.state.current_frame.sp = 0;
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION));
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
