@@ -1,3 +1,4 @@
+use core::net;
 use std::time::Duration;
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
@@ -169,6 +170,8 @@ impl Task for TeeProver {
                 return Ok(());
             }
             let result = self.step().await;
+            let mut need_to_sleep = true;
+
             match result {
                 Ok(batch_number) => {
                     retries = 1;
@@ -179,6 +182,7 @@ impl Task for TeeProver {
                         METRICS
                             .last_batch_number_processed
                             .set(batch_number.0 as u64);
+                        need_to_sleep = false;
                     }
                 }
                 Err(err) => {
@@ -194,9 +198,12 @@ impl Task for TeeProver {
                     );
                 }
             }
-            tokio::time::timeout(backoff, stop_receiver.0.changed())
-                .await
-                .ok();
+
+            if need_to_sleep {
+                tokio::time::timeout(backoff, stop_receiver.0.changed())
+                    .await
+                    .ok();
+            }
         }
     }
 }
