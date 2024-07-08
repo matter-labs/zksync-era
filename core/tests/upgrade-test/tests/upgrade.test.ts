@@ -101,15 +101,10 @@ describe('Upgrade test', function () {
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
 
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
-        console.log('Base token address:', baseToken);
 
         if (!zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS)) {
-            console.log('Approving ERC20 token');
             await (await tester.syncWallet.approveERC20(baseToken, ethers.MaxUint256)).wait();
-            console.log('Minting ERC20 token');
-            console.log('balance:', await tester.syncWallet.getBalance(baseToken, 'committed'));
             await mintToAddress(baseToken, tester.ethWallet, tester.syncWallet.address, depositAmount * 10n);
-            console.log('balance:', await tester.syncWallet.getBalance(baseToken, 'committed'));
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
