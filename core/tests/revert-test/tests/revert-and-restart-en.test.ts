@@ -62,7 +62,7 @@ if (fileConfig.loadFromFile) {
     ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
     apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
     baseTokenAddress = contractsConfig.l1.base_token_addr;
-    enEthClientUrl = externalNodeConfig.main_node_url
+    enEthClientUrl = externalNodeConfig.main_node_url;
 } else {
     let env = fetchEnv(mainEnv);
     ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
@@ -134,7 +134,9 @@ async function runBlockReverter(args: string[]): Promise<string> {
     }
 
     const executedProcess = await utils.exec(
-        `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(" ")} ${fileConfigFlags}`
+        `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
+            ' '
+        )} ${fileConfigFlags}`
         // ^ Switch off logs to not pollute the output JSON
     );
 
@@ -159,7 +161,6 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
     throw new Error("Server didn't stop after a kill request");
 }
 
-
 export function runExternalNodeInBackground({
     stdio,
     cwd,
@@ -170,14 +171,13 @@ export function runExternalNodeInBackground({
     cwd?: Parameters<typeof background>[0]['cwd'];
     useZkInception?: boolean;
 }) {
-    // TODO manage useZkInception = false case 
-    let command = useZkInception ? "zk_inception external-node run" : "";
+    // TODO manage useZkInception = false case
+    let command = useZkInception ? 'zk_inception external-node run' : '';
     background({ command, stdio, cwd });
 }
 
-
 class MainNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -234,7 +234,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -265,11 +265,7 @@ class ExtNode {
         await utils.sleep(10);
 
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(
-            ethClientWeb3Url,
-            enEthClientUrl,
-            baseTokenAddress
-        );
+        let tester: Tester = await Tester.init(ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
