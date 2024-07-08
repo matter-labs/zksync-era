@@ -10,7 +10,7 @@ pub struct PriceAPIClientResource(pub Arc<dyn PriceAPIClient>);
 
 impl Default for PriceAPIClientResource {
     fn default() -> Self {
-        Self(Arc::new(NoOpPriceAPIClient::default()))
+        Self(Arc::new(NoOpPriceAPIClient))
     }
 }
 

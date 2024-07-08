@@ -18,12 +18,6 @@ pub trait PriceAPIClient: Sync + Send + fmt::Debug {
 #[derive(Debug, Clone)]
 pub struct NoOpPriceAPIClient;
 
-impl Default for NoOpPriceAPIClient {
-    fn default() -> Self {
-        Self
-    }
-}
-
 #[async_trait]
 impl PriceAPIClient for NoOpPriceAPIClient {
     async fn fetch_prices(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIPrice> {
