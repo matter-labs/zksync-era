@@ -349,15 +349,9 @@ jobs:
   #       base_token: ["Eth", "Custom"]
   #   runs-on: [matterlabs-ci-runner]
 
-<<<<<<< HEAD
     # env:
-    #   SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+    #   SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
     #   EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
-=======
-    env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}"
-      EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
->>>>>>> origin/main
 
     # steps:
     #   - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
