@@ -251,6 +251,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            chain_admin_addr: g.gen(),
             ecosystem_contracts: self.sample(g),
         }
     }

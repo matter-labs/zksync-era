@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use zksync_config::{ContractsConfig, EthWatchConfig};
-use zksync_contracts::governance_contract;
+use zksync_contracts::{chain_admin_contract, governance_contract};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_types::{ethabi::Contract, Address};
@@ -61,7 +61,8 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
-                .map(|a| a.transparent_proxy_admin_addr),
+                .map(|a| a.state_transition_proxy_addr),
+            self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
@@ -69,6 +70,7 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             client: eth_client,
             governance_contract: governance_contract(),
+            chain_admin_contract: chain_admin_contract(),
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
         });
@@ -82,6 +84,7 @@ struct EthWatchTask {
     main_pool: ConnectionPool<Core>,
     client: EthHttpQueryClient,
     governance_contract: Contract,
+    chain_admin_contract: Contract,
     diamond_proxy_address: Address,
     poll_interval: Duration,
 }
@@ -96,6 +99,7 @@ impl Task for EthWatchTask {
         let eth_watch = EthWatch::new(
             self.diamond_proxy_address,
             &self.governance_contract,
+            &self.chain_admin_contract,
             Box::new(self.client),
             self.main_pool,
             self.poll_interval,
