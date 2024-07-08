@@ -214,9 +214,10 @@ impl TreeUpdater {
         } else {
             storage
                 .vm_runner_dal()
-                .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
+                .get_protective_reads_latest_processed_batch()
                 .await
                 .context("failed loading latest L1 batch number with protective reads")?
+                .unwrap_or_default()
         };
         drop(storage);
 
@@ -423,8 +424,9 @@ impl AsyncTree {
 
         let current_db_batch = storage
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
-            .await?;
+            .get_protective_reads_latest_processed_batch()
+            .await?
+            .unwrap_or_default();
         let last_l1_batch_with_tree_data = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_tree_data()

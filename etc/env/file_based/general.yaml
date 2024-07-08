@@ -337,6 +337,11 @@ protective_reads_writer:
   window_size: 3
   first_processed_batch: 0
 
+basic_witness_input_producer:
+    db_path: "./db/main/basic_witness_input_producer"
+    window_size: 3
+    first_processed_batch: 0
+
 snapshot_recovery:
   enabled: false
   postgres:

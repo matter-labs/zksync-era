@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
-use zk_evm::blake2::Blake2s256;
-use zkevm_test_harness::witness::tree::{
-    BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+use zkevm_test_harness::{
+    witness::tree::{
+        BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
+    },
+    zk_evm::blake2::Blake2s256,
 };
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PrecalculatedMerklePathsProvider {
@@ -19,7 +21,7 @@ pub struct PrecalculatedMerklePathsProvider {
 }
 
 impl PrecalculatedMerklePathsProvider {
-    pub fn new(input: PrepareBasicCircuitsJob, root_hash: [u8; 32]) -> Self {
+    pub fn new(input: WitnessInputMerklePaths, root_hash: [u8; 32]) -> Self {
         let next_enumeration_index = input.next_enumeration_index();
         tracing::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, next_enumeration_index);
         Self {
