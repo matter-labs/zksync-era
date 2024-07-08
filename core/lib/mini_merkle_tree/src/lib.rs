@@ -13,8 +13,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use once_cell::sync::OnceCell;
-
 #[cfg(test)]
 mod tests;
 
