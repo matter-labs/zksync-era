@@ -12,3 +12,9 @@ impl Resource for ActionQueueSenderResource {
         "external_node/action_queue_sender".into()
     }
 }
+
+impl From<ActionQueueSender> for ActionQueueSenderResource {
+    fn from(sender: ActionQueueSender) -> Self {
+        Self(Unique::new(sender))
+    }
+}
