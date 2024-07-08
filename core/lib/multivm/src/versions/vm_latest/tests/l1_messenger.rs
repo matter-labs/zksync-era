@@ -19,8 +19,8 @@ use crate::{
     },
 };
 
-pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 13;
-pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 14;
+pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 7;
+pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 8;
 
 pub(crate) fn encoded_uncompressed_state_diffs(input: &PubdataInput) -> Vec<u8> {
     let mut result = vec![];
