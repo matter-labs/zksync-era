@@ -25,6 +25,7 @@ tracing.workspace = true
 itertools.workspace = true
 chrono.workspace = true
 once_cell.workspace = true
+backon.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

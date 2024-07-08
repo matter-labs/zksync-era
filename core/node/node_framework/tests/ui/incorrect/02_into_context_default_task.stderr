@@ -1,0 +1,5 @@
+error: `default` attribute is not allowed in `IntoContext` macro
+  --> tests/ui/incorrect/02_into_context_default_task.rs:32:5
+   |
+32 |     _field_2: TaskA,
+   |     ^^^^^^^^

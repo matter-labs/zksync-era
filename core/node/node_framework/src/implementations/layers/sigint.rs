@@ -1,39 +1,47 @@
 use tokio::sync::oneshot;
 
 use crate::{
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 
 /// Wiring layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
 /// Instead, it would propagate the signal to the rest of the node, allowing it to shut down gracefully.
-///
-/// ## Adds tasks
-///
-/// - `SigintHandlerTask`
 #[derive(Debug)]
 pub struct SigintHandlerLayer;
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: SigintHandlerTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for SigintHandlerLayer {
+    type Input = ();
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "sigint_handler_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        // SIGINT may happen at any time, so we must handle it as soon as it happens.
-        node.add_task(Box::new(SigintHandlerTask));
-        Ok(())
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(Output {
+            task: SigintHandlerTask,
+        })
     }
 }
 
 #[derive(Debug)]
-struct SigintHandlerTask;
+pub struct SigintHandlerTask;
 
 #[async_trait::async_trait]
 impl Task for SigintHandlerTask {
     fn kind(&self) -> TaskKind {
+        // SIGINT may happen at any time, so we must handle it as soon as it happens.
         TaskKind::UnconstrainedTask
     }
 

@@ -8,26 +8,33 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for [`TreeDataFetcher`].
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `MainNodeClientResource`
-/// - `EthInterfaceResource`
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds tasks
-///
-/// - `TreeDataFetcher`
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub main_node_client: MainNodeClientResource,
+    pub eth_client: EthInterfaceResource,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: TreeDataFetcher,
 }
 
 impl TreeDataFetcherLayer {
@@ -38,32 +45,33 @@ impl TreeDataFetcherLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for TreeDataFetcherLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "tree_data_fetcher_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(client) = context.get_resource().await?;
-        let EthInterfaceResource(eth_client) = context.get_resource().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let MainNodeClientResource(client) = input.main_node_client;
+        let EthInterfaceResource(eth_client) = input.eth_client;
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let fetcher = TreeDataFetcher::new(client, pool.get().await?)
-            .with_l1_data(eth_client, self.diamond_proxy_addr)?;
+        let task =
+            TreeDataFetcher::new(client, pool).with_l1_data(eth_client, self.diamond_proxy_addr)?;
 
         // Insert healthcheck
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health
-            .insert_component(fetcher.health_check())
+        input
+            .app_health
+            .0
+            .insert_component(task.health_check())
             .map_err(WiringError::internal)?;
 
-        // Insert task
-        context.add_task(Box::new(fetcher));
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 

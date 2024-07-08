@@ -35,7 +35,6 @@ mod utils;
 
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
-use zksync_dal::Core;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
@@ -111,12 +110,12 @@ async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
+    let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .context("prover config")?
+        prover_config
             .prover_object_store
-            .context("object store")?,
+            .context("object store")?
+            .clone(),
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
@@ -125,14 +124,6 @@ async fn main() -> anyhow::Result<()> {
     let prometheus_config = general_config
         .prometheus_config
         .context("prometheus config")?;
-    let postgres_config = general_config.postgres_config.context("postgres config")?;
-    let connection_pool = ConnectionPool::<Core>::builder(
-        database_secrets.master_url()?,
-        postgres_config.max_connections()?,
-    )
-    .build()
-    .await
-    .context("failed to build a connection_pool")?;
     let prover_connection_pool =
         ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
             .build()
@@ -202,7 +193,8 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let vk_commitments = get_cached_commitments();
+                let setup_data_path = prover_config.setup_data_path.clone();
+                let vk_commitments = get_cached_commitments(Some(setup_data_path));
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,
@@ -224,7 +216,6 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     store_factory.create_store().await?,
                     public_blob_store,
-                    connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_version,
                 );

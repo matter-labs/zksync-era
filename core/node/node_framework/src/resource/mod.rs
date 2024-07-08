@@ -19,7 +19,7 @@ mod unique;
 /// /// An abstract interface you want to share.
 /// /// Normally you want the interface to be thread-safe.
 /// trait MyInterface: 'static + Send + Sync {
-///    fn do_something(&self);
+///     fn do_something(&self);
 /// }
 ///
 /// /// Resource wrapper.
@@ -27,11 +27,11 @@ mod unique;
 /// struct MyResource(Arc<dyn MyInterface>);
 ///
 /// impl Resource for MyResource {
-///    fn name() -> String {
-///       // It is a helpful practice to follow a structured naming pattern for resource names.
-///       // For example, you can use a certain prefix for all resources related to a some component, e.g. `api`.
-///       "common/my_resource".to_string()
-///    }
+///     fn name() -> String {
+///         // It is a helpful practice to follow a structured naming pattern for resource names.
+///         // For example, you can use a certain prefix for all resources related to a some component, e.g. `api`.
+///         "common/my_resource".to_string()
+///     }
 /// }
 /// ```
 pub trait Resource: 'static + Send + Sync + std::any::Any {

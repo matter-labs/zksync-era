@@ -1,11 +1,13 @@
 use crate::{
     configs::{
+        base_token_adjuster::BaseTokenAdjusterConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
-        vm_runner::ProtectiveReadsWriterConfig,
+        vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
@@ -36,9 +38,12 @@ pub struct GeneralConfig {
     pub eth: Option<EthConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     pub observability: Option<ObservabilityConfig>,
+    pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
+    pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub pruning: Option<PruningConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
+    pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
 }
