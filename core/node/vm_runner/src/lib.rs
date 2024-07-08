@@ -14,8 +14,8 @@ mod metrics;
 mod tests;
 
 pub use impls::{
-    BasicWitnessInputProducer, BasicWitnessInputProducerTasks, ProtectiveReadsIo,
-    ProtectiveReadsWriter, ProtectiveReadsWriterTasks,
+    BasicWitnessInputProducer, BasicWitnessInputProducerIo, BasicWitnessInputProducerTasks,
+    ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks,
 };
 pub use io::VmRunnerIo;
 pub use output_handler::{

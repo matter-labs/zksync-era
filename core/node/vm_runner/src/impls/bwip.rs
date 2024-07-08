@@ -86,6 +86,7 @@ pub struct BasicWitnessInputProducerTasks {
         ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
 }
 
+/// IO implementation for the basic witness input producer.
 #[derive(Debug, Clone)]
 pub struct BasicWitnessInputProducerIo {
     first_processed_batch: L1BatchNumber,
