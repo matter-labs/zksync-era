@@ -1,7 +1,6 @@
 name: zk
 l1_network: Localhost
 link_to_code: .
-bellman_cuda_dir: .
 chains: ./chains
 config: ./configs/
 default_chain: era

@@ -13,10 +13,10 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let args = args.fill_values_with_prompt(&ecosystem_config.bellman_cuda_dir)?;
+    let args = args.fill_values_with_prompt(ecosystem_config.bellman_cuda_dir)?;
 
     let bellman_cuda_dir = args.bellman_cuda_dir.expect(MSG_BELLMAN_CUDA_DIR_ERR);
-    ecosystem_config.bellman_cuda_dir = bellman_cuda_dir.clone().into();
+    ecosystem_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
 
     if shell.path_exists(&bellman_cuda_dir) {
         return save_bellman_cuda_dir(shell, &ecosystem_config);

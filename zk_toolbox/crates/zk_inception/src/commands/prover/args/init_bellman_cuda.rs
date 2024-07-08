@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use clap::Parser;
 use common::Prompt;
@@ -14,9 +14,11 @@ pub struct InitBellmanCudaArgs {
 impl InitBellmanCudaArgs {
     pub fn fill_values_with_prompt(
         self,
-        default_bellman_cuda_dir: &Path,
+        default_bellman_cuda_dir: Option<PathBuf>,
     ) -> anyhow::Result<InitBellmanCudaArgs> {
         let bellman_cuda_dir = self.bellman_cuda_dir.unwrap_or_else(|| {
+            let default_bellman_cuda_dir = default_bellman_cuda_dir.unwrap_or(PathBuf::new());
+
             Prompt::new(MSG_BELLMAN_CUDA_DIR_PROMPT)
                 .default(default_bellman_cuda_dir.to_str().unwrap_or_default())
                 .ask()

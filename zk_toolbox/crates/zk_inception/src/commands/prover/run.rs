@@ -8,8 +8,8 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR, MSG_RUNNING_COMPRESSOR,
-    MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
+    MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
+    MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_WITNESS_GENERATOR,
     MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
     MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR, MSG_WITNESS_GENERATOR_ROUND_ERR,
@@ -107,7 +107,13 @@ fn run_compressor(
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    shell.set_var("BELLMAN_CUDA_DIR", ecosystem.bellman_cuda_dir.clone());
+    shell.set_var(
+        "BELLMAN_CUDA_DIR",
+        ecosystem
+            .bellman_cuda_dir
+            .clone()
+            .expect(MSG_BELLMAN_CUDA_DIR_ERR),
+    );
 
     let mut cmd = Cmd::new(cmd!(shell, "cargo run --features gpu --release --bin zksync_proof_fri_compressor -- --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
