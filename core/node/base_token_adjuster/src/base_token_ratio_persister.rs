@@ -55,7 +55,7 @@ impl BaseTokenRatioPersister {
     async fn loop_iteration(&self) -> anyhow::Result<()> {
         let new_prices = self
             .price_api_client
-            .fetch_prices(self.base_token_address)
+            .fetch_ratio(self.base_token_address)
             .await?;
 
         self.persist_ratio(new_prices).await?;

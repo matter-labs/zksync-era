@@ -5,21 +5,23 @@ use zksync_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
 
 use crate::{
     implementations::resources::price_api_client::PriceAPIClientResource,
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 
 /// Wiring layer for `ExternalPriceApiClient`
 ///
 /// Responsible for inserting all the resources to get base token prices from external price feeds to
 /// be used by the `BaseTokenRatioPersister`.
-///
-/// ## Adds resources
-///
-/// - PriceAPIClientResource
 #[derive(Debug)]
 pub struct ExternalPriceApiClientsLayer {
     config: ExternalPriceApiClientConfig,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub price_api_client: PriceAPIClientResource,
 }
 
 impl ExternalPriceApiClientsLayer {
@@ -30,15 +32,18 @@ impl ExternalPriceApiClientsLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ExternalPriceApiClientsLayer {
+    type Input = ();
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
-        "base_token_external_price_provider"
+        "external_price_api_clients"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let cg_client = CoinGeckoPriceAPIClient::new(self.config);
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        let cg_client = Arc::new(CoinGeckoPriceAPIClient::new(self.config));
 
-        context.insert_resource(PriceAPIClientResource(Arc::new(cg_client)))?;
-
-        Ok(())
+        Ok(Output {
+            price_api_client: cg_client.into(),
+        })
     }
 }

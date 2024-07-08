@@ -5,7 +5,7 @@ use zksync_external_price_api::{NoOpPriceAPIClient, PriceAPIClient};
 use crate::resource::Resource;
 
 /// A resource that provides [`PriceAPIClient`] implementation to the service.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PriceAPIClientResource(pub Arc<dyn PriceAPIClient>);
 
 impl Default for PriceAPIClientResource {
@@ -17,5 +17,11 @@ impl Default for PriceAPIClientResource {
 impl Resource for PriceAPIClientResource {
     fn name() -> String {
         "common/price_api_client".into()
+    }
+}
+
+impl<T: PriceAPIClient> From<Arc<T>> for PriceAPIClientResource {
+    fn from(provider: Arc<T>) -> Self {
+        Self(provider)
     }
 }

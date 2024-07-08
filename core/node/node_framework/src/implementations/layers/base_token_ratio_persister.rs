@@ -26,6 +26,8 @@ pub struct BaseTokenRatioPersisterLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    #[context(default)]
+    pub price_api_client: PriceAPIClientResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -56,7 +58,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
 
-        let price_api_client = context.get_resource_or_default::<PriceAPIClientResource>();
+        let price_api_client = input.price_api_client;
         let base_token_addr = self
             .contracts_config
             .base_token_addr
