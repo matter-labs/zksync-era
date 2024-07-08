@@ -2086,16 +2086,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fraction"
-version = "0.15.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f158e3ff0a1b334408dc9fb811cd99b446986f4d8b741bb08f9df1604085ae7"
-dependencies = [
- "lazy_static",
- "num",
-]
-
-[[package]]
 name = "franklin-crypto"
 version = "0.0.5"
 source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#2546c63b91b59bdb0ad342d26f03fb57477550b2"
@@ -8402,7 +8392,6 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "derive_more",
- "fraction",
  "hex",
  "itertools 0.10.5",
  "num",
