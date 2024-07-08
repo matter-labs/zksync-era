@@ -3,6 +3,6 @@
 [base_token_adjuster]
 
 # How often to poll external price feeds for the base token price.
-price_polling_interval_ms = "1000"
+price_polling_interval_ms = "30000"
 
-price_cache_update_interval_ms = "1000"
+price_cache_update_interval_ms = "2000"
