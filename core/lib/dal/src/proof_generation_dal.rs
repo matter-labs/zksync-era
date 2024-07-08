@@ -19,8 +19,8 @@ pub struct ProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, EnumString, Display)]
 enum ProofGenerationJobStatus {
-    #[strum(serialize = "ready_to_be_proven")]
-    ReadyToBeProven,
+    #[strum(serialize = "unpicked")]
+    Unpicked,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
@@ -48,8 +48,16 @@ impl ProofGenerationDal<'_, '_> {
                         l1_batch_number
                     FROM
                         proof_generation_details
+                        LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
                     WHERE
-                        status = 'ready_to_be_proven'
+                        (
+                            vm_run_data_blob_url IS NOT NULL
+                            AND proof_gen_data_blob_url IS NOT NULL
+                            AND l1_batches.hash IS NOT NULL
+                            AND l1_batches.aux_data_hash IS NOT NULL
+                            AND l1_batches.meta_parameters_hash IS NOT NULL
+                            AND status = 'unpicked'
+                        )
                         OR (
                             status = 'picked_by_prover'
                             AND prover_taken_at < NOW() - $1::INTERVAL
@@ -58,8 +66,6 @@ impl ProofGenerationDal<'_, '_> {
                         l1_batch_number ASC
                     LIMIT
                         1
-                    FOR UPDATE
-                        SKIP LOCKED
                 )
             RETURNING
                 proof_generation_details.l1_batch_number
@@ -112,6 +118,43 @@ impl ProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn save_vm_runner_artifacts_metadata(
+        &mut self,
+        batch_number: L1BatchNumber,
+        vm_run_data_blob_url: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                vm_run_data_blob_url = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
+            vm_run_data_blob_url,
+            batch_number
+        );
+        let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
+            .with_arg("vm_run_data_blob_url", &vm_run_data_blob_url)
+            .with_arg("l1_batch_number", &batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot save vm_run_data_blob_url for a batch number {} that does not exist",
+                batch_number
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
     /// The caller should ensure that `l1_batch_number` exists in the database.
     pub async fn insert_proof_generation_details(
         &mut self,
@@ -123,7 +166,7 @@ impl ProofGenerationDal<'_, '_> {
             INSERT INTO
                 proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
             VALUES
-                ($1, 'ready_to_be_proven', $2, NOW(), NOW())
+                ($1, 'unpicked', $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
              i64::from(l1_batch_number.0),
@@ -190,7 +233,7 @@ impl ProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details
             WHERE
-                status = 'ready_to_be_proven'
+                status = 'unpicked'
             ORDER BY
                 l1_batch_number ASC
             LIMIT
@@ -231,7 +274,9 @@ impl ProofGenerationDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::ProtocolVersion;
+    use zksync_types::{
+        block::L1BatchTreeData, commitment::L1BatchCommitmentArtifacts, ProtocolVersion, H256,
+    };
 
     use super::*;
     use crate::{tests::create_l1_batch_header, ConnectionPool, CoreDal};
@@ -272,6 +317,27 @@ mod tests {
         // Calling the method multiple times should work fine.
         conn.proof_generation_dal()
             .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .await
+            .unwrap();
+        conn.proof_generation_dal()
+            .save_vm_runner_artifacts_metadata(L1BatchNumber(1), "vm_run")
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .save_l1_batch_tree_data(
+                L1BatchNumber(1),
+                &L1BatchTreeData {
+                    hash: H256::zero(),
+                    rollup_last_leaf_index: 123,
+                },
+            )
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .save_l1_batch_commitment_artifacts(
+                L1BatchNumber(1),
+                &L1BatchCommitmentArtifacts::default(),
+            )
             .await
             .unwrap();
 

@@ -13,7 +13,10 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-pub use impls::{ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks};
+pub use impls::{
+    BasicWitnessInputProducer, BasicWitnessInputProducerTasks, ProtectiveReadsIo,
+    ProtectiveReadsWriter, ProtectiveReadsWriterTasks,
+};
 pub use io::VmRunnerIo;
 pub use output_handler::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,

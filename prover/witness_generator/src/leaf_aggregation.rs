@@ -8,9 +8,8 @@ use zkevm_test_harness::{
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,

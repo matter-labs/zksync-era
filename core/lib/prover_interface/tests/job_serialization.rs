@@ -5,7 +5,7 @@ use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_prover_interface::{
     api::{SubmitProofRequest, SubmitTeeProofRequest},
-    inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    inputs::{StorageLogMetadata, WitnessInputMerklePaths},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 use zksync_types::{
@@ -31,7 +31,7 @@ async fn prepare_basic_circuits_job_serialization() {
         .await
         .unwrap();
 
-    let job: PrepareBasicCircuitsJob = store.get(L1BatchNumber(1)).await.unwrap();
+    let job: WitnessInputMerklePaths = store.get(L1BatchNumber(1)).await.unwrap();
 
     let key = store.put(L1BatchNumber(2), &job).await.unwrap();
     let serialized_job = store.get_raw(Bucket::WitnessInput, &key).await.unwrap();
@@ -62,7 +62,7 @@ async fn prepare_basic_circuits_job_compatibility() {
     let serialized = bincode::serialize(&job_tuple).unwrap();
     assert_eq!(serialized, snapshot);
 
-    let job: PrepareBasicCircuitsJob = bincode::deserialize(&snapshot).unwrap();
+    let job: WitnessInputMerklePaths = bincode::deserialize(&snapshot).unwrap();
     assert_eq!(job.next_enumeration_index(), job_tuple.1);
     let job_merkle_paths: Vec<_> = job.into_merkle_paths().collect();
     assert_eq!(job_merkle_paths, job_tuple.0);
