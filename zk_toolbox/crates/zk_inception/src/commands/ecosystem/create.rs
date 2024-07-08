@@ -21,6 +21,7 @@ use crate::{
             create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
         },
     },
+    consts::BELLMAN_CUDA_DIR,
     messages::{
         MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
         MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
@@ -76,6 +77,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
         link_to_code: link_to_code.clone(),
+        bellman_cuda_dir: shell.current_dir().join(BELLMAN_CUDA_DIR),
         chains: chains_path.clone(),
         config: configs_path,
         era_chain_id: get_default_era_chain_id(),

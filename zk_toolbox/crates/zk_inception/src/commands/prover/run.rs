@@ -1,25 +1,18 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
+use common::{check_prover_prequisites, cmd::Cmd, logger};
 use config::{ChainConfig, EcosystemConfig};
-use path_absolutize::Absolutize;
 use xshell::{cmd, Shell};
 
 use super::{
     args::run::{ProverComponent, ProverRunArgs, WitnessGeneratorArgs, WitnessGeneratorRound},
     utils::get_link_to_prover,
 };
-use crate::{
-    consts::BELLMAN_CUDA_DIR,
-    messages::{
-        MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
-        MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER,
-        MSG_RUNNING_PROVER_ERR, MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR,
-        MSG_RUNNING_WITNESS_GENERATOR, MSG_RUNNING_WITNESS_GENERATOR_ERR,
-        MSG_RUNNING_WITNESS_VECTOR_GENERATOR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
-        MSG_WITNESS_GENERATOR_ROUND_ERR,
-    },
+use crate::messages::{
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR, MSG_RUNNING_COMPRESSOR,
+    MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
+    MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_WITNESS_GENERATOR,
+    MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
+    MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR, MSG_WITNESS_GENERATOR_ROUND_ERR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -41,7 +34,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             run_witness_vector_generator(shell, &chain)?
         }
         Some(ProverComponent::Prover) => run_prover(shell, &chain)?,
-        Some(ProverComponent::Compressor) => run_compressor(shell, &chain)?,
+        Some(ProverComponent::Compressor) => run_compressor(shell, &chain, &ecosystem_config)?,
         None => anyhow::bail!(MSG_MISSING_COMPONENT_ERR),
     }
 
@@ -49,6 +42,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 }
 
 fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+    check_prover_prequisites(shell);
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
@@ -104,15 +98,16 @@ fn run_prover(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
     cmd.run().context(MSG_RUNNING_PROVER_ERR)
 }
 
-fn run_compressor(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+fn run_compressor(
+    shell: &Shell,
+    chain: &ChainConfig,
+    ecosystem: &EcosystemConfig,
+) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_COMPRESSOR);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let bellman_cuda_dir = PathBuf::from(BELLMAN_CUDA_DIR);
-    let bellman_cuda_dir = bellman_cuda_dir.absolutize()?;
-    let bellman_cuda_str = bellman_cuda_dir.to_str().expect(MSG_BELLMAN_CUDA_DIR_ERR);
-    shell.set_var("BELLMAN_CUDA_DIR", bellman_cuda_str);
+    shell.set_var("BELLMAN_CUDA_DIR", ecosystem.bellman_cuda_dir.clone());
 
     let mut cmd = Cmd::new(cmd!(shell, "cargo run --features gpu --release --bin zksync_proof_fri_compressor -- --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();

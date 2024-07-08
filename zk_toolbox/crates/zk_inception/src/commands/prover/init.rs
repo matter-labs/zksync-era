@@ -12,10 +12,9 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::{
-    consts::{BELLMAN_CUDA_DIR, PROVER_STORE_MAX_RETRIES},
+    consts::PROVER_STORE_MAX_RETRIES,
     messages::{
-        MSG_BUILDING_BELLMAN_CUDA_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_CLONING_BELLMAN_CUDA_SPINNER, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
         MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
@@ -67,8 +66,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     general_config.proof_compressor_config = Some(proof_compressor_config);
 
     chain_config.save_zksync_general_config(&general_config)?;
-
-    init_bellman_cuda(shell)?;
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
@@ -135,28 +132,4 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
-}
-
-fn init_bellman_cuda(shell: &Shell) -> anyhow::Result<()> {
-    if shell.path_exists(BELLMAN_CUDA_DIR) {
-        return Ok(());
-    }
-
-    let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
-    Cmd::new(cmd!(
-        shell,
-        "git clone https://github.com/matter-labs/era-bellman-cuda"
-    ))
-    .run()?;
-    spinner.finish();
-
-    let spinner = Spinner::new(MSG_BUILDING_BELLMAN_CUDA_SPINNER);
-    Cmd::new(cmd!(
-        shell,
-        "cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release"
-    ))
-    .run()?;
-    Cmd::new(cmd!(shell, "cmake --build era-bellman-cuda/build")).run()?;
-    spinner.finish();
-    Ok(())
 }

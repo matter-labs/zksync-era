@@ -25,6 +25,7 @@ struct EcosystemConfigInternal {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
+    pub bellman_cuda_dir: PathBuf,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -40,6 +41,7 @@ pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
+    pub bellman_cuda_dir: PathBuf,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -71,6 +73,11 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
                 .link_to_code
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
+                .to_path_buf(),
+            bellman_cuda_dir: config
+                .bellman_cuda_dir
+                .absolutize()
+                .expect("Failed to parse bellman-cuda path")
                 .to_path_buf(),
             chains: config.chains.clone(),
             config: config.config.clone(),
@@ -201,6 +208,11 @@ impl EcosystemConfig {
                 .link_to_code
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
+                .into(),
+            bellman_cuda_dir: self
+                .bellman_cuda_dir
+                .absolutize()
+                .expect("Failed to parse bellman-cuda path")
                 .into(),
             chains: self.chains.clone(),
             config: self.config.clone(),
