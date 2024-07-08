@@ -2,12 +2,11 @@ use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 
+use super::args::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::messages::{
     MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED_MSG, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
     MSG_CLONING_BELLMAN_CUDA_SPINNER,
 };
-
-use super::args::init_bellman_cuda::InitBellmanCudaArgs;
 
 pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
