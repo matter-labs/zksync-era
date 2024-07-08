@@ -23,13 +23,24 @@ pub struct BaseTokenAPIPrice {
     pub ratio_timestamp: DateTime<Utc>,
 }
 
+impl Default for BaseTokenAPIPrice {
+    fn default() -> Self {
+        Self {
+            base_token_price: BigDecimal::from(1),
+            eth_price: BigDecimal::from(1),
+            ratio_timestamp: Utc::now(),
+        }
+    }
+}
+
 impl BaseTokenAPIPrice {
+    /// Using the base token price and eth price, calculate the fraction of the base token to eth.
     pub fn get_fraction(self) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
         let rate_fraction = Fraction::from(
             self.base_token_price
                 .div(self.eth_price)
                 .to_f64()
-                .expect("Failed to convert base token price to f64"),
+                .expect("Failed to convert eth/baseToken ratio to f64"),
         );
 
         let numerator = NonZeroU64::new(*rate_fraction.numer().expect("numerator is empty"))

@@ -9,26 +9,27 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
 };
 
-/// Wiring layer for `BaseTokenRatioPersister`
+/// Wiring layer for `ExternalPriceApiClient`
 ///
-/// Responsible for
+/// Responsible for inserting all the resources to get base token prices from external price feeds to
+/// be used by the `BaseTokenRatioPersister`.
 ///
 /// ## Adds resources
 ///
 /// - PriceAPIClientResource
 #[derive(Debug)]
-pub struct ExternalPriceApiClient {
+pub struct ExternalPriceApiClientsLayer {
     config: ExternalPriceApiClientConfig,
 }
 
-impl ExternalPriceApiClient {
+impl ExternalPriceApiClientsLayer {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
         Self { config }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for ExternalPriceApiClient {
+impl WiringLayer for ExternalPriceApiClientsLayer {
     fn layer_name(&self) -> &'static str {
         "base_token_external_price_provider"
     }

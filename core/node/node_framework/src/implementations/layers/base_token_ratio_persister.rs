@@ -48,7 +48,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
         let master_pool = master_pool_resource.get().await?;
 
-        let price_api_client = context.get_resource::<PriceAPIClientResource>()?.0;
+        let price_api_client = context.get_resource_or_default::<PriceAPIClientResource>();
         let base_token_addr = self
             .contracts_config
             .base_token_addr
@@ -58,7 +58,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             master_pool,
             self.config,
             base_token_addr,
-            price_api_client,
+            price_api_client.0,
         );
 
         context.add_task(persister);
