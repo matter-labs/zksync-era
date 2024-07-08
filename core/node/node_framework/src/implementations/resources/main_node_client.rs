@@ -11,3 +11,9 @@ impl Resource for MainNodeClientResource {
         "external_node/main_node_client".into()
     }
 }
+
+impl<T: Into<Box<DynClient<L2>>>> From<T> for MainNodeClientResource {
+    fn from(client: T) -> Self {
+        Self(client.into())
+    }
+}
