@@ -653,5 +653,27 @@ mod tests {
             .insert_batch_certificate(&cert3)
             .await
             .expect_err("missing payload");
+
+        // Insert one more L1 batch without a certificate.
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&create_l1_batch_header(batch_number + 1))
+            .await
+            .unwrap();
+
+        // Check how many unsigned L1 batches we can find.
+        for (min_l1_batch_number, exp_num_unsigned) in [
+            (0, 3),
+            (batch_number - 1, 3),
+            (batch_number, 2),
+            (batch_number + 1, 1),
+            (batch_number + 2, 0),
+        ] {
+            let unsigned = conn
+                .consensus_dal()
+                .unsigned_batch_numbers(attester::BatchNumber(min_l1_batch_number as u64))
+                .await
+                .unwrap();
+            assert_eq!(unsigned.len(), exp_num_unsigned);
+        }
     }
 }
