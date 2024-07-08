@@ -181,6 +181,7 @@ witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10
   shall_save_to_public_bucket: true
+  prometheus_listener_port: 3116
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
   prover_instance_poll_time_in_milli_secs: 250
@@ -335,6 +336,11 @@ protective_reads_writer:
   db_path: "./db/main/protective_reads"
   window_size: 3
   first_processed_batch: 0
+
+basic_witness_input_producer:
+    db_path: "./db/main/basic_witness_input_producer"
+    window_size: 3
+    first_processed_batch: 0
 
 snapshot_recovery:
   enabled: false

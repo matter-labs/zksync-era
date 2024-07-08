@@ -44,7 +44,7 @@ impl ProtoRepr for proto::ExternalNode {
                 )
                 .into(),
             ),
-            main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u32),
+            main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u64),
         }
     }
 }
