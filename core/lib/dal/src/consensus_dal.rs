@@ -7,7 +7,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -409,29 +409,12 @@ impl ConsensusDal<'_, '_> {
     ///
     /// Insertion is allowed even if it creates gaps in the L1 batch history.
     ///
-    /// It fails if the batch payload is missing or it's not consistent with the QC.
+    /// This method assumes that all payload validation has been carried out by the caller.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
     ) -> Result<(), InsertCertificateError> {
-        use InsertCertificateError as E;
-        let mut txn = self.storage.start_transaction().await?;
-
-        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
-        let _l1_batch_header = txn
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await?
-            .ok_or(E::MissingPayload)?;
-
-        // TODO: Verify that the certificate matches the stored batch:
-        // * add the hash of the batch to the `BatchQC`
-        // * find out which field in the `l1_batches` table contains the hash we need to match
-        // * ideally move the responsibility of validation outside this method
-
-        // if header.payload != want_payload.encode().hash() {
-        //     return Err(E::PayloadMismatch);
-        // }
+        let l1_batch_number = cert.message.number.0 as i64;
 
         let res = sqlx::query!(
             r#"
@@ -441,19 +424,17 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            i64::from(l1_batch_number.0),
+            l1_batch_number,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
-        .execute(&mut txn)
+        .execute(self.storage)
         .await?;
 
         if res.rows_affected().is_zero() {
-            tracing::debug!(%l1_batch_number, "duplicate batch certificate");
+            tracing::debug!(l1_batch_number, "duplicate batch certificate");
         }
-
-        txn.commit().await.context("commit")?;
 
         Ok(())
     }
