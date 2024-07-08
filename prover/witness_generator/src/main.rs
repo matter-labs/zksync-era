@@ -128,8 +128,10 @@ async fn main() -> anyhow::Result<()> {
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
         port
     } else {
-        let prometheus_config = prometheus_config.clone().context("prometheus config")?;
-        prometheus_config.listener_port
+        prometheus_config
+            .clone()
+            .context("prometheus config")?
+            .listener_port
     };
 
     let prover_connection_pool =
