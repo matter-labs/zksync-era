@@ -66,16 +66,11 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
         D: Deserializer<'de>,
     {
         let config: EcosystemConfigInternal = Deserialize::deserialize(deserializer)?;
-        let bellman_cuda_dir = if let Some(bellman_cuda_dir) = config.bellman_cuda_dir {
-            Some(
-                bellman_cuda_dir
-                    .absolutize()
-                    .expect("Failed to parse bellman-cuda path")
-                    .to_path_buf(),
-            )
-        } else {
-            None
-        };
+        let bellman_cuda_dir = config.bellman_cuda_dir.map(|dir| {
+            dir.absolutize()
+                .expect("Failed to parse bellman-cuda path")
+                .to_path_buf()
+        });
         Ok(EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
@@ -207,16 +202,11 @@ impl EcosystemConfig {
     }
 
     fn get_internal(&self) -> EcosystemConfigInternal {
-        let bellman_cuda_dir = if let Some(bellman_cuda_dir) = self.bellman_cuda_dir.clone() {
-            Some(
-                bellman_cuda_dir
-                    .absolutize()
-                    .expect("Failed to parse bellman-cuda path")
-                    .to_path_buf(),
-            )
-        } else {
-            None
-        };
+        let bellman_cuda_dir = self.bellman_cuda_dir.clone().map(|dir| {
+            dir.absolutize()
+                .expect("Failed to parse bellman-cuda path")
+                .to_path_buf()
+        });
         EcosystemConfigInternal {
             name: self.name.clone(),
             l1_network: self.l1_network,
