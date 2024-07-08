@@ -21,6 +21,7 @@ mod tests {
 
     fn expected_external_price_api_client_config(api_key: String) -> ExternalPriceApiClientConfig {
         ExternalPriceApiClientConfig {
+            source: "no-op".to_string(),
             base_url: Some("https://pro-api.coingecko.com".to_string()),
             api_key: Some(api_key),
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
