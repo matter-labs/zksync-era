@@ -7,9 +7,10 @@ use crate::{
         base_token_ratio_provider::BaseTokenRatioProviderResource,
         pools::{PoolResource, ReplicaPool},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for `BaseTokenRatioProvider`
@@ -20,35 +21,41 @@ use crate::{
 ///
 /// If the base token is ETH, a default, no-op impl of the BaseTokenRatioProviderResource is used by other
 /// layers to always return a conversion ratio of 1.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-///
-/// ## Adds tasks
-///
-/// - `BaseTokenRatioProvider`
 #[derive(Debug)]
 pub struct BaseTokenRatioProviderLayer;
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub replica_pool: PoolResource<ReplicaPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub ratio_provider: BaseTokenRatioProviderResource,
+    #[context(task)]
+    pub ratio_provider_task: DBBaseTokenRatioProvider,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenRatioProviderLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "base_token_ratio_provider"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
-        let replica_pool = replica_pool_resource.get().await.unwrap();
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let replica_pool = input.replica_pool.get().await.unwrap();
 
         let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool).await?;
-
-        context.insert_resource(BaseTokenRatioProviderResource(Arc::new(
-            ratio_provider.clone(),
-        )))?;
-        context.add_task(ratio_provider);
-
-        Ok(())
+        // Cloning the provided preserves the internal state.
+        Ok(Output {
+            ratio_provider: Arc::new(ratio_provider.clone()).into(),
+            ratio_provider_task: ratio_provider,
+        })
     }
 }
 

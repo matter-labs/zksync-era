@@ -5,9 +5,10 @@ use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for chain ID validation precondition for external node.
@@ -27,6 +28,20 @@ pub struct ValidateChainIdsLayer {
     l2_chain_id: L2ChainId,
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub eth_client: EthInterfaceResource,
+    pub main_node_client: MainNodeClientResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: ValidateChainIdsTask,
+}
+
 impl ValidateChainIdsLayer {
     pub fn new(l1_chain_id: L1ChainId, l2_chain_id: L2ChainId) -> Self {
         Self {
@@ -38,13 +53,16 @@ impl ValidateChainIdsLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ValidateChainIdsLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "validate_chain_ids_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(query_client) = context.get_resource()?;
-        let MainNodeClientResource(main_node_client) = context.get_resource()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let EthInterfaceResource(query_client) = input.eth_client;
+        let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let task = ValidateChainIdsTask::new(
             self.l1_chain_id,
@@ -53,9 +71,7 @@ impl WiringLayer for ValidateChainIdsLayer {
             main_node_client,
         );
 
-        context.add_task(task);
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 
