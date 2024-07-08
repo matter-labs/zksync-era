@@ -1,4 +1,3 @@
-use core::net;
 use std::time::Duration;
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
