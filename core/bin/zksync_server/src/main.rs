@@ -184,7 +184,6 @@ fn main() -> anyhow::Result<()> {
         consensus,
     );
 
-    // run_genesis_if_needed(opt.genesis, &genesis, &contracts_config, &secrets)?;
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
         node.only_genesis()?.run()?;
