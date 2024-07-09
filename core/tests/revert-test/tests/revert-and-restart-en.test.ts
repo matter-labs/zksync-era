@@ -52,23 +52,28 @@ let ethClientWeb3Url: string;
 let apiWeb3JsonRpcHttpUrl: string;
 let baseTokenAddress: string;
 let enEthClientUrl: string;
+let operatorAddress: string;
 
 if (fileConfig.loadFromFile) {
     const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
     const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
     const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
     const externalNodeConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'external_node.yaml' });
+    const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
     ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
     apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
     baseTokenAddress = contractsConfig.l1.base_token_addr;
     enEthClientUrl = externalNodeConfig.main_node_url;
+    operatorAddress = walletsConfig.operator.address;
 } else {
     let env = fetchEnv(mainEnv);
     ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
     apiWeb3JsonRpcHttpUrl = env.API_WEB3_JSON_RPC_HTTP_URL;
     baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
     enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
+    // TODO use env variable for this?
+    operatorAddress = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7";
 }
 
 interface SuggestedValues {
@@ -176,7 +181,7 @@ export function runExternalNodeInBackground({
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -233,7 +238,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -386,7 +391,7 @@ describe('Block reverting test', function () {
             'print-suggested-values',
             '--json',
             '--operator-address',
-            '0xabcf96e1ee478481042a0c4e34cdceceae01b154'
+            operatorAddress,
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
