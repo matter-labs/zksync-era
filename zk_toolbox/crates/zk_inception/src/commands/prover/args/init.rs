@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, ValueEnum};
 use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
@@ -5,6 +7,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use xshell::Shell;
 
+use super::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{
     commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
@@ -43,6 +46,11 @@ pub struct ProverInitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub public_create_gcs_bucket_config: PublicStorageGCSCreateBucketTmp,
+
+    // Bellman cuda
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub bellman_cuda_config: InitBellmanCudaArgs,
 
     #[clap(flatten)]
     #[serde(flatten)]
@@ -138,6 +146,7 @@ pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
+    pub bellman_cuda_config: InitBellmanCudaArgs,
 }
 
 impl ProverInitArgs {
@@ -145,14 +154,18 @@ impl ProverInitArgs {
         &self,
         shell: &Shell,
         setup_key_path: &str,
+        default_bellman_cuda_dir: Option<PathBuf>,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
+        let bellman_cuda_config =
+            self.fill_bellman_cuda_values_with_prompt(default_bellman_cuda_dir)?;
         Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
             setup_key_config,
+            bellman_cuda_config,
         })
     }
 
@@ -393,5 +406,14 @@ impl ProverInitArgs {
             bucket_base_url,
             credentials_file,
         })
+    }
+
+    fn fill_bellman_cuda_values_with_prompt(
+        &self,
+        default_bellman_cuda_dir: Option<PathBuf>,
+    ) -> anyhow::Result<InitBellmanCudaArgs> {
+        self.bellman_cuda_config
+            .clone()
+            .fill_values_with_prompt(default_bellman_cuda_dir)
     }
 }

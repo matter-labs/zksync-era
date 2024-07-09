@@ -4,7 +4,7 @@ use xshell::{cmd, Shell};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::messages::{
-    MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED_MSG, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
+    MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
     MSG_CLONING_BELLMAN_CUDA_SPINNER,
 };
 
@@ -18,10 +18,19 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
     let bellman_cuda_dir = args.bellman_cuda_dir.expect(MSG_BELLMAN_CUDA_DIR_ERR);
     ecosystem_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
 
-    if shell.path_exists(&bellman_cuda_dir) {
-        return save_bellman_cuda_dir(shell, &ecosystem_config);
+    if !shell.path_exists(&bellman_cuda_dir) {
+        clone_bellman_cuda(shell, &bellman_cuda_dir)?;
     }
 
+    build_bellman_cuda(shell, &bellman_cuda_dir)?;
+
+    ecosystem_config.save_with_base_path(shell, ".")?;
+
+    logger::outro(MSG_BELLMAN_CUDA_INITIALIZED);
+    Ok(())
+}
+
+fn clone_bellman_cuda(shell: &Shell, bellman_cuda_dir: &str) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     Cmd::new(cmd!(
         shell,
@@ -29,7 +38,10 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
     ))
     .run()?;
     spinner.finish();
+    Ok(())
+}
 
+fn build_bellman_cuda(shell: &Shell, bellman_cuda_dir: &str) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_BUILDING_BELLMAN_CUDA_SPINNER);
     Cmd::new(cmd!(
         shell,
@@ -38,12 +50,5 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
     .run()?;
     Cmd::new(cmd!(shell, "cmake --build {bellman_cuda_dir}/build")).run()?;
     spinner.finish();
-
-    save_bellman_cuda_dir(shell, &ecosystem_config)
-}
-
-fn save_bellman_cuda_dir(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
-    ecosystem.save_with_base_path(shell, ".")?;
-    logger::outro(MSG_BELLMAN_CUDA_INITIALIZED_MSG);
     Ok(())
 }

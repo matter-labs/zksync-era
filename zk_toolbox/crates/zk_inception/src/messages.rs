@@ -265,8 +265,12 @@ pub(super) const MSG_BUILDING_BELLMAN_CUDA_SPINNER: &str = "Building bellman-cud
 pub(super) const MSG_BELLMAN_CUDA_DIR_ERR: &str = "Failed to get bellman-cuda directory";
 pub(super) const MSG_BELLMAN_CUDA_DIR_PROMPT: &str =
     "Provide the path to the bellman-cuda directory:";
-pub(super) const MSG_BELLMAN_CUDA_INITIALIZED_MSG: &str =
+pub(super) const MSG_BELLMAN_CUDA_INITIALIZED: &str =
     "bellman-cuda has been initialized successfully";
+pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
+    "Select the origin of bellman-cuda repository";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

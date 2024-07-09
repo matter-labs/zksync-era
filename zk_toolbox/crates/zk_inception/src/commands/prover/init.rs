@@ -9,6 +9,7 @@ use zksync_config::{
 use super::{
     args::init::{ProofStorageConfig, ProverInitArgs},
     gcs::create_gcs_bucket,
+    init_bellman_cuda::run as init_bellman_cuda,
     utils::get_link_to_prover,
 };
 use crate::{
@@ -31,8 +32,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
 
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
+    let default_bellman_cuda_dir = ecosystem_config.bellman_cuda_dir;
 
-    let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
+    let args = args.fill_values_with_prompt(shell, &setup_key_path, default_bellman_cuda_dir)?;
 
     let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
@@ -66,6 +68,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     general_config.proof_compressor_config = Some(proof_compressor_config);
 
     chain_config.save_zksync_general_config(&general_config)?;
+
+    init_bellman_cuda(shell, args.bellman_cuda_config).await?;
 
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
