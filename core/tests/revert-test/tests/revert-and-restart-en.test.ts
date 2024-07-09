@@ -73,7 +73,7 @@ if (fileConfig.loadFromFile) {
     baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
     enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
     // TODO use env variable for this?
-    operatorAddress = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7";
+    operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
 }
 
 interface SuggestedValues {
@@ -181,7 +181,7 @@ export function runExternalNodeInBackground({
 }
 
 class MainNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -238,7 +238,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -391,7 +391,7 @@ describe('Block reverting test', function () {
             'print-suggested-values',
             '--json',
             '--operator-address',
-            operatorAddress,
+            operatorAddress
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
