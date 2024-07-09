@@ -2,16 +2,14 @@ use std::{
     fmt::Debug,
     num::NonZeroU64,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
+use zksync_config::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::fee_model::BaseTokenConversionRatio;
-
-const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
 
 #[async_trait]
 pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
@@ -22,13 +20,18 @@ pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
 pub struct DBBaseTokenRatioProvider {
     pub pool: ConnectionPool<Core>,
     pub latest_ratio: Arc<RwLock<BaseTokenConversionRatio>>,
+    config: BaseTokenAdjusterConfig,
 }
 
 impl DBBaseTokenRatioProvider {
-    pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
+    pub async fn new(
+        pool: ConnectionPool<Core>,
+        config: BaseTokenAdjusterConfig,
+    ) -> anyhow::Result<Self> {
         let fetcher = Self {
             pool,
             latest_ratio: Arc::default(),
+            config,
         };
         fetcher.update_latest_price().await?;
 
@@ -46,7 +49,7 @@ impl DBBaseTokenRatioProvider {
     }
 
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut timer = tokio::time::interval(CACHE_UPDATE_INTERVAL);
+        let mut timer = tokio::time::interval(self.config.price_cache_update_interval());
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
