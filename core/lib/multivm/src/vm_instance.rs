@@ -136,8 +136,7 @@ impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S,
     ) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
-        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
-        //Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 }
 
@@ -246,7 +245,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         }
     }
 
-    #[allow(dead_code)]
     fn new_fast_with_specific_version(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
