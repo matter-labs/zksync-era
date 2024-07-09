@@ -497,6 +497,7 @@ impl storage::PersistentBatchStore for Store {
             .await
             .wrap("get_batch")
     }
+
     /// Returns the QC of the batch with the given number.
     async fn get_batch_qc(
         &self,
@@ -509,6 +510,7 @@ impl storage::PersistentBatchStore for Store {
             .await
             .wrap("batch_certificate")
     }
+
     /// Store the given QC in the storage.
     ///
     /// Storing a QC is allowed even if it creates a gap in the L1 batch history.
