@@ -169,18 +169,16 @@ export function runExternalNodeInBackground({
     cwd,
     useZkInception
 }: {
-    components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     useZkInception?: boolean;
 }) {
-    // TODO manage useZkInception = false case
-    let command = useZkInception ? 'zk_inception external-node run' : '';
+    let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
     background({ command, stdio, cwd });
 }
 
 class MainNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -237,7 +235,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
