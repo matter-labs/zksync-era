@@ -108,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         config,
         protocol_version,
         fri_prover_config.max_attempts,
+        Some(fri_prover_config.setup_data_path.clone()),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
