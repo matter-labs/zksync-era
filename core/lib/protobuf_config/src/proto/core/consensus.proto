@@ -78,6 +78,9 @@ message Config {
   // Maximal allowed size of the payload.
   optional uint64 max_payload_size = 4; // required; bytes
 
+  // Maximal allowed size of the sync batches.
+  optional uint64 max_batch_size = 10; // required; bytes
+
   // Inbound connections that should be unconditionally accepted on the gossip network.
   repeated string gossip_static_inbound = 5; // required; NodePublicKey
 

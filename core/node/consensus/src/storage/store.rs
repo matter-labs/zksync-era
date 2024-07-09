@@ -443,42 +443,29 @@ impl PayloadManager for Store {
 impl storage::PersistentBatchStore for Store {
     /// Range of batches persisted in storage.
     fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
-        // Normally we'd return this, but it causes the following test to run forever:
-        // RUST_LOG=info zk test rust test_full_nodes --no-capture
-        //
-        // The error seems to be related to the size of messages, although I'm not sure
-        // why it retries it forever. Since the gossip of SyncBatch is not fully functional
-        // yet, for now let's just return a fake response that never changes, which should
-        // disable gossiping on honest nodes.
-        let _ = self.batches_persisted.clone();
-
-        sync::watch::channel(storage::BatchStoreState {
-            first: attester::BatchNumber(0),
-            last: None,
-        })
-        .1
+        self.batches_persisted.clone()
     }
 
-    /// Get the numbers of L1 batches which are missing the corresponding L1 batch quorum certificates
-    /// and potentially need to be signed by attesters.
-    async fn unsigned_batch_numbers(
+    /// Get the earliest L1 batche for which there is no corresponding L1 batch quorum certificate,
+    /// and thus it potentially needs to be signed by attesters.
+    async fn earliest_batch_number_to_sign(
         &self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Vec<attester::BatchNumber>> {
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
         // TODO: In the future external nodes will be able to ask the main node which L1 batch should be considered final.
         // Later when we're fully decentralized the nodes will have to look at L1 instead.
         // For now we make a best effort at gossiping votes, and have no way to tell what has been finalized, so we can
         // just pick a reasonable maximum number of batches for which we might have to re-submit our signatures.
         let Some(last_batch_number) = self.last_batch(ctx).await? else {
-            return Ok(Vec::new());
+            return Ok(None);
         };
         let min_batch_number = attester::BatchNumber(last_batch_number.0.saturating_sub(10));
 
         self.conn(ctx)
             .await?
-            .unsigned_batch_numbers(ctx, min_batch_number)
+            .earliest_batch_number_to_sign(ctx, min_batch_number)
             .await
-            .wrap("unsigned_batch_numbers")
+            .wrap("earliest_batch_number_to_sign")
     }
 
     /// Get the highest L1 batch number from storage.

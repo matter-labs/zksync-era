@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MIN(b.number) AS \"number\"\n            FROM\n                l1_batches b\n                LEFT JOIN l1_batches_consensus c ON b.number = c.l1_batch_number\n            WHERE\n                b.number >= $1\n                AND c.l1_batch_number IS NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d38d07f12619081a9123080c063a2f2d19eead58df0eca9f985027aca7350530"
+}

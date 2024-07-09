@@ -431,19 +431,19 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// Wrapper for `consensus_dal().unsigned_batch_numbers()`.
-    pub async fn unsigned_batch_numbers(
+    /// Wrapper for `consensus_dal().earliest_batch_number_to_sign()`.
+    pub async fn earliest_batch_number_to_sign(
         &mut self,
         ctx: &ctx::Ctx,
         min_batch_number: attester::BatchNumber,
-    ) -> ctx::Result<Vec<attester::BatchNumber>> {
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
         Ok(ctx
             .wait(
                 self.0
                     .consensus_dal()
-                    .unsigned_batch_numbers(min_batch_number),
+                    .earliest_batch_number_to_sign(min_batch_number),
             )
             .await?
-            .context("unsigned_batch_numbers()")?)
+            .context("earliest_batch_number_to_sign()")?)
     }
 }
