@@ -222,10 +222,7 @@ class MainNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                // TODO manage failing
-                // if (proc.exitCode != null) {
-                //     assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
-                // }
+                // NOTE: not an infinite loop, as the test will eventually timeout.
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }
@@ -270,27 +267,12 @@ class ExtNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                // TODO manage failing scenario
-                // if (proc.exitCode != null) {
-                //     assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
-                // }
+                // NOTE: not an infinite loop, as the test will eventually timeout.
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
         return new ExtNode(tester);
-    }
-
-    // Waits for the node process to exit.
-    public async waitForExit(): Promise<number> {
-        // TODO manage failing scenario
-        // while (this.proc.exitCode === null) {
-        //     await utils.sleep(1);
-        // }
-        // return this.proc.exitCode;
-
-        await utils.sleep(1);
-        return 0;
     }
 }
 
@@ -422,7 +404,7 @@ describe('Block reverting test', function () {
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, true);
 
         console.log('Wait for the external node to detect reorg and terminate');
-        await extNode.waitForExit();
+        await utils.sleep(3);
 
         console.log('Restart external node and wait for it to revert.');
         extNode = await ExtNode.spawn(extLogs, enableConsensus);
