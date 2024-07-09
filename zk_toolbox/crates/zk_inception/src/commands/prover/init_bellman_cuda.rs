@@ -1,11 +1,15 @@
+use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
-use crate::messages::{
-    MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
-    MSG_CLONING_BELLMAN_CUDA_SPINNER,
+use crate::{
+    consts::BELLMAN_CUDA_DIR,
+    messages::{
+        MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
+        MSG_CLONING_BELLMAN_CUDA_SPINNER,
+    },
 };
 
 pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Result<()> {
@@ -13,14 +17,16 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let args = args.fill_values_with_prompt(ecosystem_config.bellman_cuda_dir)?;
+    let args = args.fill_values_with_prompt()?;
 
-    let bellman_cuda_dir = args.bellman_cuda_dir.expect(MSG_BELLMAN_CUDA_DIR_ERR);
+    let bellman_cuda_dir = args.bellman_cuda_dir.unwrap_or("".to_string());
+    let bellman_cuda_dir = if bellman_cuda_dir.is_empty() {
+        clone_bellman_cuda(shell)?
+    } else {
+        bellman_cuda_dir
+    };
+
     ecosystem_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
-
-    if !shell.path_exists(&bellman_cuda_dir) {
-        clone_bellman_cuda(shell, &bellman_cuda_dir)?;
-    }
 
     build_bellman_cuda(shell, &bellman_cuda_dir)?;
 
@@ -30,15 +36,21 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
     Ok(())
 }
 
-fn clone_bellman_cuda(shell: &Shell, bellman_cuda_dir: &str) -> anyhow::Result<()> {
+fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     Cmd::new(cmd!(
         shell,
-        "git clone https://github.com/matter-labs/era-bellman-cuda {bellman_cuda_dir}"
+        "git clone https://github.com/matter-labs/era-bellman-cuda"
     ))
     .run()?;
     spinner.finish();
-    Ok(())
+
+    Ok(shell
+        .current_dir()
+        .join(BELLMAN_CUDA_DIR)
+        .to_str()
+        .context(MSG_BELLMAN_CUDA_DIR_ERR)?
+        .to_string())
 }
 
 fn build_bellman_cuda(shell: &Shell, bellman_cuda_dir: &str) -> anyhow::Result<()> {

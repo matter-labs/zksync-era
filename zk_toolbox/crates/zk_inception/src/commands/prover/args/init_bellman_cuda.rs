@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
@@ -32,23 +30,16 @@ impl std::fmt::Display for BellmanCudaPathSelection {
 }
 
 impl InitBellmanCudaArgs {
-    pub fn fill_values_with_prompt(
-        self,
-        default_bellman_cuda_dir: Option<PathBuf>,
-    ) -> anyhow::Result<InitBellmanCudaArgs> {
+    pub fn fill_values_with_prompt(self) -> anyhow::Result<InitBellmanCudaArgs> {
         let bellman_cuda_dir = self.bellman_cuda_dir.unwrap_or_else(|| {
-            let default_bellman_cuda_dir = default_bellman_cuda_dir.unwrap_or(PathBuf::new());
-            let default_bellman_cuda_dir = default_bellman_cuda_dir.to_str().unwrap_or_default();
             match PromptSelect::new(
                 MSG_BELLMAN_CUDA_ORIGIN_SELECT,
                 BellmanCudaPathSelection::iter(),
             )
             .ask()
             {
-                BellmanCudaPathSelection::Clone => default_bellman_cuda_dir.to_string(),
-                BellmanCudaPathSelection::Path => Prompt::new(MSG_BELLMAN_CUDA_DIR_PROMPT)
-                    .default(default_bellman_cuda_dir)
-                    .ask(),
+                BellmanCudaPathSelection::Clone => "".to_string(),
+                BellmanCudaPathSelection::Path => Prompt::new(MSG_BELLMAN_CUDA_DIR_PROMPT).ask(),
             }
         });
 

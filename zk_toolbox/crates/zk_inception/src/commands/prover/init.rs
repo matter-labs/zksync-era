@@ -1,3 +1,4 @@
+use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
@@ -26,15 +27,14 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(Some(ecosystem_config.default_chain.clone()))
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut general_config = chain_config
         .get_zksync_general_config()
-        .expect(MSG_GENERAL_CONFIG_NOT_FOUND_ERR);
+        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
 
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
-    let default_bellman_cuda_dir = ecosystem_config.bellman_cuda_dir;
 
-    let args = args.fill_values_with_prompt(shell, &setup_key_path, default_bellman_cuda_dir)?;
+    let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
     let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;

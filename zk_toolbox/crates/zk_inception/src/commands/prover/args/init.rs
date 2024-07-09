@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::{Parser, ValueEnum};
 use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
@@ -154,13 +152,11 @@ impl ProverInitArgs {
         &self,
         shell: &Shell,
         setup_key_path: &str,
-        default_bellman_cuda_dir: Option<PathBuf>,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
-        let bellman_cuda_config =
-            self.fill_bellman_cuda_values_with_prompt(default_bellman_cuda_dir)?;
+        let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
         Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
@@ -408,12 +404,7 @@ impl ProverInitArgs {
         })
     }
 
-    fn fill_bellman_cuda_values_with_prompt(
-        &self,
-        default_bellman_cuda_dir: Option<PathBuf>,
-    ) -> anyhow::Result<InitBellmanCudaArgs> {
-        self.bellman_cuda_config
-            .clone()
-            .fill_values_with_prompt(default_bellman_cuda_dir)
+    fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<InitBellmanCudaArgs> {
+        self.bellman_cuda_config.clone().fill_values_with_prompt()
     }
 }
