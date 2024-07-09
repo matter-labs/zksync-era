@@ -297,8 +297,9 @@ prover_group:
       aggregation_round: 1
 base_token_adjuster:
   price_polling_interval_ms: 30000
-external_price_api:
+external_price_api_client:
   source: "no-op"
+  client_timeout_ms: 10000
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
