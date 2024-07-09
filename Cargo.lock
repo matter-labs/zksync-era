@@ -8670,6 +8670,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "fraction",
+ "rand 0.8.5",
  "reqwest 0.12.5",
  "serde",
  "tokio",
