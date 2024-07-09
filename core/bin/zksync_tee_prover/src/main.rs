@@ -47,22 +47,23 @@ fn main() -> anyhow::Result<()> {
     let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
 
     let prometheus_config = PrometheusConfig::from_env()?;
-    let exporter_config = PrometheusExporterConfig::push(
-        prometheus_config.gateway_endpoint(),
-        prometheus_config.push_interval(),
-    );
 
-    ZkStackServiceBuilder::new()
+    let mut builder = ZkStackServiceBuilder::new();
+    let mut builder_mut = builder
         .add_layer(SigintHandlerLayer)
-        .add_layer(PrometheusExporterLayer(exporter_config))
         .add_layer(TeeProverLayer::new(
             tee_prover_config.api_url,
             tee_prover_config.signing_key,
             attestation_quote_bytes,
             tee_prover_config.tee_type,
-        ))
-        .build()?
-        .run()?;
+        ));
 
+    if let Some(gateway) = prometheus_config.gateway_endpoint() {
+        let exporter_config =
+            PrometheusExporterConfig::push(gateway, prometheus_config.push_interval());
+        builder_mut = builder_mut.add_layer(PrometheusExporterLayer(exporter_config));
+    }
+
+    builder_mut.build()?.run()?;
     Ok(())
 }

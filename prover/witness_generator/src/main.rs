@@ -194,7 +194,9 @@ async fn main() -> anyhow::Result<()> {
                 .clone()
                 .context("prometheus config needed when use_push_gateway enabled")?;
             PrometheusExporterConfig::push(
-                prometheus_config.gateway_endpoint(),
+                prometheus_config
+                    .gateway_endpoint()
+                    .context("gateway_endpoint needed when use_push_gateway enabled")?,
                 prometheus_config.push_interval(),
             )
         } else {
