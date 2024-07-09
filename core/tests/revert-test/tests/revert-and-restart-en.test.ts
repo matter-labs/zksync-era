@@ -264,8 +264,6 @@ class ExtNode {
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile
         });
-        // TODO check if needed
-        await utils.sleep(10);
 
         // Wait until the node starts responding.
         let tester: Tester = await Tester.init(ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
