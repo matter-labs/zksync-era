@@ -13,7 +13,7 @@ pub struct BaseTokenRatio {
 }
 
 /// Struct to represent API response containing denominator, numerator, and timestamp.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BaseTokenAPIRatio {
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,

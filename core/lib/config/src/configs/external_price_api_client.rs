@@ -11,6 +11,8 @@ pub struct ExternalPriceApiClientConfig {
     pub api_key: Option<String>,
     #[serde(default = "ExternalPriceApiClientConfig::default_timeout")]
     pub client_timeout_ms: u64,
+    pub forced_numerator: Option<u64>,
+    pub forced_denominator: Option<u64>,
 }
 
 impl ExternalPriceApiClientConfig {

@@ -24,7 +24,7 @@ use zksync_node_framework::{
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer,
-            coingecko_client::CoingeckoClientLayer,
+            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
             no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
         },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
@@ -525,6 +525,9 @@ impl MainNodeBuilder {
             }
             NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
                 self.node.add_layer(NoOpExternalPriceApiClientLayer);
+            }
+            ForcedPriceClientLayer::CLIENT_NAME => {
+                self.node.add_layer(ForcedPriceClientLayer::new(config));
             }
             _ => {
                 anyhow::bail!(

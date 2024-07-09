@@ -91,6 +91,8 @@ impl DBBaseTokenRatioProvider {
             Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
         };
 
+        tracing::debug!("HEYO! Updating the latest base token ratio to: {:?}", ratio);
+
         *self.latest_ratio.write().unwrap() = ratio;
         Ok(())
     }

@@ -7,4 +7,6 @@ message ExternalPriceApiClient {
   optional string base_url = 2;
   optional string api_key = 3;
   optional uint64 client_timeout_ms = 4;
+  optional uint64 forced_numerator = 5;
+  optional uint64 forced_denominator = 6;
 }

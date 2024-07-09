@@ -25,6 +25,8 @@ mod tests {
             base_url: Some("https://pro-api.coingecko.com".to_string()),
             api_key: Some(api_key),
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
+            forced_numerator: None,
+            forced_denominator: None,
         }
     }
 
