@@ -60,6 +60,8 @@ pub enum Component {
     VmRunnerProtectiveReads,
     /// A component to fetch and persist ETH<->BaseToken conversion ratios for chains with custom base tokens.
     BaseTokenRatioPersister,
+    /// VM runner-based component that saves VM execution data for basic witness generation.
+    VmRunnerBwip,
 }
 
 #[derive(Debug)]
@@ -103,6 +105,7 @@ impl FromStr for Components {
             "base_token_ratio_persister" => {
                 Ok(Components(vec![Component::BaseTokenRatioPersister]))
             }
+            "vm_runner_bwip" => Ok(Components(vec![Component::VmRunnerBwip])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

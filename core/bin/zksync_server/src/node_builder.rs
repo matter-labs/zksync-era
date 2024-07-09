@@ -25,7 +25,7 @@ use zksync_node_framework::{
         base_token_ratio_provider::BaseTokenRatioProviderLayer,
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
-        consensus::{ConsensusLayer, Mode as ConsensusMode},
+        consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
@@ -51,13 +51,15 @@ use zksync_node_framework::{
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
-        vm_runner::protective_reads::ProtectiveReadsWriterLayer,
+        vm_runner::{
+            bwip::BasicWitnessInputProducerLayer, protective_reads::ProtectiveReadsWriterLayer,
+        },
         web3_api::{
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::TxSinkLayer,
+            tx_sink::MasterPoolSinkLayer,
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -281,7 +283,7 @@ impl MainNodeBuilder {
         };
 
         // On main node we always use master pool sink.
-        self.node.add_layer(TxSinkLayer::MasterPoolSink);
+        self.node.add_layer(MasterPoolSinkLayer);
         self.node.add_layer(TxSenderLayer::new(
             TxSenderConfig::new(
                 &sk_config,
@@ -446,10 +448,16 @@ impl MainNodeBuilder {
     }
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(ConsensusLayer {
-            mode: ConsensusMode::Main,
-            config: self.consensus_config.clone(),
-            secrets: self.secrets.consensus.clone(),
+        self.node.add_layer(MainNodeConsensusLayer {
+            config: self
+                .consensus_config
+                .clone()
+                .context("Consensus config has to be provided")?,
+            secrets: self
+                .secrets
+                .consensus
+                .clone()
+                .context("Consensus secrets have to be provided")?,
         });
 
         Ok(self)
@@ -500,6 +508,17 @@ impl MainNodeBuilder {
             try_load_config!(self.configs.protective_reads_writer_config);
         self.node.add_layer(ProtectiveReadsWriterLayer::new(
             protective_reads_writer_config,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_vm_runner_bwip_layer(mut self) -> anyhow::Result<Self> {
+        let basic_witness_input_producer_config =
+            try_load_config!(self.configs.basic_witness_input_producer_config);
+        self.node.add_layer(BasicWitnessInputProducerLayer::new(
+            basic_witness_input_producer_config,
             self.genesis_config.l2_chain_id,
         ));
 
@@ -649,6 +668,9 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenRatioPersister => {
                     self = self.add_base_token_ratio_persister_layer()?;
+                }
+                Component::VmRunnerBwip => {
+                    self = self.add_vm_runner_bwip_layer()?;
                 }
             }
         }

@@ -16,7 +16,7 @@ use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
         commitment_generator::CommitmentGeneratorLayer,
-        consensus::{ConsensusLayer, Mode},
+        consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
@@ -46,7 +46,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::TxSinkLayer,
+            tx_sink::ProxySinkLayer,
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -214,11 +214,7 @@ impl ExternalNodeBuilder {
         let config = self.config.consensus.clone();
         let secrets =
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
-        let layer = ConsensusLayer {
-            mode: Mode::External,
-            config,
-            secrets,
-        };
+        let layer = ExternalNodeConsensusLayer { config, secrets };
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -364,7 +360,7 @@ impl ExternalNodeBuilder {
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
-        self.node.add_layer(TxSinkLayer::ProxySink);
+        self.node.add_layer(ProxySinkLayer);
         self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
