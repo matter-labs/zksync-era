@@ -32,6 +32,7 @@ mod tests {
     fn from_env_external_price_api_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
+            EXTERNAL_PRICE_API_CLIENT_SOURCE=no-op
             EXTERNAL_PRICE_API_CLIENT_BASE_URL=https://pro-api.coingecko.com
             EXTERNAL_PRICE_API_CLIENT_API_KEY=qwerty12345
         "#;

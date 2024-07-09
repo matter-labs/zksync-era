@@ -9,7 +9,7 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(
             configs::external_price_api_client::ExternalPriceApiClientConfig {
-                source: self.source.clone().expect("source"), // required here because serde default doesn't work with proto
+                source: self.source.clone().expect("source"),
                 client_timeout_ms: self.client_timeout_ms.expect("client_timeout_ms"),
                 base_url: self.base_url.clone(),
                 api_key: self.api_key.clone(),

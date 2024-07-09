@@ -1,7 +1,7 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use tokio::sync::watch;
+use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_external_price_api::PriceAPIClient;
@@ -42,9 +42,8 @@ impl BaseTokenRatioPersister {
             }
 
             if let Err(err) = self.loop_iteration().await {
-                tracing::error!(
-                    "Failed to execute a base_token_ratio_persister loop iteration: {err}"
-                );
+                return Err(err)
+                    .context("Failed to execute a base_token_ratio_persister loop iteration");
             }
         }
 
@@ -53,15 +52,45 @@ impl BaseTokenRatioPersister {
     }
 
     async fn loop_iteration(&self) -> anyhow::Result<()> {
-        let new_prices = self
-            .price_api_client
-            .fetch_ratio(self.base_token_address)
-            .await?;
+        // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
+        let new_ratio = self.retry_fetch_ratio().await?;
 
-        self.persist_ratio(new_prices).await?;
+        self.persist_ratio(new_ratio).await?;
         // TODO(PE-128): Update L1 ratio
 
         Ok(())
+    }
+
+    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
+        let sleep_duration = Duration::from_secs(1);
+        let max_retries = 5;
+        let mut attempts = 0;
+
+        loop {
+            match self
+                .price_api_client
+                .fetch_ratio(self.base_token_address)
+                .await
+            {
+                Ok(ratio) => {
+                    return Ok(ratio);
+                }
+                Err(err) if attempts < max_retries => {
+                    attempts += 1;
+                    tracing::warn!(
+                        "Attempt {}/{} to fetch ratio from coingecko failed with err: {}. Retrying...",
+                        attempts,
+                        max_retries,
+                        err
+                    );
+                    sleep(sleep_duration).await;
+                }
+                Err(err) => {
+                    return Err(err)
+                        .context("Failed to fetch base token ratio after multiple attempts");
+                }
+            }
+        }
     }
 
     async fn persist_ratio(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<usize> {

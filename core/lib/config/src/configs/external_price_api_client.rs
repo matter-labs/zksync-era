@@ -6,7 +6,6 @@ pub const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ExternalPriceApiClientConfig {
-    #[serde(default = "ExternalPriceApiClientConfig::default_source")]
     pub source: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
@@ -15,10 +14,6 @@ pub struct ExternalPriceApiClientConfig {
 }
 
 impl ExternalPriceApiClientConfig {
-    fn default_source() -> String {
-        "no-op".to_string()
-    }
-
     fn default_timeout() -> u64 {
         DEFAULT_TIMEOUT_MS
     }
