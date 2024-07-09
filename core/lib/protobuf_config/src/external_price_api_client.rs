@@ -13,8 +13,8 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
                 client_timeout_ms: self.client_timeout_ms.expect("client_timeout_ms"),
                 base_url: self.base_url.clone(),
                 api_key: self.api_key.clone(),
-                forced_numerator: self.forced_numerator.clone(),
-                forced_denominator: self.forced_denominator.clone(),
+                forced_numerator: self.forced_numerator,
+                forced_denominator: self.forced_denominator,
             },
         )
     }
@@ -25,8 +25,8 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
             base_url: this.base_url.clone(),
             api_key: this.api_key.clone(),
             client_timeout_ms: Some(this.client_timeout_ms),
-            forced_numerator: this.forced_numerator.clone(),
-            forced_denominator: this.forced_denominator.clone(),
+            forced_numerator: this.forced_numerator,
+            forced_denominator: this.forced_denominator,
         }
     }
 }
