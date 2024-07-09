@@ -446,7 +446,7 @@ impl storage::PersistentBatchStore for Store {
         self.batches_persisted.clone()
     }
 
-    /// Get the earliest L1 batche for which there is no corresponding L1 batch quorum certificate,
+    /// Get the earliest L1 batch for which there is no corresponding L1 batch quorum certificate,
     /// and thus it potentially needs to be signed by attesters.
     async fn earliest_batch_number_to_sign(
         &self,
