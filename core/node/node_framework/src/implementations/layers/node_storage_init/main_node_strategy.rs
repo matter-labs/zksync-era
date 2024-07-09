@@ -9,38 +9,42 @@ use crate::{
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
     },
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for main node initialization strategy.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `EthInterfaceResource`
-///
-/// ## Adds resources
-///
-/// - `NodeRoleResource`
 #[derive(Debug)]
 pub struct MainNodeInitStrategyLayer {
     pub genesis: GenesisConfig,
     pub contracts: ContractsConfig,
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub eth_interface: EthInterfaceResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub strategy: NodeInitializationStrategyResource,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for MainNodeInitStrategyLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "main_node_role_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context
-            .get_resource::<PoolResource<MasterPool>>()?
-            .get()
-            .await?;
-        let EthInterfaceResource(l1_client) = context.get_resource()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let EthInterfaceResource(l1_client) = input.eth_interface;
         let genesis = Arc::new(MainNodeGenesis {
             contracts: self.contracts,
             genesis: self.genesis,
@@ -53,7 +57,8 @@ impl WiringLayer for MainNodeInitStrategyLayer {
             block_reverter: None,
         };
 
-        context.insert_resource(NodeInitializationStrategyResource(strategy))?;
-        Ok(())
+        Ok(Output {
+            strategy: strategy.into(),
+        })
     }
 }

@@ -16,43 +16,48 @@ use crate::{
         pools::{MasterPool, PoolResource},
         reverter::BlockReverterResource,
     },
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for external node initialization strategy.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `MainNodeClientResource`
-/// - `BlockReverterResource` (optional)
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds resources
-///
-/// - `NodeInitializationStrategyResource`
 #[derive(Debug)]
 pub struct ExternalNodeInitStrategyLayer {
     pub l2_chain_id: L2ChainId,
     pub snapshot_recovery_config: Option<SnapshotRecoveryConfig>,
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub main_node_client: MainNodeClientResource,
+    pub block_reverter: Option<BlockReverterResource>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub strategy: NodeInitializationStrategyResource,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for ExternalNodeInitStrategyLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "external_node_role_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context
-            .get_resource::<PoolResource<MasterPool>>()?
-            .get()
-            .await?;
-        let MainNodeClientResource(client) = context.get_resource()?;
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default();
-        let block_reverter = match context.get_resource::<BlockReverterResource>() {
-            Ok(reverter) => {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let MainNodeClientResource(client) = input.main_node_client;
+        let AppHealthCheckResource(app_health) = input.app_health;
+        let block_reverter = match input.block_reverter {
+            Some(reverter) => {
                 // If reverter was provided, we intend to be its sole consumer.
                 // We don't want multiple components to attempt reverting blocks.
                 let reverter = reverter.0.take().ok_or(WiringError::Configuration(
@@ -60,8 +65,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                 ))?;
                 Some(reverter)
             }
-            Err(WiringError::ResourceLacking { .. }) => None,
-            Err(err) => return Err(err),
+            None => None,
         };
 
         let genesis = Arc::new(ExternalNodeGenesis {
@@ -90,7 +94,8 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             block_reverter,
         };
 
-        context.insert_resource(NodeInitializationStrategyResource(strategy))?;
-        Ok(())
+        Ok(Output {
+            strategy: strategy.into(),
+        })
     }
 }

@@ -3,13 +3,14 @@ use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitialize
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
     resource::Resource,
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
-pub mod external_node_role;
-pub mod main_node_role;
+pub mod external_node_strategy;
+pub mod main_node_strategy;
 
 /// Wiring layer for `NodeStorageInializer`.
 ///
@@ -38,8 +39,43 @@ impl NodeStorageInitializerLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub strategy: NodeInitializationStrategyResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub initializer: Option<NodeStorageInitializer>,
+    #[context(task)]
+    pub precondition: Option<NodeStorageInitializerPrecondition>,
+}
+
+impl Output {
+    fn initializer(initializer: NodeStorageInitializer) -> Self {
+        Self {
+            initializer: Some(initializer),
+            precondition: None,
+        }
+    }
+
+    fn precondition(precondition: NodeStorageInitializer) -> Self {
+        Self {
+            initializer: None,
+            precondition: Some(NodeStorageInitializerPrecondition(precondition)),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for NodeStorageInitializerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         if self.as_precondition {
             return "node_storage_initializer_precondition_layer";
@@ -47,23 +83,20 @@ impl WiringLayer for NodeStorageInitializerLayer {
         "node_storage_initializer_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context
-            .get_resource::<PoolResource<MasterPool>>()?
-            .get()
-            .await?;
-        let NodeInitializationStrategyResource(role) = context.get_resource()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let NodeInitializationStrategyResource(strategy) = input.strategy;
 
-        let initializer = NodeStorageInitializer::new(role, pool);
+        let initializer = NodeStorageInitializer::new(strategy, pool);
 
         // Insert either task or precondition.
-        if self.as_precondition {
-            context.add_task(NodeStorageInitializerPrecondition(initializer));
+        let output = if self.as_precondition {
+            Output::precondition(initializer)
         } else {
-            context.add_task(initializer);
-        }
+            Output::initializer(initializer)
+        };
 
-        Ok(())
+        Ok(output)
     }
 }
 
@@ -85,8 +118,10 @@ impl Task for NodeStorageInitializer {
     }
 }
 
+/// Runs [`NodeStorageInitializer`] as a precondition, blocking
+/// tasks from starting until the storage is initialized.
 #[derive(Debug)]
-struct NodeStorageInitializerPrecondition(NodeStorageInitializer);
+pub struct NodeStorageInitializerPrecondition(NodeStorageInitializer);
 
 #[async_trait::async_trait]
 impl Task for NodeStorageInitializerPrecondition {
@@ -115,5 +150,11 @@ pub struct NodeInitializationStrategyResource(NodeInitializationStrategy);
 impl Resource for NodeInitializationStrategyResource {
     fn name() -> String {
         "node_initialization_strategy".into()
+    }
+}
+
+impl From<NodeInitializationStrategy> for NodeInitializationStrategyResource {
+    fn from(strategy: NodeInitializationStrategy) -> Self {
+        Self(strategy)
     }
 }

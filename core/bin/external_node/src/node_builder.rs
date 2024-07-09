@@ -24,7 +24,7 @@ use zksync_node_framework::{
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
-            external_node_role::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
+            external_node_strategy::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,

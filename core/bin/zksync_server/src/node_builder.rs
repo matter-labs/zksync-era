@@ -36,7 +36,7 @@ use zksync_node_framework::{
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
-            main_node_role::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
+            main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
         },
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
