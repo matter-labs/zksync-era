@@ -9032,6 +9032,7 @@ dependencies = [
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
  "zksync_node_framework_derive",
+ "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
  "zksync_proof_data_handler",
@@ -9078,6 +9079,28 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_node_storage_init"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+ "zksync_block_reverter",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_node_genesis",
+ "zksync_node_sync",
+ "zksync_object_store",
+ "zksync_reorg_detector",
+ "zksync_shared_metrics",
+ "zksync_snapshots_applier",
+ "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
