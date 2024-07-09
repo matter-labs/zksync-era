@@ -7,7 +7,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -409,29 +409,12 @@ impl ConsensusDal<'_, '_> {
     ///
     /// Insertion is allowed even if it creates gaps in the L1 batch history.
     ///
-    /// It fails if the batch payload is missing or it's not consistent with the QC.
+    /// This method assumes that all payload validation has been carried out by the caller.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
     ) -> Result<(), InsertCertificateError> {
-        use InsertCertificateError as E;
-        let mut txn = self.storage.start_transaction().await?;
-
-        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
-        let _l1_batch_header = txn
-            .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
-            .await?
-            .ok_or(E::MissingPayload)?;
-
-        // TODO: Verify that the certificate matches the stored batch:
-        // * add the hash of the batch to the `BatchQC`
-        // * find out which field in the `l1_batches` table contains the hash we need to match
-        // * ideally move the responsibility of validation outside this method
-
-        // if header.payload != want_payload.encode().hash() {
-        //     return Err(E::PayloadMismatch);
-        // }
+        let l1_batch_number = cert.message.number.0 as i64;
 
         let res = sqlx::query!(
             r#"
@@ -441,19 +424,17 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            i64::from(l1_batch_number.0),
+            l1_batch_number,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
-        .execute(&mut txn)
+        .execute(self.storage)
         .await?;
 
         if res.rows_affected().is_zero() {
-            tracing::debug!(%l1_batch_number, "duplicate batch certificate");
+            tracing::debug!(l1_batch_number, "duplicate batch certificate");
         }
-
-        txn.commit().await.context("commit")?;
 
         Ok(())
     }
@@ -479,6 +460,47 @@ impl ConsensusDal<'_, '_> {
         Ok(row
             .number
             .map(|number| attester::BatchNumber(number as u64)))
+    }
+
+    /// Get the numbers of L1 batches which do not have a corresponding L1 quorum certificate
+    /// and need signatures to be gossiped and collected.
+    ///
+    /// On the main node this means every L1 batch, because we need QC over all of them to be
+    /// able to submit them to L1. Replicas don't necessarily have to have the QC, because once
+    /// the batch is on L1 and it's final, they can get the batch from there and don't need the
+    /// attestations.
+    pub async fn unsigned_batch_numbers(
+        &mut self,
+        min_batch_number: attester::BatchNumber,
+    ) -> DalResult<Vec<attester::BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                b.number
+            FROM
+                l1_batches b
+            WHERE
+                b.number >= $1
+                AND NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        l1_batches_consensus c
+                    WHERE
+                        c.l1_batch_number = b.number
+                )
+            ORDER BY
+                b.number
+            "#,
+            min_batch_number.0 as i64
+        )
+        .instrument("unsigned_batch_numbers")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| attester::BatchNumber(row.number as u64))
+        .collect())
     }
 }
 
@@ -551,7 +573,8 @@ mod tests {
         // Insert some mock L2 blocks and L1 batches
         let mut block_number = 0;
         let mut batch_number = 0;
-        for _ in 0..3 {
+        let num_batches = 3;
+        for _ in 0..num_batches {
             for _ in 0..3 {
                 block_number += 1;
                 let l2_block = create_l2_block_header(block_number);
@@ -612,5 +635,32 @@ mod tests {
             .insert_batch_certificate(&cert3)
             .await
             .expect_err("missing payload");
+
+        // Insert one more L1 batch without a certificate.
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&create_l1_batch_header(batch_number + 1))
+            .await
+            .unwrap();
+
+        let num_batches = num_batches + 1;
+        let num_unsigned = num_batches - 1;
+
+        // Check how many unsigned L1 batches we can find.
+        for (i, (min_l1_batch_number, exp_num_unsigned)) in [
+            (0, num_unsigned),
+            (batch_number, 1),     // This one has the corresponding cert
+            (batch_number + 1, 1), // This is the one we inserted later
+            (batch_number + 2, 0), // Querying beyond the last one
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let unsigned = conn
+                .consensus_dal()
+                .unsigned_batch_numbers(attester::BatchNumber(u64::from(min_l1_batch_number)))
+                .await
+                .unwrap();
+            assert_eq!(unsigned.len(), exp_num_unsigned, "test case {i}");
+        }
     }
 }
