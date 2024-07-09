@@ -18,8 +18,7 @@ pub struct CoinGeckoPriceAPIClient {
 
 const DEFAULT_COINGECKO_API_URL: &str = "https://pro-api.coingecko.com";
 const COINGECKO_AUTH_HEADER: &str = "x-cg-pro-api-key";
-const ETH_ID: &str = "ethereum";
-const USD_ID: &str = "usd";
+const ETH_ID: &str = "eth";
 
 impl CoinGeckoPriceAPIClient {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
@@ -74,7 +73,7 @@ impl CoinGeckoPriceAPIClient {
         }
 
         let cg_response = response.json::<CoinGeckoPriceResponse>().await?;
-        match cg_response.get_price(&address_str, &USD_ID.to_string()) {
+        match cg_response.get_price(&address_str, &ETH_ID.to_string()) {
             Some(&price) => Ok(price),
             None => Err(anyhow::anyhow!(
                 "Price not found for token: {}",
