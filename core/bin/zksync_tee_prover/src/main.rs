@@ -58,13 +58,11 @@ fn main() -> anyhow::Result<()> {
             tee_prover_config.tee_type,
         ));
 
-    builder_mut = if let Some(gateway) = prometheus_config.gateway_endpoint() {
+    if let Some(gateway) = prometheus_config.gateway_endpoint() {
         let exporter_config =
             PrometheusExporterConfig::push(gateway, prometheus_config.push_interval());
-        builder_mut.add_layer(PrometheusExporterLayer(exporter_config))
-    } else {
-        builder_mut
-    };
+        builder_mut = builder_mut.add_layer(PrometheusExporterLayer(exporter_config));
+    }
 
     builder_mut.build()?.run()?;
     Ok(())

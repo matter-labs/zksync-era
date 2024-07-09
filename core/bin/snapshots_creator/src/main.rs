@@ -31,20 +31,18 @@ async fn maybe_enable_prometheus_metrics(
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
     let prometheus_config = PrometheusConfig::from_env().ok();
-    if let Some(prometheus_config) = prometheus_config {
-        let Some(gateway_endpoint) = prometheus_config.gateway_endpoint() else {
-            tracing::info!("Starting without prometheus exporter");
-            return Ok(None);
-        };
-        let exporter_config =
-            PrometheusExporterConfig::push(gateway_endpoint, prometheus_config.push_interval());
+    match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
+        Some((Some(gateway_endpoint), push_interval)) => {
+            tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
+            let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
 
-        tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
-        Ok(Some(prometheus_exporter_task))
-    } else {
-        tracing::info!("Starting without prometheus exporter");
-        Ok(None)
+            let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
+            Ok(Some(prometheus_exporter_task))
+        }
+        _ => {
+            tracing::info!("Starting without prometheus exporter");
+            Ok(None)
+        }
     }
 }
 
