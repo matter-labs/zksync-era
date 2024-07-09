@@ -75,6 +75,7 @@ pub struct ProtectiveReadsWriterTasks {
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
 }
 
+/// `VmRunnerIo` implementation for protective reads.
 #[derive(Debug, Clone)]
 pub struct ProtectiveReadsIo {
     first_processed_batch: L1BatchNumber,

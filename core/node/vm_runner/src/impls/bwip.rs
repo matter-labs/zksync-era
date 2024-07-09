@@ -86,6 +86,7 @@ pub struct BasicWitnessInputProducerTasks {
         ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
 }
 
+/// IO implementation for the basic witness input producer.
 #[derive(Debug, Clone)]
 pub struct BasicWitnessInputProducerIo {
     first_processed_batch: L1BatchNumber,
@@ -170,6 +171,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         let blob_url = self.object_store.put(l1_batch_number, &result).await?;
 
         tracing::info!(%l1_batch_number, "Saved VM run data");
+
+        connection
+            .proof_generation_dal()
+            .insert_proof_generation_details(l1_batch_number)
+            .await?;
 
         connection
             .proof_generation_dal()

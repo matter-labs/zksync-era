@@ -222,7 +222,8 @@ impl EventsDal<'_, '_> {
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
-                event_index_in_tx
+                event_index_in_tx,
+                NULL::BIGINT AS "block_timestamp?"
             FROM
                 events
             WHERE
