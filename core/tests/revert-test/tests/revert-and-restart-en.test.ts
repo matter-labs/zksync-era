@@ -133,12 +133,11 @@ async function runBlockReverter(args: string[]): Promise<string> {
             `;
     }
 
-    const executedProcess = await utils.exec(
-        `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
-            ' '
-        )} ${fileConfigFlags}`
-        // ^ Switch off logs to not pollute the output JSON
-    );
+    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
+        ' '
+    )} ${fileConfigFlags}`;
+    console.log(`Running block_reverter: ${cmd}`);
+    const executedProcess = await utils.exec(cmd);
 
     return executedProcess.stdout;
 }
@@ -387,7 +386,7 @@ describe('Block reverting test', function () {
             'print-suggested-values',
             '--json',
             '--operator-address',
-            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
+            '0xabcf96e1ee478481042a0c4e34cdceceae01b154'
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
