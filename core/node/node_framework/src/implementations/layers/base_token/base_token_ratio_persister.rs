@@ -1,8 +1,11 @@
 use zksync_base_token_adjuster::BaseTokenRatioPersister;
-use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
+use zksync_config::{configs::base_token_adjuster::BaseTokenAdjusterConfig, ContractsConfig};
 
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+    implementations::resources::{
+        pools::{MasterPool, PoolResource},
+        price_api_client::PriceAPIClientResource,
+    },
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -16,12 +19,15 @@ use crate::{
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
+    contracts_config: ContractsConfig,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    #[context(default)]
+    pub price_api_client: PriceAPIClientResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -32,8 +38,11 @@ pub struct Output {
 }
 
 impl BaseTokenRatioPersisterLayer {
-    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
-        Self { config }
+    pub fn new(config: BaseTokenAdjusterConfig, contracts_config: ContractsConfig) -> Self {
+        Self {
+            config,
+            contracts_config,
+        }
     }
 }
 
@@ -48,7 +57,20 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
-        let persister = BaseTokenRatioPersister::new(master_pool, self.config);
+
+        let price_api_client = input.price_api_client;
+        let base_token_addr = self
+            .contracts_config
+            .base_token_addr
+            .expect("base token address is not set");
+
+        let persister = BaseTokenRatioPersister::new(
+            master_pool,
+            self.config,
+            base_token_addr,
+            price_api_client.0,
+        );
+
         Ok(Output { persister })
     }
 }

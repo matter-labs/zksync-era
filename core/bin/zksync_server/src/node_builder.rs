@@ -21,8 +21,12 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-        base_token_ratio_provider::BaseTokenRatioProviderLayer,
+        base_token::{
+            base_token_ratio_persister::BaseTokenRatioPersisterLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer,
+            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
+            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+        },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
@@ -516,6 +520,29 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.external_price_api_client_config);
+        match config.source.as_str() {
+            CoingeckoClientLayer::CLIENT_NAME => {
+                self.node.add_layer(CoingeckoClientLayer::new(config));
+            }
+            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
+                self.node.add_layer(NoOpExternalPriceApiClientLayer);
+            }
+            ForcedPriceClientLayer::CLIENT_NAME => {
+                self.node.add_layer(ForcedPriceClientLayer::new(config));
+            }
+            _ => {
+                anyhow::bail!(
+                    "Unknown external price API client source: {}",
+                    config.source
+                );
+            }
+        }
+
+        Ok(self)
+    }
+
     fn add_vm_runner_bwip_layer(mut self) -> anyhow::Result<Self> {
         let basic_witness_input_producer_config =
             try_load_config!(self.configs.basic_witness_input_producer_config);
@@ -529,8 +556,9 @@ impl MainNodeBuilder {
 
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
+        let contracts_config = self.contracts_config.clone();
         self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config));
+            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
 
         Ok(self)
     }
@@ -669,7 +697,9 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
                 Component::BaseTokenRatioPersister => {
-                    self = self.add_base_token_ratio_persister_layer()?;
+                    self = self
+                        .add_external_api_client_layer()?
+                        .add_base_token_ratio_persister_layer()?;
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
