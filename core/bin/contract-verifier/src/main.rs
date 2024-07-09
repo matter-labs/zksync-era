@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
 
     let observability_config = general_config
         .observability
-        .context("ObservabilityConfig::from_env()")?;
+        .context("ObservabilityConfig")?;
     let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
