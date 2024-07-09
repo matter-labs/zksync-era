@@ -141,7 +141,6 @@ async function runBlockReverter(args: string[]): Promise<string> {
     const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
-    console.log(`Running block_reverter: ${cmd}`);
     const executedProcess = await utils.exec(cmd);
 
     return executedProcess.stdout;
@@ -181,7 +180,7 @@ export function runExternalNodeInBackground({
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -238,7 +237,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
