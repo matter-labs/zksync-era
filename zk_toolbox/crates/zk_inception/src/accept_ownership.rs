@@ -20,7 +20,7 @@ lazy_static! {
     static ref ACCEPT_ADMIN: BaseContract = BaseContract::from(
         parse_abi(&[
             "function acceptOwner(address governor, address target) public",
-            "function acceptAdmin(address governor, address target) public"
+            "function acceptAdmin(address admin, address target) public"
         ])
         .unwrap(),
     );
