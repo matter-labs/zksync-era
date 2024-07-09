@@ -29,7 +29,7 @@ lazy_static! {
 pub async fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    governor_contract: Address,
+    admin: Address,
     governor: Option<H256>,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
@@ -42,7 +42,7 @@ pub async fn accept_admin(
     forge_args.resume = false;
 
     let calldata = ACCEPT_ADMIN
-        .encode("acceptAdmin", (governor_contract, target_address))
+        .encode("acceptAdmin", (admin, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
