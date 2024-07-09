@@ -34,9 +34,11 @@ pub struct WitnessVectorGenerator {
     config: FriWitnessVectorGeneratorConfig,
     protocol_version: ProtocolSemanticVersion,
     max_attempts: u32,
+    setup_data_path: Option<String>,
 }
 
 impl WitnessVectorGenerator {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
@@ -45,6 +47,7 @@ impl WitnessVectorGenerator {
         config: FriWitnessVectorGeneratorConfig,
         protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
+        setup_data_path: Option<String>,
     ) -> Self {
         Self {
             object_store,
@@ -54,6 +57,7 @@ impl WitnessVectorGenerator {
             config,
             protocol_version,
             max_attempts,
+            setup_data_path,
         }
     }
 
@@ -116,10 +120,17 @@ impl JobProcessor for WitnessVectorGenerator {
         job: ProverJob,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
+        let setup_data_path = self.setup_data_path.clone();
+
         tokio::task::spawn_blocking(move || {
             let block_number = job.block_number;
             let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
-            Self::generate_witness_vector(job, &Keystore::default())
+            let keystore = if let Some(setup_data_path) = setup_data_path {
+                Keystore::new_with_setup_data_path(setup_data_path)
+            } else {
+                Keystore::default()
+            };
+            Self::generate_witness_vector(job, &keystore)
         })
     }
 

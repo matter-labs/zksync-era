@@ -6,8 +6,7 @@ use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::ObjectStoreConfig;
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
@@ -218,8 +217,10 @@ async fn main() -> anyhow::Result<()> {
                     false => None,
                     true => Some(
                         ObjectStoreFactory::new(
-                            ObjectStoreConfig::from_env()
-                                .context("ObjectStoreConfig::from_env()")?,
+                            prover_config
+                                .public_object_store
+                                .clone()
+                                .expect("public_object_store"),
                         )
                         .create_store()
                         .await?,

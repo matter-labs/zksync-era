@@ -76,6 +76,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         name: ecosystem_name.clone(),
         l1_network: args.l1_network,
         link_to_code: link_to_code.clone(),
+        bellman_cuda_dir: None,
         chains: chains_path.clone(),
         config: configs_path,
         era_chain_id: get_default_era_chain_id(),
