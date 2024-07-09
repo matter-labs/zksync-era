@@ -79,6 +79,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
             server_addr: *cfg.server_addr,
             public_addr: config::Host(cfg.public_addr.0.clone()),
             max_payload_size: usize::MAX,
+            max_batch_size: usize::MAX,
             gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
             gossip_static_inbound: cfg
                 .gossip
