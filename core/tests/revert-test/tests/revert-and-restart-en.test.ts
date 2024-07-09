@@ -201,7 +201,6 @@ class MainNode {
         env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
-        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
         if (enableConsensus) {
@@ -246,8 +245,6 @@ class ExtNode {
     // Spawns an external node.
     // If enableConsensus is set, the node will use consensus P2P network to fetch blocks.
     public static async spawn(logs: fs.WriteStream, enableConsensus: boolean): Promise<ExtNode> {
-        let env = fetchEnv(extEnv);
-        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
         let args = [];
         if (enableConsensus) {
             args.push('--enable-consensus');
