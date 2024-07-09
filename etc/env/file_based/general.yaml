@@ -185,7 +185,7 @@ witness_generator:
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
   prover_instance_poll_time_in_milli_secs: 250
-  prometheus_listener_port: 3314
+  prometheus_listener_port: 3420
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
   specialized_group_id: 100
@@ -197,7 +197,7 @@ data_handler:
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
-  prometheus_listener_port: 3314
+  prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
 proof_compressor:
@@ -316,7 +316,7 @@ house_keeper:
   fri_gpu_prover_archiver_archive_after_secs: 172800
 
 prometheus:
-  listener_port: 3312
+  listener_port: 3314
   pushgateway_url: http://127.0.0.1:9091
   push_interval_ms: 100
 
