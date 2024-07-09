@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                witness_inputs_fri (\n                    l1_batch_number,\n                    merkle_tree_paths_blob_url,\n                    witness_inputs_blob_url,\n                    protocol_version,\n                    eip_4844_blobs,\n                    status,\n                    created_at,\n                    updated_at,\n                    protocol_version_patch\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6)\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "adaa3126792aac4e3afb805068f01ab8ae3f32526d9b5eadcfe52d139f7d6e66"
+}

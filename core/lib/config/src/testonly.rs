@@ -9,6 +9,7 @@ use zksync_basic_types::{
     L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
+use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::configs::{self, eth_sender::PubdataSendingMode};
 
@@ -350,9 +351,10 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
 impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
         type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..2) {
+        match rng.gen_range(0..3) {
             0 => T::Calldata,
-            _ => T::Blobs,
+            1 => T::Blobs,
+            _ => T::Custom,
         }
     }
 }
@@ -558,6 +560,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
+            prometheus_listener_port: self.sample(rng),
         }
     }
 }
@@ -681,11 +684,11 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 .unwrap(),
                 patch: VersionPatch(rng.gen()),
             }),
-            genesis_root_hash: rng.gen(),
-            rollup_last_leaf_index: self.sample(rng),
-            genesis_commitment: rng.gen(),
-            bootloader_hash: rng.gen(),
-            default_aa_hash: rng.gen(),
+            genesis_root_hash: Some(rng.gen()),
+            rollup_last_leaf_index: Some(self.sample(rng)),
+            genesis_commitment: Some(rng.gen()),
+            bootloader_hash: Some(rng.gen()),
+            default_aa_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
             l2_chain_id: L2ChainId::default(),
@@ -801,6 +804,59 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
             consensus: self.sample_opt(|| self.sample(rng)),
             database: self.sample_opt(|| self.sample(rng)),
             l1: self.sample_opt(|| self.sample(rng)),
+        }
+    }
+}
+
+impl Distribution<configs::wallets::Wallet> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallet {
+        configs::wallets::Wallet::new(K256PrivateKey::from_bytes(rng.gen()).unwrap())
+    }
+}
+
+impl Distribution<configs::wallets::AddressWallet> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::AddressWallet {
+        configs::wallets::AddressWallet::from_address(rng.gen())
+    }
+}
+
+impl Distribution<configs::wallets::StateKeeper> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::StateKeeper {
+        configs::wallets::StateKeeper {
+            fee_account: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::wallets::EthSender> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::EthSender {
+        configs::wallets::EthSender {
+            operator: self.sample(rng),
+            blob_operator: self.sample_opt(|| self.sample(rng)),
+        }
+    }
+}
+
+impl Distribution<configs::wallets::Wallets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallets {
+        configs::wallets::Wallets {
+            state_keeper: self.sample_opt(|| self.sample(rng)),
+            eth_sender: self.sample_opt(|| self.sample(rng)),
+        }
+    }
+}
+
+impl Distribution<configs::en_config::ENConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::en_config::ENConfig {
+        configs::en_config::ENConfig {
+            l2_chain_id: L2ChainId::default(),
+            l1_chain_id: L1ChainId(rng.gen()),
+            main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
+                0 => L1BatchCommitmentMode::Rollup,
+                _ => L1BatchCommitmentMode::Validium,
+            },
+            main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
         }
     }
 }

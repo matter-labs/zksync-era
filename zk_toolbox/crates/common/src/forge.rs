@@ -5,16 +5,20 @@ use std::{
 
 use clap::{Parser, ValueEnum};
 use ethers::{
+    core::types::Bytes,
     middleware::Middleware,
     prelude::{LocalWallet, Signer},
     types::{Address, H256, U256},
-    utils::hex::ToHex,
+    utils::{hex, hex::ToHex},
 };
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use xshell::{cmd, Shell};
 
-use crate::{cmd::Cmd, ethereum::create_ethers_client};
+use crate::{
+    cmd::{Cmd, CmdResult},
+    ethereum::create_ethers_client,
+};
 
 /// Forge is a wrapper around the forge binary.
 pub struct Forge {
@@ -54,9 +58,24 @@ impl ForgeScript {
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
-        let args = self.args.build();
-        Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run()?;
-        Ok(())
+        let args_no_resume = self.args.build();
+        if self.args.resume {
+            let mut args = args_no_resume.clone();
+            args.push(ForgeScriptArg::Resume.to_string());
+            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run();
+            if !res.resume_not_successful_because_has_not_began() {
+                return Ok(res?);
+            }
+        }
+        let res = Cmd::new(cmd!(
+            shell,
+            "forge script {script_path} --legacy {args_no_resume...}"
+        ))
+        .run();
+        if res.proposal_error() {
+            return Ok(());
+        }
+        Ok(res?)
     }
 
     pub fn wallet_args_passed(&self) -> bool {
@@ -84,6 +103,13 @@ impl ForgeScript {
     pub fn with_signature(mut self, signature: &str) -> Self {
         self.args.add_arg(ForgeScriptArg::Sig {
             sig: signature.to_string(),
+        });
+        self
+    }
+
+    pub fn with_calldata(mut self, calldata: &Bytes) -> Self {
+        self.args.add_arg(ForgeScriptArg::Sig {
+            sig: hex::encode(calldata),
         });
         self
     }
@@ -209,6 +235,7 @@ pub enum ForgeScriptArg {
         url: String,
     },
     Verify,
+    Resume,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
@@ -230,6 +257,8 @@ pub struct ForgeScriptArgs {
     /// Verifier API key
     #[clap(long)]
     pub verifier_api_key: Option<String>,
+    #[clap(long)]
+    pub resume: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
     /// e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
@@ -348,4 +377,36 @@ pub enum ForgeVerifier {
     Sourcify,
     Blockscout,
     Oklink,
+}
+
+// Trait for handling forge errors. Required for implementing method for CmdResult
+trait ForgeErrorHandler {
+    // Resume doesn't work if the forge script has never been started on this chain before.
+    // So we want to catch it and try again without resume arg if it's the case
+    fn resume_not_successful_because_has_not_began(&self) -> bool;
+    // Catch the error if upgrade tx has already been processed. We do execute much of
+    // txs using upgrade mechanism and if this particular upgrade has already been processed we could assume
+    // it as a success
+    fn proposal_error(&self) -> bool;
+}
+
+impl ForgeErrorHandler for CmdResult<()> {
+    fn resume_not_successful_because_has_not_began(&self) -> bool {
+        let text = "Deployment not found for chain";
+        check_error(self, text)
+    }
+
+    fn proposal_error(&self) -> bool {
+        let text = "revert: Operation with this proposal id already exists";
+        check_error(self, text)
+    }
+}
+
+fn check_error(cmd_result: &CmdResult<()>, error_text: &str) -> bool {
+    if let Err(cmd_error) = &cmd_result {
+        if let Some(stderr) = &cmd_error.stderr {
+            return stderr.contains(error_text);
+        }
+    }
+    false
 }

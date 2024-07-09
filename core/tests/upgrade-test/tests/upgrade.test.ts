@@ -1,40 +1,44 @@
 import * as utils from 'utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
-import { BigNumber, BigNumberish, ethers } from 'ethers';
+import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'fs';
 import { BytesLike } from '@ethersproject/bytes';
+import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
+import { BigNumberish } from 'ethers';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
-const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
+const L1_DEFAULT_UPGRADE_ABI = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
 );
-const GOVERNANCE_ABI = new ethers.utils.Interface(
+const GOVERNANCE_ABI = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
 );
-const ADMIN_FACET_ABI = new ethers.utils.Interface(
+const ADMIN_FACET_ABI = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
 );
-const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.utils.Interface(
+const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
 );
-const COMPLEX_UPGRADER_ABI = new ethers.utils.Interface(
+const COMPLEX_UPGRADER_ABI = new ethers.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
 );
 const COUNTER_BYTECODE =
     require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`).deployedBytecode;
-const STATE_TRANSITON_MANAGER = new ethers.utils.Interface(
+const STATE_TRANSITON_MANAGER = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
 );
 
-const depositAmount = ethers.utils.parseEther('0.001');
+let serverComponents = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+
+const depositAmount = ethers.parseEther('0.001');
 
 describe('Upgrade test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let govWallet: ethers.Wallet;
-    let mainContract: ethers.Contract;
+    let mainContract: IZkSyncHyperchain;
     let governanceContract: ethers.Contract;
     let bootloaderHash: string;
     let scheduleTransparentOperation: string;
@@ -48,8 +52,11 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
-        const govMnemonic = require('../../../../etc/test_config/constant/eth.json').mnemonic;
-        govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(alice._providerL1());
+        const govMnemonic = ethers.Mnemonic.fromPhrase(
+            require('../../../../etc/test_config/constant/eth.json').mnemonic
+        );
+        const govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
+        govWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
     });
 
     step('Run server and execute some transactions', async () => {
@@ -68,8 +75,7 @@ describe('Upgrade test', function () {
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
         utils.background({
-            command:
-                'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator',
+            command: `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=${serverComponents}`,
             stdio: [null, logs, logs]
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -97,8 +103,8 @@ describe('Upgrade test', function () {
         const baseToken = await tester.syncWallet.provider.getBaseTokenContractAddress();
 
         if (!zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS)) {
-            await (await tester.syncWallet.approveERC20(baseToken, ethers.constants.MaxUint256)).wait();
-            await mintToWallet(baseToken, tester.syncWallet, depositAmount.mul(10));
+            await (await tester.syncWallet.approveERC20(baseToken, ethers.MaxUint256)).wait();
+            await mintToWallet(baseToken, tester.syncWallet, depositAmount * 10n);
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
@@ -122,20 +128,20 @@ describe('Upgrade test', function () {
         }
 
         const balance = await alice.getBalance();
-        expect(balance.eq(depositAmount.mul(2)), 'Incorrect balance after deposits').to.be.true;
+        expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
 
         if (process.env.CHECK_EN_URL) {
             console.log('Checking EN after deposit');
             await utils.sleep(2);
-            const enProvider = new ethers.providers.JsonRpcProvider(process.env.CHECK_EN_URL);
+            const enProvider = new ethers.JsonRpcProvider(process.env.CHECK_EN_URL);
             const enBalance = await enProvider.getBalance(alice.address);
-            expect(enBalance.eq(balance), 'Failed to update the balance on EN after deposit').to.be.true;
+            expect(enBalance === balance, 'Failed to update the balance on EN after deposit').to.be.true;
         }
 
         // Wait for at least one new committed block
         let newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
         let tryCount = 0;
-        while (blocksCommitted.eq(newBlocksCommitted) && tryCount < 30) {
+        while (blocksCommitted === newBlocksCommitted && tryCount < 30) {
             newBlocksCommitted = await mainContract.getTotalBatchesCommitted();
             tryCount += 1;
             await utils.sleep(1);
@@ -144,10 +150,10 @@ describe('Upgrade test', function () {
 
     step('Send l1 tx for saving new bootloader', async () => {
         const path = `${process.env.ZKSYNC_HOME}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
-        const bootloaderCode = ethers.utils.hexlify(fs.readFileSync(path));
-        bootloaderHash = ethers.utils.hexlify(zksync.utils.hashBytecode(bootloaderCode));
+        const bootloaderCode = ethers.hexlify(fs.readFileSync(path));
+        bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
-            contractAddress: ethers.constants.AddressZero,
+            contractAddress: ethers.ZeroAddress,
             calldata: '0x',
             l2GasLimit: 20000000,
             factoryDeps: [bootloaderCode],
@@ -164,10 +170,10 @@ describe('Upgrade test', function () {
         forceDeployBytecode = COUNTER_BYTECODE;
 
         const forceDeployment: ForceDeployment = {
-            bytecodeHash: zksync.utils.hashBytecode(forceDeployBytecode),
+            bytecodeHash: ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode)),
             newAddress: forceDeployAddress,
             callConstructor: false,
-            value: BigNumber.from(0),
+            value: 0n,
             input: '0x'
         };
 
@@ -178,7 +184,7 @@ describe('Upgrade test', function () {
         const { stmUpgradeData, chainUpgradeData } = await prepareUpgradeCalldata(
             govWallet,
             alice._providerL2(),
-            mainContract.address,
+            await mainContract.getAddress(),
             {
                 l2ProtocolUpgradeTx: {
                     txType: 254,
@@ -193,7 +199,7 @@ describe('Upgrade test', function () {
                     reserved: [0, 0, 0, 0],
                     data,
                     signature: '0x',
-                    factoryDeps: [zksync.utils.hashBytecode(forceDeployBytecode)],
+                    factoryDeps: [ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))],
                     paymasterInput: '0x',
                     reservedDynamic: '0x'
                 },
@@ -215,7 +221,7 @@ describe('Upgrade test', function () {
 
     step('Check bootloader is updated on L2', async () => {
         const receipt = await waitForNewL1Batch(alice);
-        const batchDetails = await alice.provider.getL1BatchDetails(receipt.l1BatchNumber);
+        const batchDetails = await alice.provider.getL1BatchDetails(receipt.l1BatchNumber!);
         expect(batchDetails.baseSystemContractsHashes.bootloader).to.eq(bootloaderHash);
     });
 
@@ -249,7 +255,7 @@ describe('Upgrade test', function () {
 
     step('Wait for block finalization', async () => {
         // Execute an L2 transaction
-        const txHandle = await checkedRandomTransfer(alice, BigNumber.from(1));
+        const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
     });
 
@@ -265,14 +271,13 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background({
-            command:
-                'cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
+            command: `cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=${serverComponents} &> upgrade.log`,
             stdio: [null, logs, logs]
         });
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
-        await checkedRandomTransfer(alice, BigNumber.from(1));
+        await checkedRandomTransfer(alice, 1n);
     });
 
     after('Try killing server', async () => {
@@ -284,7 +289,7 @@ describe('Upgrade test', function () {
     async function sendGovernanceOperation(data: string) {
         await (
             await govWallet.sendTransaction({
-                to: governanceContract.address,
+                to: await governanceContract.getAddress(),
                 data: data,
                 type: 0
             })
@@ -292,12 +297,10 @@ describe('Upgrade test', function () {
     }
 });
 
-async function checkedRandomTransfer(
-    sender: zksync.Wallet,
-    amount: BigNumber
-): Promise<zksync.types.TransactionResponse> {
+async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
     const senderBalanceBefore = await sender.getBalance();
-    const receiver = zksync.Wallet.createRandom().connect(sender.provider);
+    const receiverHD = zksync.Wallet.createRandom();
+    const receiver = new zksync.Wallet(receiverHD.privateKey, sender.provider);
     const transferHandle = await sender.sendTransaction({
         to: receiver.address,
         value: amount,
@@ -308,18 +311,18 @@ async function checkedRandomTransfer(
     const senderBalanceAfter = await sender.getBalance();
     const receiverBalanceAfter = await receiver.getBalance();
 
-    expect(receiverBalanceAfter.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
+    expect(receiverBalanceAfter === amount, 'Failed updated the balance of the receiver').to.be.true;
 
-    const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalanceAfter.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender')
-        .to.be.true;
+    const spentAmount = txReceipt.gasUsed * transferHandle.gasPrice! + amount;
+    expect(senderBalanceAfter + spentAmount >= senderBalanceBefore, 'Failed to update the balance of the sender').to.be
+        .true;
 
     if (process.env.CHECK_EN_URL) {
         console.log('Checking EN after transfer');
         await utils.sleep(2);
-        const enProvider = new ethers.providers.JsonRpcProvider(process.env.CHECK_EN_URL);
+        const enProvider = new ethers.JsonRpcProvider(process.env.CHECK_EN_URL);
         const enSenderBalance = await enProvider.getBalance(sender.address);
-        expect(enSenderBalance.eq(senderBalanceAfter), 'Failed to update the balance of the sender on EN').to.be.true;
+        expect(enSenderBalance === senderBalanceAfter, 'Failed to update the balance of the sender on EN').to.be.true;
     }
 
     return transferHandle;
@@ -333,7 +336,7 @@ interface ForceDeployment {
     // Whether to call the constructor
     callConstructor: boolean;
     // The value with which to initialize a contract
-    value: BigNumber;
+    value: bigint;
     // The constructor calldata
     input: BytesLike;
 }
@@ -342,10 +345,14 @@ async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.Tr
     // Send a dummy transaction and wait until the new L1 batch is created.
     const oldReceipt = await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash)).l1BatchNumber) {
+    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.hash))!.l1BatchNumber) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
-    return await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash);
+    const receipt = await wallet.provider.getTransactionReceipt(oldReceipt.hash);
+    if (!receipt) {
+        throw new Error('Failed to get the receipt of the transaction');
+    }
+    return receipt;
 }
 
 async function prepareUpgradeCalldata(
@@ -395,18 +402,18 @@ async function prepareUpgradeCalldata(
     const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, govWallet);
     const stmAddress = await zksyncContract.getStateTransitionManager();
 
-    const oldProtocolVersion = await zksyncContract.getProtocolVersion();
+    const oldProtocolVersion = Number(await zksyncContract.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
 
-    params.l2ProtocolUpgradeTx.nonce ??= unpackNumberSemVer(newProtocolVersion)[1];
+    params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
     const upgradeInitData = L1_DEFAULT_UPGRADE_ABI.encodeFunctionData('upgrade', [
         [
             params.l2ProtocolUpgradeTx,
             params.factoryDeps,
-            params.bootloaderHash ?? ethers.constants.HashZero,
-            params.defaultAAHash ?? ethers.constants.HashZero,
-            params.verifier ?? ethers.constants.AddressZero,
-            params.verifierParams ?? [ethers.constants.HashZero, ethers.constants.HashZero, ethers.constants.HashZero],
+            params.bootloaderHash ?? ethers.ZeroHash,
+            params.defaultAAHash ?? ethers.ZeroHash,
+            params.verifier ?? ethers.ZeroAddress,
+            params.verifierParams ?? [ethers.ZeroHash, ethers.ZeroHash, ethers.ZeroHash],
             params.l1ContractsUpgradeCalldata ?? '0x',
             params.postUpgradeCalldata ?? '0x',
             params.upgradeTimestamp,
@@ -426,7 +433,7 @@ async function prepareUpgradeCalldata(
         upgradeParam,
         oldProtocolVersion,
         // The protocol version will not have any deadline in this upgrade
-        ethers.constants.MaxUint256,
+        ethers.MaxUint256,
         newProtocolVersion
     ]);
 
@@ -458,8 +465,8 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
     };
     const governanceOperation = {
         calls: [call],
-        predecessor: ethers.constants.HashZero,
-        salt: ethers.constants.HashZero
+        predecessor: ethers.ZeroHash,
+        salt: ethers.ZeroHash
     };
 
     // Get transaction data of the `scheduleTransparent`
@@ -477,11 +484,7 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
     };
 }
 
-async function mintToWallet(
-    baseTokenAddress: zksync.types.Address,
-    ethersWallet: ethers.Wallet,
-    amountToMint: ethers.BigNumber
-) {
+async function mintToWallet(baseTokenAddress: zksync.types.Address, ethersWallet: ethers.Wallet, amountToMint: bigint) {
     const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
     const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
     await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();

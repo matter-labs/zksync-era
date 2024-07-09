@@ -3,20 +3,13 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     implementations::resources::healthcheck::AppHealthCheckResource,
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for Prometheus exporter server.
-///
-/// ## Requests resources
-///
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds tasks
-///
-/// - `PrometheusExporterTask`
 #[derive(Debug)]
 pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
@@ -26,28 +19,45 @@ pub struct PrometheusExporterTask {
     prometheus_health_updater: HealthUpdater,
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: PrometheusExporterTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for PrometheusExporterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "prometheus_exporter"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
-        let AppHealthCheckResource(app_health) = node.get_resource_or_default().await;
-        app_health
+        input
+            .app_health
+            .0
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
 
-        let task = Box::new(PrometheusExporterTask {
+        let task = PrometheusExporterTask {
             config: self.0,
             prometheus_health_updater,
-        });
+        };
 
-        node.add_task(task);
-        Ok(())
+        Ok(Output { task })
     }
 }
 

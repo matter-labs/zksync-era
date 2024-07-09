@@ -1,5 +1,7 @@
 pub mod action_queue;
+pub mod base_token_ratio_provider;
 pub mod circuit_breakers;
+pub mod da_client;
 pub mod eth_interface;
 pub mod fee_input;
 pub mod healthcheck;

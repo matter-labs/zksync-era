@@ -3,25 +3,31 @@ use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
     implementations::resources::eth_interface::EthInterfaceResource,
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for a prerequisite that checks if the L1 batch commitment mode is valid
 /// against L1.
-///
-/// ## Requests resources
-///
-/// - `EthInterfaceResource`
-///
-/// ## Adds preconditions
-///
-/// - `L1BatchCommitmentModeValidationTask`
 #[derive(Debug)]
 pub struct L1BatchCommitmentModeValidationLayer {
     diamond_proxy_addr: Address,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub eth_client: EthInterfaceResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: L1BatchCommitmentModeValidationTask,
 }
 
 impl L1BatchCommitmentModeValidationLayer {
@@ -38,21 +44,22 @@ impl L1BatchCommitmentModeValidationLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for L1BatchCommitmentModeValidationLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "l1_batch_commitment_mode_validation_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(query_client) = context.get_resource().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let EthInterfaceResource(query_client) = input.eth_client;
         let task = L1BatchCommitmentModeValidationTask::new(
             self.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
             query_client,
         );
 
-        context.add_task(Box::new(task));
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 

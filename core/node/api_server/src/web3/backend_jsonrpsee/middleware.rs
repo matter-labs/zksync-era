@@ -337,7 +337,7 @@ mod tests {
     use rand::{thread_rng, Rng};
     use test_casing::{test_casing, Product};
     use zksync_types::api;
-    use zksync_web3_decl::jsonrpsee::helpers::MethodResponseResult;
+    use zksync_web3_decl::jsonrpsee::{types::Id, ResponsePayload};
 
     use super::*;
 
@@ -366,11 +366,11 @@ mod tests {
                     }
                 }
 
-                MethodResponse {
-                    result: "{}".to_string(),
-                    success_or_error: MethodResponseResult::Success,
-                    is_subscription: false,
-                }
+                MethodResponse::response(
+                    Id::Number(1),
+                    ResponsePayload::success("{}".to_string()),
+                    usize::MAX,
+                )
             };
 
             WithMethodCall::new(
@@ -394,7 +394,7 @@ mod tests {
             assert_eq!(call.metadata.name, "test");
             assert!(call.metadata.block_id.is_some());
             assert_eq!(call.metadata.block_diff, Some(9));
-            assert!(call.response.is_success());
+            assert!(call.error_code.is_none());
         }
     }
 
