@@ -2,41 +2,9 @@
 
 use std::str::FromStr;
 
-use anyhow::Context as _;
 use tokio::sync::oneshot;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 
 pub mod temp_config_store;
-
-/// Inserts the initial information about ZKsync tokens into the database.
-pub async fn genesis_init(
-    genesis_config: GenesisConfig,
-    database_secrets: &DatabaseSecrets,
-) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
-    let mut storage = pool.connection().await.context("connection()")?;
-
-    let params = GenesisParams::load_genesis_params(genesis_config)?;
-    ensure_genesis_state(&mut storage, &params).await?;
-
-    Ok(())
-}
-
-pub async fn is_genesis_needed(database_secrets: &DatabaseSecrets) -> bool {
-    let db_url = database_secrets.master_url().unwrap();
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .expect("failed to build connection_pool");
-    let mut storage = pool.connection().await.expect("connection()");
-    storage.blocks_dal().is_genesis_needed().await.unwrap()
-}
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.

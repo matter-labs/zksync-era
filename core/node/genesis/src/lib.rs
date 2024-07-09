@@ -5,9 +5,9 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
@@ -270,6 +270,10 @@ pub async fn insert_genesis_batch(
     })
 }
 
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
+}
+
 pub async fn ensure_genesis_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
@@ -411,15 +415,11 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
-    let mut storage = pool.connection().await?;
-
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
