@@ -25,6 +25,7 @@ struct EcosystemConfigInternal {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
+    pub bellman_cuda_dir: Option<PathBuf>,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -40,6 +41,7 @@ pub struct EcosystemConfig {
     pub name: String,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
+    pub bellman_cuda_dir: Option<PathBuf>,
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
@@ -64,6 +66,11 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
         D: Deserializer<'de>,
     {
         let config: EcosystemConfigInternal = Deserialize::deserialize(deserializer)?;
+        let bellman_cuda_dir = config.bellman_cuda_dir.map(|dir| {
+            dir.absolutize()
+                .expect("Failed to parse bellman-cuda path")
+                .to_path_buf()
+        });
         Ok(EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
@@ -72,6 +79,7 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
                 .to_path_buf(),
+            bellman_cuda_dir,
             chains: config.chains.clone(),
             config: config.config.clone(),
             default_chain: config.default_chain.clone(),
@@ -194,6 +202,11 @@ impl EcosystemConfig {
     }
 
     fn get_internal(&self) -> EcosystemConfigInternal {
+        let bellman_cuda_dir = self.bellman_cuda_dir.clone().map(|dir| {
+            dir.absolutize()
+                .expect("Failed to parse bellman-cuda path")
+                .to_path_buf()
+        });
         EcosystemConfigInternal {
             name: self.name.clone(),
             l1_network: self.l1_network,
@@ -202,6 +215,7 @@ impl EcosystemConfig {
                 .absolutize()
                 .expect("Failed to parse zksync-era path")
                 .into(),
+            bellman_cuda_dir,
             chains: self.chains.clone(),
             config: self.config.clone(),
             default_chain: self.default_chain.clone(),

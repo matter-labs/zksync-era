@@ -48,7 +48,7 @@ impl From<StorageWeb3Log> for api::Log {
             transaction_log_index: Some(U256::from(log.event_index_in_tx as u32)),
             log_type: None,
             removed: Some(false),
-            block_timestamp: log.block_timestamp,
+            block_timestamp: log.block_timestamp.map(|t| (t as u64).into()),
         }
     }
 }

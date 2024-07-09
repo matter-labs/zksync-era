@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL\n                AND id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\n                AND confirmed_eth_tx_history_id IS NULL\n                AND id <= (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -76,7 +76,6 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Bytea"
       ]
     },
@@ -97,5 +96,5 @@
       true
     ]
   },
-  "hash": "7e6e8cd0b5217616d847c0b7a62723b395d9b28ca025e6b0b1b7dc9ef93c6b81"
+  "hash": "6bb5eab89be2b08a08c00b5cd8d725208b0ecfe8065c8f893ff38c49072a21fc"
 }

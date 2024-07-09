@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use zksync_base_token_adjuster::DBBaseTokenRatioProvider;
+use zksync_config::BaseTokenAdjusterConfig;
 
 use crate::{
     implementations::resources::{
@@ -22,7 +23,15 @@ use crate::{
 /// If the base token is ETH, a default, no-op impl of the BaseTokenRatioProviderResource is used by other
 /// layers to always return a conversion ratio of 1.
 #[derive(Debug)]
-pub struct BaseTokenRatioProviderLayer;
+pub struct BaseTokenRatioProviderLayer {
+    config: BaseTokenAdjusterConfig,
+}
+
+impl BaseTokenRatioProviderLayer {
+    pub fn new(config: BaseTokenAdjusterConfig) -> Self {
+        Self { config }
+    }
+}
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -50,7 +59,7 @@ impl WiringLayer for BaseTokenRatioProviderLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool).await?;
+        let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool, self.config).await?;
         // Cloning the provided preserves the internal state.
         Ok(Output {
             ratio_provider: Arc::new(ratio_provider.clone()).into(),

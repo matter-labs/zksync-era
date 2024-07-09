@@ -174,6 +174,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         connection
             .proof_generation_dal()
+            .insert_proof_generation_details(l1_batch_number)
+            .await?;
+
+        connection
+            .proof_generation_dal()
             .save_vm_runner_artifacts_metadata(l1_batch_number, &blob_url)
             .await?;
 
