@@ -462,45 +462,38 @@ impl ConsensusDal<'_, '_> {
             .map(|number| attester::BatchNumber(number as u64)))
     }
 
-    /// Get the numbers of L1 batches which do not have a corresponding L1 quorum certificate
+    /// Get the earliest of L1 batch which does not have a corresponding quorum certificate
     /// and need signatures to be gossiped and collected.
     ///
     /// On the main node this means every L1 batch, because we need QC over all of them to be
     /// able to submit them to L1. Replicas don't necessarily have to have the QC, because once
     /// the batch is on L1 and it's final, they can get the batch from there and don't need the
-    /// attestations.
-    pub async fn unsigned_batch_numbers(
+    /// attestations. The caller will have to choose the `min_batch_number` accordingly.
+    pub async fn earliest_batch_number_to_sign(
         &mut self,
         min_batch_number: attester::BatchNumber,
-    ) -> DalResult<Vec<attester::BatchNumber>> {
-        Ok(sqlx::query!(
+    ) -> DalResult<Option<attester::BatchNumber>> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                b.number
+                MIN(b.number) AS "number"
             FROM
                 l1_batches b
+                LEFT JOIN l1_batches_consensus c ON b.number = c.l1_batch_number
             WHERE
                 b.number >= $1
-                AND NOT EXISTS (
-                    SELECT
-                        1
-                    FROM
-                        l1_batches_consensus c
-                    WHERE
-                        c.l1_batch_number = b.number
-                )
-            ORDER BY
-                b.number
+                AND c.l1_batch_number IS NULL
             "#,
             min_batch_number.0 as i64
         )
-        .instrument("unsigned_batch_numbers")
+        .instrument("earliest_batch_number_to_sign")
         .report_latency()
-        .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(|row| attester::BatchNumber(row.number as u64))
-        .collect())
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row
+            .number
+            .map(|number| attester::BatchNumber(number as u64)))
     }
 }
 
@@ -642,25 +635,23 @@ mod tests {
             .await
             .unwrap();
 
-        let num_batches = num_batches + 1;
-        let num_unsigned = num_batches - 1;
-
-        // Check how many unsigned L1 batches we can find.
-        for (i, (min_l1_batch_number, exp_num_unsigned)) in [
-            (0, num_unsigned),
-            (batch_number, 1),     // This one has the corresponding cert
-            (batch_number + 1, 1), // This is the one we inserted later
-            (batch_number + 2, 0), // Querying beyond the last one
+        // Check the earliest batch number to be signed at various points.
+        for (i, (min_l1_batch_number, want_earliest)) in [
+            (0, Some(batch_number - 2)), // We inserted 2 unsigned batches before the first cert
+            (batch_number, Some(batch_number + 1)), // This one has the corresponding cert
+            (batch_number + 1, Some(batch_number + 1)), // This is the one we inserted later without a cert
+            (batch_number + 2, None),                   // Querying beyond the last one
         ]
         .into_iter()
         .enumerate()
         {
-            let unsigned = conn
+            let min_batch_number = attester::BatchNumber(u64::from(min_l1_batch_number));
+            let earliest = conn
                 .consensus_dal()
-                .unsigned_batch_numbers(attester::BatchNumber(u64::from(min_l1_batch_number)))
+                .earliest_batch_number_to_sign(min_batch_number)
                 .await
                 .unwrap();
-            assert_eq!(unsigned.len(), exp_num_unsigned, "test case {i}");
+            assert_eq!(earliest.map(|n| n.0 as u32), want_earliest, "test case {i}");
         }
     }
 }
