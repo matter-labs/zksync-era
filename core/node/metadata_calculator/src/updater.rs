@@ -159,7 +159,11 @@ impl TreeUpdater {
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
-                    .insert_proof_generation_details(l1_batch_number, object_key)
+                    .insert_proof_generation_details(l1_batch_number)
+                    .await?;
+                storage
+                    .proof_generation_dal()
+                    .save_merkle_paths_artifacts_metadata(l1_batch_number, object_key)
                     .await?;
             }
             drop(storage);
