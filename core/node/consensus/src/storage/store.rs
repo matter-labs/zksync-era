@@ -349,19 +349,27 @@ impl PayloadManager for Store {
 // Dummy implementation
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
-    async fn last_batch(&self) -> attester::BatchNumber {
+    async fn last_batch(&self, _ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
         unimplemented!()
     }
-    async fn last_batch_qc(&self) -> attester::BatchQC {
+    async fn last_batch_qc(&self, _ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
         unimplemented!()
     }
-    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
-        None
+    async fn get_batch(
+        &self,
+        _ctx: &ctx::Ctx,
+        _number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::SyncBatch>> {
+        Ok(None)
     }
-    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
-        None
+    async fn get_batch_qc(
+        &self,
+        _ctx: &ctx::Ctx,
+        _number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        Ok(None)
     }
-    async fn store_qc(&self, _qc: attester::BatchQC) {
+    async fn store_qc(&self, _ctx: &ctx::Ctx, _qc: attester::BatchQC) -> ctx::Result<()> {
         unimplemented!()
     }
     fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
