@@ -475,6 +475,7 @@ mod tests {
             transaction_log_index: Default::default(),
             log_type: Default::default(),
             removed: Default::default(),
+            block_timestamp: Default::default(),
         };
         let decoded_op: GovernanceOperation = correct_log.clone().try_into().unwrap();
         assert_eq!(decoded_op.calls.len(), 1);

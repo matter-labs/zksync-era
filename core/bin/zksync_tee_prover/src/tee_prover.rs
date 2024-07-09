@@ -181,7 +181,7 @@ impl Task for TeeProver {
                 return Ok(());
             }
             let result = self.step().await;
-            match result {
+            let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
                     backoff = self.config.initial_retry_backoff;
@@ -191,6 +191,9 @@ impl Task for TeeProver {
                         METRICS
                             .last_batch_number_processed
                             .set(batch_number.0 as u64);
+                        false
+                    } else {
+                        true
                     }
                 }
                 Err(err) => {
@@ -200,14 +203,17 @@ impl Task for TeeProver {
                     }
                     retries += 1;
                     tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
-                    tokio::time::timeout(backoff, stop_receiver.0.changed())
-                        .await
-                        .ok();
                     backoff = std::cmp::min(
                         backoff.mul_f32(self.config.retry_backoff_multiplier),
                         self.config.max_backoff,
                     );
+                    true
                 }
+            };
+            if need_to_sleep {
+                tokio::time::timeout(backoff, stop_receiver.0.changed())
+                    .await
+                    .ok();
             }
         }
     }

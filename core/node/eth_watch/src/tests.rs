@@ -514,6 +514,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
         transaction_log_index: Some(0u64.into()),
         log_type: None,
         removed: None,
+        block_timestamp: None,
     }
 }
 
@@ -558,6 +559,7 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         transaction_log_index: Some(0u64.into()),
         log_type: None,
         removed: None,
+        block_timestamp: None,
     }
 }
 

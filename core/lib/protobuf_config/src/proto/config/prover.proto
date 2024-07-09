@@ -81,6 +81,7 @@ message WitnessGenerator {
   optional uint32 node_generation_timeout_in_secs = 10; // optional;
   optional uint32 scheduler_generation_timeout_in_secs = 11; // optional;
   optional uint32 recursion_tip_timeout_in_secs = 12; // optional;
+  optional uint32 prometheus_listener_port = 13; // optional;
   reserved 3, 4, 6;
   reserved "dump_arguments_for_blocks", "force_process_block", "blocks_proving_percentage";
 }
