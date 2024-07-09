@@ -123,7 +123,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);
                         log.l1_batch_number = receipt.l1_batch_number;
-                        log.block_timestamp = block_timestamp;
+                        log.block_timestamp = block_timestamp.map(|t| (t as u64).into());
                         log
                     })
                     .collect();

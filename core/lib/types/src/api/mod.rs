@@ -445,7 +445,7 @@ pub struct Log {
     pub removed: Option<bool>,
     /// L2 block timestamp
     #[serde(rename = "blockTimestamp")]
-    pub block_timestamp: Option<i64>,
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {
