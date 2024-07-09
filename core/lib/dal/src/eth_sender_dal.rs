@@ -41,8 +41,10 @@ impl EthSenderDal<'_, '_> {
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
                         eth_txs_history
+                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
-                        sent_at_block IS NOT NULL
+                        eth_txs_history.sent_at_block IS NOT NULL
+                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1
                 )
             ORDER BY
                 id
@@ -145,6 +147,10 @@ impl EthSenderDal<'_, '_> {
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
                         eth_txs_history
+                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
+                    WHERE
+                        eth_txs_history.sent_at_block IS NOT NULL
+                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                 )
             ORDER BY
                 id

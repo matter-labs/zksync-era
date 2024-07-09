@@ -58,6 +58,7 @@ impl From<&VmEvent> for Log {
             transaction_log_index: None,
             log_type: None,
             removed: Some(false),
+            block_timestamp: None,
         }
     }
 }
