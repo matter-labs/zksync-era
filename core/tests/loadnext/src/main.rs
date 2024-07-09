@@ -62,15 +62,24 @@ async fn main() -> anyhow::Result<()> {
     let mut executor = Executor::new(config, execution_config).await?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    if let Some(prometheus_config) = prometheus_config {
-        let exporter_config = PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        );
+    if prometheus_config
+        .and_then(|prometheus_config| {
+            prometheus_config
+                .gateway_endpoint()
+                .map(|gateway_endpoint| {
+                    let exporter_config = PrometheusExporterConfig::push(
+                        gateway_endpoint,
+                        prometheus_config.push_interval(),
+                    );
 
-        tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        tokio::spawn(exporter_config.run(stop_receiver));
-    } else {
+                    tracing::info!(
+                        "Starting prometheus exporter with config {prometheus_config:?}"
+                    );
+                    tokio::spawn(exporter_config.run(stop_receiver));
+                })
+        })
+        .is_none()
+    {
         tracing::info!("Starting without prometheus exporter");
     }
 

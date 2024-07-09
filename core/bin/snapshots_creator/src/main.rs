@@ -32,10 +32,12 @@ async fn maybe_enable_prometheus_metrics(
 ) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
     let prometheus_config = PrometheusConfig::from_env().ok();
     if let Some(prometheus_config) = prometheus_config {
-        let exporter_config = PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        );
+        let Some(gateway_endpoint) = prometheus_config.gateway_endpoint() else {
+            tracing::info!("Starting without prometheus exporter");
+            return Ok(None);
+        };
+        let exporter_config =
+            PrometheusExporterConfig::push(gateway_endpoint, prometheus_config.push_interval());
 
         tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
         let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
