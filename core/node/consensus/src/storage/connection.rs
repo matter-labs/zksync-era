@@ -365,8 +365,8 @@ impl<'a> Connection<'a> {
 
         // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
         // It is supposed to be a Merkle proof that the rolling hash of the batch has been included
-        // in the L1 state tree. The state root hash of L1 won't be available in the DB, it requires
-        // an API client.
+        // in the L1 system contract state tree. It is *not* the Ethereum state root hash, so producing
+        // it can be done without an L1 client, which is only required for validation.
         let batch = attester::SyncBatch {
             number,
             payloads,
