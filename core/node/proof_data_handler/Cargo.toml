@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+vise.workspace = true
 zksync_config.workspace = true
 zksync_dal.workspace = true
 zksync_object_store.workspace = true
