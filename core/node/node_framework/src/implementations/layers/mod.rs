@@ -1,8 +1,6 @@
-pub mod base_token_ratio_persister;
-pub mod base_token_ratio_provider;
+pub mod base_token;
 pub mod batch_status_updater;
 pub mod circuit_breaker_checker;
-pub mod coingecko_client;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
@@ -17,7 +15,6 @@ pub mod l1_gas;
 pub mod main_node_client;
 pub mod main_node_fee_params_fetcher;
 pub mod metadata_calculator;
-pub mod no_op_external_price_api_client;
 pub mod object_store;
 pub mod pk_signing_eth_client;
 pub mod pools_layer;

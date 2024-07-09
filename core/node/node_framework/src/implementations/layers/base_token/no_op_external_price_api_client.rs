@@ -14,6 +14,12 @@ use crate::{
 #[derive(Debug)]
 pub struct NoOpExternalPriceApiClientLayer;
 
+impl NoOpExternalPriceApiClientLayer {
+    /// Identifier of used client type.
+    /// Can be used to choose the layer for the client based on configuration variables.
+    pub const CLIENT_NAME: &'static str = "no-op";
+}
+
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {

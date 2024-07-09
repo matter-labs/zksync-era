@@ -18,6 +18,12 @@ pub struct CoingeckoClientLayer {
     config: ExternalPriceApiClientConfig,
 }
 
+impl CoingeckoClientLayer {
+    /// Identifier of used client type.
+    /// Can be used to choose the layer for the client based on configuration variables.
+    pub const CLIENT_NAME: &'static str = "coingecko";
+}
+
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {

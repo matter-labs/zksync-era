@@ -21,10 +21,13 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-        base_token_ratio_provider::BaseTokenRatioProviderLayer,
+        base_token::{
+            base_token_ratio_persister::BaseTokenRatioPersisterLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer,
+            coingecko_client::CoingeckoClientLayer,
+            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+        },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
-        coingecko_client::CoingeckoClientLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
@@ -36,7 +39,6 @@ use zksync_node_framework::{
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
-        no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -515,10 +517,19 @@ impl MainNodeBuilder {
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        if config.source == "no-op" {
-            self.node.add_layer(NoOpExternalPriceApiClientLayer {});
-        } else {
-            self.node.add_layer(CoingeckoClientLayer::new(config));
+        match config.source.as_str() {
+            CoingeckoClientLayer::CLIENT_NAME => {
+                self.node.add_layer(CoingeckoClientLayer::new(config));
+            }
+            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
+                self.node.add_layer(NoOpExternalPriceApiClientLayer);
+            }
+            _ => {
+                anyhow::bail!(
+                    "Unknown external price API client source: {}",
+                    config.source
+                );
+            }
         }
 
         Ok(self)
