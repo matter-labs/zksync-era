@@ -500,66 +500,67 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
             track_refunds = true;
-            // Create a snapshot to roll back the bootloader call frame on halt.
-            self.make_snapshot();
         }
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata.0;
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
-        if matches!(execution_mode, VmExecutionMode::OneTx) {
-            if matches!(result, ExecutionResult::Halt { .. }) {
-                // Only `Halt`ed executions need a rollback; `Revert`s are correctly handled by the bootloader
-                // so the bootloader / system contract state should be persisted.
-                self.rollback_to_the_latest_snapshot();
-            } else {
-                self.pop_snapshot_no_rollback();
-            }
-        }
+        let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
+            && matches!(result, ExecutionResult::Halt { .. });
 
-        let events = merge_events(
-            self.inner.world_diff.events_after(&start),
-            self.batch_env.number,
-        );
-        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
-            .into_iter()
-            .map(Into::into)
-            .map(UserL2ToL1Log)
-            .collect();
-        let pubdata_after = self.inner.world_diff.pubdata.0;
-
-        VmExecutionResultAndLogs {
-            result,
-            logs: VmExecutionLogs {
-                storage_logs: self
-                    .inner
-                    .world_diff
-                    .get_storage_changes_after(&start)
-                    .map(|((address, key), change)| StorageLogWithPreviousValue {
-                        log: StorageLog {
-                            key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                            value: u256_to_h256(change.after),
-                            kind: if change.is_initial {
-                                StorageLogKind::InitialWrite
-                            } else {
-                                StorageLogKind::RepeatedWrite
-                            },
+        // If the execution is halted, the VM changes are expected to be rolled back by the caller.
+        // Earlier VMs return empty execution logs in this case, so we follow this behavior.
+        let logs = if ignore_world_diff {
+            VmExecutionLogs::default()
+        } else {
+            let storage_logs = self
+                .inner
+                .world_diff
+                .get_storage_changes_after(&start)
+                .map(|((address, key), change)| StorageLogWithPreviousValue {
+                    log: StorageLog {
+                        key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                        value: u256_to_h256(change.after),
+                        kind: if change.is_initial {
+                            StorageLogKind::InitialWrite
+                        } else {
+                            StorageLogKind::RepeatedWrite
                         },
-                        previous_value: u256_to_h256(change.before.unwrap_or_default()),
-                    })
-                    .collect(),
+                    },
+                    previous_value: u256_to_h256(change.before.unwrap_or_default()),
+                })
+                .collect();
+            let events = merge_events(
+                self.inner.world_diff.events_after(&start),
+                self.batch_env.number,
+            );
+            let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+                .into_iter()
+                .map(Into::into)
+                .map(UserL2ToL1Log)
+                .collect();
+            let system_l2_to_l1_logs = self
+                .inner
+                .world_diff
+                .l2_to_l1_logs_after(&start)
+                .iter()
+                .map(|x| x.glue_into())
+                .collect();
+            VmExecutionLogs {
+                storage_logs,
                 events,
                 user_l2_to_l1_logs,
-                system_l2_to_l1_logs: self
-                    .inner
-                    .world_diff
-                    .l2_to_l1_logs_after(&start)
-                    .iter()
-                    .map(|x| x.glue_into())
-                    .collect(),
+                system_l2_to_l1_logs,
                 total_log_queries_count: 0, // This field is unused
-            },
+            }
+        };
+
+        // FIXME: are statistics rolled back on halt as well?
+        let pubdata_after = self.inner.world_diff.pubdata.0;
+        VmExecutionResultAndLogs {
+            result,
+            logs,
             statistics: VmExecutionStatistics {
                 contracts_used: 0,         // TODO
                 cycles_used: 0,            // TODO
