@@ -125,7 +125,7 @@ function fetchEnv(zksyncEnv: string): any {
 }
 
 async function runBlockReverter(args: string[]): Promise<string> {
-    let env = fetchEnv(mainEnv);
+    let env = fetchEnv(extEnv);
 
     let fileConfigFlags = '';
     if (fileConfig.loadFromFile) {
