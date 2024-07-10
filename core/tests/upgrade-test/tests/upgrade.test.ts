@@ -313,6 +313,7 @@ describe('Upgrade test', function () {
 
         const tx: ethers.TransactionRequest = {
             to: await governanceContract.getAddress(),
+            from: govWallet.address,
             data: data,
             type: 0
         };
