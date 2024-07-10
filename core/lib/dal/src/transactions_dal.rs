@@ -676,7 +676,7 @@ impl TransactionsDal<'_, '_> {
         .fetch_optional(self.storage)
         .await
         .map(|option_record| option_record.map(|record| record.is_replaced));
-        
+
         let l2_tx_insertion_result = match query_result {
             Ok(option_query_result) => match option_query_result {
                 Some(true) => L2TxSubmissionResult::Replaced,
