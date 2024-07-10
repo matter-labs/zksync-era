@@ -20,15 +20,20 @@ export function background({
 
 export function runInBackground({
     command,
+    components,
     stdio,
     cwd,
     env
 }: {
     command: string;
+    components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
 }) {
+    if (components && components.length > 0) {
+        command += ` --components=${components.join(',')}`;
+    }
     background({ command, stdio, cwd, env });
 }
 
@@ -46,10 +51,7 @@ export function runServerInBackground({
     useZkInception?: boolean;
 }) {
     let command = useZkInception ? 'zk_inception server' : 'zk server';
-    if (components && components.length > 0) {
-        command += ` --components=${components.join(',')}`;
-    }
-    runInBackground({ command, stdio, cwd, env });
+    runInBackground({ command, components, stdio, cwd, env });
 }
 
 export function runExternalNodeInBackground({
@@ -66,10 +68,7 @@ export function runExternalNodeInBackground({
     useZkInception?: boolean;
 }) {
     let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
-    if (components && components.length > 0) {
-        command += ` --components=${components.join(',')}`;
-    }
-    runInBackground({ command, stdio, cwd, env });
+    runInBackground({ command, components, stdio, cwd, env });
 }
 
 // async executor of shell commands
