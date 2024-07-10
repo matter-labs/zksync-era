@@ -353,3 +353,18 @@ where
         Ok(block)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_web3_decl::client::{Client, L1};
+
+    /// This test makes sure that we can instantiate a client with an HTTPS provider.
+    /// The need for this test was caused by feature collisions for `rustls` in our dependency graph,
+    /// which caused this test to panic.
+    #[tokio::test]
+    async fn test_https_provider() {
+        let url = "https://rpc.flashbots.net/";
+        let _client = Client::<L1>::http(url.parse().unwrap()).unwrap().build();
+        // No need to do anything; if the client was created and we didn't panic, we're good.
+    }
+}
