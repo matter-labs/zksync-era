@@ -8108,9 +8108,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28279a743cd2ec5a0e3f0fec31b2e4fdd509d0b513e0aaeb000200ce464123e5"
+checksum = "1af85d9a31c534a29877c88474cf5f1c46ad25f7c48efff61ea40f4aa83c5459"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8142,9 +8142,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "011210cdeb207516fe95ec2c8a77b3c36e444e2cd17e7db57afdc55a263025d6"
+checksum = "ddbee11ed4fafe461092fb73d3879325f08243fe50351baab6b5f593fee88f06"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8164,9 +8164,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dbbc36ff78548f022192f20fb76909b1b0a460fc85289ccc54ce0ce54263165"
+checksum = "7b3867f9b4778616d87f157d1049e47290a3bca5ec9db208164f8902524ae92c"
 dependencies = [
  "anyhow",
  "blst",
@@ -8188,9 +8188,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f6811105b9b0fffb5983382c504d466a415f41f4a3b0f6743837bcbfc0b332"
+checksum = "2e7d50aa34616a9c1f4cdc7c47aae2df61474e137e41125c9d5fbfc1e5a1faaa"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8208,9 +8208,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e79538ef206af7006c94c8d047582cf214ac493f7dd8340d40cace4f248d8c35"
+checksum = "ced7deafe460c74321edf79486980f9f75da121a1e52e5805392946dabafdf82"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8243,9 +8243,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0070c54eed2f5cf26e76d9ec3ccdf05fdafb18c0712c8d97ef4987634972396"
+checksum = "55dacdf1bad5d9efe7dd9db200421afa0c3bf5cfc7fdce4a64720a5dd0685807"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8265,9 +8265,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d221fbd8e22f49175132c252a4923a945c1fa4a548ad66c3fc0366789cc9e53"
+checksum = "f796020459775391094b9dcd133f01b5127059fe167cf412b2d1aed23fe0e52f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8277,6 +8277,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_protobuf",
  "zksync_protobuf_build",
@@ -8284,9 +8285,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7c3d9b3b6b795ce16e0ead2b8813a2f7a1a01c9a9e3fb50993d6ecbfcdbca98"
+checksum = "587de103f745d0b88b49a9fb98cb002c4b7ce6ad042e17845091dce67b8aa984"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9231,9 +9232,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fe77d262206bb22f4bc26e75b68466b2e7043baa4963fe97190ce8540a5d700"
+checksum = "d86baa84d8bbbbeea269c0f99aca88364e4fd2a08e6ae7051ff87317132b4ef9"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9252,9 +9253,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1205d607aa7291e3e016ce202d97cd7eb7d232913076dd873cbe48d564bf656"
+checksum = "f221ce83f4622c3d8732d09f4461d116d7b10f1cc9d1d1cd014c1fa836c168e6"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
