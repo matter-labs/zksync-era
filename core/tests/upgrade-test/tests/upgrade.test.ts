@@ -299,13 +299,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await govWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        if (!govWallet.provider) {
+            throw new Error('Wallet should have provider');
+        }
+        const feeData = await govWallet.provider.getFeeData();
+        if (!feeData) {
+            throw new Error('Failed to get fee data');
+        }
+        if (!feeData.gasPrice) {
+            throw new Error('Failed to get gas price');
+        }
+        const gasPrice = (feeData.gasPrice * 140n) / 100n;
+
+        const tx: ethers.TransactionRequest = {
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        };
+        const gasLimit = await govWallet.provider.estimateGas(tx);
+        await (await govWallet.sendTransaction({ ...tx, gasPrice, gasLimit })).wait();
     }
 });
 
