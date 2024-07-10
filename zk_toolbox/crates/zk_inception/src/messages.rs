@@ -275,3 +275,7 @@ pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code alread
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
 }
+
+/// Contract verifier related messages
+pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
+pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";

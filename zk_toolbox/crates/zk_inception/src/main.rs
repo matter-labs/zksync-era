@@ -48,6 +48,8 @@ pub enum InceptionSubcommands {
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
     Containers,
+    /// Run contract verifier
+    ContractVerifier,
 }
 
 #[derive(Parser, Debug)]
@@ -102,6 +104,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ExternalNode(args) => {
             commands::external_node::run(shell, args).await?
         }
+        InceptionSubcommands::ContractVerifier => commands::contract_verifier::run(shell).await?,
     }
     Ok(())
 }
