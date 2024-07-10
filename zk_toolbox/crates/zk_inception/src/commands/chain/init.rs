@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
@@ -15,7 +14,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,
@@ -26,9 +25,9 @@ use crate::{
         initialize_bridges,
     },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_BUILDING_L1_CONTRACTS,
-        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER,
+        MSG_SELECTED_CONFIG,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
