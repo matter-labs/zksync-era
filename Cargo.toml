@@ -30,6 +30,7 @@ members = [
     "core/node/consistency_checker",
     "core/node/metadata_calculator",
     "core/node/node_sync",
+    "core/node/node_storage_init",
     "core/node/consensus",
     "core/node/contract_verification_server",
     "core/node/api_server",
@@ -149,6 +150,7 @@ reqwest = "0.12"
 rlp = "0.5"
 rocksdb = "0.21.0"
 rustc_version = "0.4.0"
+rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
 secrecy = "0.8.0"
 semver = "1"
@@ -178,6 +180,7 @@ tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.21.0"
 url = "2"
 web3 = "0.19.0"
+fraction = "0.15.3"
 
 # Proc-macro
 syn = "2.0"
@@ -277,8 +280,9 @@ zksync_reorg_detector = { path = "core/node/reorg_detector" }
 zksync_consistency_checker = { path = "core/node/consistency_checker" }
 zksync_metadata_calculator = { path = "core/node/metadata_calculator" }
 zksync_node_sync = { path = "core/node/node_sync" }
+zksync_node_storage_init = { path = "core/node/node_storage_init" }
 zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }
-zksync_base_token_adjuster = {path = "core/node/base_token_adjuster"}
+zksync_base_token_adjuster = { path = "core/node/base_token_adjuster" }

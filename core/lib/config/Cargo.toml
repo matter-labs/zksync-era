@@ -15,6 +15,7 @@ zksync_crypto_primitives.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_concurrency.workspace = true
 
+url.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 secrecy.workspace = true

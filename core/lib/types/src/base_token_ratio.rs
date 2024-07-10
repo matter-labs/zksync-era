@@ -13,10 +13,20 @@ pub struct BaseTokenRatio {
 }
 
 /// Struct to represent API response containing denominator, numerator, and timestamp.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BaseTokenAPIRatio {
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,
-    /// Either the timestamp of the quote or the timestamp of the request.
+    // Either the timestamp of the quote or the timestamp of the request.
     pub ratio_timestamp: DateTime<Utc>,
+}
+
+impl Default for BaseTokenAPIRatio {
+    fn default() -> Self {
+        Self {
+            numerator: NonZeroU64::new(1).unwrap(),
+            denominator: NonZeroU64::new(1).unwrap(),
+            ratio_timestamp: Utc::now(),
+        }
+    }
 }

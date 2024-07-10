@@ -54,6 +54,8 @@ impl ProtoRepr for proto::GeneralConfig {
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
             snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
                 .context("snapshot_recovery")?,
+            external_price_api_client_config: read_optional_repr(&self.external_price_api_client)
+                .context("external_price_api_client")?,
         })
     }
 
@@ -99,6 +101,10 @@ impl ProtoRepr for proto::GeneralConfig {
             pruning: this.pruning.as_ref().map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
             base_token_adjuster: this.base_token_adjuster.as_ref().map(ProtoRepr::build),
+            external_price_api_client: this
+                .external_price_api_client_config
+                .as_ref()
+                .map(ProtoRepr::build),
         }
     }
 }

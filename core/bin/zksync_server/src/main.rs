@@ -12,21 +12,20 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
     SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    genesis_init, is_genesis_needed,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_eth_client::clients::Client;
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -42,13 +41,10 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Rebuild tree.
-    #[arg(long)]
-    rebuild_tree: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,base_token_ratio_persister"
+        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -180,18 +176,6 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    run_genesis_if_needed(opt.genesis, &genesis, &contracts_config, &secrets)?;
-    if opt.genesis {
-        // If genesis is requested, we don't need to run the node.
-        return Ok(());
-    }
-
-    let components = if opt.rebuild_tree {
-        vec![Component::Tree]
-    } else {
-        opt.components.0
-    };
-
     let node = MainNodeBuilder::new(
         configs,
         wallets,
@@ -199,46 +183,16 @@ fn main() -> anyhow::Result<()> {
         contracts_config,
         secrets,
         consensus,
-    )
-    .build(components)?;
-    node.run()?;
+    );
+
+    if opt.genesis {
+        // If genesis is requested, we don't need to run the node.
+        node.only_genesis()?.run()?;
+        return Ok(());
+    }
+
+    node.build(opt.components.0)?.run()?;
     Ok(())
-}
-
-fn run_genesis_if_needed(
-    force_genesis: bool,
-    genesis: &GenesisConfig,
-    contracts_config: &ContractsConfig,
-    secrets: &Secrets,
-) -> anyhow::Result<()> {
-    let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-    tokio_runtime.block_on(async move {
-        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
-        if force_genesis || is_genesis_needed(&database_secrets).await {
-            genesis_init(genesis.clone(), &database_secrets)
-                .await
-                .context("genesis_init")?;
-
-            if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-                let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
-                let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
-                    .context("Ethereum client")?
-                    .for_network(genesis.l1_chain_id.into())
-                    .build();
-                zksync_node_genesis::save_set_chain_id_tx(
-                    &query_client,
-                    contracts_config.diamond_proxy_addr,
-                    ecosystem_contracts.state_transition_proxy_addr,
-                    &database_secrets,
-                )
-                .await
-                .context("Failed to save SetChainId upgrade transaction")?;
-            }
-        }
-        Ok(())
-    })
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {
@@ -277,5 +231,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
     })
 }

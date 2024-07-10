@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_executor::{self as executor};
+use zksync_consensus_executor::{self as executor, Attester};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
 
@@ -23,6 +23,8 @@ pub async fn run_main_node(
         .context("validator_key")?
         .context("missing validator_key")?;
 
+    let attester_key_opt = config::attester_key(&secrets).context("attester_key")?;
+
     scope::run!(&ctx, |ctx, s| async {
         if let Some(spec) = &cfg.genesis_spec {
             let spec = config::GenesisSpec::parse(spec).context("GenesisSpec::parse()")?;
@@ -35,6 +37,7 @@ pub async fn run_main_node(
                 .wrap("adjust_genesis()")?;
         }
 
+        // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
         let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
 
@@ -49,22 +52,21 @@ pub async fn run_main_node(
             "unsupported leader selection mode - main node has to be the leader"
         );
 
-        // Dummy batch store - we don't gossip batches yet, but we need one anyway.
         let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BatchStore::new()")?;
-        s.spawn_bg(async { runner.run(ctx).await.context("BatchStore::runner()") });
+        s.spawn_bg(runner.run(ctx));
 
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
             block_store,
             batch_store,
-            attester: None,
             validator: Some(executor::Validator {
                 key: validator_key,
                 replica_store: Box::new(store.clone()),
                 payload_manager: Box::new(store.clone()),
             }),
+            attester: attester_key_opt.map(|key| Attester { key }),
         };
         executor.run(ctx).await
     })

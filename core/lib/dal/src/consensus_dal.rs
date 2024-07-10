@@ -1,12 +1,13 @@
 use anyhow::Context as _;
-use zksync_consensus_roles::validator;
+use bigdecimal::Zero;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 pub use crate::consensus::Payload;
 use crate::{Core, CoreDal};
@@ -20,7 +21,7 @@ pub struct ConsensusDal<'a, 'c> {
 /// Error returned by `ConsensusDal::insert_certificate()`.
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
-    #[error("corresponding L2 block is missing")]
+    #[error("corresponding payload is missing")]
     MissingPayload,
     #[error("certificate doesn't match the payload")]
     PayloadMismatch,
@@ -236,7 +237,7 @@ impl ConsensusDal<'_, '_> {
     /// Fetches the last consensus certificate.
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
     /// so it might NOT be the certificate for the last L2 block.
-    pub async fn certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
+    pub async fn block_certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
         // It cannot be older than genesis first block.
         let mut start = self.genesis().await?.context("genesis()")?.first_block;
         start = start.max(self.first_block().await.context("first_block()")?);
@@ -255,7 +256,7 @@ impl ConsensusDal<'_, '_> {
             "#,
             i64::try_from(start.0)?,
         )
-        .instrument("last_certificate")
+        .instrument("block_certificate_range")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;
@@ -268,7 +269,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the consensus certificate for the L2 block with the given `block_number`.
-    pub async fn certificate(
+    pub async fn block_certificate(
         &mut self,
         block_number: validator::BlockNumber,
     ) -> anyhow::Result<Option<validator::CommitQC>> {
@@ -283,7 +284,33 @@ impl ConsensusDal<'_, '_> {
             "#,
             i64::try_from(block_number.0)?
         )
-        .instrument("certificate")
+        .instrument("block_certificate")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+    }
+
+    /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
+    pub async fn batch_certificate(
+        &mut self,
+        batch_number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<attester::BatchQC>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                certificate
+            FROM
+                l1_batches_consensus
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(batch_number.0)?
+        )
+        .instrument("batch_certificate")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
@@ -345,7 +372,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Inserts a certificate for the L2 block `cert.header().number`.
     /// Fails if certificate doesn't match the stored block.
-    pub async fn insert_certificate(
+    pub async fn insert_block_certificate(
         &mut self,
         cert: &validator::CommitQC,
     ) -> Result<(), InsertCertificateError> {
@@ -370,22 +397,102 @@ impl ConsensusDal<'_, '_> {
             header.number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
-        .instrument("insert_certificate")
+        .instrument("insert_block_certificate")
         .report_latency()
         .execute(&mut txn)
         .await?;
         txn.commit().await.context("commit")?;
         Ok(())
     }
+
+    /// Inserts a certificate for the L1 batch.
+    ///
+    /// Insertion is allowed even if it creates gaps in the L1 batch history.
+    ///
+    /// It fails if the batch payload is missing or it's not consistent with the QC.
+    pub async fn insert_batch_certificate(
+        &mut self,
+        cert: &attester::BatchQC,
+    ) -> Result<(), InsertCertificateError> {
+        use InsertCertificateError as E;
+        let mut txn = self.storage.start_transaction().await?;
+
+        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
+        let _l1_batch_header = txn
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await?
+            .ok_or(E::MissingPayload)?;
+
+        // TODO: Verify that the certificate matches the stored batch:
+        // * add the hash of the batch to the `BatchQC`
+        // * find out which field in the `l1_batches` table contains the hash we need to match
+        // * ideally move the responsibility of validation outside this method
+
+        // if header.payload != want_payload.encode().hash() {
+        //     return Err(E::PayloadMismatch);
+        // }
+
+        let res = sqlx::query!(
+            r#"
+            INSERT INTO
+                l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            i64::from(l1_batch_number.0),
+            zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
+        )
+        .instrument("insert_batch_certificate")
+        .report_latency()
+        .execute(&mut txn)
+        .await?;
+
+        if res.rows_affected().is_zero() {
+            tracing::debug!(%l1_batch_number, "duplicate batch certificate");
+        }
+
+        txn.commit().await.context("commit")?;
+
+        Ok(())
+    }
+
+    /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
+    /// depending on the order in which votes have been collected over gossip by consensus.
+    pub async fn get_last_batch_certificate_number(
+        &mut self,
+    ) -> DalResult<Option<attester::BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                l1_batches_consensus
+            "#
+        )
+        .instrument("get_last_batch_certificate_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row
+            .number
+            .map(|number| attester::BatchNumber(number as u64)))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rand::Rng as _;
-    use zksync_consensus_roles::validator;
+    use zksync_consensus_roles::{attester, validator};
     use zksync_consensus_storage::ReplicaState;
+    use zksync_types::{L1BatchNumber, ProtocolVersion};
 
-    use crate::{ConnectionPool, Core, CoreDal};
+    use crate::{
+        tests::{create_l1_batch_header, create_l2_block_header},
+        ConnectionPool, Core, CoreDal,
+    };
 
     #[tokio::test]
     async fn replica_state_read_write() {
@@ -420,5 +527,90 @@ mod tests {
                 assert_eq!(want, conn.consensus_dal().replica_state().await.unwrap());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_batch_certificate() {
+        let rng = &mut rand::thread_rng();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let mut mock_batch_qc = |number: L1BatchNumber| {
+            let mut cert: attester::BatchQC = rng.gen();
+            cert.message.number.0 = u64::from(number.0);
+            cert.signatures.add(rng.gen(), rng.gen());
+            cert
+        };
+
+        // Required for inserting l2 blocks
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        // Insert some mock L2 blocks and L1 batches
+        let mut block_number = 0;
+        let mut batch_number = 0;
+        for _ in 0..3 {
+            for _ in 0..3 {
+                block_number += 1;
+                let l2_block = create_l2_block_header(block_number);
+                conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
+            }
+            batch_number += 1;
+            let l1_batch = create_l1_batch_header(batch_number);
+
+            conn.blocks_dal()
+                .insert_mock_l1_batch(&l1_batch)
+                .await
+                .unwrap();
+
+            conn.blocks_dal()
+                .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.number)
+                .await
+                .unwrap();
+        }
+
+        let l1_batch_number = L1BatchNumber(batch_number);
+
+        // Insert a batch certificate for the last L1 batch.
+        let cert1 = mock_batch_qc(l1_batch_number);
+
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert1)
+            .await
+            .unwrap();
+
+        // Try insert duplicate batch certificate for the same batch.
+        let cert2 = mock_batch_qc(l1_batch_number);
+
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert2)
+            .await
+            .unwrap();
+
+        // Retrieve the latest certificate.
+        let number = conn
+            .consensus_dal()
+            .get_last_batch_certificate_number()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let cert = conn
+            .consensus_dal()
+            .batch_certificate(number)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cert, cert1, "duplicates are ignored");
+
+        // Try insert batch certificate for non-existing batch
+        let cert3 = mock_batch_qc(l1_batch_number.next());
+        conn.consensus_dal()
+            .insert_batch_certificate(&cert3)
+            .await
+            .expect_err("missing payload");
     }
 }

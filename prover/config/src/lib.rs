@@ -9,10 +9,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         BaseTokenAdjusterConfig, BasicWitnessInputProducerConfig, DADispatcherConfig,
-        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObjectStoreConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig,
+        DatabaseSecrets, ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
     PostgresConfig, SnapshotsCreatorConfig,
@@ -57,6 +57,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
     })
 }
 
