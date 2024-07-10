@@ -8,18 +8,16 @@ export function runServerInBackground({
     components,
     stdio,
     cwd,
-    env,
     useZkInception
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
 }) {
     let command = useZkInception ? BASE_COMMAND : BASE_COMMAND_WITH_ZK;
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
     }
-    background({ command, stdio, cwd, env });
+    background({ command, stdio, cwd });
 }

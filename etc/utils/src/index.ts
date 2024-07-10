@@ -56,16 +56,14 @@ export function spawn(command: string) {
 export function background({
     command,
     stdio = 'inherit',
-    cwd,
-    env
+    cwd
 }: {
     command: string;
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
-    env?: ProcessEnvOptions['env'];
 }) {
     command = command.replace(/\n/g, ' ');
-    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd });
 }
 
 export async function confirmAction() {

@@ -5,6 +5,7 @@
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 import * as utils from 'utils';
 import { Tester } from './tester';
+import { exec, runServerInBackground, runExternalNodeInBackground } from './utils';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect, assert } from 'chai';
@@ -13,8 +14,6 @@ import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
 import { getAllConfigsPath, loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
-import { runServerInBackground } from 'utils/build/server';
-import { background } from 'utils';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -126,6 +125,8 @@ function fetchEnv(zksyncEnv: string): any {
 }
 
 async function runBlockReverter(args: string[]): Promise<string> {
+    let env = fetchEnv(mainEnv);
+
     let fileConfigFlags = '';
     if (fileConfig.loadFromFile) {
         const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
@@ -141,7 +142,7 @@ async function runBlockReverter(args: string[]): Promise<string> {
     const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
-    const executedProcess = await utils.exec(cmd);
+    const executedProcess = await exec(cmd, env);
 
     return executedProcess.stdout;
 }
@@ -162,21 +163,6 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
     }
     // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
     throw new Error("Server didn't stop after a kill request");
-}
-
-export function runExternalNodeInBackground({
-    stdio,
-    cwd,
-    env,
-    useZkInception
-}: {
-    stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-    useZkInception?: boolean;
-}) {
-    let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
-    background({ command, stdio, cwd, env });
 }
 
 class MainNode {
