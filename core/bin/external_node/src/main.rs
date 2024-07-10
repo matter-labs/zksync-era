@@ -848,7 +848,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     RUST_METRICS.initialize();
-    EN_METRICS.observe_config(&config);
+    EN_METRICS.observe_config(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        config.postgres.max_connections,
+    );
 
     let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(

@@ -55,6 +55,7 @@ use zksync_state::RocksdbStorageOptions;
 
 use crate::{
     config::{self, ExternalNodeConfig},
+    metrics::framework::ExternalNodeMetricsLayer,
     Component,
 };
 
@@ -112,6 +113,15 @@ impl ExternalNodeBuilder {
 
     fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresMetricsLayer);
+        Ok(self)
+    }
+
+    fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ExternalNodeMetricsLayer {
+            l1_chain_id: self.config.required.l1_chain_id,
+            l2_chain_id: self.config.required.l2_chain_id,
+            postgres_pool_size: self.config.postgres.max_connections,
+        });
         Ok(self)
     }
 
@@ -539,7 +549,9 @@ impl ExternalNodeBuilder {
                     // Core is a singleton & mandatory component,
                     // so until we have a dedicated component for "auxiliary" tasks,
                     // it's responsible for things like metrics.
-                    self = self.add_postgres_metrics_layer()?;
+                    self = self
+                        .add_postgres_metrics_layer()?
+                        .add_external_node_metrics_layer()?;
 
                     // Main tasks
                     self = self
