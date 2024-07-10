@@ -7896,8 +7896,10 @@ dependencies = [
  "tokio",
  "zksync_config",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_node_genesis",
  "zksync_protobuf",
+ "zksync_protobuf_config",
 ]
 
 [[package]]
@@ -8167,9 +8169,9 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "zkevm_test_harness 0.150.1",
  "zksync-wrapper-prover",
+ "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
@@ -8236,17 +8238,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_prover_config"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "zksync_config",
- "zksync_core_leftovers",
- "zksync_env_config",
- "zksync_protobuf_config",
-]
-
-[[package]]
 name = "zksync_prover_dal"
 version = "0.1.0"
 dependencies = [
@@ -8277,9 +8268,9 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "zkevm_test_harness 0.150.1",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
@@ -8305,9 +8296,9 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_interface",
  "zksync_types",
@@ -8546,8 +8537,6 @@ dependencies = [
  "zksync_env_config",
  "zksync_multivm",
  "zksync_object_store",
- "zksync_protobuf_config",
- "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
@@ -8574,9 +8563,9 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
- "zksync_prover_config",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
