@@ -1,17 +1,16 @@
 use std::{cell::RefCell, time::Duration};
 
-use anyhow::Context as _;
-use config::{load_database_secrets, load_general_config};
+use anyhow::Context;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::PrometheusConfig;
 use zksync_contract_verifier_lib::ContractVerifier;
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-mod config;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
