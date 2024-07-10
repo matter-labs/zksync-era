@@ -125,7 +125,7 @@ function fetchEnv(zksyncEnv: string): any {
 }
 
 async function runBlockReverter(args: string[]): Promise<string> {
-    let env = fetchEnv(extEnv);
+    let env = fetchEnv(mainEnv);
 
     let fileConfigFlags = '';
     if (fileConfig.loadFromFile) {
@@ -142,7 +142,10 @@ async function runBlockReverter(args: string[]): Promise<string> {
     const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
-    const executedProcess = await exec(cmd, env);
+    const executedProcess = await exec(cmd, env.ZKSYNC_HOME, {
+        ...env,
+        PATH: process.env.PATH
+    });
 
     return executedProcess.stdout;
 }
