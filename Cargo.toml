@@ -150,6 +150,7 @@ reqwest = "0.12"
 rlp = "0.5"
 rocksdb = "0.21.0"
 rustc_version = "0.4.0"
+rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
 secrecy = "0.8.0"
 semver = "1"
