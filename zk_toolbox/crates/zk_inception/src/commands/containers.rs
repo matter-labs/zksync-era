@@ -74,5 +74,8 @@ fn copy_dockerfile(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
 
     let data = docker_compose_text.replace(original_source, new_source);
     shell.write_file(DOCKER_COMPOSE_FILE, data)?;
+    // For some reasons our docker-compose sometimes required .env file while we are investigating this behaviour
+    // it's better to create file and don't make the life of customers harder
+    shell.write_file(".env", "")?;
     Ok(())
 }

@@ -3,7 +3,7 @@ use common::{
     cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    logger,
+    git, logger,
     spinner::Spinner,
 };
 use config::{
@@ -43,6 +43,7 @@ pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
+    git::submodule_update(shell, config.link_to_code.clone())?;
 
     init(&mut args, shell, &config, &chain_config).await?;
 

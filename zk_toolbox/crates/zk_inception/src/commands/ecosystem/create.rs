@@ -1,16 +1,13 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::bail;
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{git, logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
     ZKSYNC_ERA_GIT_REPO,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     commands::{
@@ -55,12 +52,17 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let link_to_code = if args.link_to_code.is_empty() {
         let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
-        let link_to_code = clone_era_repo(shell)?;
+        let link_to_code = git::clone(
+            shell,
+            shell.current_dir(),
+            ZKSYNC_ERA_GIT_REPO,
+            "zksync-era",
+        )?;
         spinner.finish();
         link_to_code
     } else {
         let path = PathBuf::from_str(&args.link_to_code)?;
-        update_submodules_recursive(shell, &path)?;
+        git::submodule_update(shell, path.clone())?;
         path
     };
 
@@ -110,25 +112,5 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     }
 
     logger::outro(MSG_CREATED_ECOSYSTEM);
-    Ok(())
-}
-
-fn clone_era_repo(shell: &Shell) -> anyhow::Result<PathBuf> {
-    Cmd::new(cmd!(
-        shell,
-        "git clone --recurse-submodules {ZKSYNC_ERA_GIT_REPO}"
-    ))
-    .run()?;
-    Ok(shell.current_dir().join("zksync-era"))
-}
-
-fn update_submodules_recursive(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code);
-    Cmd::new(cmd!(
-        shell,
-        "git submodule update --init --recursive
-"
-    ))
-    .run()?;
     Ok(())
 }
