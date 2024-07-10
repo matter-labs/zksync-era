@@ -115,7 +115,14 @@ impl CommandReceiver {
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
+                    let old_metrics = storage_view.as_ref().borrow().metrics();
                     let result = self.execute_tx(&tx, &mut vm);
+                    let new_metrics = storage_view.as_ref().borrow().metrics();
+                    tracing::info!(
+                        "Storage metrics diff on {tx:?}: {:?}",
+                        new_metrics.diff(&old_metrics)
+                    ); // FIXME
+
                     if resp.send(result).is_err() {
                         break;
                     }

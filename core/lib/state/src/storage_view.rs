@@ -21,12 +21,50 @@ pub struct StorageViewMetrics {
     pub get_value_storage_invocations: usize,
     /// Number of processed write ops.
     pub set_value_storage_invocations: usize,
+    /// Number of processed "is write initial" checks.
+    pub is_write_initial_invocations: usize,
     /// Cumulative time spent on reading data from the underlying storage.
     pub time_spent_on_storage_missed: Duration,
     /// Cumulative time spent on all read ops.
     pub time_spent_on_get_value: Duration,
     /// Cumulative time spent on all write ops.
     pub time_spent_on_set_value: Duration,
+    /// Cumulative time spent on all "is write initial" checks.
+    pub time_spent_on_is_write_initial: Duration,
+}
+
+impl StorageViewMetrics {
+    /// Returns a difference with the previously captured metrics.
+    #[must_use]
+    pub fn diff(&self, earlier: &Self) -> Self {
+        Self {
+            cache_size: self.cache_size.saturating_sub(earlier.cache_size),
+            storage_invocations_missed: self
+                .storage_invocations_missed
+                .saturating_sub(earlier.storage_invocations_missed),
+            get_value_storage_invocations: self
+                .get_value_storage_invocations
+                .saturating_sub(earlier.get_value_storage_invocations),
+            set_value_storage_invocations: self
+                .set_value_storage_invocations
+                .saturating_sub(earlier.set_value_storage_invocations),
+            is_write_initial_invocations: self
+                .is_write_initial_invocations
+                .saturating_sub(earlier.is_write_initial_invocations),
+            time_spent_on_storage_missed: self
+                .time_spent_on_storage_missed
+                .saturating_sub(earlier.time_spent_on_storage_missed),
+            time_spent_on_get_value: self
+                .time_spent_on_get_value
+                .saturating_sub(earlier.time_spent_on_get_value),
+            time_spent_on_set_value: self
+                .time_spent_on_set_value
+                .saturating_sub(earlier.time_spent_on_set_value),
+            time_spent_on_is_write_initial: self
+                .time_spent_on_is_write_initial
+                .saturating_sub(earlier.time_spent_on_is_write_initial),
+        }
+    }
 }
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.
@@ -153,13 +191,20 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     /// Only keys contained in the underlying storage will return `false`. If a key was
     /// inserted using [`Self::set_value()`], it will still return `true`.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
+        let started_at = Instant::now();
+        self.metrics.is_write_initial_invocations += 1;
+
+        let is_initial = if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
             is_write_initial
         } else {
             let is_write_initial = self.storage_handle.is_write_initial(key);
             self.initial_writes_cache.insert(*key, is_write_initial);
+            self.metrics.time_spent_on_storage_missed += started_at.elapsed();
+            self.metrics.storage_invocations_missed += 1;
             is_write_initial
-        }
+        };
+        self.metrics.time_spent_on_is_write_initial += started_at.elapsed();
+        is_initial
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -221,14 +266,17 @@ impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         let started_at = Instant::now();
         let mut this = self.0.borrow_mut();
+        this.metrics.get_value_storage_invocations += 1;
         let cached_value = this.read_storage_keys.get(key);
-        cached_value.copied().unwrap_or_else(|| {
+        let value = cached_value.copied().unwrap_or_else(|| {
             let value = this.storage_handle.read_value(key);
             this.read_storage_keys.insert(*key, value);
             this.metrics.time_spent_on_storage_missed += started_at.elapsed();
             this.metrics.storage_invocations_missed += 1;
             value
-        })
+        });
+        this.metrics.time_spent_on_get_value += started_at.elapsed();
+        value
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
