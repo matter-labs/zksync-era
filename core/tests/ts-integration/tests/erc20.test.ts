@@ -30,10 +30,10 @@ describe('ERC20 contract checks', () => {
     });
 
     test('Token properties are correct', async () => {
-        expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
-        expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
-        expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
-        expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
+        await expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
+        await expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
+        await expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
+        await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
     test('Can perform a deposit', async () => {
