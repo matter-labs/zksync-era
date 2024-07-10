@@ -145,14 +145,23 @@ impl JobProcessor for WitnessVectorGenerator {
 
         METRICS.gpu_witness_vector_generation_time[&circuit_type].observe(started_at.elapsed());
 
+        let wvg_time_taken = started_at.elapsed();
         tracing::info!(
             "Finished witness vector generation for job: {job_id} in zone: {:?} took: {:?}",
             self.zone,
-            started_at.elapsed()
+            wvg_time_taken
         );
 
         let serialized: Vec<u8> =
             bincode::serialize(&artifacts).expect("Failed to serialize witness vector artifacts");
+
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_prover_jobs_dal()
+            .save_wvg_time_taken(job_id, wvg_time_taken)
+            .await;
 
         let now = Instant::now();
         let mut attempts = 0;

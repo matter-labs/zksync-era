@@ -288,6 +288,24 @@ impl FriProverDal<'_, '_> {
         .unwrap()
     }
 
+    pub async fn save_wvg_time_taken(&mut self, id: u32, wvg_time_taken: Duration) {
+        sqlx::query!(
+            r#"
+            UPDATE prover_jobs_fri
+            SET
+                updated_at = NOW(),
+                wvg_time_taken = $1
+            WHERE
+                id = $2
+            "#,
+            duration_to_naive_time_ms(wvg_time_taken),
+            i64::from(id)
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
     pub async fn requeue_stuck_jobs(
         &mut self,
         processing_timeout: Duration,
