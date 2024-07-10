@@ -9745,6 +9745,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "rlp",
+ "rustls",
  "serde",
  "serde_json",
  "test-casing",
