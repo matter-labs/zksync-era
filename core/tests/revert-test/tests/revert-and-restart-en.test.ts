@@ -167,14 +167,16 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 export function runExternalNodeInBackground({
     stdio,
     cwd,
+    env,
     useZkInception
 }: {
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
+    env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
 }) {
     let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
-    background({ command, stdio, cwd });
+    background({ command, stdio, cwd, env });
 }
 
 class MainNode {
@@ -211,6 +213,7 @@ class MainNode {
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
+            env: env,
             useZkInception: fileConfig.loadFromFile
         });
 
@@ -245,6 +248,7 @@ class ExtNode {
     // Spawns an external node.
     // If enableConsensus is set, the node will use consensus P2P network to fetch blocks.
     public static async spawn(logs: fs.WriteStream, enableConsensus: boolean): Promise<ExtNode> {
+        let env = fetchEnv(extEnv);
         let args = [];
         if (enableConsensus) {
             args.push('--enable-consensus');
@@ -254,6 +258,7 @@ class ExtNode {
         runExternalNodeInBackground({
             stdio: [null, logs, logs],
             cwd: pathToHome,
+            env: env,
             useZkInception: fileConfig.loadFromFile
         });
 
