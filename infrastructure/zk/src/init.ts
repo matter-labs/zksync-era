@@ -34,7 +34,7 @@ const checkEnv = async (): Promise<void> => {
 // Initializes and updates the git submodule
 const submoduleUpdate = async (): Promise<void> => {
     await utils.exec('git submodule init');
-    await utils.exec('git submodule update');
+    await utils.exec('git submodule update --remote');
 };
 
 // Sets up docker environment and compiles contracts

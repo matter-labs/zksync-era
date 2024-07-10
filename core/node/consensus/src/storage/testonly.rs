@@ -1,18 +1,24 @@
 //! Storage test helpers.
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, time};
+use zksync_concurrency::{ctx, ctx::Ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{load_contract, read_bytecode, BaseSystemContracts};
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
+use zksync_state_keeper::testonly::fee;
+use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    commitment::L1BatchWithMetadata, protocol_version::ProtocolSemanticVersion,
-    system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    commitment::L1BatchWithMetadata,
+    ethabi::{Address, Contract, Token},
+    protocol_version::ProtocolSemanticVersion,
+    system_contracts::get_system_smart_contracts,
+    Execute, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, Transaction, U256,
 };
 
 use super::ConnectionPool;
+use crate::testonly::StateKeeper;
 
 pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
     let mut cfg = mock_genesis_config();
@@ -187,5 +193,112 @@ impl ConnectionPool {
             .await
             .context("hard_prune_batches_range()")?;
         Ok(())
+    }
+}
+
+pub struct VMWriter {
+    pool: ConnectionPool,
+    node: StateKeeper,
+    account: Account,
+}
+
+impl VMWriter {
+    pub fn new(pool: ConnectionPool, node: StateKeeper, account: Account) -> Self {
+        Self {
+            pool,
+            node,
+            account,
+        }
+    }
+
+    pub async fn deploy_and_add_nodes(
+        &mut self,
+        ctx: &Ctx,
+        owner: Address,
+        nodes: &[&[Token]],
+    ) -> Address {
+        let consensus_authority_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ConsensusAuthority.sol/ConsensusAuthority.json");
+        let consensus_authority_contract = load_contract("contracts/l2-contracts/artifacts-zk/contracts/ConsensusAuthority.sol/ConsensusAuthority.json");
+        let validator_registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ValidatorRegistry.sol/ValidatorRegistry.json");
+        let attester_registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/AttesterRegistry.sol/AttesterRegistry.json");
+
+        let mut txs: Vec<Transaction> = vec![];
+        let deploy_tx = self.account.get_deploy_tx_with_factory_deps(
+            &consensus_authority_bytecode,
+            Some(&[Token::Address(owner)]),
+            vec![validator_registry_bytecode, attester_registry_bytecode],
+            TxType::L2,
+        );
+        txs.push(deploy_tx.tx);
+        for node in nodes {
+            let tx = self.gen_tx_add(&consensus_authority_contract, deploy_tx.address, node);
+            txs.push(tx);
+        }
+        txs.push(
+            self.gen_tx_set_validator_committee(deploy_tx.address, &consensus_authority_contract),
+        );
+        txs.push(
+            self.gen_tx_set_attester_committee(deploy_tx.address, &consensus_authority_contract),
+        );
+
+        self.node.push_block(&txs).await;
+        self.pool
+            .wait_for_payload(ctx, self.node.last_block())
+            .await
+            .unwrap();
+
+        deploy_tx.address
+    }
+
+    fn gen_tx_add(
+        &mut self,
+        contract: &Contract,
+        contract_address: Address,
+        input: &[Token],
+    ) -> Transaction {
+        let calldata = contract
+            .function("add")
+            .unwrap()
+            .encode_input(input)
+            .unwrap();
+        self.gen_tx(contract_address, calldata)
+    }
+
+    fn gen_tx_set_validator_committee(
+        &mut self,
+        contract_address: Address,
+        contract: &Contract,
+    ) -> Transaction {
+        let calldata = contract
+            .function("setValidatorCommittee")
+            .unwrap()
+            .short_signature()
+            .to_vec();
+        self.gen_tx(contract_address, calldata)
+    }
+
+    fn gen_tx_set_attester_committee(
+        &mut self,
+        contract_address: Address,
+        contract: &Contract,
+    ) -> Transaction {
+        let calldata = contract
+            .function("setAttesterCommittee")
+            .unwrap()
+            .short_signature()
+            .to_vec();
+        self.gen_tx(contract_address, calldata)
+    }
+
+    fn gen_tx(&mut self, contract_address: Address, calldata: Vec<u8>) -> Transaction {
+        self.account.get_l2_tx_for_execute(
+            Execute {
+                contract_address,
+                calldata,
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            Some(fee(1_000_000)),
+        )
     }
 }

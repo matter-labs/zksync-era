@@ -158,7 +158,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
 
 pub(crate) const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 
-pub(crate) fn fee(gas_limit: u32) -> Fee {
+pub fn fee(gas_limit: u32) -> Fee {
     Fee {
         gas_limit: U256::from(gas_limit),
         max_fee_per_gas: SYSTEM_CONTEXT_MINIMAL_BASE_FEE.into(),

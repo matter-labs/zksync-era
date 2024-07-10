@@ -968,7 +968,7 @@ impl TxSender {
             .await
     }
 
-    pub(super) async fn eth_call(
+    pub async fn eth_call(
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,

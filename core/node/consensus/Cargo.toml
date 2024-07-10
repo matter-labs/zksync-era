@@ -31,13 +31,15 @@ zksync_system_constants.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
-
+zksync_node_api_server.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 secrecy.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+zksync_contracts.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 zksync_node_genesis.workspace = true

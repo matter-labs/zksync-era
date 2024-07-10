@@ -42,8 +42,9 @@ use zksync_state_keeper::{
 };
 use zksync_test_account::Account;
 use zksync_types::{
+    ethabi::{Function, Token},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -122,7 +123,7 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
     rocksdb_dir: tempfile::TempDir,
     metadata_calculator: MetadataCalculator,
-    account: Account,
+    pub account: Account,
 }
 
 impl StateKeeper {
@@ -243,6 +244,16 @@ impl StateKeeper {
                 number: self.last_block,
             }
         }
+    }
+
+    pub async fn push_block(&mut self, txs: &[Transaction]) {
+        let mut actions = vec![self.open_block()];
+        actions.extend(
+            txs.iter()
+                .map(|tx| FetchedTransaction::new(tx.clone()).into()),
+        );
+        actions.push(SyncAction::SealL2Block);
+        self.actions_sender.push_actions(actions).await.unwrap();
     }
 
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
