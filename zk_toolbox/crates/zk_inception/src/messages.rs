@@ -279,3 +279,11 @@ pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
 /// Contract verifier related messages
 pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
 pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";
+pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
+pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
+pub(super) const MSG_FETCHING_ZKSOLC_RELEASES_SPINNER: &str = "Fetching zksolc releases...";
+pub(super) const MSG_ARCH_SLECTION_PROMPT: &str = "Select your architecture:";
+pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the zksolc version:";
+pub(super) const MSG_NO_RELEASES_FOUND_ERR: &str =
+    "No releases found for the selected architecture";
+pub(super) const MSG_NO_VERSION_FOUND_ERR: &str = "No version found";
