@@ -430,20 +430,4 @@ impl<'a> Connection<'a> {
             last,
         })
     }
-
-    /// Wrapper for `consensus_dal().earliest_batch_number_to_sign()`.
-    pub async fn earliest_batch_number_to_sign(
-        &mut self,
-        ctx: &ctx::Ctx,
-        min_batch_number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx
-            .wait(
-                self.0
-                    .consensus_dal()
-                    .earliest_batch_number_to_sign(min_batch_number),
-            )
-            .await?
-            .context("earliest_batch_number_to_sign()")?)
-    }
 }
