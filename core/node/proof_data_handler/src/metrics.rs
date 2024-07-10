@@ -1,5 +1,4 @@
 use vise::{Histogram, Metrics};
-use zksync_basic_types::basic_fri_types::Eip4844Blobs;
 use zksync_object_store::StoredObject;
 use zksync_prover_interface::inputs::{
     VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
@@ -11,8 +10,6 @@ pub(super) struct ProofDataHandlerMetrics {
     pub vm_run_data_blob_size_in_mb: Histogram<u64>,
     #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
     pub merkle_paths_blob_size_in_mb: Histogram<u64>,
-    #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
-    pub eip_4844_blob_size_in_mb: Histogram<u64>,
     #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
     pub total_blob_size_in_mb: Histogram<u64>,
 }
@@ -29,11 +26,6 @@ impl ProofDataHandlerMetrics {
                 .unwrap()
                 .len() as u64
                 / (1024 * 1024);
-        let eip_4844_blob_size_in_mb =
-            <Eip4844Blobs as StoredObject>::serialize(&blob.eip_4844_blobs)
-                .unwrap()
-                .len() as u64
-                / (1024 * 1024);
         let total_blob_size_in_mb = <WitnessInputData as StoredObject>::serialize(blob)
             .unwrap()
             .len() as u64
@@ -43,8 +35,6 @@ impl ProofDataHandlerMetrics {
             .observe(vm_run_data_blob_size_in_mb);
         self.merkle_paths_blob_size_in_mb
             .observe(merkle_paths_blob_size_in_mb);
-        self.eip_4844_blob_size_in_mb
-            .observe(eip_4844_blob_size_in_mb);
         self.total_blob_size_in_mb.observe(total_blob_size_in_mb);
     }
 }
