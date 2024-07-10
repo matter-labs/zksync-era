@@ -93,7 +93,13 @@ impl<'a> Cmd<'a> {
         let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            run_low_level_process_command(self.inner.into())?
+            let output = run_low_level_process_command(self.inner.into())?;
+            if let Ok(data) = String::from_utf8(output.stderr.clone()) {
+                if !data.is_empty() {
+                    logger::info(data)
+                }
+            }
+            output
         } else {
             // Command will be logged manually.
             self.inner.set_quiet(true);
@@ -148,7 +154,7 @@ fn check_output_status(command_text: &str, output: &std::process::Output) -> Cmd
 
 fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
-    command.stderr(Stdio::inherit());
+    command.stderr(Stdio::piped());
     let child = command.spawn()?;
     child.wait_with_output()
 }
