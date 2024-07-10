@@ -148,7 +148,7 @@ fn check_output_status(command_text: &str, output: &std::process::Output) -> Cmd
 
 fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
-    command.stderr(Stdio::piped());
+    command.stderr(Stdio::inherit());
     let child = command.spawn()?;
     child.wait_with_output()
 }

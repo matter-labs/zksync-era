@@ -58,7 +58,6 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
-    build_l1_contracts(shell, ecosystem_config)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
     genesis_config.update_from_chain_config(chain_config);
@@ -160,13 +159,5 @@ async fn register_chain(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
-    Ok(())
-}
-
-fn build_l1_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(ecosystem_config.path_to_foundry());
-    let spinner = Spinner::new(MSG_BUILDING_L1_CONTRACTS);
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
-    spinner.finish();
     Ok(())
 }
