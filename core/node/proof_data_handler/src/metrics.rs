@@ -1,9 +1,8 @@
 use vise::{Histogram, Metrics};
-use zksync_basic_types::basic_fri_types::Eip4844Blobs;
-use zksync_object_store::StoredObject;
-use zksync_prover_interface::inputs::{
-    VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
-};
+use zksync_object_store::bincode;
+use zksync_prover_interface::inputs::WitnessInputData;
+
+const BYTES_IN_MEGABYTE: u64 = 1024 * 1024;
 
 #[derive(Debug, Metrics)]
 pub(super) struct ProofDataHandlerMetrics {
@@ -20,24 +19,13 @@ pub(super) struct ProofDataHandlerMetrics {
 impl ProofDataHandlerMetrics {
     pub fn observe_blob_sizes(&self, blob: &WitnessInputData) {
         let vm_run_data_blob_size_in_mb =
-            <VMRunWitnessInputData as StoredObject>::serialize(&blob.vm_run_data)
-                .unwrap()
-                .len() as u64
-                / (1024 * 1024);
+            bincode::serialize(&blob.vm_run_data).unwrap().len() as u64 / BYTES_IN_MEGABYTE;
         let merkle_paths_blob_size_in_mb =
-            <WitnessInputMerklePaths as StoredObject>::serialize(&blob.merkle_paths)
-                .unwrap()
-                .len() as u64
-                / (1024 * 1024);
+            bincode::serialize(&blob.merkle_paths).unwrap().len() as u64 / BYTES_IN_MEGABYTE;
         let eip_4844_blob_size_in_mb =
-            <Eip4844Blobs as StoredObject>::serialize(&blob.eip_4844_blobs)
-                .unwrap()
-                .len() as u64
-                / (1024 * 1024);
-        let total_blob_size_in_mb = <WitnessInputData as StoredObject>::serialize(blob)
-            .unwrap()
-            .len() as u64
-            / (1024 * 1024);
+            bincode::serialize(&blob.eip_4844_blobs).unwrap().len() as u64 / BYTES_IN_MEGABYTE;
+        let total_blob_size_in_mb =
+            bincode::serialize(blob).unwrap().len() as u64 / BYTES_IN_MEGABYTE;
 
         self.vm_run_data_blob_size_in_mb
             .observe(vm_run_data_blob_size_in_mb);
