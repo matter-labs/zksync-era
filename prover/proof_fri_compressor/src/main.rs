@@ -1,3 +1,4 @@
+#![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
 use std::{env, time::Duration};
