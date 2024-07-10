@@ -108,10 +108,13 @@ impl ProtoRepr for proto::Config {
         let max_batch_size = match self.max_batch_size {
             Some(x) => x.try_into().context("max_batch_size")?,
             None => {
-                // Compute a default batch size: the batch interval is ~1 minute,
-                // so there will be ~60 blocks, and an Ethereum Merkle proof is ~1kB.
-                // Using 100 to be generous.
-                max_payload_size * 100 + kB
+                // Compute a default batch size, so operators are not caught out by the missing setting
+                // while we're still working on batch syncing. The batch interval is ~1 minute,
+                // so there will be ~60 blocks, and an Ethereum Merkle proof is ~1kB, but under high
+                // traffic there can be thousands of huge transactions that quickly fill up blocks
+                // and there could be more blocks in a batch then expected. We chose a generous
+                // limit so as not to prevent any legitimate batch from being transmitted.
+                max_payload_size * 5000 + kB
             }
         };
 
