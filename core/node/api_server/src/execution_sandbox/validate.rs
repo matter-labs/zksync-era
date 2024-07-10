@@ -11,7 +11,9 @@ use multivm::{
     MultiVMTracer,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_types::{
+    l2::L2Tx, Address, ExternalTx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
+};
 
 use super::{
     apply,
@@ -35,7 +37,7 @@ impl TransactionExecutor {
         &self,
         connection_pool: ConnectionPool<Core>,
         vm_permit: VmPermit,
-        tx: L2Tx,
+        tx: ExternalTx,
         shared_args: TxSharedArgs,
         block_args: BlockArgs,
         computational_gas_limit: u32,

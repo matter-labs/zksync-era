@@ -252,6 +252,7 @@ impl TryFrom<Transaction> for L1Tx {
                 common_data,
                 received_timestamp_ms,
             }),
+            ExecuteTransactionCommon::XL2(_) => Err("Cannot convert XL2Tx to L1Tx"),
             ExecuteTransactionCommon::L2(_) => Err("Cannot convert L2Tx to L1Tx"),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 Err("Cannot convert ProtocolUpgradeTx to L1Tx")

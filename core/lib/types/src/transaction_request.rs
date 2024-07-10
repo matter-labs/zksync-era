@@ -16,6 +16,7 @@ use crate::{
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
     web3::{keccak256, AccessList, Bytes},
+    xl2::XL2Tx,
     Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
 };
@@ -840,6 +841,63 @@ impl L2Tx {
         if let Some(raw_bytes) = value.raw {
             tx.set_raw_bytes(raw_bytes);
         }
+        Ok(tx)
+    }
+
+    pub fn from_request(
+        value: TransactionRequest,
+        max_tx_size: usize,
+    ) -> Result<Self, SerializationTransactionError> {
+        let tx = Self::from_request_unverified(value)?;
+        tx.check_encoded_size(max_tx_size)?;
+        Ok(tx)
+    }
+
+    /// Ensures that encoded transaction size is not greater than `max_tx_size`.
+    fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
+        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
+        let tx_size = self.abi_encoding_len() * 32;
+        if tx_size > max_tx_size {
+            return Err(SerializationTransactionError::OversizedData(
+                max_tx_size,
+                tx_size,
+            ));
+        };
+        Ok(())
+    }
+}
+
+impl XL2Tx {
+    pub(crate) fn from_request_unverified(
+        mut value: TransactionRequest,
+    ) -> Result<Self, SerializationTransactionError> {
+        // let fee = value.get_fee_data_checked()?;
+        // let nonce = value.get_nonce_checked()?;
+
+        // let raw_signature = value.get_signature().unwrap_or_default();
+        let meta = value.eip712_meta.take().unwrap_or_default();
+        validate_factory_deps(&meta.factory_deps)?;
+
+        let tx = XL2Tx::new(
+            value
+                .to
+                .ok_or(SerializationTransactionError::ToAddressIsNull)?,
+            value.input.0.clone(),
+            // nonce,
+            // fee,
+            // value.from.unwrap_or_default(),
+            value.value,
+            meta.factory_deps,
+            // meta.paymaster_params.unwrap_or_default(),
+        );
+
+        // tx.common_data.transaction_type = INTEROP_TX_TYPE;
+        // For fee calculation we use the same structure, as a result, signature may not be provided
+        // tx.set_raw_signature(raw_signature);
+
+        // if let Some(raw_bytes) = value.raw {
+        //     tx.set_raw_bytes(raw_bytes);
+        // }
         Ok(tx)
     }
 

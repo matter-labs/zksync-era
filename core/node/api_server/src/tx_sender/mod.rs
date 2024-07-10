@@ -30,8 +30,8 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    AccountTreeId, Address, ExecuteTransactionCommon, ExternalTx, L2ChainId, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -359,7 +359,7 @@ impl TxSender {
     #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: ExternalTx,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
@@ -386,7 +386,7 @@ impl TxSender {
                 true,
                 TxExecutionArgs::for_validation(&tx),
                 self.0.replica_connection_pool.clone(),
-                tx.clone().into(),
+                tx.into(),
                 block_args,
                 vec![],
             )
@@ -423,7 +423,7 @@ impl TxSender {
 
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
-        self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
+        self.ensure_tx_executable(&tx.into(), &execution_output.metrics, true)?;
         let submission_res_handle = self
             .0
             .tx_sink
@@ -442,7 +442,7 @@ impl TxSender {
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    tx.nonce().0,
+                    0, // tx.nonce().0,
                 ))
             }
             L2TxSubmissionResult::Duplicate => {
@@ -485,6 +485,17 @@ impl TxSender {
     }
 
     async fn validate_tx(
+        &self,
+        tx: &ExternalTx,
+        protocol_version: ProtocolVersionId,
+    ) -> Result<(), SubmitTxError> {
+        match tx {
+            ExternalTx::L2Tx(tx) => self.validate_l2_tx(tx, protocol_version).await,
+            ExternalTx::XL2Tx(_) => Ok(()), //todo
+        }
+    }
+
+    async fn validate_l2_tx(
         &self,
         tx: &L2Tx,
         protocol_version: ProtocolVersionId,
@@ -678,6 +689,12 @@ impl TxSender {
                     l1_common_data.gas_limit * l1_common_data.max_fee_per_gas + tx.execute.value;
                 l1_common_data.to_mint = required_funds;
             }
+            ExecuteTransactionCommon::XL2(xl2_common_data) => {
+                xl2_common_data.gas_limit = forced_gas_limit.into();
+                let required_funds =
+                    xl2_common_data.gas_limit * xl2_common_data.max_fee_per_gas + tx.execute.value;
+                xl2_common_data.to_mint = required_funds;
+            }
             ExecuteTransactionCommon::L2(l2_common_data) => {
                 l2_common_data.fee.gas_limit = forced_gas_limit.into();
             }
@@ -766,6 +783,9 @@ impl TxSender {
                 common_data.fee.max_priority_fee_per_gas = base_fee.into();
             }
             ExecuteTransactionCommon::L1(common_data) => {
+                common_data.max_fee_per_gas = base_fee.into();
+            }
+            ExecuteTransactionCommon::XL2(common_data) => {
                 common_data.max_fee_per_gas = base_fee.into();
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {

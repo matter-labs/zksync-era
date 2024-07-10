@@ -20,8 +20,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, xl2::XL2Tx,
+    Address, ExternalTx, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, INTEROP_TX_TYPE,
+    U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -269,14 +270,23 @@ pub(crate) struct RpcState {
 }
 
 impl RpcState {
-    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
+    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(ExternalTx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
 
-        Ok((
-            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
-            hash,
-        ))
+        match tx_request.transaction_type {
+            Some(U64(u64(INTEROP_TX_TYPE))) => Ok((
+                ExternalTx::XL2Tx(XL2Tx::from_request(
+                    tx_request,
+                    self.api_config.max_tx_size,
+                )?),
+                hash,
+            )),
+            default => Ok((
+                ExternalTx::L2Tx(L2Tx::from_request(tx_request, self.api_config.max_tx_size)?),
+                hash,
+            )),
+        }
     }
 
     pub fn u64_to_block_number(n: U64) -> L2BlockNumber {

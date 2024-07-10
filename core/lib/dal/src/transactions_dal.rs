@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
 use bigdecimal::BigDecimal;
+use bincode::Error;
 use itertools::Itertools;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
@@ -17,8 +18,9 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
+    xl2::XL2Tx,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    ProtocolVersionId, Transaction, H256, INTEROP_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -512,6 +514,204 @@ impl TransactionsDal<'_, '_> {
             l2_tx_insertion_result
         );
 
+        Ok(l2_tx_insertion_result)
+    }
+
+    pub async fn insert_transaction_xl2(
+        &mut self,
+        tx: &XL2Tx,
+        exec_info: TransactionExecutionMetrics,
+    ) -> DalResult<L2TxSubmissionResult> {
+        let tx_hash = tx.hash();
+        let is_duplicate = sqlx::query!(
+            r#"
+            SELECT
+                TRUE
+            FROM
+                transactions
+            WHERE
+                hash = $1
+            "#,
+            tx_hash.as_bytes(),
+        )
+        .instrument("insert_transaction_l2#is_duplicate")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await?
+        .is_some();
+
+        if is_duplicate {
+            tracing::debug!("Prevented inserting duplicate L2 transaction {tx_hash:?} to DB");
+            return Ok(L2TxSubmissionResult::Duplicate);
+        }
+        let tx_cast = Transaction::from(tx.clone());
+        let initiator_address = tx.common_data.sender;
+        let contract_address = tx.execute.contract_address.as_bytes();
+        let json_data = serde_json::to_value(&tx.execute)
+            .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
+        let gas_limit = u256_to_big_decimal(tx_cast.gas_limit());
+        let max_fee_per_gas = u256_to_big_decimal(tx_cast.max_fee_per_gas());
+        // let max_priority_fee_per_gas =
+        //     u256_to_big_decimal(tx.common_data.max_priority_fee_per_gas);
+        let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
+        let tx_format = INTEROP_TX_TYPE as i32;
+        // let signature = &tx.common_data.signature;
+        let nonce = tx.common_data.serial_id.0 as i64;
+        let input_data = &tx
+            .common_data
+            .input
+            .as_ref()
+            .expect("Data is mandatory")
+            .data;
+        let value = u256_to_big_decimal(tx.execute.value);
+        // let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
+        // let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
+        let secs = (tx.received_timestamp_ms / 1000) as i64;
+        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+        #[allow(deprecated)]
+        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        // Besides just adding or updating(on conflict) the record, we want to extract some info
+        // from the query below, to indicate what actually happened:
+        // 1) transaction is added
+        // 2) transaction is replaced
+        // 3) WHERE clause conditions for DO UPDATE block were not met, so the transaction can't be replaced
+        // the subquery in RETURNING clause looks into pre-UPDATE state of the table. So if the subquery will return NULL
+        // transaction is fresh and was added to db(the second condition of RETURNING clause checks it).
+        // Otherwise, if the subquery won't return NULL it means that there is already tx with such nonce and `initiator_address` in DB
+        // and we can replace it WHERE clause conditions are met.
+        // It is worth mentioning that if WHERE clause conditions are not met, None will be returned.
+        let query_result = sqlx::query!(
+            r#"
+            INSERT INTO
+                transactions (
+                    hash,
+                    is_priority,
+                    initiator_address,
+                    nonce,
+                    gas_limit,
+                    max_fee_per_gas,
+                    gas_per_pubdata_limit,
+                    input,
+                    data,
+                    tx_format,
+                    contract_address,
+                    value,
+                    execution_info,
+                    received_at,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                (
+                    $1,
+                    FALSE,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    JSONB_BUILD_OBJECT('gas_used', $12::BIGINT, 'storage_writes', $13::INT, 'contracts_used', $14::INT),
+                    $15,
+                    NOW(),
+                    NOW()
+                )
+            ON CONFLICT (initiator_address, nonce) DO
+            UPDATE
+            SET
+                hash = $1,
+                gas_limit = $4,
+                max_fee_per_gas = $5,
+                gas_per_pubdata_limit = $6,
+                input = $7,
+                data = $8,
+                tx_format = $9,
+                contract_address = $10,
+                value = $11,
+                execution_info = JSONB_BUILD_OBJECT('gas_used', $12::BIGINT, 'storage_writes', $13::INT, 'contracts_used', $14::INT),
+                in_mempool = FALSE,
+                received_at = $15,
+                created_at = NOW(),
+                updated_at = NOW(),
+                error = NULL
+            WHERE
+                transactions.is_priority = FALSE
+                AND transactions.miniblock_number IS NULL
+            RETURNING
+                (
+                    SELECT
+                        hash
+                    FROM
+                        transactions
+                    WHERE
+                        transactions.initiator_address = $2
+                        AND transactions.nonce = $3
+                ) IS NOT NULL AS "is_replaced!"
+            "#,
+            tx_hash.as_bytes(),
+            initiator_address.as_bytes(),
+            nonce,
+            // &signature,
+            gas_limit,
+            max_fee_per_gas,
+            // max_priority_fee_per_gas,
+            gas_per_pubdata_limit,
+            input_data,
+            &json_data,
+            tx_format,
+            contract_address,
+            value,
+            // &paymaster,
+            // &paymaster_input,
+            exec_info.gas_used as i64,
+            (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
+            exec_info.contracts_used as i32,
+            received_at)
+        .instrument("insert_transaction_xl2")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_record| option_record.map(|record| record.is_replaced));
+        
+        let l2_tx_insertion_result = match query_result {
+            Ok(option_query_result) => match option_query_result {
+                Some(true) => L2TxSubmissionResult::Replaced,
+                Some(false) => L2TxSubmissionResult::Added,
+                None => L2TxSubmissionResult::AlreadyExecuted,
+            },
+            Err(err) => {
+                // So, we consider a tx hash to be a primary key of the transaction
+                // Based on the idea that we can't have two transactions with the same hash
+                // We assume that if there already exists some transaction with some tx hash
+                // another tx with the same tx hash is supposed to have the same data
+                // In this case we identify it as Duplicate
+                // Note, this error can happen because of the race condition (tx can be taken by several
+                // API servers, that simultaneously start execute it and try to inserted to DB)
+                if let sqlx::Error::Database(error) = err.inner() {
+                    if let Some(constraint) = error.constraint() {
+                        if constraint == "transactions_pkey" {
+                            tracing::debug!(
+                                "Attempted to insert duplicate L2 transaction {tx_hash:?} to DB"
+                            );
+                            return Ok(L2TxSubmissionResult::Duplicate);
+                        }
+                    }
+                }
+                return Err(err);
+            }
+        };
+        tracing::debug!(
+            "{:?} xl2 transaction {:?} to DB. init_acc {:?} nonce {:?} returned option {:?}",
+            l2_tx_insertion_result,
+            tx_hash,
+            initiator_address,
+            nonce,
+            l2_tx_insertion_result
+        );
         Ok(l2_tx_insertion_result)
     }
 

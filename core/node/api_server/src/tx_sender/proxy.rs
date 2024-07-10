@@ -13,7 +13,9 @@ use zksync_dal::{
     Core, CoreDal, DalError,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256, U256};
+use zksync_types::{
+    api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, ExternalTx, Nonce, H256, U256,
+};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
@@ -214,14 +216,14 @@ pub struct TxProxy {
 }
 
 impl TxProxy {
-    pub fn new(client: Box<DynClient<L2>>) -> Self {
+    pub fn new(client: Box<DynClient<ExternalTx>>) -> Self {
         Self {
             tx_cache: TxCache::default(),
             client: client.for_component("tx_proxy"),
         }
     }
 
-    async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
+    async fn submit_tx_impl(&self, tx: &ExternalTx) -> EnrichedClientResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::web3::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
@@ -296,7 +298,7 @@ impl TxProxy {
 impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
-        tx: &L2Tx,
+        tx: &ExternalTx,
         _execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.

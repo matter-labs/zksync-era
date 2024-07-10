@@ -2,7 +2,7 @@ use std::fmt;
 
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Transaction,
+    fee::TransactionExecutionMetrics, ExecuteTransactionCommon, ExternalTx, Transaction,
 };
 
 use super::{
@@ -86,7 +86,7 @@ impl MockTransactionExecutor {
 
     pub(crate) fn validate_tx(
         &self,
-        tx: L2Tx,
+        tx: ExternalTx,
         block_args: &BlockArgs,
     ) -> Result<(), ValidationError> {
         let result = (self.tx_responses)(&tx.into(), block_args);

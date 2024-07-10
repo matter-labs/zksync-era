@@ -127,6 +127,36 @@ impl From<Transaction> for TransactionData {
                     raw_bytes: None,
                 }
             }
+            ExecuteTransactionCommon::XL2(common_data) => {
+                let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
+                TransactionData {
+                    tx_type: common_data.tx_format() as u8,
+                    from: common_data.sender,
+                    to: execute_tx.execute.contract_address,
+                    gas_limit: common_data.gas_limit,
+                    pubdata_price_limit: common_data.gas_per_pubdata_limit,
+                    // It doesn't matter what we put here, since
+                    // the bootloader does not charge anything
+                    max_fee_per_gas: common_data.max_fee_per_gas,
+                    max_priority_fee_per_gas: U256::zero(),
+                    paymaster: Address::default(),
+                    nonce: U256::from(common_data.serial_id.0), // priority op ID
+                    value: execute_tx.execute.value,
+                    reserved: [
+                        common_data.to_mint,
+                        refund_recipient,
+                        U256::zero(),
+                        U256::zero(),
+                    ],
+                    data: execute_tx.execute.calldata,
+                    // The signature isn't checked for L1 transactions so we don't care
+                    signature: vec![],
+                    factory_deps: execute_tx.execute.factory_deps,
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                    raw_bytes: None,
+                }
+            }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 TransactionData {

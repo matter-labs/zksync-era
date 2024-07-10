@@ -24,6 +24,7 @@ message Transaction {
     L1TxCommonData l1 = 1;
     L2TxCommonData l2 = 2;
     ProtocolUpgradeTxCommonData protocol_upgrade = 3;
+    XL2TxCommonData xl2 = 7;
   }
   optional Execute execute = 4; // required
   optional bytes raw_bytes = 6; // optional
@@ -43,6 +44,29 @@ message L1TxCommonData {
   optional bytes canonical_tx_hash = 13; // // required; H256
   optional bytes to_mint = 14; // required; U256
   optional bytes refund_recipient_address = 15; // required; H160
+
+  // deprecated.
+  optional uint64 deadline_block = 3; // required; constant = 0
+  optional bytes eth_hash = 11; // required; constant = [0;32]
+  optional uint64 eth_block = 12; // required
+}
+
+message XL2TxCommonData {
+  optional bytes sender_address = 1; // required; H160
+  optional uint64 serial_id = 2; // required
+  optional bytes layer_2_tip_fee = 4; // required; U256
+  optional bytes full_fee = 5; // required; U256
+  optional bytes max_fee_per_gas = 6; // required; U256
+  optional bytes gas_limit = 7; // required; U256
+  optional bytes gas_per_pubdata_limit = 8; // required; U256
+  optional uint32 op_processing_type = 9; // required
+  optional uint32 priority_queue_type = 10; // required; U256
+
+  optional bytes canonical_tx_hash = 13; // // required; H256
+  optional bytes to_mint = 14; // required; U256
+  optional bytes refund_recipient_address = 15; // required; H160
+  optional InputData input = 16; // optional
+
 
   // deprecated.
   optional uint64 deadline_block = 3; // required; constant = 0

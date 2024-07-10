@@ -30,6 +30,7 @@ fn base_tx_cost(tx: &Transaction, op: AggregatedActionType) -> u32 {
         AggregatedActionType::PublishProofOnchain => 0,
         AggregatedActionType::Execute => match tx.common_data {
             ExecuteTransactionCommon::L1(_) => L1_OPERATION_EXECUTE_COST,
+            ExecuteTransactionCommon::XL2(_) => L1_OPERATION_EXECUTE_COST,
             ExecuteTransactionCommon::L2(_) => EXECUTE_EXECUTE_COST,
             ExecuteTransactionCommon::ProtocolUpgrade(_) => EXECUTE_EXECUTE_COST,
         },

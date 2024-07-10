@@ -467,6 +467,7 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to ProtocolUpgradeTx"),
+            ExecuteTransactionCommon::XL2(_) => Err("Cannot convert XL2Tx to ProtocolUpgradeTx"),
             ExecuteTransactionCommon::L2(_) => Err("Cannot convert L2Tx to ProtocolUpgradeTx"),
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => Ok(ProtocolUpgradeTx {
                 execute,

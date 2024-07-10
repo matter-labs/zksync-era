@@ -123,6 +123,9 @@ impl From<Transaction> for TransactionData {
                     reserved_dynamic: vec![],
                 }
             }
+            ExecuteTransactionCommon::XL2(_) => {
+                panic!("XL2 txs not implemented for legacy vm_m5");
+            }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 panic!("Protocol upgrade transactions are not supported in  vm_m5")
             }

@@ -123,6 +123,9 @@ impl From<Transaction> for TransactionData {
                     reserved_dynamic: vec![],
                 }
             }
+            ExecuteTransactionCommon::XL2(_) => {
+                panic!("XL2 txs not implemented for legacy vm_1_3_2");
+            }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 TransactionData {
