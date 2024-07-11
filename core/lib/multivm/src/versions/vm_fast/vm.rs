@@ -82,7 +82,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.world_diff.pubdata.0 as u32;
+        let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
             let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
@@ -144,7 +144,7 @@ impl<S: ReadStorage> Vm<S> {
                             .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
                             .as_u64();
 
-                        let pubdata_published = self.inner.world_diff.pubdata.0 as u32;
+                        let pubdata_published = self.inner.world_diff.pubdata() as u32;
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -503,7 +503,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
 
         let start = self.inner.world_diff.snapshot();
-        let pubdata_before = self.inner.world_diff.pubdata.0;
+        let pubdata_before = self.inner.world_diff.pubdata();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
@@ -557,7 +557,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         // FIXME: are statistics rolled back on halt as well?
-        let pubdata_after = self.inner.world_diff.pubdata.0;
+        let pubdata_after = self.inner.world_diff.pubdata();
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -610,8 +610,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        // TODO fill all fields
-        let events = merge_events(self.inner.world_diff.events(), self.batch_env.number);
+        let world_diff = &self.inner.world_diff;
+        let events = merge_events(world_diff.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
@@ -621,9 +621,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_logs: self
-                .inner
-                .world_diff
+            deduplicated_storage_logs: world_diff
                 .get_storage_changes()
                 .map(|((address, key), (_, value))| StorageLog {
                     key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
@@ -631,17 +629,15 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
-            used_contract_hashes: vec![],
-            system_logs: self
-                .inner
-                .world_diff
+            used_contract_hashes: vec![], // FIXME
+            system_logs: world_diff
                 .l2_to_l1_logs()
                 .iter()
                 .map(|x| x.glue_into())
                 .collect(),
             user_l2_to_l1_logs,
-            storage_refunds: vec![],
-            pubdata_costs: vec![],
+            storage_refunds: world_diff.storage_refunds().to_vec(),
+            pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
 

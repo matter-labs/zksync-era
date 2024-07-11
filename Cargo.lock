@@ -7318,7 +7318,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=91e98bbad1501363095cc57b32b5a49f2d1a3c36#91e98bbad1501363095cc57b32b5a49f2d1a3c36"
+source = "git+https://github.com/matter-labs/vm2.git?rev=29e242d5ce633d80fa7d136ce3336b644a8f6804#29e242d5ce633d80fa7d136ce3336b644a8f6804"
 dependencies = [
  "enum_dispatch",
  "primitive-types",

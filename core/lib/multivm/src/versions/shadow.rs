@@ -276,6 +276,16 @@ impl DivergenceErrors {
             &main.system_logs,
             &shadow.system_logs,
         );
+        self.check_match(
+            "final_state.storage_refunds",
+            &main.storage_refunds,
+            &shadow.storage_refunds,
+        );
+        self.check_match(
+            "final_state.pubdata_costs",
+            &main.pubdata_costs,
+            &shadow.pubdata_costs,
+        );
 
         let main_deduplicated_logs = Self::gather_logs(&main.deduplicated_storage_logs);
         let shadow_deduplicated_logs = Self::gather_logs(&shadow.deduplicated_storage_logs);
