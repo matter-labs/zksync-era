@@ -1,17 +1,15 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    spinner::{self, Spinner},
-    PromptSelect,
-};
+use common::PromptSelect;
 use xshell::Shell;
 
 use super::releases::{get_releases_with_arch, Arch, Version};
 use crate::messages::{
     MSG_ARCH_NOT_SUPPORTED_ERR, MSG_FETCHING_VYPER_RELEASES_SPINNER,
-    MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_GET_VYPER_RELEASES_ERR, MSG_GET_ZKSOLC_RELEASES_ERR,
+    MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_FETCHING_ZKVYPER_RELEASES_SPINNER,
+    MSG_GET_VYPER_RELEASES_ERR, MSG_GET_ZKSOLC_RELEASES_ERR, MSG_GET_ZKVYPER_RELEASES_ERR,
     MSG_NO_VERSION_FOUND_ERR, MSG_OS_NOT_SUPPORTED_ERR, MSG_VYPER_VERSION_PROMPT,
-    MSG_ZKSOLC_VERSION_PROMPT,
+    MSG_ZKSOLC_VERSION_PROMPT, MSG_ZKVYPER_VERSION_PROMPT,
 };
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -19,6 +17,9 @@ pub struct InitContractVerifierArgs {
     /// Version of zksolc to install
     #[clap(long)]
     pub zksolc_version: Option<String>,
+    /// Version of zkvyper to install
+    #[clap(long)]
+    pub zkvyper_version: Option<String>,
     /// Version of vyper to install
     #[clap(long)]
     pub vyper_version: Option<String>,
@@ -27,6 +28,7 @@ pub struct InitContractVerifierArgs {
 #[derive(Debug, Clone)]
 pub struct InitContractVerifierArgsFinal {
     pub zksolc_version: Version,
+    pub zkvyper_version: Version,
     pub vyper_version: Version,
 }
 
@@ -37,15 +39,29 @@ impl InitContractVerifierArgs {
     ) -> anyhow::Result<InitContractVerifierArgsFinal> {
         let arch = get_arch()?;
 
-        let spinner = Spinner::new(MSG_FETCHING_ZKSOLC_RELEASES_SPINNER);
-        let zksolc_releases = get_releases_with_arch(shell, "matter-labs/zksolc-bin", arch)
-            .context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
-        spinner.finish();
+        let zksolc_releases = get_releases_with_arch(
+            shell,
+            "matter-labs/zksolc-bin",
+            arch,
+            MSG_FETCHING_ZKSOLC_RELEASES_SPINNER,
+        )
+        .context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
 
-        let spinner = spinner::Spinner::new(MSG_FETCHING_VYPER_RELEASES_SPINNER);
-        let vyper_releases = get_releases_with_arch(shell, "vyperlang/vyper", arch)
-            .context(MSG_GET_VYPER_RELEASES_ERR)?;
-        spinner.finish();
+        let zkvyper_releases = get_releases_with_arch(
+            shell,
+            "matter-labs/zkvyper-bin",
+            arch,
+            MSG_FETCHING_ZKVYPER_RELEASES_SPINNER,
+        )
+        .context(MSG_GET_ZKVYPER_RELEASES_ERR)?;
+
+        let vyper_releases = get_releases_with_arch(
+            shell,
+            "vyperlang/vyper",
+            arch,
+            MSG_FETCHING_VYPER_RELEASES_SPINNER,
+        )
+        .context(MSG_GET_VYPER_RELEASES_ERR)?;
 
         let zksolc_version = select_version(
             self.zksolc_version,
@@ -53,11 +69,18 @@ impl InitContractVerifierArgs {
             MSG_ZKSOLC_VERSION_PROMPT,
         )?;
 
+        let zkvyper_version = select_version(
+            self.zkvyper_version,
+            zkvyper_releases,
+            MSG_ZKVYPER_VERSION_PROMPT,
+        )?;
+
         let vyper_version =
             select_version(self.vyper_version, vyper_releases, MSG_VYPER_VERSION_PROMPT)?;
 
         Ok(InitContractVerifierArgsFinal {
             zksolc_version,
+            zkvyper_version,
             vyper_version,
         })
     }

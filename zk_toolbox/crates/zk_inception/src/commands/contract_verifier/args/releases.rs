@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use common::cmd::Cmd;
+use common::{cmd::Cmd, spinner::Spinner};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
@@ -100,7 +100,9 @@ pub fn get_releases_with_arch(
     shell: &Shell,
     repo: &str,
     arch: Arch,
+    message: &str,
 ) -> anyhow::Result<Vec<Version>> {
+    let spinner = Spinner::new(message);
     let releases = get_releases(shell, repo)?;
     let releases = releases
         .into_iter()
@@ -109,5 +111,6 @@ pub fn get_releases_with_arch(
     if releases.is_empty() {
         anyhow::bail!(MSG_NO_RELEASES_FOUND_ERR);
     }
+    spinner.finish();
     Ok(releases)
 }
