@@ -1,2 +1,2 @@
 pub mod init;
-pub mod zksolc_releases;
+pub mod releases;

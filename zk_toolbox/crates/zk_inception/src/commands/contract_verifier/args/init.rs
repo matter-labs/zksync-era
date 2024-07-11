@@ -1,26 +1,33 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{spinner::Spinner, PromptSelect};
+use common::{
+    spinner::{self, Spinner},
+    PromptSelect,
+};
 use xshell::Shell;
 
+use super::releases::{get_releases_with_arch, Arch, Version};
 use crate::messages::{
-    MSG_ARCH_NOT_SUPPORTED_ERR, MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_GET_ZKSOLC_RELEASES_ERR,
-    MSG_NO_RELEASES_FOUND_ERR, MSG_NO_VERSION_FOUND_ERR, MSG_OS_NOT_SUPPORTED_ERR,
+    MSG_ARCH_NOT_SUPPORTED_ERR, MSG_FETCHING_VYPER_RELEASES_SPINNER,
+    MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_GET_VYPER_RELEASES_ERR, MSG_GET_ZKSOLC_RELEASES_ERR,
+    MSG_NO_VERSION_FOUND_ERR, MSG_OS_NOT_SUPPORTED_ERR, MSG_VYPER_VERSION_PROMPT,
     MSG_ZKSOLC_VERSION_PROMPT,
 };
-
-use super::zksolc_releases::{get_zksolc_releases, Arch, ZkSolcVersion};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct InitContractVerifierArgs {
     /// Version of zksolc to install
     #[clap(long)]
-    pub version: Option<String>,
+    pub zksolc_version: Option<String>,
+    /// Version of vyper to install
+    #[clap(long)]
+    pub vyper_version: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct InitContractVerifierArgsFinal {
-    pub zksolc_version: ZkSolcVersion,
+    pub zksolc_version: Version,
+    pub vyper_version: Version,
 }
 
 impl InitContractVerifierArgs {
@@ -28,37 +35,31 @@ impl InitContractVerifierArgs {
         self,
         shell: &Shell,
     ) -> anyhow::Result<InitContractVerifierArgsFinal> {
-        let spinner = Spinner::new(MSG_FETCHING_ZKSOLC_RELEASES_SPINNER);
-        let releases = get_zksolc_releases(shell).context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
-        spinner.finish();
-
         let arch = get_arch()?;
 
-        let releases = releases
-            .into_iter()
-            .filter(|r| r.arch == arch)
-            .collect::<Vec<_>>();
+        let spinner = Spinner::new(MSG_FETCHING_ZKSOLC_RELEASES_SPINNER);
+        let zksolc_releases = get_releases_with_arch(shell, "matter-labs/zksolc-bin", arch)
+            .context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
+        spinner.finish();
 
-        if releases.is_empty() {
-            anyhow::bail!(MSG_NO_RELEASES_FOUND_ERR);
-        }
+        let spinner = spinner::Spinner::new(MSG_FETCHING_VYPER_RELEASES_SPINNER);
+        let vyper_releases = get_releases_with_arch(shell, "vyperlang/vyper", arch)
+            .context(MSG_GET_VYPER_RELEASES_ERR)?;
+        spinner.finish();
 
-        let version = self.version.unwrap_or_else(|| {
-            PromptSelect::new(
-                MSG_ZKSOLC_VERSION_PROMPT,
-                releases.iter().map(|r| &r.version),
-            )
-            .ask()
-            .into()
-        });
+        let zksolc_version = select_version(
+            self.zksolc_version,
+            zksolc_releases,
+            MSG_ZKSOLC_VERSION_PROMPT,
+        )?;
 
-        let zksolc_version = releases
-            .iter()
-            .find(|r| r.version == version)
-            .context(MSG_NO_VERSION_FOUND_ERR)?
-            .to_owned();
+        let vyper_version =
+            select_version(self.vyper_version, vyper_releases, MSG_VYPER_VERSION_PROMPT)?;
 
-        Ok(InitContractVerifierArgsFinal { zksolc_version })
+        Ok(InitContractVerifierArgsFinal {
+            zksolc_version,
+            vyper_version,
+        })
     }
 }
 
@@ -83,4 +84,24 @@ fn get_arch() -> anyhow::Result<Arch> {
     };
 
     Ok(arch)
+}
+
+fn select_version(
+    selected: Option<String>,
+    versions: Vec<Version>,
+    prompt_msg: &str,
+) -> anyhow::Result<Version> {
+    let selected = selected.unwrap_or_else(|| {
+        PromptSelect::new(prompt_msg, versions.iter().map(|r| &r.version))
+            .ask()
+            .into()
+    });
+
+    let selected = versions
+        .iter()
+        .find(|r| r.version == selected)
+        .context(MSG_NO_VERSION_FOUND_ERR)?
+        .to_owned();
+
+    Ok(selected)
 }
