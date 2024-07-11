@@ -6,6 +6,7 @@ use zksync_node_framework::{
     implementations::resources::pools::{MasterPool, PoolResource},
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
+use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_types::{L1ChainId, L2ChainId};
 
 #[derive(Debug)]
@@ -36,6 +37,7 @@ impl WiringLayer for ExternalNodeMetricsLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        RUST_METRICS.initialize();
         EN_METRICS.observe_config(self.l1_chain_id, self.l2_chain_id, self.postgres_pool_size);
 
         let pool = input.master_pool.get_singleton().await?;
