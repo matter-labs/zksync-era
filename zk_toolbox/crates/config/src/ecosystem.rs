@@ -97,10 +97,12 @@ impl EcosystemConfig {
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
         let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
-            return Err(EcosystemConfigFromFileError::NotExists);
+            return Err(EcosystemConfigFromFileError::NotExists {
+                path: shell.current_dir(),
+            });
         };
 
-        shell.change_dir(path);
+        shell.change_dir(&path);
 
         let ecosystem = match EcosystemConfig::read(shell, CONFIG_NAME) {
             Ok(mut config) => {
@@ -116,7 +118,7 @@ impl EcosystemConfig {
 
                 let current_dir = shell.current_dir();
                 let Some(parent) = current_dir.parent() else {
-                    return Err(EcosystemConfigFromFileError::NotExists);
+                    return Err(EcosystemConfigFromFileError::NotExists { path });
                 };
                 // Try to find ecosystem somewhere in parent directories
                 shell.change_dir(parent);
@@ -236,8 +238,9 @@ impl EcosystemConfig {
 /// Result of checking if the ecosystem exists.
 #[derive(Error, Debug)]
 pub enum EcosystemConfigFromFileError {
-    #[error("Ecosystem configuration not found")]
-    NotExists,
+    #[error("Ecosystem configuration not found (Could not find 'ZkStack.toml' in {path:?}: Make sure you have created an ecosystem & are in the new folder `cd path/to/ecosystem/name`)"
+    )]
+    NotExists { path: PathBuf },
     #[error("Invalid ecosystem configuration")]
     InvalidConfig { source: anyhow::Error },
 }

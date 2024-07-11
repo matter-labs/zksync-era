@@ -9,6 +9,7 @@ pub mod docker;
 pub mod ethereum;
 pub mod files;
 pub mod forge;
+pub mod git;
 pub mod server;
 pub mod wallets;
 

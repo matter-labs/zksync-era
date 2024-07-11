@@ -10,9 +10,9 @@ mod revert;
 
 #[derive(Subcommand, Debug)]
 pub enum TestCommands {
-    #[clap(about = MSG_INTEGRATION_TESTS_ABOUT)]
+    #[clap(about = MSG_INTEGRATION_TESTS_ABOUT, alias = "i")]
     Integration(IntegrationArgs),
-    #[clap(about = MSG_REVERT_TEST_ABOUT)]
+    #[clap(about = MSG_REVERT_TEST_ABOUT, alias = "r")]
     Revert(RevertArgs),
 }
 
