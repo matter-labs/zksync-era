@@ -586,7 +586,10 @@ impl EthTxManager {
                 .await
                 .unwrap();
 
-            tracing::info!("Sending {} new transactions", new_eth_tx.len());
+            tracing::info!(
+                "Sending {} {operator_type:?} new transactions",
+                new_eth_tx.len()
+            );
             for tx in new_eth_tx {
                 let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
                 // If one of the transactions doesn't succeed, this means we should return
