@@ -32,7 +32,7 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
-        Err(EcosystemConfigFromFileError::NotExists) => create(args, shell)?,
+        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
     };
 
     Ok(())

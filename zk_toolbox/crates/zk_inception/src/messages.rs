@@ -22,7 +22,7 @@ pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
-pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully (All subsequent commands should be executed from ecosystem folder `cd path/to/ecosystem/name`)";
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
