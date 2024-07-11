@@ -166,7 +166,7 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
-        await sleep(20000);
+        await sleep(12000);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
@@ -201,7 +201,7 @@ describe('ERC20 contract checks', () => {
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
-        await sleep(20000);
+        await sleep(12000);
 
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();

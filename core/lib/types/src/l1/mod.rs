@@ -2,7 +2,6 @@
 
 use std::convert::TryFrom;
 
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
 use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};

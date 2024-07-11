@@ -18,10 +18,10 @@ use zksync_types::{
     event::convert_vm_events_to_log_queries,
     web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, H256,
-    L1_MESSENGER_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L1_MESSENGER_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS,
 };
-use zksync_utils::{h256_to_account_address, h256_to_u256, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::{CommitmentStage, METRICS},

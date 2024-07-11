@@ -6,11 +6,10 @@
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
 
-use std::{collections::HashMap, convert::TryFrom, str::FromStr};
+use std::{collections::HashMap, convert::TryFrom};
 
 use ethabi::Token;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::Address;
 pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::Tokenize};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto::hasher::Hasher;
