@@ -618,18 +618,22 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             .map(UserL2ToL1Log)
             .collect();
 
+        let mut deduplicated_storage_logs: Vec<_> = self
+            .inner
+            .world_diff
+            .get_storage_changes()
+            .map(|((address, key), (_, value))| StorageLog {
+                key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                value: u256_to_h256(value),
+                kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
+            })
+            .collect();
+        // Order logs deterministically
+        deduplicated_storage_logs.sort_unstable_by_key(|log| log.key);
+
         CurrentExecutionState {
             events,
-            deduplicated_storage_logs: self
-                .inner
-                .world_diff
-                .get_storage_changes()
-                .map(|((address, key), (_, value))| StorageLog {
-                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(value),
-                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
-                })
-                .collect(),
+            deduplicated_storage_logs,
             used_contract_hashes: vec![],
             system_logs: self
                 .inner
