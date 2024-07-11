@@ -7318,8 +7318,9 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=91e98bbad1501363095cc57b32b5a49f2d1a3c36#91e98bbad1501363095cc57b32b5a49f2d1a3c36"
+source = "git+https://github.com/matter-labs/vm2.git?rev=cf43e1b4ec53d3065661666d4139dee5feb23b0a#cf43e1b4ec53d3065661666d4139dee5feb23b0a"
 dependencies = [
+ "ahash 0.8.7",
  "enum_dispatch",
  "primitive-types",
  "zk_evm_abstractions 1.5.0",

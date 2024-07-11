@@ -236,10 +236,7 @@ impl<S: ReadStorage> Vm<S> {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
                         l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
                         published_bytecodes,
-                        state_diffs: self
-                            .compute_state_diffs()
-                            .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
-                            .collect(),
+                        state_diffs: self.compute_state_diffs(),
                     };
 
                     // Save the pubdata for the future initial bootloader memory building
@@ -342,14 +339,12 @@ impl<S: ReadStorage> Vm<S> {
     #[allow(clippy::type_complexity)] // OK for tests
     pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
         // TODO this doesn't include all the state of ModifiedWorld
+        let mut storage_slots: Vec<_> = self.inner.world_diff.storage_slots().collect();
+        storage_slots.sort_unstable_by_key(|(key, _)| *key);
+
         (
             self.inner.state.clone(),
-            self.inner
-                .world_diff
-                .get_storage_state()
-                .iter()
-                .map(|(k, v)| (*k, *v))
-                .collect(),
+            storage_slots,
             self.inner.world_diff.events().into(),
         )
     }
@@ -372,8 +367,7 @@ impl<S: ReadStorage> Vm<S> {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
                     .world_diff
-                    .get_storage_state()
-                    .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
+                    .storage_slot(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash))
                     .map(|x| !x.is_zero())
                     .unwrap_or_else(|| self.world.storage.is_bytecode_known(&hash))
             })
@@ -393,10 +387,10 @@ impl<S: ReadStorage> Vm<S> {
         self.write_to_bootloader_heap(memory);
     }
 
-    fn compute_state_diffs(&mut self) -> impl Iterator<Item = StateDiffRecord> + '_ {
+    fn compute_state_diffs(&mut self) -> Vec<StateDiffRecord> {
         let storage = &mut self.world.storage;
 
-        self.inner.world_diff.get_storage_changes().map(
+        let changes = self.inner.world_diff.get_storage_changes().map(
             move |((address, key), (initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
@@ -413,7 +407,12 @@ impl<S: ReadStorage> Vm<S> {
                     final_value,
                 }
             },
-        )
+        );
+        let mut changes: Vec<_> = changes
+            .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
+            .collect();
+        changes.sort_unstable_by_key(|change| (change.address, change.key));
+        changes
     }
 
     #[cfg(test)]

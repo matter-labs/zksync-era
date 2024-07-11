@@ -1,15 +1,11 @@
-use std::collections::BTreeMap;
-
 use ethabi::Contract;
 use once_cell::sync::Lazy;
-use vm2::{instruction_handlers::HeapInterface, HeapId, State};
+use vm2::{instruction_handlers::HeapInterface, HeapId, State, WorldDiff};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
 use zksync_state::ReadStorage;
-use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, H160, U256,
-};
+use zksync_types::{utils::storage_key_for_standard_token_balance, AccountTreeId, Address, U256};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -26,13 +22,11 @@ pub(crate) fn get_balance(
     token_id: AccountTreeId,
     account: &Address,
     main_storage: &mut impl ReadStorage,
-    storage_changes: &BTreeMap<(H160, U256), U256>,
+    diff: &WorldDiff,
 ) -> U256 {
     let key = storage_key_for_standard_token_balance(token_id, account);
 
-    storage_changes
-        .get(&(*key.account().address(), h256_to_u256(*key.key())))
-        .cloned()
+    diff.storage_slot(*key.account().address(), h256_to_u256(*key.key()))
         .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
 }
 

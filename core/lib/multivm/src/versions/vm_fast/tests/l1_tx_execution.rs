@@ -82,11 +82,11 @@ fn test_l1_tx_execution() {
         (h256_to_u256(deploy_tx.bytecode_hash), account_code_key),
     ] {
         assert_eq!(
-            expected_value,
-            vm.vm.inner.world_diff.get_storage_state()[&(
+            Some(expected_value),
+            vm.vm.inner.world_diff.storage_slot(
                 *storage_location.address(),
-                h256_to_u256(*storage_location.key())
-            )]
+                h256_to_u256(*storage_location.key()),
+            )
         );
     }
 
