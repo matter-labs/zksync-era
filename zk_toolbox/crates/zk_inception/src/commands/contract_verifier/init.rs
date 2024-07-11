@@ -4,9 +4,8 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};
-
 use super::args::init::InitContractVerifierArgs;
+use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};
 
 pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt(shell)?;
