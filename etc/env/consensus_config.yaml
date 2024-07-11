@@ -13,3 +13,5 @@ genesis_spec:
   attesters:
     - key: "attester:public:secp256k1:038b2762ad382b35090bb42992a3f6442d638425ea5528e800ffe5a9f7d4185589"
       weight: 1
+    - key: "attester:public:secp256k1:0330914e41b225fb6f8518d5278f0c014a9861018c8054f9bb425bb6538538f1c9"
+      weight: 1
