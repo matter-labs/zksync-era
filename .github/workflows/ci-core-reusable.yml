@@ -213,45 +213,45 @@ jobs:
           ci_run zk contract_verifier &>contract_verifier.log &
           ci_run sleep 2
 
-      # - name: Server integration tests
-      #   run: ci_run zk test i server
+      - name: Server integration tests
+        run: ci_run zk test i server
 
-      # - name: Snapshot recovery test
-      #   # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
-      #   # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
-      #   # (e.g., DATABASE_URL).
-      #   #
-      #   # Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
-      #   # enabling / disabling tree during pruning.
-      #   run: |
-      #     if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-      #       ci_run zk config compile ext-node-validium
-      #       ci_run zk config compile ext-node-validium-docker
-      #     fi
-      #     ENABLE_CONSENSUS=${{ matrix.consensus }} \
-      #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-      #     SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
-      #     DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
-      #     ETH_CLIENT_WEB3_URL="http://reth:8545" \
-      #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
-      #       ci_run yarn recovery-test snapshot-recovery-test
+      - name: Snapshot recovery test
+        # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
+        # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
+        # (e.g., DATABASE_URL).
+        #
+        # Since `base_token` doesn't meaningfully influence the test, we use it as a flag for
+        # enabling / disabling tree during pruning.
+        run: |
+          if [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+            ci_run zk config compile ext-node-validium
+            ci_run zk config compile ext-node-validium-docker
+          fi
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
+          DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
+            ci_run yarn recovery-test snapshot-recovery-test
 
-      # - name: Genesis recovery test
-      #   run: |
-      #     ENABLE_CONSENSUS=${{ matrix.consensus }} \
-      #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-      #     ETH_CLIENT_WEB3_URL="http://reth:8545" \
-      #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
-      #       ci_run yarn recovery-test genesis-recovery-test
+      - name: Genesis recovery test
+        run: |
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
+            ci_run yarn recovery-test genesis-recovery-test
 
-      # - name: Fee projection tests
-      #   run: ci_run zk test i fees
+      - name: Fee projection tests
+        run: ci_run zk test i fees
 
-      # - name: Run revert test
-      #   run: |
-      #     ci_run pkill zksync_server || true
-      #     ci_run sleep 2
-      #     ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
+      - name: Run revert test
+        run: |
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert
 
 
         # This test should be the last one as soon as it
@@ -366,21 +366,21 @@ jobs:
           ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
-      # - name: Integration tests
-      #   run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
+      - name: Integration tests
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      # - name: Run revert test
-      #   run: |
-      #     ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
-      #     # test terminates the nodes, so we restart them.
-      #     if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
-      #       ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-      #       ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-      #     elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
-      #       ZKSYNC_ENV=dev_validium_docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-      #       ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-      #     fi
-      #     ci_run sleep 30
+      - name: Run revert test
+        run: |
+          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          # test terminates the nodes, so we restart them.
+          if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
+            ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+            ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+            ZKSYNC_ENV=dev_validium_docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+            ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          fi
+          ci_run sleep 30
 
       - name: Run upgrade test
         run: |
