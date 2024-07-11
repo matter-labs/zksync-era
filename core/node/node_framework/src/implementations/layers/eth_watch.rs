@@ -1,5 +1,5 @@
 use zksync_config::{ContractsConfig, EthWatchConfig};
-use zksync_contracts::governance_contract;
+use zksync_contracts::{chain_admin_contract, governance_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 
 use crate::{
@@ -64,7 +64,8 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
-                .map(|a| a.transparent_proxy_admin_addr),
+                .map(|a| a.state_transition_proxy_addr),
+            self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
         );
@@ -72,6 +73,7 @@ impl WiringLayer for EthWatchLayer {
         let eth_watch = EthWatch::new(
             self.contracts_config.diamond_proxy_addr,
             &governance_contract(),
+            &chain_admin_contract(),
             Box::new(eth_client),
             main_pool,
             self.eth_watch_config.poll_interval(),

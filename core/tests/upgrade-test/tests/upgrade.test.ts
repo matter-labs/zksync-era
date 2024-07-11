@@ -18,6 +18,9 @@ const GOVERNANCE_ABI = new ethers.Interface(
 const ADMIN_FACET_ABI = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
 );
+const CHAIN_ADMIN_ABI = new ethers.Interface(
+    require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
+);
 const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
 );
@@ -40,8 +43,8 @@ describe('Upgrade test', function () {
     let govWallet: ethers.Wallet;
     let mainContract: IZkSyncHyperchain;
     let governanceContract: ethers.Contract;
+    let chainAdminContract: ethers.Contract;
     let bootloaderHash: string;
-    let scheduleTransparentOperation: string;
     let executeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
@@ -96,6 +99,8 @@ describe('Upgrade test', function () {
         const stmContract = new ethers.Contract(stmAddr, STATE_TRANSITON_MANAGER, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
         governanceContract = new ethers.Contract(governanceAddr, GOVERNANCE_ABI, tester.syncWallet.providerL1);
+        const chainAdminAddr = await mainContract.getAdmin();
+        chainAdminContract = new ethers.Contract(chainAdminAddr, CHAIN_ADMIN_ABI, tester.syncWallet.providerL1);
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
@@ -181,10 +186,9 @@ describe('Upgrade test', function () {
         const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
 
-        const { stmUpgradeData, chainUpgradeData } = await prepareUpgradeCalldata(
+        const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
             govWallet,
             alice._providerL2(),
-            await mainContract.getAddress(),
             {
                 l2ProtocolUpgradeTx: {
                     txType: 254,
@@ -208,12 +212,12 @@ describe('Upgrade test', function () {
                 upgradeTimestamp: 0
             }
         );
-        scheduleTransparentOperation = chainUpgradeData.scheduleTransparentOperation;
-        executeOperation = chainUpgradeData.executeOperation;
+        executeOperation = chainUpgradeCalldata;
 
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-        await sendGovernanceOperation(scheduleTransparentOperation);
+
+        await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -247,7 +251,11 @@ describe('Upgrade test', function () {
         }
 
         // Execute the upgrade
-        await sendGovernanceOperation(executeOperation);
+        const executeMulticallData = chainAdminContract.interface.encodeFunctionData('multicall', [
+            [[await mainContract.getAddress(), 0, executeOperation]],
+            true
+        ]);
+        await sendChainAdminOperation(executeMulticallData);
 
         let bootloaderHashL1 = await mainContract.getL2BootloaderBytecodeHash();
         expect(bootloaderHashL1).eq(bootloaderHash);
@@ -307,6 +315,16 @@ describe('Upgrade test', function () {
         };
         const gasLimit = await govWallet.provider.estimateGas(tx);
         await (await govWallet.sendTransaction({ ...tx, gasPrice, gasLimit })).wait();
+    }
+
+    async function sendChainAdminOperation(data: string) {
+        await (
+            await govWallet.sendTransaction({
+                to: await chainAdminContract.getAddress(),
+                data: data,
+                type: 0
+            })
+        ).wait();
     }
 });
 
@@ -371,7 +389,6 @@ async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.Tr
 async function prepareUpgradeCalldata(
     govWallet: ethers.Wallet,
     l2Provider: zksync.Provider,
-    mainContract: zksync.types.Address,
     params: {
         l2ProtocolUpgradeTx: {
             txType: BigNumberish;
@@ -455,13 +472,18 @@ async function prepareUpgradeCalldata(
         oldProtocolVersion,
         upgradeParam
     ]);
+    // Set timestamp for upgrade on a specific chain under this STM.
+    const setTimestampCalldata = CHAIN_ADMIN_ABI.encodeFunctionData('setUpgradeTimestamp', [
+        newProtocolVersion,
+        params.upgradeTimestamp
+    ]);
 
     const stmUpgradeData = prepareGovernanceCalldata(stmAddress, stmUpgradeCalldata);
-    const chainUpgradeData = prepareGovernanceCalldata(mainContract, chainUpgradeCalldata);
 
     return {
-        chainUpgradeData,
-        stmUpgradeData
+        stmUpgradeData,
+        chainUpgradeCalldata,
+        setTimestampCalldata
     };
 }
 
