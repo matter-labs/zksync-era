@@ -120,6 +120,13 @@ pub struct ConsensusConfig {
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 
+    /// Maximal allowed size of the sync-batch payloads in bytes.
+    ///
+    /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
+    /// so the maximum batch size should be the maximum payload size times the maximum number
+    /// of blocks in a batch.
+    pub max_batch_size: usize,
+
     /// Limit on the number of inbound connections outside
     /// of the `static_inbound` set.
     pub gossip_dynamic_inbound_limit: usize,

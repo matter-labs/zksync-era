@@ -3,11 +3,13 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::consensus_dal::{self, Payload};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
@@ -441,20 +443,36 @@ impl PayloadManager for Store {
 impl storage::PersistentBatchStore for Store {
     /// Range of batches persisted in storage.
     fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
-        // Normally we'd return this, but it causes the following test to run forever:
-        // RUST_LOG=info zk test rust test_full_nodes --no-capture
-        //
-        // The error seems to be related to the size of messages, although I'm not sure
-        // why it retries it forever. Since the gossip of SyncBatch is not fully functional
-        // yet, for now let's just return a fake response that never changes, which should
-        // disable gossiping on honest nodes.
-        let _ = self.batches_persisted.clone();
+        self.batches_persisted.clone()
+    }
 
-        sync::watch::channel(storage::BatchStoreState {
-            first: attester::BatchNumber(0),
-            last: None,
-        })
-        .1
+    /// Get the earliest L1 batch number which has to be (re)signed by a node.
+    ///
+    /// Ideally we would make this decision by looking up the last batch submitted to L1,
+    /// and so it might require a quorum of attesters to sign a certificate for it.
+    async fn earliest_batch_number_to_sign(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        // This is the rough roadmap of how this logic will evolve:
+        // 1. Make best effort at gossiping and collecting votes; the `BatchVotes` in consensus only considers the last vote per attesters.
+        //    Still, we can re-sign more than the last batch, anticipating step 2.
+        // 2. Change `BatchVotes` to handle multiple pending batch numbers, anticipating that batch intervals might decrease dramatically.
+        // 3. Ask the Main Node what is the earliest batch number that it still expects votes for (ie. what is the last submission + 1).
+        // 4. Look at L1 to figure out what is the last submssion, and sign after that.
+
+        // Originally this method returned all unsigned batch numbers by doing a DAL query, but we decided it shoudl be okay and cheap
+        // to resend signatures for already signed batches, and we don't have to worry about skipping them. Because of that, we also
+        // didn't think it makes sense to query the database for the earliest unsigned batch *after* the submission, because we might
+        // as well just re-sign everything. Until we have a way to argue about the "last submission" we just re-sign the last 10 to
+        // try to produce as many QCs as the voting register allows, within reason.
+
+        let Some(last_batch_number) = self.last_batch(ctx).await? else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            last_batch_number.0.saturating_sub(10),
+        )))
     }
 
     /// Get the highest L1 batch number from storage.
@@ -496,6 +514,36 @@ impl storage::PersistentBatchStore for Store {
             .get_batch(ctx, number)
             .await
             .wrap("get_batch")
+    }
+
+    /// Returns the [attester::Batch] with the given number, which is the `message` that
+    /// appears in [attester::BatchQC], and represents the content that needs to be signed
+    /// by the attesters.
+    async fn get_batch_to_sign(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::Batch>> {
+        let Some(batch) = self
+            .conn(ctx)
+            .await?
+            .batch(
+                ctx,
+                L1BatchNumber(u32::try_from(number.0).context("number")?),
+            )
+            .await
+            .wrap("batch")?
+        else {
+            return Ok(None);
+        };
+
+        let info = StoredBatchInfo::from(&batch);
+        let hash = Keccak256::from_bytes(info.hash().0);
+
+        Ok(Some(attester::Batch {
+            number,
+            hash: attester::BatchHash(hash),
+        }))
     }
 
     /// Returns the QC of the batch with the given number.

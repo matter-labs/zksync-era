@@ -67,7 +67,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
+        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
@@ -83,6 +83,12 @@ impl GasAdjusterFeesOracle {
             priority_fee_per_gas = max(
                 priority_fee_per_gas,
                 (previous_sent_tx.priority_fee_per_gas * 6) / 5 + 1,
+            );
+
+            // same for base_fee_per_gas but 10%
+            base_fee_per_gas = max(
+                base_fee_per_gas,
+                previous_sent_tx.base_fee_per_gas + (previous_sent_tx.base_fee_per_gas / 10) + 1,
             );
         }
 
