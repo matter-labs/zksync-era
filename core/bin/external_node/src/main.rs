@@ -723,10 +723,6 @@ struct Cli {
     external_node_config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with consensus.
     consensus_path: Option<std::path::PathBuf>,
-
-    /// Run the node using the node framework.
-    #[arg(long)]
-    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -823,8 +819,11 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed fetching remote part of node config from main node")?;
 
+    // Can be used to force the old approach to the external node.
+    let force_old_approach = std::env::var("EXTERNAL_NODE_OLD_APPROACH").is_ok();
+
     // If the node framework is used, run the node.
-    if opt.use_node_framework {
+    if !force_old_approach {
         // We run the node from a different thread, since the current thread is in tokio context.
         std::thread::spawn(move || {
             let node =
@@ -837,6 +836,8 @@ async fn main() -> anyhow::Result<()> {
 
         return Ok(());
     }
+
+    tracing::info!("Running the external node in the old approach");
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
