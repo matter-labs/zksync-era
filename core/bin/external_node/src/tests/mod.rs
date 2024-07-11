@@ -23,8 +23,6 @@ async fn external_node_basics(components_str: &'static str) {
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block(components_str).await;
 
     let expected_health_components = utils::expected_health_components(&env.components);
-    let diamond_proxy_addr = env.config.remote.diamond_proxy_addr;
-
     let l2_client = MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
         .method("zks_L1ChainId", || Ok(U64::from(9)))
@@ -50,8 +48,7 @@ async fn external_node_basics(components_str: &'static str) {
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
-    // let l2_client = Box::new(l2_client);
-    let eth_client = utils::mock_eth_client(diamond_proxy_addr);
+    let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
@@ -131,8 +128,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
-    let diamond_proxy_addr = env.config.remote.diamond_proxy_addr;
-    let eth_client = utils::mock_eth_client(diamond_proxy_addr);
+    let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let mut node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
@@ -160,4 +156,100 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     // Send a stop signal and check that the node reacts to it.
     env_handles.sigint_sender.send(()).unwrap();
     node_handle.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn running_tree_without_core_is_not_allowed() {
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("tree").await;
+
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("eth_blockNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
+
+    let node_handle = tokio::task::spawn_blocking(move || {
+        std::thread::spawn(move || {
+            let mut node = ExternalNodeBuilder::new(env.config);
+            inject_test_layers(
+                &mut node,
+                env.sigint_receiver,
+                env.app_health_sender,
+                eth_client,
+                l2_client,
+            );
+
+            // We're only interested in the error, so we drop the result.
+            node.build(env.components.0.into_iter().collect()).map(drop)
+        })
+        .join()
+        .unwrap()
+    });
+
+    // Check that we cannot build the node without the core component.
+    let result = node_handle.await.expect("Building the node panicked");
+    let err = result.expect_err("Building the node with tree but without core should fail");
+    assert!(
+        err.to_string()
+            .contains("Tree must run on the same machine as Core"),
+        "Unexpected errror: {}",
+        err
+    );
+}
+
+#[tokio::test]
+async fn running_tree_api_without_tree_is_not_allowed() {
+    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("core,tree_api").await;
+
+    let l2_client = MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("eth_blockNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build();
+    let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
+
+    let node_handle = tokio::task::spawn_blocking(move || {
+        std::thread::spawn(move || {
+            let mut node = ExternalNodeBuilder::new(env.config);
+            inject_test_layers(
+                &mut node,
+                env.sigint_receiver,
+                env.app_health_sender,
+                eth_client,
+                l2_client,
+            );
+
+            // We're only interested in the error, so we drop the result.
+            node.build(env.components.0.into_iter().collect()).map(drop)
+        })
+        .join()
+        .unwrap()
+    });
+
+    // Check that we cannot build the node without the core component.
+    let result = node_handle.await.expect("Building the node panicked");
+    let err = result.expect_err("Building the node with tree api but without tree should fail");
+    assert!(
+        err.to_string()
+            .contains("Merkle tree API cannot be started without a tree component"),
+        "Unexpected errror: {}",
+        err
+    );
 }
