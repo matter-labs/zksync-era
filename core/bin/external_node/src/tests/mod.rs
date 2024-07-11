@@ -3,180 +3,27 @@
 use assert_matches::assert_matches;
 use framework::inject_test_layers;
 use test_casing::test_casing;
-use zksync_dal::CoreDal;
-use zksync_db_connection::connection_pool::TestTemplate;
-use zksync_eth_client::clients::MockEthereum;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{
-    api, ethabi, fee_model::FeeParams, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
-    H256, U64,
-};
-use zksync_web3_decl::{
-    client::{MockClient, L1},
-    jsonrpsee::core::ClientError,
-};
+use zksync_types::{api, fee_model::FeeParams, Address, L1BatchNumber, U64};
+use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
 
 use super::*;
 
 mod framework;
+mod utils;
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-fn block_details_base(hash: H256) -> api::BlockDetailsBase {
-    api::BlockDetailsBase {
-        timestamp: 0,
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        root_hash: Some(hash),
-        status: api::BlockStatus::Sealed,
-        commit_tx_hash: None,
-        committed_at: None,
-        prove_tx_hash: None,
-        proven_at: None,
-        execute_tx_hash: None,
-        executed_at: None,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        fair_pubdata_price: None,
-        base_system_contracts_hashes: Default::default(),
-    }
-}
-
-#[derive(Debug)]
-struct TestEnvironment {
-    sigint_receiver: Option<oneshot::Receiver<()>>,
-    app_health_sender: Option<oneshot::Sender<Arc<AppHealthCheck>>>,
-}
-
-impl TestEnvironment {
-    fn new() -> (Self, TestEnvironmentHandles) {
-        let (sigint_sender, sigint_receiver) = oneshot::channel();
-        let (app_health_sender, app_health_receiver) = oneshot::channel();
-        let this = Self {
-            sigint_receiver: Some(sigint_receiver),
-            app_health_sender: Some(app_health_sender),
-        };
-        let handles = TestEnvironmentHandles {
-            sigint_sender,
-            app_health_receiver,
-        };
-        (this, handles)
-    }
-}
-
-impl NodeEnvironment for TestEnvironment {
-    fn setup_sigint_handler(&mut self) -> oneshot::Receiver<()> {
-        self.sigint_receiver
-            .take()
-            .expect("requested to setup sigint handler twice")
-    }
-
-    fn set_app_health(&mut self, health: Arc<AppHealthCheck>) {
-        self.app_health_sender
-            .take()
-            .expect("set app health twice")
-            .send(health)
-            .ok();
-    }
-}
-
-#[derive(Debug)]
-struct TestEnvironmentHandles {
-    sigint_sender: oneshot::Sender<()>,
-    app_health_receiver: oneshot::Receiver<Arc<AppHealthCheck>>,
-}
-
-// The returned components have the fully implemented health check life cycle (i.e., signal their shutdown).
-fn expected_health_components(components: &ComponentsToRun) -> Vec<&'static str> {
-    let mut output = vec!["reorg_detector"];
-    if components.0.contains(&Component::Core) {
-        output.extend(["consistency_checker", "commitment_generator"]);
-    }
-    if components.0.contains(&Component::Tree) {
-        output.push("tree");
-    }
-    if components.0.contains(&Component::HttpApi) {
-        output.push("http_api");
-    }
-    if components.0.contains(&Component::WsApi) {
-        output.push("ws_api");
-    }
-    output
-}
-
-fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
-    let mock = MockEthereum::builder().with_call_handler(move |call, _| {
-        tracing::info!("L1 call: {call:?}");
-        if call.to == Some(diamond_proxy_addr) {
-            let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
-            let call_signature = &call.data.as_ref().unwrap().0[..4];
-            let contract = zksync_contracts::hyperchain_contract();
-            let pricing_mode_sig = contract
-                .function("getPubdataPricingMode")
-                .unwrap()
-                .short_signature();
-            let protocol_version_sig = contract
-                .function("getProtocolVersion")
-                .unwrap()
-                .short_signature();
-            match call_signature {
-                sig if sig == pricing_mode_sig => {
-                    return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
-                }
-                sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
-                _ => { /* unknown call; panic below */ }
-            }
-        }
-        panic!("Unexpected L1 call: {call:?}");
-    });
-    mock.build().into_client()
-}
 
 #[test_casing(3, ["all", "core", "api"])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
-    let temp_dir = tempfile::TempDir::new().unwrap();
 
-    // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
-    // in the network.
-    let test_db: ConnectionPoolBuilder<Core> =
-        TestTemplate::empty().unwrap().create_db(100).await.unwrap();
-    let connection_pool = test_db.build().await.unwrap();
-    // let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
-    let mut storage = connection_pool.connection().await.unwrap();
-    let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-    let genesis_l2_block = storage
-        .blocks_dal()
-        .get_l2_block_header(L2BlockNumber(0))
-        .await
-        .unwrap()
-        .expect("No genesis L2 block");
-    drop(storage);
+    let (env, env_handles) = utils::TestEnvironment::with_genesis_block(components_str).await;
 
-    let components: ComponentsToRun = components_str.parse().unwrap();
-    let expected_health_components = expected_health_components(&components);
-    let opt = Cli {
-        enable_consensus: false,
-        components,
-        config_path: None,
-        secrets_path: None,
-        external_node_config_path: None,
-        consensus_path: None,
-        use_node_framework: false,
-    };
-    let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
-    drop(connection_pool);
-
-    if opt.components.0.contains(&Component::TreeApi) {
-        config.tree_component.api_port = Some(0);
-    }
-
-    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let expected_health_components = utils::expected_health_components(&env.components);
+    let diamond_proxy_addr = env.config.remote.diamond_proxy_addr;
 
     let l2_client = MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
@@ -186,7 +33,7 @@ async fn external_node_basics(components_str: &'static str) {
             assert_eq!(number, L1BatchNumber(0));
             Ok(api::L1BatchDetails {
                 number: L1BatchNumber(0),
-                base: block_details_base(genesis_params.root_hash),
+                base: utils::block_details_base(env.genesis_params.root_hash),
             })
         })
         .method("eth_blockNumber", || Ok(U64::from(0)))
@@ -195,7 +42,7 @@ async fn external_node_basics(components_str: &'static str) {
             move |number: api::BlockNumber, _with_txs: bool| {
                 assert_eq!(number, api::BlockNumber::Number(0.into()));
                 Ok(api::Block::<api::TransactionVariant> {
-                    hash: genesis_l2_block.hash,
+                    hash: env.genesis_l2_block.hash,
                     ..api::Block::default()
                 })
             },
@@ -204,23 +51,26 @@ async fn external_node_basics(components_str: &'static str) {
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
     // let l2_client = Box::new(l2_client);
-    let eth_client = mock_eth_client(diamond_proxy_addr);
+    let eth_client = utils::mock_eth_client(diamond_proxy_addr);
 
-    let (env, env_handles) = TestEnvironment::new();
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(config);
-            inject_test_layers(&mut node, env, eth_client, l2_client);
+            let mut node = ExternalNodeBuilder::new(env.config);
+            inject_test_layers(
+                &mut node,
+                env.sigint_receiver,
+                env.app_health_sender,
+                eth_client,
+                l2_client,
+            );
 
-            let node = node.build(opt.components.0.into_iter().collect())?;
+            let node = node.build(env.components.0.into_iter().collect())?;
             node.run()?;
             anyhow::Ok(())
         })
         .join()
         .unwrap()
     });
-
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     // Wait until the node is ready.
     let app_health = match env_handles.app_health_receiver.await {
@@ -267,32 +117,7 @@ async fn external_node_basics(components_str: &'static str) {
 #[tokio::test]
 async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
-    let temp_dir = tempfile::TempDir::new().unwrap();
-
-    let test_db: ConnectionPoolBuilder<Core> =
-        TestTemplate::empty().unwrap().create_db(100).await.unwrap();
-    let connection_pool = test_db.build().await.unwrap();
-    let mut storage = connection_pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-    drop(storage);
-
-    let opt = Cli {
-        enable_consensus: false,
-        components: "core".parse().unwrap(),
-        config_path: None,
-        secrets_path: None,
-        external_node_config_path: None,
-        consensus_path: None,
-        use_node_framework: false,
-    };
-    let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
-    drop(connection_pool);
-
-    if opt.components.0.contains(&Component::TreeApi) {
-        config.tree_component.api_port = Some(0);
-    }
+    let (env, env_handles) = utils::TestEnvironment::with_genesis_block("core").await;
 
     let l2_client = MockClient::builder(L2::default())
         .method("eth_chainId", || Ok(U64::from(270)))
@@ -306,16 +131,21 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
-    let diamond_proxy_addr = config.remote.diamond_proxy_addr;
-    let eth_client = mock_eth_client(diamond_proxy_addr);
+    let diamond_proxy_addr = env.config.remote.diamond_proxy_addr;
+    let eth_client = utils::mock_eth_client(diamond_proxy_addr);
 
-    let (env, env_handles) = TestEnvironment::new();
     let mut node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(config);
-            inject_test_layers(&mut node, env, eth_client, l2_client);
+            let mut node = ExternalNodeBuilder::new(env.config);
+            inject_test_layers(
+                &mut node,
+                env.sigint_receiver,
+                env.app_health_sender,
+                eth_client,
+                l2_client,
+            );
 
-            let node = node.build(opt.components.0.into_iter().collect())?;
+            let node = node.build(env.components.0.into_iter().collect())?;
             node.run()?;
             anyhow::Ok(())
         })

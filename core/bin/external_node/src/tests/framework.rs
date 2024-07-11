@@ -19,20 +19,21 @@ use zksync_node_framework::{
 use zksync_types::{L1ChainId, L2ChainId};
 use zksync_web3_decl::client::{MockClient, L1, L2};
 
-use super::{ExternalNodeBuilder, TestEnvironment};
+use super::ExternalNodeBuilder;
 
 pub(super) fn inject_test_layers(
     node: &mut ExternalNodeBuilder,
-    test_env: TestEnvironment,
+    sigint_receiver: oneshot::Receiver<()>,
+    app_health_sender: oneshot::Sender<Arc<AppHealthCheck>>,
     l1_client: MockClient<L1>,
     l2_client: MockClient<L2>,
 ) {
     node.node
         .add_layer(TestSigintLayer {
-            receiver: test_env.sigint_receiver.unwrap(),
+            receiver: sigint_receiver,
         })
         .add_layer(AppHealthHijackLayer {
-            receiver: test_env.app_health_sender.unwrap(),
+            sender: app_health_sender,
         })
         .add_layer(MockL1ClientLayer { client: l1_client })
         .add_layer(MockL2ClientLayer { client: l2_client });
@@ -85,7 +86,7 @@ impl IntoContext for TestSigintTask {
 /// Note: It's a separate layer to get access to the app health check, not an override.
 #[derive(Debug)]
 struct AppHealthHijackLayer {
-    receiver: oneshot::Sender<Arc<AppHealthCheck>>,
+    sender: oneshot::Sender<Arc<AppHealthCheck>>,
 }
 
 #[derive(Debug, FromContext)]
@@ -104,7 +105,7 @@ impl WiringLayer for AppHealthHijackLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        self.receiver.send(input.app_health_check.0).unwrap();
+        self.sender.send(input.app_health_check.0).unwrap();
         tracing::error!("Submitted health");
         Ok(())
     }
