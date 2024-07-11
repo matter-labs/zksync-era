@@ -4,7 +4,7 @@ use zksync_config::configs::consensus::{
     AttesterPublicKey, ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion,
     RpcConfig, ValidatorPublicKey, WeightedAttester, WeightedValidator,
 };
-use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
+use zksync_protobuf::{kB, read_optional, repr::ProtoRepr, required, ProtoFmt};
 
 use crate::{proto::consensus as proto, read_optional_repr};
 
@@ -100,14 +100,31 @@ impl ProtoRepr for proto::Config {
             let addr = Host(required(&e.addr).context("addr")?.clone());
             anyhow::Ok((key, addr))
         };
+
+        let max_payload_size = required(&self.max_payload_size)
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("max_payload_size")?;
+
+        let max_batch_size = match self.max_batch_size {
+            Some(x) => x.try_into().context("max_batch_size")?,
+            None => {
+                // Compute a default batch size, so operators are not caught out by the missing setting
+                // while we're still working on batch syncing. The batch interval is ~1 minute,
+                // so there will be ~60 blocks, and an Ethereum Merkle proof is ~1kB, but under high
+                // traffic there can be thousands of huge transactions that quickly fill up blocks
+                // and there could be more blocks in a batch then expected. We chose a generous
+                // limit so as not to prevent any legitimate batch from being transmitted.
+                max_payload_size * 5000 + kB
+            }
+        };
+
         Ok(Self::Type {
             server_addr: required(&self.server_addr)
                 .and_then(|x| Ok(x.parse()?))
                 .context("server_addr")?,
             public_addr: Host(required(&self.public_addr).context("public_addr")?.clone()),
-            max_payload_size: required(&self.max_payload_size)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("max_payload_size")?,
+            max_payload_size,
+            max_batch_size,
             gossip_dynamic_inbound_limit: required(&self.gossip_dynamic_inbound_limit)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("gossip_dynamic_inbound_limit")?,
@@ -132,6 +149,7 @@ impl ProtoRepr for proto::Config {
             server_addr: Some(this.server_addr.to_string()),
             public_addr: Some(this.public_addr.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
+            max_batch_size: Some(this.max_batch_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(
                 this.gossip_dynamic_inbound_limit.try_into().unwrap(),
             ),
