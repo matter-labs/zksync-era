@@ -23,6 +23,8 @@ pub struct FriWitnessGeneratorConfig {
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,
+
+    pub prometheus_listener_port: Option<u16>,
 }
 
 #[derive(Debug)]

@@ -193,6 +193,11 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("scheduler_generation_timeout_in_secs")?,
+            prometheus_listener_port: self
+                .prometheus_listener_port
+                .map(|x| x.try_into())
+                .transpose()
+                .context("prometheus_listener_port")?,
         })
     }
 
@@ -213,6 +218,7 @@ impl ProtoRepr for proto::WitnessGenerator {
             scheduler_generation_timeout_in_secs: this
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),
+            prometheus_listener_port: this.prometheus_listener_port.map(|x| x.into()),
         }
     }
 }

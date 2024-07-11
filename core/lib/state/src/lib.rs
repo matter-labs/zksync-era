@@ -18,23 +18,11 @@ use zksync_types::{
     H256,
 };
 
-mod cache;
-mod catchup;
-mod in_memory;
-mod postgres;
-mod rocksdb;
-mod shadow_storage;
-mod storage_factory;
-mod storage_overrides;
-mod storage_view;
-#[cfg(test)]
-mod test_utils;
-
 pub use self::{
     cache::sequential_cache::SequentialCache,
     catchup::{AsyncCatchupTask, RocksdbCell},
-    in_memory::InMemoryStorage,
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
+    in_memory::InMemoryStorage,
     in_memory::IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID,
     postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{
@@ -43,8 +31,21 @@ pub use self::{
     shadow_storage::ShadowStorage,
     storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
     storage_overrides::StorageOverrides,
-    storage_view::{StorageView, StorageViewMetrics},
+    storage_view::{StorageView, StorageViewCache, StorageViewMetrics},
+    witness::WitnessStorage,
 };
+
+mod cache;
+mod catchup;
+mod in_memory;
+mod postgres;
+mod rocksdb;
+mod shadow_storage;
+mod storage_factory;
+mod storage_view;
+#[cfg(test)]
+mod test_utils;
+mod witness;
 
 /// Functionality to read from the VM storage.
 pub trait ReadStorage: fmt::Debug {

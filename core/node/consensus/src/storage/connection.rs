@@ -1,8 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::validator;
-use zksync_consensus_storage as storage;
+use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber};
@@ -92,25 +93,56 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    /// Wrapper for `consensus_dal().certificate()`.
-    pub async fn certificate(
+    /// Wrapper for `consensus_dal().block_certificate()`.
+    pub async fn block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::CommitQC>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().certificate(number))
+            .wait(self.0.consensus_dal().block_certificate(number))
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().insert_certificate()`.
-    pub async fn insert_certificate(
+    /// Wrapper for `consensus_dal().insert_block_certificate()`.
+    pub async fn insert_block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
     ) -> Result<(), InsertCertificateError> {
         Ok(ctx
-            .wait(self.0.consensus_dal().insert_certificate(cert))
+            .wait(self.0.consensus_dal().insert_block_certificate(cert))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().insert_batch_certificate()`.
+    pub async fn insert_batch_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cert: &attester::BatchQC,
+    ) -> Result<(), InsertCertificateError> {
+        use crate::storage::consensus_dal::InsertCertificateError as E;
+
+        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
+
+        let Some(l1_batch) = self
+            .0
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .map_err(E::Dal)?
+        else {
+            return Err(E::MissingPayload.into());
+        };
+
+        let l1_batch_info = StoredBatchInfo::from(&l1_batch);
+
+        if l1_batch_info.hash().0 != *cert.message.hash.0.as_bytes() {
+            return Err(E::PayloadMismatch.into());
+        }
+
+        Ok(ctx
+            .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await??)
     }
 
@@ -134,7 +166,7 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().get_l1_batch_metadata()`.
+    /// Wrapper for `blocks_dal().get_l1_batch_metadata()`.
     pub async fn batch(
         &mut self,
         ctx: &ctx::Ctx,
@@ -184,13 +216,13 @@ impl<'a> Connection<'a> {
         Ok(ctx.wait(self.0.consensus_dal().next_block()).await??)
     }
 
-    /// Wrapper for `consensus_dal().certificates_range()`.
-    pub(crate) async fn certificates_range(
+    /// Wrapper for `consensus_dal().block_certificates_range()`.
+    pub(crate) async fn block_certificates_range(
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<storage::BlockStoreState> {
         Ok(ctx
-            .wait(self.0.consensus_dal().certificates_range())
+            .wait(self.0.consensus_dal().block_certificates_range())
             .await??)
     }
 
@@ -239,17 +271,163 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::FinalBlock>> {
-        let Some(justification) = self.certificate(ctx, number).await.wrap("certificate()")? else {
+        let Some(justification) = self
+            .block_certificate(ctx, number)
+            .await
+            .wrap("block_certificate()")?
+        else {
             return Ok(None);
         };
+
         let payload = self
             .payload(ctx, number)
             .await
             .wrap("payload()")?
             .context("L2 block disappeared from storage")?;
+
         Ok(Some(validator::FinalBlock {
             payload: payload.encode(),
             justification,
         }))
+    }
+
+    /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
+    pub async fn get_last_batch_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_sealed_l1_batch_number())
+            .await?
+            .context("get_sealed_l1_batch_number()")?
+            .map(|nr| attester::BatchNumber(nr.0 as u64)))
+    }
+
+    /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
+    pub async fn get_last_batch_certificate_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().get_last_batch_certificate_number())
+            .await?
+            .context("get_last_batch_certificate_number()")?)
+    }
+
+    /// Wrapper for `consensus_dal().batch_certificate()`.
+    pub async fn batch_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_certificate(number))
+            .await?
+            .context("batch_certificate()")?)
+    }
+
+    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
+    pub async fn get_l2_block_range_of_l1_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<(validator::BlockNumber, validator::BlockNumber)>> {
+        let number = L1BatchNumber(number.0.try_into().context("number")?);
+
+        let range = ctx
+            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?;
+
+        Ok(range.map(|(min, max)| {
+            let min = validator::BlockNumber(min.0 as u64);
+            let max = validator::BlockNumber(max.0 as u64);
+            (min, max)
+        }))
+    }
+
+    /// Construct the [attester::SyncBatch] for a given batch number.
+    pub async fn get_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::SyncBatch>> {
+        let Some((min, max)) = self
+            .get_l2_block_range_of_l1_batch(ctx, number)
+            .await
+            .context("get_l2_block_range_of_l1_batch()")?
+        else {
+            return Ok(None);
+        };
+
+        let payloads = self.payloads(ctx, min..max).await.wrap("payloads()")?;
+        let payloads = payloads.into_iter().map(|p| p.encode()).collect();
+
+        // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
+        // It is supposed to be a Merkle proof that the rolling hash of the batch has been included
+        // in the L1 system contract state tree. It is *not* the Ethereum state root hash, so producing
+        // it can be done without an L1 client, which is only required for validation.
+        let batch = attester::SyncBatch {
+            number,
+            payloads,
+            proof: Vec::new(),
+        };
+
+        Ok(Some(batch))
+    }
+
+    /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
+    pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
+        let first = self
+            .0
+            .blocks_dal()
+            .get_earliest_l1_batch_number()
+            .await
+            .context("get_earliest_l1_batch_number()")?;
+
+        let first = if first.is_some() {
+            first
+        } else {
+            self.0
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await
+                .context("get_earliest_l1_batch_number()")?
+                .map(|s| s.l1_batch_number)
+        };
+
+        // TODO: In the future when we start filling in the `SyncBatch::proof` field,
+        // we can only run `get_batch` expecting `Some` result on numbers where the
+        // L1 state root hash is already available, so that we can produce some
+        // Merkle proof that the rolling hash of the L2 blocks in the batch has
+        // been included in the L1 state tree. At that point we probably can't
+        // call `get_last_batch_number` here, but something that indicates that
+        // the hashes/commitments on the L1 batch are ready and the thing has
+        // been included in L1; that potentially requires an API client as well.
+        let last = self
+            .get_last_batch_number(ctx)
+            .await
+            .context("get_last_batch_number()")?;
+
+        let last = if let Some(last) = last {
+            // For now it would be unexpected if we couldn't retrieve the payloads
+            // for the `last` batch number, as an L1 batch is only created if we
+            // have all the L2 miniblocks for it.
+            Some(
+                self.get_batch(ctx, last)
+                    .await
+                    .context("get_batch()")?
+                    .context("last batch not available")?,
+            )
+        } else {
+            None
+        };
+
+        Ok(BatchStoreState {
+            first: first
+                .map(|n| attester::BatchNumber(n.0 as u64))
+                .unwrap_or(attester::BatchNumber(0)),
+            last,
+        })
     }
 }

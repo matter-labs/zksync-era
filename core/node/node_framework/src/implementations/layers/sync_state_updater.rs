@@ -8,66 +8,74 @@ use crate::{
         pools::{MasterPool, PoolResource},
         sync_state::SyncStateResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for [`SyncState`] maintenance.
 /// If [`SyncStateResource`] is already provided by another layer, this layer does nothing.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `MainNodeClientResource`
-///
-/// ## Adds resources
-///
-/// - `SyncStateResource`
-///
-/// ## Adds tasks
-///
-/// - `SyncStateUpdater`
 #[derive(Debug)]
 pub struct SyncStateUpdaterLayer;
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    /// Fetched to check whether the `SyncState` was already provided by another layer.
+    pub sync_state: Option<SyncStateResource>,
+    pub master_pool: PoolResource<MasterPool>,
+    pub main_node_client: MainNodeClientResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub sync_state: Option<SyncStateResource>,
+    #[context(task)]
+    pub sync_state_updater: Option<SyncStateUpdater>,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for SyncStateUpdaterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "sync_state_updater_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        if context.get_resource::<SyncStateResource>().is_ok() {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        if input.sync_state.is_some() {
             // `SyncState` was provided by some other layer -- we assume that the layer that added this resource
             // will be responsible for its maintenance.
             tracing::info!(
                 "SyncState was provided by another layer, skipping SyncStateUpdaterLayer"
             );
-            return Ok(());
+            return Ok(Output {
+                sync_state: None,
+                sync_state_updater: None,
+            });
         }
 
-        let pool = context.get_resource::<PoolResource<MasterPool>>()?;
-        let MainNodeClientResource(main_node_client) = context.get_resource()?;
+        let connection_pool = input.master_pool.get().await?;
+        let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let sync_state = SyncState::default();
 
-        // Insert resource.
-        context.insert_resource(SyncStateResource(sync_state.clone()))?;
-
-        // Insert task
-        context.add_task(SyncStateUpdater {
-            sync_state,
-            connection_pool: pool.get().await?,
-            main_node_client,
-        });
-
-        Ok(())
+        Ok(Output {
+            sync_state: Some(sync_state.clone().into()),
+            sync_state_updater: Some(SyncStateUpdater {
+                sync_state,
+                connection_pool,
+                main_node_client,
+            }),
+        })
     }
 }
 
 #[derive(Debug)]
-struct SyncStateUpdater {
+pub struct SyncStateUpdater {
     sync_state: SyncState,
     connection_pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,

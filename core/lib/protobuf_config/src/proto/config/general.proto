@@ -19,6 +19,8 @@ import "zksync/config/commitment_generator.proto";
 import "zksync/config/snapshot_recovery.proto";
 import "zksync/config/pruning.proto";
 import "zksync/config/object_store.proto";
+import "zksync/config/base_token_adjuster.proto";
+import "zksync/config/external_price_api_client.proto";
 
 message GeneralConfig {
   optional config.database.Postgres postgres = 1;
@@ -47,4 +49,7 @@ message GeneralConfig {
   optional config.pruning.Pruning pruning = 36;
   optional config.commitment_generator.CommitmentGenerator commitment_generator = 37;
   optional config.da_dispatcher.DataAvailabilityDispatcher da_dispatcher = 38;
+  optional config.base_token_adjuster.BaseTokenAdjuster base_token_adjuster = 39;
+  optional config.vm_runner.BasicWitnessInputProducer basic_witness_input_producer = 40;
+  optional config.external_price_api_client.ExternalPriceApiClient external_price_api_client = 41;
 }

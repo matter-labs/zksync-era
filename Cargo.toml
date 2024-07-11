@@ -10,6 +10,7 @@ members = [
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
     "core/bin/genesis_generator",
+    "core/bin/zksync_tee_prover",
     # Node services
     "core/node/node_framework",
     "core/node/proof_data_handler",
@@ -29,10 +30,12 @@ members = [
     "core/node/consistency_checker",
     "core/node/metadata_calculator",
     "core/node/node_sync",
+    "core/node/node_storage_init",
     "core/node/consensus",
     "core/node/contract_verification_server",
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
+    "core/node/base_token_adjuster",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -69,6 +72,7 @@ members = [
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
+    "core/lib/external_price_api",
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",
@@ -146,6 +150,7 @@ reqwest = "0.12"
 rlp = "0.5"
 rocksdb = "0.21.0"
 rustc_version = "0.4.0"
+rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
 secrecy = "0.8.0"
 semver = "1"
@@ -175,6 +180,7 @@ tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.21.0"
 url = "2"
 web3 = "0.19.0"
+fraction = "0.15.3"
 
 # Proc-macro
 syn = "2.0"
@@ -183,31 +189,34 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
-circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
-circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-crypto_codegen = { package = "codegen", git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
-kzg = { package = "kzg", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.1-rc2" }
-zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
-zk_evm_1_4_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0" }
-zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
-zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.5.0" }
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_network = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_consensus_utils = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "ba7b171456e7362eada685234a91c20907b6a097" }
+vise = "0.1.0"
+vise-exporter = "0.1.0"
+
+circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "=0.133.0" }
+circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "=0.140.0" }
+circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "=0.141.0" }
+circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "=0.142.0" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.1" }
+crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
+kzg = { package = "zksync_kzg", version = "=0.150.1" }
+zk_evm = { version = "=0.133.0" }
+zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
+zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
+zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
+zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "0.150.0" }
+
+# Consensus dependencies.
+zksync_concurrency = "=0.1.0-rc.2"
+zksync_consensus_bft = "=0.1.0-rc.2"
+zksync_consensus_crypto = "=0.1.0-rc.2"
+zksync_consensus_executor = "=0.1.0-rc.2"
+zksync_consensus_network = "=0.1.0-rc.2"
+zksync_consensus_roles = "=0.1.0-rc.2"
+zksync_consensus_storage = "=0.1.0-rc.2"
+zksync_consensus_utils = "=0.1.0-rc.2"
+zksync_protobuf = "=0.1.0-rc.2"
+zksync_protobuf_build = "=0.1.0-rc.2"
 
 # "Local" dependencies
 zksync_multivm = { path = "core/lib/multivm" }
@@ -248,6 +257,7 @@ zksync_types = { path = "core/lib/types" }
 zksync_utils = { path = "core/lib/utils" }
 zksync_web3_decl = { path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
+zksync_external_price_api = { path = "core/lib/external_price_api" }
 
 # Framework and components
 zksync_node_framework = { path = "core/node/node_framework" }
@@ -270,7 +280,9 @@ zksync_reorg_detector = { path = "core/node/reorg_detector" }
 zksync_consistency_checker = { path = "core/node/consistency_checker" }
 zksync_metadata_calculator = { path = "core/node/metadata_calculator" }
 zksync_node_sync = { path = "core/node/node_sync" }
+zksync_node_storage_init = { path = "core/node/node_storage_init" }
 zksync_node_consensus = { path = "core/node/consensus" }
 zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
 zksync_node_api_server = { path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }
+zksync_base_token_adjuster = { path = "core/node/base_token_adjuster" }
