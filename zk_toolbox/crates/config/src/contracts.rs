@@ -118,6 +118,7 @@ pub struct L1Contracts {
     pub default_upgrade_addr: Address,
     pub diamond_proxy_addr: Address,
     pub governance_addr: Address,
+    #[serde(default)]
     pub chain_admin_addr: Address,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
