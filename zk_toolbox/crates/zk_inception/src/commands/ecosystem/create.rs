@@ -19,7 +19,7 @@ use crate::{
         },
     },
     messages::{
-        MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATED_ECOSYSTEM, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
+        msg_created_ecosystem, MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
         MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
         MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
         MSG_STARTING_CONTAINERS_SPINNER,
@@ -111,6 +111,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         spinner.finish();
     }
 
-    logger::outro(MSG_CREATED_ECOSYSTEM);
+    logger::outro(msg_created_ecosystem(&ecosystem_name));
     Ok(())
 }
