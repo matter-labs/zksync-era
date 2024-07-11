@@ -17,9 +17,7 @@ use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode}
 use zksync_consistency_checker::ConsistencyChecker;
 use zksync_core_leftovers::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
-use zksync_db_connection::{
-    connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
-};
+use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
@@ -914,9 +912,6 @@ async fn run_node(
     ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
-    )))?;
-    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
-        connection_pool.clone(),
     )))?;
 
     // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.

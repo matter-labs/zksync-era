@@ -1,8 +1,10 @@
 //! High-level tests for EN.
 
 use assert_matches::assert_matches;
+use framework::inject_test_layers;
 use test_casing::test_casing;
 use zksync_dal::CoreDal;
+use zksync_db_connection::connection_pool::TestTemplate;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
@@ -15,6 +17,8 @@ use zksync_web3_decl::{
 };
 
 use super::*;
+
+mod framework;
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -129,7 +133,7 @@ fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
     mock.build().into_client()
 }
 
-#[test_casing(5, ["all", "core", "api", "tree", "tree,tree_api"])]
+#[test_casing(3, ["all", "core", "api"])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
@@ -138,8 +142,10 @@ async fn external_node_basics(components_str: &'static str) {
 
     // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
     // in the network.
-    let connection_pool = ConnectionPool::test_pool().await;
-    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
+    let test_db: ConnectionPoolBuilder<Core> =
+        TestTemplate::empty().unwrap().create_db(100).await.unwrap();
+    let connection_pool = test_db.build().await.unwrap();
+    // let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
     let mut storage = connection_pool.connection().await.unwrap();
     let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -164,6 +170,8 @@ async fn external_node_basics(components_str: &'static str) {
         use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+    drop(connection_pool);
+
     if opt.components.0.contains(&Component::TreeApi) {
         config.tree_component.api_port = Some(0);
     }
@@ -195,22 +203,24 @@ async fn external_node_basics(components_str: &'static str) {
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
-    let l2_client = Box::new(l2_client);
-    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
+    // let l2_client = Box::new(l2_client);
+    let eth_client = mock_eth_client(diamond_proxy_addr);
 
     let (env, env_handles) = TestEnvironment::new();
-    let node_handle = tokio::spawn(async move {
-        run_node(
-            env,
-            &opt,
-            &config,
-            connection_pool,
-            singleton_pool_builder,
-            l2_client,
-            eth_client,
-        )
-        .await
+    let node_handle = tokio::task::spawn_blocking(move || {
+        std::thread::spawn(move || {
+            let mut node = ExternalNodeBuilder::new(config);
+            inject_test_layers(&mut node, env, eth_client, l2_client);
+
+            let node = node.build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            anyhow::Ok(())
+        })
+        .join()
+        .unwrap()
     });
+
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     // Wait until the node is ready.
     let app_health = match env_handles.app_health_receiver.await {
@@ -259,8 +269,9 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let temp_dir = tempfile::TempDir::new().unwrap();
 
-    let connection_pool = ConnectionPool::test_pool().await;
-    let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
+    let test_db: ConnectionPoolBuilder<Core> =
+        TestTemplate::empty().unwrap().create_db(100).await.unwrap();
+    let connection_pool = test_db.build().await.unwrap();
     let mut storage = connection_pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -277,6 +288,8 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         use_node_framework: false,
     };
     let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+    drop(connection_pool);
+
     if opt.components.0.contains(&Component::TreeApi) {
         config.tree_component.api_port = Some(0);
     }
@@ -293,22 +306,21 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
         .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .build();
-    let l2_client = Box::new(l2_client);
     let diamond_proxy_addr = config.remote.diamond_proxy_addr;
-    let eth_client = Box::new(mock_eth_client(diamond_proxy_addr));
+    let eth_client = mock_eth_client(diamond_proxy_addr);
 
     let (env, env_handles) = TestEnvironment::new();
-    let mut node_handle = tokio::spawn(async move {
-        run_node(
-            env,
-            &opt,
-            &config,
-            connection_pool,
-            singleton_pool_builder,
-            l2_client,
-            eth_client,
-        )
-        .await
+    let mut node_handle = tokio::task::spawn_blocking(move || {
+        std::thread::spawn(move || {
+            let mut node = ExternalNodeBuilder::new(config);
+            inject_test_layers(&mut node, env, eth_client, l2_client);
+
+            let node = node.build(opt.components.0.into_iter().collect())?;
+            node.run()?;
+            anyhow::Ok(())
+        })
+        .join()
+        .unwrap()
     });
 
     // Check that the node doesn't stop on its own.

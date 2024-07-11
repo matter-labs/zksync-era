@@ -62,7 +62,7 @@ use crate::{
 /// Builder for the external node.
 #[derive(Debug)]
 pub(crate) struct ExternalNodeBuilder {
-    node: ZkStackServiceBuilder,
+    pub(crate) node: ZkStackServiceBuilder,
     config: ExternalNodeConfig,
 }
 
