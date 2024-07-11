@@ -1,5 +1,17 @@
 # Changelog
 
+## [16.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v15.1.0...prover-v16.0.0) (2024-07-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **prover:** Bump prover protocol patch ([#2428](https://github.com/matter-labs/zksync-era/issues/2428))
+
+### Features
+
+* L1 batch signing (BFT-474) ([#2414](https://github.com/matter-labs/zksync-era/issues/2414)) ([ab699db](https://github.com/matter-labs/zksync-era/commit/ab699dbe8cffa8bd291d6054579061b47fd4aa0e))
+* **prover:** Bump prover protocol patch ([#2428](https://github.com/matter-labs/zksync-era/issues/2428)) ([1dffae9](https://github.com/matter-labs/zksync-era/commit/1dffae90d0d6a56434bb076135ac2a957ab20b83))
+
 ## [15.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v15.0.0...prover-v15.1.0) (2024-07-10)
 
 
