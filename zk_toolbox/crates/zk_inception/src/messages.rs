@@ -22,7 +22,11 @@ pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
-pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+
+pub fn msg_created_ecosystem(name: &str) -> String {
+    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd {name}`)")
+}
+
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
@@ -185,7 +189,6 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
-pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Forge utils related messages

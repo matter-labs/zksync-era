@@ -30,9 +30,9 @@ struct Supervisor {
 
 #[derive(Subcommand, Debug)]
 enum SupervisorSubcommands {
-    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT, alias = "db")]
     Database(DatabaseCommands),
-    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT, alias = "t")]
     Test(TestCommands),
     #[command(subcommand, about = MSG_SUBCOMMAND_CLEAN)]
     Clean(CleanCommands),
