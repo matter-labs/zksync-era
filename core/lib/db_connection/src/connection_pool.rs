@@ -48,11 +48,6 @@ impl<DB: DbMarker> fmt::Debug for ConnectionPoolBuilder<DB> {
 }
 
 impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
-    /// Returns the URL for the database.
-    pub fn database_url(&self) -> &SensitiveUrl {
-        &self.database_url
-    }
-
     /// Overrides the maximum number of connections that can be allocated by the pool.
     pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
         self.max_size = max_size;
