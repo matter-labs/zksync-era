@@ -94,7 +94,10 @@ pub async fn init(
     accept_admin(
         shell,
         ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
+        contracts_config
+            .l1
+            .chain_admin_addr
+            .unwrap_or(contracts_config.l1.governance_addr),
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
