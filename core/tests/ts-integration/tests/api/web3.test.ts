@@ -149,18 +149,18 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should check the syncing status', async () => {
-        // We can't know whether the node is synced, so we just check the validity of the response.
+        // We can't know whether the node is synced (in EN case), so we just check the validity of the response.
         const response = await alice.provider.send('eth_syncing', []);
         // Sync status is either `false` or an object with the following fields.
         if (response !== false) {
             const expectedObject = {
                 currentBlock: expect.stringMatching(HEX_VALUE_REGEX),
                 highestBlock: expect.stringMatching(HEX_VALUE_REGEX),
-                startingBlock: expect.stringMatching(HEX_VALUE_REGEX),
-            }
+                startingBlock: expect.stringMatching(HEX_VALUE_REGEX)
+            };
             expect(response).toMatchObject(expectedObject);
         }
-    })
+    });
 
     // @ts-ignore
     test.each([
