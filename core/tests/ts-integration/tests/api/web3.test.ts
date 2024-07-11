@@ -1085,50 +1085,98 @@ describe('web3 API compatibility tests', () => {
 
             expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
         });
-    });
 
-    test('Should call and succeed with overriding state with State', async () => {
-        const contract = await deployContract(alice, contracts.stateOverride, []);
-        const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
+        test('Should call and succeed with overriding state with State', async () => {
+            const contract = await deployContract(alice, contracts.stateOverride, []);
+            const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
 
-        // Ensure that the initial call fails due to contract requirements
-        const callResponse = await alice.provider.call({
-            to: contract.address,
-            data: sumValuesFunctionData
-        });
-
-        const errorString = 'Initial state not set';
-        const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
-        const errorSelector = '0x08c379a0';
-        const expectedResponse = errorSelector + encodedErrorString.slice(2);
-
-        expect(callResponse).toEqual(expectedResponse);
-
-        // Override the contract state using State
-        const state = {
-            [contract.address]: {
-                state: {
-                    '0x0000000000000000000000000000000000000000000000000000000000000000':
-                        '0x0000000000000000000000000000000000000000000000000000000000000001',
-                    '0x0000000000000000000000000000000000000000000000000000000000000001':
-                        '0x0000000000000000000000000000000000000000000000000000000000000002'
-                }
-            }
-        };
-
-        const response = await alice.provider.send('eth_call', [
-            {
-                from: alice.address,
+            // Ensure that the initial call fails due to contract requirements
+            const callResponse = await alice.provider.call({
                 to: contract.address,
                 data: sumValuesFunctionData
-            },
-            'latest',
-            state
-        ]);
+            });
 
-        expect(response).toEqual('0x0000000000000000000000000000000000000000000000000000000000000003');
+            const errorString = 'Initial state not set';
+            const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
+            const errorSelector = '0x08c379a0';
+            const expectedResponse = errorSelector + encodedErrorString.slice(2);
+
+            expect(callResponse).toEqual(expectedResponse);
+
+            // Override the contract state using State
+            const state = {
+                [contract.address]: {
+                    state: {
+                        '0x0000000000000000000000000000000000000000000000000000000000000000':
+                            '0x0000000000000000000000000000000000000000000000000000000000000001',
+                        '0x0000000000000000000000000000000000000000000000000000000000000001':
+                            '0x0000000000000000000000000000000000000000000000000000000000000002'
+                    }
+                }
+            };
+
+            const response = await alice.provider.send('eth_call', [
+                {
+                    from: alice.address,
+                    to: contract.address,
+                    data: sumValuesFunctionData
+                },
+                'latest',
+                state
+            ]);
+
+            // The state replace the entire state of the contract, so the sum now would be
+            // 1 (0x1) + 2 (0x2) = 3 (0x3)
+            expect(response).toEqual('0x0000000000000000000000000000000000000000000000000000000000000003');
+        });
+
+        test('Should call and succeed with overriding state with StateDiff', async () => {
+            const contract = await deployContract(alice, contracts.stateOverride, []);
+            const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
+
+            // Ensure that the initial call fails due to contract requirements
+            const callResponse = await alice.provider.call({
+                to: contract.address,
+                data: sumValuesFunctionData
+            });
+
+            const errorString = 'Initial state not set';
+            const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
+            const errorSelector = '0x08c379a0';
+            const expectedResponse = errorSelector + encodedErrorString.slice(2);
+
+            expect(callResponse).toEqual(expectedResponse);
+
+            // Override the contract state using State
+            const stateDiff = {
+                [contract.address]: {
+                    stateDiff: {
+                        '0x0000000000000000000000000000000000000000000000000000000000000000':
+                            '0x0000000000000000000000000000000000000000000000000000000000000001',
+                        '0x0000000000000000000000000000000000000000000000000000000000000001':
+                            '0x0000000000000000000000000000000000000000000000000000000000000002'
+                    }
+                }
+            };
+
+            const response = await alice.provider.send('eth_call', [
+                {
+                    from: alice.address,
+                    to: contract.address,
+                    data: sumValuesFunctionData
+                },
+                'latest',
+                stateDiff
+            ]);
+
+            // The stateDiff only changes the specific slots provided in the override.
+            // The initial value of the storage slot at key 0x2 remains unchanged, which is 100 (0x64 in hex).
+            // Therefore, the sum of the values at the three storage slots is:
+            // 1 (0x1) + 2 (0x2) + 100 (0x64) = 103 (0x67 in hex).
+            // This is why the expected response is 0x67.
+            expect(response).toEqual('0x0000000000000000000000000000000000000000000000000000000000000067');
+        });
     });
-
     // We want to be sure that correct(outer) contract address is return in the transaction receipt,
     // when there is a contract that initializa another contract in the constructor
     test('Should check inner-outer contract address in the receipt of the deploy tx', async () => {

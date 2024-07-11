@@ -16,7 +16,7 @@ pub struct StorageOverrides<S> {
     storage_handle: S,
     overridden_factory_deps: HashMap<H256, Vec<u8>>,
     overridden_account_state: HashMap<AccountTreeId, HashMap<H256, H256>>,
-    overriden_account_state_diff: HashMap<AccountTreeId, HashMap<H256, H256>>,
+    overridden_account_state_diff: HashMap<AccountTreeId, HashMap<H256, H256>>,
     overridden_balance: HashMap<StorageKey, U256>,
     overridden_nonce: HashMap<StorageKey, U256>,
     overridden_code: HashMap<StorageKey, H256>,
@@ -29,7 +29,7 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
             storage_handle: storage,
             overridden_factory_deps: HashMap::new(),
             overridden_account_state: HashMap::new(),
-            overriden_account_state_diff: HashMap::new(),
+            overridden_account_state_diff: HashMap::new(),
             overridden_balance: HashMap::new(),
             overridden_nonce: HashMap::new(),
             overridden_code: HashMap::new(),
@@ -52,7 +52,7 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
         account: AccountTreeId,
         state_diff: HashMap<H256, H256>,
     ) {
-        self.overriden_account_state_diff
+        self.overridden_account_state_diff
             .insert(account, state_diff);
     }
 
@@ -78,10 +78,12 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
         if let Some(account_state) = self.overridden_account_state.get(key.account()) {
             if let Some(value) = account_state.get(key.key()) {
                 return *value;
+            } else {
+                return H256::zero();
             }
         }
 
-        if let Some(account_state_diff) = self.overriden_account_state_diff.get(key.account()) {
+        if let Some(account_state_diff) = self.overridden_account_state_diff.get(key.account()) {
             if let Some(value) = account_state_diff.get(key.key()) {
                 return *value;
             }
@@ -136,7 +138,7 @@ impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
                 Some(OverrideState::StateDiff(state_diff)) => {
                     for (key, value) in state_diff {
                         let account_state = self
-                            .overridden_account_state
+                            .overridden_account_state_diff
                             .entry(AccountTreeId::new(*account))
                             .or_default();
                         account_state.insert(*key, *value);
