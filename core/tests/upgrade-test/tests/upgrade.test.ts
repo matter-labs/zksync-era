@@ -169,7 +169,6 @@ describe('Upgrade test', function () {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
         forceDeployBytecode = COUNTER_BYTECODE;
 
-        console.log('Force deploy address:', forceDeployAddress);
         const forceDeployment: ForceDeployment = {
             bytecodeHash: ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode)),
             newAddress: forceDeployAddress,
@@ -177,14 +176,10 @@ describe('Upgrade test', function () {
             value: 0n,
             input: '0x'
         };
-        console.log('Force deployment:', forceDeployment);
 
         const delegateTo = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
-        console.log('Delegate to:', delegateTo);
         const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
-        console.log('Delegate calldata:', delegateCalldata);
         const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
-        console.log('Data:', data);
 
         const { stmUpgradeData, chainUpgradeData } = await prepareUpgradeCalldata(
             govWallet,
@@ -213,22 +208,15 @@ describe('Upgrade test', function () {
                 upgradeTimestamp: 0
             }
         );
-        console.log('STM upgrade data:', stmUpgradeData);
-        console.log('Chain upgrade data:', chainUpgradeData);
         scheduleTransparentOperation = chainUpgradeData.scheduleTransparentOperation;
         executeOperation = chainUpgradeData.executeOperation;
 
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
-        console.log('Governance operation stmUpgradeData.scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-        console.log('Governance operation stmUpgradeData.executeOperation');
         await sendGovernanceOperation(scheduleTransparentOperation);
-        console.log('Governance operation scheduleTransparentOperation');
 
         // Wait for server to process L1 event.
-        console.log('Waiting for server to process L1 event');
         await utils.sleep(2);
-        console.log('Server should have processed L1 event');
     });
 
     step('Check bootloader is updated on L2', async () => {
