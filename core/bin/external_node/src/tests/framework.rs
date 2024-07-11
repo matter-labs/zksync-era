@@ -14,6 +14,7 @@ use zksync_node_framework::{
         },
     },
     service::ServiceContext,
+    task::TaskKind,
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 use zksync_types::{L1ChainId, L2ChainId};
@@ -65,6 +66,10 @@ struct TestSigintTask(oneshot::Receiver<()>);
 
 #[async_trait::async_trait]
 impl Task for TestSigintTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "test_sigint_task".into()
     }
@@ -106,7 +111,6 @@ impl WiringLayer for AppHealthHijackLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         self.sender.send(input.app_health_check.0).unwrap();
-        tracing::error!("Submitted health");
         Ok(())
     }
 }
