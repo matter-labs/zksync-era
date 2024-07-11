@@ -20,7 +20,7 @@ use zksync_types::{
     L1BatchNumber, H256,
 };
 
-use crate::errors::RequestProcessorError;
+use crate::{errors::RequestProcessorError, metrics::METRICS};
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
@@ -146,6 +146,8 @@ impl RequestProcessor {
                 aux_hash: previous_batch_metadata.metadata.aux_data_hash,
             },
         };
+
+        METRICS.observe_blob_sizes(&blob);
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
