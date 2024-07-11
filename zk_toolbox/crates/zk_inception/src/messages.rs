@@ -15,14 +15,18 @@ pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
 pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";
 pub(super) const MSG_START_CONTAINERS_HELP: &str =
     "Start reth and postgres containers after creation";
-pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "How do you want to name the ecosystem?";
+pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "What do you want to name the ecosystem?";
 pub(super) const MSG_REPOSITORY_ORIGIN_PROMPT: &str = "Select the origin of zksync-era repository";
 pub(super) const MSG_LINK_TO_CODE_PROMPT: &str = "Where's the code located?";
 pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
-pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+
+pub fn msg_created_ecosystem(name: &str) -> String {
+    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd {name}`)")
+}
+
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
@@ -36,6 +40,8 @@ pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code alread
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
+pub(super) const MSG_DEV_ARG_HELP: &str =
+    "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -67,7 +73,7 @@ pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
 }
 
 /// Ecosystem default related messages
-pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain you want to set as default?";
+pub(super) const MSG_DEFAULT_CHAIN_PROMPT: &str = "What chain do you want to set as default?";
 
 /// Ecosystem config related messages
 pub(super) const MSG_SAVE_INITIAL_CONFIG_ATTENTION: &str =
@@ -166,6 +172,7 @@ pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
+pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -182,7 +189,6 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
-pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Forge utils related messages
@@ -206,8 +212,69 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
+
+pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
+pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
+pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
+pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
+    "Failed to run witness vector generator";
+pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
+pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
+pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
+    "Select where you would like to store the proofs";
+pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
+    "Provide the path where you would like to store the proofs:";
+pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT: &str =
+    "Provide the base URL of the GCS bucket (e.g., gs://bucket-name):";
+pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR: &str =
+    "Bucket base URL should start with gs://";
+pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
+    "Provide the path to the GCS credentials file:";
+pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
+pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
+pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the project ID:";
+pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
+    "Provide a project ID:";
+pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
+pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
+pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
+    "Proof compressor config not found";
+pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup key...";
+pub(super) const MSG_DOWNLOAD_SETUP_KEY_PROMPT: &str = "Do you want to download the setup key?";
+pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
+pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
+pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
+pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
+pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
+pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
+pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
+pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
+pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
+pub(super) const MSG_CLONING_BELLMAN_CUDA_SPINNER: &str = "Cloning bellman-cuda...";
+pub(super) const MSG_BUILDING_BELLMAN_CUDA_SPINNER: &str = "Building bellman-cuda...";
+pub(super) const MSG_BELLMAN_CUDA_DIR_ERR: &str = "Failed to get bellman-cuda directory";
+pub(super) const MSG_BELLMAN_CUDA_DIR_PROMPT: &str =
+    "Provide the path to the bellman-cuda directory:";
+pub(super) const MSG_BELLMAN_CUDA_INITIALIZED: &str =
+    "bellman-cuda has been initialized successfully";
+pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
+    "Select the origin of bellman-cuda repository";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 
-pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
+    format!("Bucket created successfully with url: gs://{bucket_name}")
+}

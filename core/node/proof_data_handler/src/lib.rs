@@ -18,6 +18,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 mod tests;
 
 mod errors;
+mod metrics;
 mod request_processor;
 mod tee_request_processor;
 
@@ -32,8 +33,10 @@ pub async fn run_server(
     tracing::debug!("Starting proof data handler server on {bind_address}");
     let app = create_proof_processing_router(blob_store, connection_pool, config, commitment_mode);
 
-    axum::Server::bind(&bind_address)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(bind_address)
+        .await
+        .with_context(|| format!("Failed binding proof data handler server to {bind_address}"))?;
+    axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");

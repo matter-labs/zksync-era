@@ -2,41 +2,9 @@
 
 use std::str::FromStr;
 
-use anyhow::Context as _;
 use tokio::sync::oneshot;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 
 pub mod temp_config_store;
-
-/// Inserts the initial information about ZKsync tokens into the database.
-pub async fn genesis_init(
-    genesis_config: GenesisConfig,
-    database_secrets: &DatabaseSecrets,
-) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
-    let mut storage = pool.connection().await.context("connection()")?;
-
-    let params = GenesisParams::load_genesis_params(genesis_config)?;
-    ensure_genesis_state(&mut storage, &params).await?;
-
-    Ok(())
-}
-
-pub async fn is_genesis_needed(database_secrets: &DatabaseSecrets) -> bool {
-    let db_url = database_secrets.master_url().unwrap();
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .expect("failed to build connection_pool");
-    let mut storage = pool.connection().await.expect("connection()");
-    storage.blocks_dal().is_genesis_needed().await.unwrap()
-}
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.
@@ -86,8 +54,14 @@ pub enum Component {
     Consensus,
     /// Component generating commitment for L1 batches.
     CommitmentGenerator,
+    /// Component sending a pubdata to the DA layers.
+    DADispatcher,
     /// VM runner-based component that saves protective reads to Postgres.
     VmRunnerProtectiveReads,
+    /// A component to fetch and persist ETH<->BaseToken conversion ratios for chains with custom base tokens.
+    BaseTokenRatioPersister,
+    /// VM runner-based component that saves VM execution data for basic witness generation.
+    VmRunnerBwip,
 }
 
 #[derive(Debug)]
@@ -124,9 +98,14 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
+            "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),
             "vm_runner_protective_reads" => {
                 Ok(Components(vec![Component::VmRunnerProtectiveReads]))
             }
+            "base_token_ratio_persister" => {
+                Ok(Components(vec![Component::BaseTokenRatioPersister]))
+            }
+            "vm_runner_bwip" => Ok(Components(vec![Component::VmRunnerBwip])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

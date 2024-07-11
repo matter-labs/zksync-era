@@ -28,8 +28,9 @@ use zksync_types::{
 };
 
 use crate::{
-    abstract_l1_interface::L1BlockNumbers, aggregated_operations::AggregatedOperation, Aggregator,
-    EthSenderError, EthTxAggregator, EthTxManager,
+    abstract_l1_interface::{L1BlockNumbers, OperatorType},
+    aggregated_operations::AggregatedOperation,
+    Aggregator, EthSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -332,7 +333,7 @@ async fn confirm_many(
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -347,9 +348,10 @@ async fn confirm_many(
 
     let to_resend = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?;
 
@@ -359,7 +361,7 @@ async fn confirm_many(
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -433,7 +435,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -461,7 +463,11 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(&mut tester.conn.connection().await.unwrap(), block_numbers)
+        .monitor_inflight_transactions_single_operator(
+            &mut tester.conn.connection().await.unwrap(),
+            block_numbers,
+            OperatorType::NonBlob,
+        )
         .await?
         .unwrap();
 
@@ -482,7 +488,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -568,7 +574,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -582,9 +588,10 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
 
     let to_resend = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?;
 
@@ -594,7 +601,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -680,9 +687,10 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?
         .expect("we should be trying to resend the last tx");
@@ -693,7 +701,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -767,9 +775,10 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
         .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await
         .unwrap();
@@ -1253,9 +1262,20 @@ async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
         .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
+        )
+        .await
+        .unwrap();
+
+    tester
+        .manager
+        .monitor_inflight_transactions_single_operator(
+            &mut tester.conn.connection().await.unwrap(),
+            tester.get_block_numbers().await,
+            OperatorType::Blob,
         )
         .await
         .unwrap();

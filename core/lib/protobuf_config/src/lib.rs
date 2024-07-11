@@ -5,12 +5,14 @@
 //! * protobuf json format
 
 mod api;
+mod base_token_adjuster;
 mod chain;
 mod circuit_breaker;
 mod commitment_generator;
 mod consensus;
 mod contract_verifier;
 mod contracts;
+mod da_dispatcher;
 mod database;
 mod en;
 mod eth;
@@ -27,8 +29,8 @@ mod pruning;
 mod secrets;
 mod snapshots_creator;
 
+mod external_price_api_client;
 mod snapshot_recovery;
-pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;

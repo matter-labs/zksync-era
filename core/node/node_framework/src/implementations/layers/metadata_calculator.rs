@@ -18,33 +18,44 @@ use crate::{
         pools::{MasterPool, PoolResource, ReplicaPool},
         web3_api::TreeApiClientResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::{ShutdownHook, StopReceiver},
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
-/// Wiring layer for <insert description here>
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `PoolResource<ReplicaPool>`
-/// - `ObjectStoreResource` (only for `MerkleTreeMode::Full`)
-/// - `AppHealthCheckResource` (adds several health checks)
-///
-/// ## Adds resources
-///
-/// - `TreeApiClientResource`
-///
-/// ## Adds tasks
-///
-/// - `MetadataCalculatorTask`
-/// - `TreeApiTask` (if requested)
+/// Wiring layer for Metadata calculator and Tree API.
 #[derive(Debug)]
 pub struct MetadataCalculatorLayer {
     config: MetadataCalculatorConfig,
     tree_api_config: Option<MerkleTreeApiConfig>,
     pruning_config: Option<Duration>,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
+    /// Only needed for `MerkleTreeMode::Full`
+    pub object_store: Option<ObjectStoreResource>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub metadata_calculator: MetadataCalculator,
+    pub tree_api_client: TreeApiClientResource,
+    /// Only provided if configuration is provided.
+    #[context(task)]
+    pub tree_api_task: Option<TreeApiTask>,
+    /// Only provided if configuration is provided.
+    #[context(task)]
+    pub pruning_task: Option<MerkleTreePruningTask>,
+    pub rocksdb_shutdown_hook: ShutdownHook,
 }
 
 impl MetadataCalculatorLayer {
@@ -69,25 +80,28 @@ impl MetadataCalculatorLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for MetadataCalculatorLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "metadata_calculator_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool.get().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let main_pool = input.master_pool.get().await?;
         // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
         // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
-        let recovery_pool = context
-            .get_resource::<PoolResource<ReplicaPool>>()
-            .await?
-            .get_custom(10)
-            .await?;
+        let recovery_pool = input.replica_pool.get_custom(10).await?;
+        let app_health = input.app_health.0;
 
         let object_store = match self.config.mode {
             MerkleTreeMode::Lightweight => None,
             MerkleTreeMode::Full => {
-                let store = context.get_resource::<ObjectStoreResource>().await?;
+                let store = input.object_store.ok_or_else(|| {
+                    WiringError::Configuration(
+                        "Object store is required for full Merkle tree mode".into(),
+                    )
+                })?;
                 Some(store)
             }
         };
@@ -100,42 +114,48 @@ impl WiringLayer for MetadataCalculatorLayer {
         .await?
         .with_recovery_pool(recovery_pool);
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health
             .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
             .map_err(WiringError::internal)?;
 
-        if let Some(tree_api_config) = self.tree_api_config {
+        let tree_api_task = self.tree_api_config.map(|tree_api_config| {
             let bind_addr = (Ipv4Addr::UNSPECIFIED, tree_api_config.port).into();
             let tree_reader = metadata_calculator.tree_reader();
-            context.add_task(Box::new(TreeApiTask {
+            TreeApiTask {
                 bind_addr,
                 tree_reader,
-            }));
-        }
+            }
+        });
 
-        if let Some(pruning_removal_delay) = self.pruning_config {
-            let pruning_task = Box::new(metadata_calculator.pruning_task(pruning_removal_delay));
-            app_health
-                .insert_component(pruning_task.health_check())
-                .map_err(|err| WiringError::Internal(err.into()))?;
-            context.add_task(pruning_task);
-        }
+        let pruning_task = self
+            .pruning_config
+            .map(
+                |pruning_removal_delay| -> Result<MerkleTreePruningTask, WiringError> {
+                    let pruning_task = metadata_calculator.pruning_task(pruning_removal_delay);
+                    app_health
+                        .insert_component(pruning_task.health_check())
+                        .map_err(|err| WiringError::Internal(err.into()))?;
+                    Ok(pruning_task)
+                },
+            )
+            .transpose()?;
 
-        context.insert_resource(TreeApiClientResource(Arc::new(
-            metadata_calculator.tree_reader(),
-        )))?;
+        let tree_api_client = TreeApiClientResource(Arc::new(metadata_calculator.tree_reader()));
 
-        context.add_task(Box::new(metadata_calculator));
-
-        context.add_shutdown_hook("rocksdb_terminaton", async {
+        let rocksdb_shutdown_hook = ShutdownHook::new("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.
             tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
                 .await
                 .context("failed terminating RocksDB instances")
         });
 
-        Ok(())
+        Ok(Output {
+            metadata_calculator,
+            tree_api_client,
+            tree_api_task,
+            pruning_task,
+            rocksdb_shutdown_hook,
+        })
     }
 }
 

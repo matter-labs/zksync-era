@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                comp.l1_batch_number,\n                (comp.updated_at - wit.created_at) AS time_taken,\n                wit.created_at\n            FROM\n                proof_compression_jobs_fri AS comp\n                JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number\n            WHERE\n                wit.created_at > $1\n            ORDER BY\n                time_taken DESC;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "time_taken",
+        "type_info": "Interval"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "081e2b928f0816c41d6645c1dedbb3402044d201e85e114ff4582394c32bd2bf"
+}

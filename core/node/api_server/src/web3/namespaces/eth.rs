@@ -407,7 +407,7 @@ impl EthNamespace {
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&storage_key, block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         Ok(value)

@@ -15,31 +15,14 @@ use zksync_house_keeper::{
 
 use crate::{
     implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<ReplicaPool>`
-/// - `PoolResource<ProverPool>`
-///
-/// ## Adds tasks
-///
-/// - `L1BatchMetricsReporterTask`
-/// - `FriProverJobRetryManagerTask`
-/// - `FriWitnessGeneratorJobRetryManagerTask`
-/// - `WaitingToQueuedFriWitnessJobMoverTask`
-/// - `FriProverJobArchiverTask`
-/// - `FriProverGpuArchiverTask`
-/// - `FriWitnessGeneratorStatsReporterTask`
-/// - `FriProverStatsReporterTask`
-/// - `FriProofCompressorStatsReporterTask`
-/// - `FriProofCompressorJobRetryManagerTask`
 #[derive(Debug)]
 pub struct HouseKeeperLayer {
     house_keeper_config: HouseKeeperConfig,
@@ -47,6 +30,38 @@ pub struct HouseKeeperLayer {
     fri_witness_generator_config: FriWitnessGeneratorConfig,
     fri_prover_group_config: FriProverGroupConfig,
     fri_proof_compressor_config: FriProofCompressorConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub replica_pool: PoolResource<ReplicaPool>,
+    pub prover_pool: PoolResource<ProverPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub l1_batch_metrics_reporter: L1BatchMetricsReporter,
+    #[context(task)]
+    pub fri_prover_job_retry_manager: FriProverJobRetryManager,
+    #[context(task)]
+    pub fri_witness_generator_job_retry_manager: FriWitnessGeneratorJobRetryManager,
+    #[context(task)]
+    pub waiting_to_queued_fri_witness_job_mover: WaitingToQueuedFriWitnessJobMover,
+    #[context(task)]
+    pub fri_prover_job_archiver: Option<FriProverJobsArchiver>,
+    #[context(task)]
+    pub fri_prover_gpu_archiver: Option<FriGpuProverArchiver>,
+    #[context(task)]
+    pub fri_witness_generator_stats_reporter: FriWitnessGeneratorQueueReporter,
+    #[context(task)]
+    pub fri_prover_stats_reporter: FriProverQueueReporter,
+    #[context(task)]
+    pub fri_proof_compressor_stats_reporter: FriProofCompressorQueueReporter,
+    #[context(task)]
+    pub fri_proof_compressor_job_retry_manager: FriProofCompressorJobRetryManager,
 }
 
 impl HouseKeeperLayer {
@@ -69,17 +84,17 @@ impl HouseKeeperLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for HouseKeeperLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "house_keeper_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Initialize resources
-        let replica_pool_resource = context.get_resource::<PoolResource<ReplicaPool>>().await?;
-        let replica_pool = replica_pool_resource.get().await?;
-
-        let prover_pool_resource = context.get_resource::<PoolResource<ProverPool>>().await?;
-        let prover_pool = prover_pool_resource.get().await?;
+        let replica_pool = input.replica_pool.get().await?;
+        let prover_pool = input.prover_pool.get().await?;
 
         // Initialize and add tasks
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
@@ -87,9 +102,6 @@ impl WiringLayer for HouseKeeperLayer {
                 .l1_batch_metrics_reporting_interval_ms,
             replica_pool.clone(),
         );
-        context.add_task(Box::new(L1BatchMetricsReporterTask {
-            l1_batch_metrics_reporter,
-        }));
 
         let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
             self.fri_prover_config.max_attempts,
@@ -97,9 +109,6 @@ impl WiringLayer for HouseKeeperLayer {
             self.house_keeper_config.prover_job_retrying_interval_ms,
             prover_pool.clone(),
         );
-        context.add_task(Box::new(FriProverJobRetryManagerTask {
-            fri_prover_job_retry_manager,
-        }));
 
         let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
             self.fri_witness_generator_config.max_attempts,
@@ -109,46 +118,30 @@ impl WiringLayer for HouseKeeperLayer {
                 .witness_generator_job_retrying_interval_ms,
             prover_pool.clone(),
         );
-        context.add_task(Box::new(FriWitnessGeneratorJobRetryManagerTask {
-            fri_witness_gen_job_retry_manager,
-        }));
 
         let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
             self.house_keeper_config.witness_job_moving_interval_ms,
             prover_pool.clone(),
         );
-        context.add_task(Box::new(WaitingToQueuedFriWitnessJobMoverTask {
-            waiting_to_queued_fri_witness_job_mover,
-        }));
 
-        if let Some((archiving_interval, archive_after)) =
-            self.house_keeper_config.prover_job_archiver_params()
-        {
-            let fri_prover_job_archiver =
-                FriProverJobsArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
-            context.add_task(Box::new(FriProverJobArchiverTask {
-                fri_prover_job_archiver,
-            }));
-        }
+        let fri_prover_job_archiver = self.house_keeper_config.prover_job_archiver_params().map(
+            |(archiving_interval, archive_after)| {
+                FriProverJobsArchiver::new(prover_pool.clone(), archiving_interval, archive_after)
+            },
+        );
 
-        if let Some((archiving_interval, archive_after)) =
-            self.house_keeper_config.fri_gpu_prover_archiver_params()
-        {
-            let fri_prover_gpu_archiver =
-                FriGpuProverArchiver::new(prover_pool.clone(), archiving_interval, archive_after);
-            context.add_task(Box::new(FriProverGpuArchiverTask {
-                fri_prover_gpu_archiver,
-            }));
-        }
+        let fri_prover_gpu_archiver = self
+            .house_keeper_config
+            .fri_gpu_prover_archiver_params()
+            .map(|(archiving_interval, archive_after)| {
+                FriGpuProverArchiver::new(prover_pool.clone(), archiving_interval, archive_after)
+            });
 
         let fri_witness_generator_stats_reporter = FriWitnessGeneratorQueueReporter::new(
             prover_pool.clone(),
             self.house_keeper_config
                 .witness_generator_stats_reporting_interval_ms,
         );
-        context.add_task(Box::new(FriWitnessGeneratorStatsReporterTask {
-            fri_witness_generator_stats_reporter,
-        }));
 
         let fri_prover_stats_reporter = FriProverQueueReporter::new(
             self.house_keeper_config.prover_stats_reporting_interval_ms,
@@ -156,18 +149,12 @@ impl WiringLayer for HouseKeeperLayer {
             replica_pool.clone(),
             self.fri_prover_group_config,
         );
-        context.add_task(Box::new(FriProverStatsReporterTask {
-            fri_prover_stats_reporter,
-        }));
 
         let fri_proof_compressor_stats_reporter = FriProofCompressorQueueReporter::new(
             self.house_keeper_config
                 .proof_compressor_stats_reporting_interval_ms,
             prover_pool.clone(),
         );
-        context.add_task(Box::new(FriProofCompressorStatsReporterTask {
-            fri_proof_compressor_stats_reporter,
-        }));
 
         let fri_proof_compressor_retry_manager = FriProofCompressorJobRetryManager::new(
             self.fri_proof_compressor_config.max_attempts,
@@ -176,179 +163,128 @@ impl WiringLayer for HouseKeeperLayer {
                 .proof_compressor_job_retrying_interval_ms,
             prover_pool.clone(),
         );
-        context.add_task(Box::new(FriProofCompressorJobRetryManagerTask {
-            fri_proof_compressor_retry_manager,
-        }));
 
-        Ok(())
+        Ok(Output {
+            l1_batch_metrics_reporter,
+            fri_prover_job_retry_manager,
+            fri_witness_generator_job_retry_manager: fri_witness_gen_job_retry_manager,
+            waiting_to_queued_fri_witness_job_mover,
+            fri_prover_job_archiver,
+            fri_prover_gpu_archiver,
+            fri_witness_generator_stats_reporter,
+            fri_prover_stats_reporter,
+            fri_proof_compressor_stats_reporter,
+            fri_proof_compressor_job_retry_manager: fri_proof_compressor_retry_manager,
+        })
     }
 }
 
-#[derive(Debug)]
-struct L1BatchMetricsReporterTask {
-    l1_batch_metrics_reporter: L1BatchMetricsReporter,
-}
-
 #[async_trait::async_trait]
-impl Task for L1BatchMetricsReporterTask {
+impl Task for L1BatchMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.l1_batch_metrics_reporter.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriProverJobRetryManagerTask {
-    fri_prover_job_retry_manager: FriProverJobRetryManager,
-}
-
 #[async_trait::async_trait]
-impl Task for FriProverJobRetryManagerTask {
+impl Task for FriProverJobRetryManager {
     fn id(&self) -> TaskId {
         "fri_prover_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_job_retry_manager.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriWitnessGeneratorJobRetryManagerTask {
-    fri_witness_gen_job_retry_manager: FriWitnessGeneratorJobRetryManager,
-}
-
 #[async_trait::async_trait]
-impl Task for FriWitnessGeneratorJobRetryManagerTask {
+impl Task for FriWitnessGeneratorJobRetryManager {
     fn id(&self) -> TaskId {
         "fri_witness_generator_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_witness_gen_job_retry_manager
-            .run(stop_receiver.0)
-            .await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct WaitingToQueuedFriWitnessJobMoverTask {
-    waiting_to_queued_fri_witness_job_mover: WaitingToQueuedFriWitnessJobMover,
-}
-
 #[async_trait::async_trait]
-impl Task for WaitingToQueuedFriWitnessJobMoverTask {
+impl Task for WaitingToQueuedFriWitnessJobMover {
     fn id(&self) -> TaskId {
         "waiting_to_queued_fri_witness_job_mover".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.waiting_to_queued_fri_witness_job_mover
-            .run(stop_receiver.0)
-            .await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriWitnessGeneratorStatsReporterTask {
-    fri_witness_generator_stats_reporter: FriWitnessGeneratorQueueReporter,
-}
-
 #[async_trait::async_trait]
-impl Task for FriWitnessGeneratorStatsReporterTask {
+impl Task for FriWitnessGeneratorQueueReporter {
     fn id(&self) -> TaskId {
-        "fri_witness_generator_stats_reporter".into()
+        "fri_witness_generator_queue_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_witness_generator_stats_reporter
-            .run(stop_receiver.0)
-            .await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriProverStatsReporterTask {
-    fri_prover_stats_reporter: FriProverQueueReporter,
-}
-
 #[async_trait::async_trait]
-impl Task for FriProverStatsReporterTask {
+impl Task for FriProverQueueReporter {
     fn id(&self) -> TaskId {
-        "fri_prover_stats_reporter".into()
+        "fri_prover_queue_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_stats_reporter.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriProofCompressorStatsReporterTask {
-    fri_proof_compressor_stats_reporter: FriProofCompressorQueueReporter,
-}
-
 #[async_trait::async_trait]
-impl Task for FriProofCompressorStatsReporterTask {
+impl Task for FriProofCompressorQueueReporter {
     fn id(&self) -> TaskId {
-        "fri_proof_compressor_stats_reporter".into()
+        "fri_proof_compressor_queue_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_proof_compressor_stats_reporter
-            .run(stop_receiver.0)
-            .await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-#[derive(Debug)]
-struct FriProofCompressorJobRetryManagerTask {
-    fri_proof_compressor_retry_manager: FriProofCompressorJobRetryManager,
-}
-
 #[async_trait::async_trait]
-impl Task for FriProofCompressorJobRetryManagerTask {
+impl Task for FriProofCompressorJobRetryManager {
     fn id(&self) -> TaskId {
         "fri_proof_compressor_job_retry_manager".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_proof_compressor_retry_manager
-            .run(stop_receiver.0)
-            .await
+        (*self).run(stop_receiver.0).await
     }
-}
-
-#[derive(Debug)]
-struct FriProverJobArchiverTask {
-    fri_prover_job_archiver: FriProverJobsArchiver,
 }
 
 #[async_trait::async_trait]
-impl Task for FriProverJobArchiverTask {
+impl Task for FriProverJobsArchiver {
     fn id(&self) -> TaskId {
-        "fri_prover_job_archiver".into()
+        "fri_prover_jobs_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_job_archiver.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
-}
-
-struct FriProverGpuArchiverTask {
-    fri_prover_gpu_archiver: FriGpuProverArchiver,
 }
 
 #[async_trait::async_trait]
-impl Task for FriProverGpuArchiverTask {
+impl Task for FriGpuProverArchiver {
     fn id(&self) -> TaskId {
-        "fri_prover_gpu_archiver".into()
+        "fri_gpu_prover_archiver".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.fri_prover_gpu_archiver.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

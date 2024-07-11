@@ -37,15 +37,25 @@ impl ProtoRepr for proto::GeneralConfig {
             snapshot_creator: read_optional_repr(&self.snapshot_creator)
                 .context("snapshot_creator")?,
             observability: read_optional_repr(&self.observability).context("observability")?,
+            da_dispatcher_config: read_optional_repr(&self.da_dispatcher)
+                .context("da_dispatcher")?,
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
                 .context("protective_reads_writer")?,
+            basic_witness_input_producer_config: read_optional_repr(
+                &self.basic_witness_input_producer,
+            )
+            .context("basic_witness_input_producer")?,
             core_object_store: read_optional_repr(&self.core_object_store)
                 .context("core_object_store")?,
+            base_token_adjuster: read_optional_repr(&self.base_token_adjuster)
+                .context("base_token_adjuster")?,
             commitment_generator: read_optional_repr(&self.commitment_generator)
                 .context("commitment_generator")?,
             pruning: read_optional_repr(&self.pruning).context("pruning")?,
             snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
                 .context("snapshot_recovery")?,
+            external_price_api_client_config: read_optional_repr(&self.external_price_api_client)
+                .context("external_price_api_client")?,
         })
     }
 
@@ -77,14 +87,24 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
             observability: this.observability.as_ref().map(ProtoRepr::build),
+            da_dispatcher: this.da_dispatcher_config.as_ref().map(ProtoRepr::build),
             protective_reads_writer: this
                 .protective_reads_writer_config
+                .as_ref()
+                .map(ProtoRepr::build),
+            basic_witness_input_producer: this
+                .basic_witness_input_producer_config
                 .as_ref()
                 .map(ProtoRepr::build),
             commitment_generator: this.commitment_generator.as_ref().map(ProtoRepr::build),
             snapshot_recovery: this.snapshot_recovery.as_ref().map(ProtoRepr::build),
             pruning: this.pruning.as_ref().map(ProtoRepr::build),
             core_object_store: this.core_object_store.as_ref().map(ProtoRepr::build),
+            base_token_adjuster: this.base_token_adjuster.as_ref().map(ProtoRepr::build),
+            external_price_api_client: this
+                .external_price_api_client_config
+                .as_ref()
+                .map(ProtoRepr::build),
         }
     }
 }

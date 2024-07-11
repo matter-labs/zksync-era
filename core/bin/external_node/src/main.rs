@@ -286,7 +286,7 @@ async fn run_core(
             // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
             let ctx = ctx::root();
             scope::run!(&ctx, |ctx, s| async move {
-                s.spawn_bg(consensus::era::run_en(
+                s.spawn_bg(consensus::era::run_external_node(
                     ctx,
                     cfg,
                     pool,
@@ -971,9 +971,15 @@ async fn run_node(
             .snapshots_recovery_enabled
             .then_some(SnapshotRecoveryConfig {
                 snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
-                object_store_config: config.optional.snapshot_recover_object_store.clone(),
+                drop_storage_key_preimages: config
+                    .experimental
+                    .snapshots_recovery_drop_storage_key_preimages,
+                object_store_config: config.optional.snapshots_recovery_object_store.clone(),
             });
+    // Note: while stop receiver is passed there, it won't be respected, since we wait this task
+    // to complete. Will be fixed after migration to the node framework.
     ensure_storage_initialized(
+        stop_receiver.clone(),
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,

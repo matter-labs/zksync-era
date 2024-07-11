@@ -7,27 +7,34 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for the `ConsistencyChecker` (used by the external node).
-///
-/// ## Requests resources
-///
-/// - `EthInterfaceResource`
-/// - `PoolResource<MasterPool>`
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds tasks
-///
-/// - `ConsistencyChecker`
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub l1_client: EthInterfaceResource,
+    pub master_pool: PoolResource<MasterPool>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub consistency_checker: ConsistencyChecker,
 }
 
 impl ConsistencyCheckerLayer {
@@ -46,16 +53,18 @@ impl ConsistencyCheckerLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ConsistencyCheckerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "consistency_checker_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get resources.
-        let l1_client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let l1_client = input.l1_client.0;
 
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let singleton_pool = pool_resource.get_singleton().await?;
+        let singleton_pool = input.master_pool.get_singleton().await?;
 
         let consistency_checker = ConsistencyChecker::new(
             l1_client,
@@ -66,15 +75,15 @@ impl WiringLayer for ConsistencyCheckerLayer {
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health
+        input
+            .app_health
+            .0
             .insert_component(consistency_checker.health_check().clone())
             .map_err(WiringError::internal)?;
 
-        // Create and add tasks.
-        context.add_task(Box::new(consistency_checker));
-
-        Ok(())
+        Ok(Output {
+            consistency_checker,
+        })
     }
 }
 

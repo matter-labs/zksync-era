@@ -536,7 +536,7 @@ pub struct L1BatchCommitment {
     pub meta_parameters: L1BatchMetaParameters,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct L1BatchCommitmentHash {
     pub pass_through_data: H256,
@@ -720,7 +720,7 @@ impl CommitmentInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct L1BatchCommitmentArtifacts {
     pub commitment_hash: L1BatchCommitmentHash,
     pub l2_l1_merkle_root: H256,

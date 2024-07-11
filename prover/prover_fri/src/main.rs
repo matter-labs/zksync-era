@@ -1,3 +1,4 @@
+#![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
 use std::{future::Future, sync::Arc, time::Duration};
@@ -10,9 +11,9 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};

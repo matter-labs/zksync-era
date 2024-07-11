@@ -7,26 +7,33 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for node pruning layer.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds tasks
-///
-/// - `DbPruner`
 #[derive(Debug)]
 pub struct PruningLayer {
     pruning_removal_delay: Duration,
     pruning_chunk_size: u32,
     minimum_l1_batch_age: Duration,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub db_pruner: DbPruner,
 }
 
 impl PruningLayer {
@@ -45,13 +52,15 @@ impl PruningLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for PruningLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "pruning_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool_resource.get().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let main_pool = input.master_pool.get().await?;
 
         let db_pruner = DbPruner::new(
             DbPrunerConfig {
@@ -62,14 +71,12 @@ impl WiringLayer for PruningLayer {
             main_pool,
         );
 
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-        app_health
+        input
+            .app_health
+            .0
             .insert_component(db_pruner.health_check())
             .map_err(WiringError::internal)?;
-
-        context.add_task(Box::new(db_pruner));
-
-        Ok(())
+        Ok(Output { db_pruner })
     }
 }
 

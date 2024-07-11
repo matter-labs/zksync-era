@@ -45,17 +45,35 @@ pub struct StorageView<S> {
     storage_handle: S,
     // Used for caching and to get the list/count of modified keys
     modified_storage_keys: HashMap<StorageKey, StorageValue>,
-    // Used purely for caching
-    read_storage_keys: HashMap<StorageKey, StorageValue>,
-    // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
-    initial_writes_cache: HashMap<StorageKey, bool>,
+    cache: StorageViewCache,
     metrics: StorageViewMetrics,
 }
 
+/// `StorageViewCache` is a struct for caching storage reads and `contains_key()` checks.
+#[derive(Debug, Default, Clone)]
+pub struct StorageViewCache {
+    // Used purely for caching
+    read_storage_keys: HashMap<StorageKey, StorageValue>,
+    // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
+    initial_writes: HashMap<StorageKey, bool>,
+}
+
+impl StorageViewCache {
+    /// Returns the read storage keys.
+    pub fn read_storage_keys(&self) -> HashMap<StorageKey, StorageValue> {
+        self.read_storage_keys.clone()
+    }
+
+    /// Returns the initial writes.
+    pub fn initial_writes(&self) -> HashMap<StorageKey, bool> {
+        self.initial_writes.clone()
+    }
+}
+
 impl<S> StorageView<S> {
-    /// Returns the modified storage keys
-    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
-        &self.modified_storage_keys
+    /// Returns the underlying storage cache.
+    pub fn cache(&self) -> StorageViewCache {
+        self.cache.clone()
     }
 }
 
@@ -90,8 +108,10 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         Self {
             storage_handle,
             modified_storage_keys: HashMap::new(),
-            read_storage_keys: HashMap::new(),
-            initial_writes_cache: HashMap::new(),
+            cache: StorageViewCache {
+                read_storage_keys: HashMap::new(),
+                initial_writes: HashMap::new(),
+            },
             metrics: StorageViewMetrics::default(),
         }
     }
@@ -102,10 +122,10 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         let cached_value = self
             .modified_storage_keys
             .get(key)
-            .or_else(|| self.read_storage_keys.get(key));
+            .or_else(|| self.cache.read_storage_keys.get(key));
         cached_value.copied().unwrap_or_else(|| {
             let value = self.storage_handle.read_value(key);
-            self.read_storage_keys.insert(*key, value);
+            self.cache.read_storage_keys.insert(*key, value);
             self.metrics.time_spent_on_storage_missed += started_at.elapsed();
             self.metrics.storage_invocations_missed += 1;
             value
@@ -114,8 +134,8 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
 
     fn cache_size(&self) -> usize {
         self.modified_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
-            + self.initial_writes_cache.len() * mem::size_of::<(StorageKey, bool)>()
-            + self.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
+            + self.cache.initial_writes.len() * mem::size_of::<(StorageKey, bool)>()
+            + self.cache.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
     }
 
     /// Returns the current metrics.
@@ -153,11 +173,11 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     /// Only keys contained in the underlying storage will return `false`. If a key was
     /// inserted using [`Self::set_value()`], it will still return `true`.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
+        if let Some(&is_write_initial) = self.cache.initial_writes.get(key) {
             is_write_initial
         } else {
             let is_write_initial = self.storage_handle.is_write_initial(key);
-            self.initial_writes_cache.insert(*key, is_write_initial);
+            self.cache.initial_writes.insert(*key, is_write_initial);
             is_write_initial
         }
     }
@@ -173,7 +193,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
-        &self.read_storage_keys
+        &self.cache.read_storage_keys
     }
 
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {

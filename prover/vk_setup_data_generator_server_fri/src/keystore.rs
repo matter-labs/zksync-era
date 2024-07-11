@@ -36,6 +36,7 @@ pub enum ProverServiceDataType {
 /// There are 2 types:
 /// - small verification, finalization keys (used only during verification)
 /// - large setup keys, used during proving.
+#[derive(Clone)]
 pub struct Keystore {
     /// Directory to store all the small keys.
     basedir: PathBuf,
@@ -80,10 +81,18 @@ impl Keystore {
             setup_data_path: Some(setup_data_path),
         }
     }
+
     pub fn new_with_optional_setup_path(basedir: PathBuf, setup_data_path: Option<String>) -> Self {
         Keystore {
             basedir,
             setup_data_path,
+        }
+    }
+
+    pub fn new_with_setup_data_path(setup_data_path: String) -> Self {
+        Keystore {
+            basedir: get_base_path(),
+            setup_data_path: Some(setup_data_path),
         }
     }
 

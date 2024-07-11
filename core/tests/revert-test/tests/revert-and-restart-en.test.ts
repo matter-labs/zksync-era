@@ -6,7 +6,7 @@
 import * as utils from 'utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
-import { BigNumber, ethers } from 'ethers';
+import * as ethers from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
@@ -27,7 +27,7 @@ const mainLogsPath: string = 'revert_main.log';
 const extLogsPath: string = 'revert_ext.log';
 
 interface SuggestedValues {
-    lastExecutedL1BatchNumber: BigNumber;
+    lastExecutedL1BatchNumber: bigint;
     nonce: number;
     priorityFee: number;
 }
@@ -40,7 +40,7 @@ function parseSuggestedValues(jsonString: string): SuggestedValues {
     assert(Number.isInteger(json.nonce));
     assert(Number.isInteger(json.priority_fee));
     return {
-        lastExecutedL1BatchNumber: BigNumber.from(json.last_executed_l1_batch_number),
+        lastExecutedL1BatchNumber: BigInt(json.last_executed_l1_batch_number),
         nonce: json.nonce,
         priorityFee: json.priority_fee
     };
@@ -137,10 +137,11 @@ class MainNode {
         env.DATABASE_MERKLE_TREE_MODE = 'full';
         console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
 
-        let components = 'api,tree,eth,state_keeper,commitment_generator';
+        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
         if (enableConsensus) {
             components += ',consensus';
         }
+
         let proc = spawn('./target/release/zksync_server', ['--components', components], {
             cwd: env.ZKSYNC_HOME,
             stdio: [null, logs, logs],
@@ -150,7 +151,11 @@ class MainNode {
             }
         });
         // Wait until the main node starts responding.
-        let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
+        let tester: Tester = await Tester.init(
+            env.ETH_CLIENT_WEB3_URL,
+            env.API_WEB3_JSON_RPC_HTTP_URL,
+            env.CONTRACTS_BASE_TOKEN_ADDR
+        );
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -197,7 +202,11 @@ class ExtNode {
             }
         });
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://127.0.0.1:${env.EN_HTTP_PORT}`);
+        let tester: Tester = await Tester.init(
+            env.EN_ETH_CLIENT_URL,
+            `http://127.0.0.1:${env.EN_HTTP_PORT}`,
+            env.CONTRACTS_BASE_TOKEN_ADDR
+        );
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -231,7 +240,7 @@ describe('Block reverting test', function () {
     const extLogs: fs.WriteStream = fs.createWriteStream(extLogsPath, { flags: 'a' });
     const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
     console.log(`enableConsensus = ${enableConsensus}`);
-    const depositAmount: BigNumber = ethers.utils.parseEther('0.001');
+    const depositAmount = ethers.parseEther('0.001');
 
     step('run', async () => {
         console.log('Make sure that nodes are not running');
@@ -248,7 +257,7 @@ describe('Block reverting test', function () {
 
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
         const baseTokenAddress = await mainNode.tester.syncWallet.getBaseToken();
-        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        const isETHBasedChain = baseTokenAddress === zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zksync.Wallet = extNode.tester.emptyWallet();
 
         console.log(
@@ -268,10 +277,10 @@ describe('Block reverting test', function () {
         mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
-        const lastExecuted: BigNumber = await main_contract.getTotalBatchesExecuted();
+        const lastExecuted = await main_contract.getTotalBatchesExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        const initialL1BatchNumber = (await main_contract.getTotalBatchesCommitted()).toNumber();
+        const initialL1BatchNumber = await main_contract.getTotalBatchesCommitted();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
             token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
             amount: depositAmount,
@@ -293,14 +302,14 @@ describe('Block reverting test', function () {
             approveERC20: true
         });
         await secondDepositHandle.wait();
-        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
+        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1n) {
             await utils.sleep(0.3);
         }
 
         while (true) {
-            const lastCommitted: BigNumber = await main_contract.getTotalBatchesCommitted();
+            const lastCommitted = await main_contract.getTotalBatchesCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
-            if (lastCommitted.sub(lastExecuted).gte(2)) {
+            if (lastCommitted - lastExecuted >= 2n) {
                 break;
             }
             await utils.sleep(0.3);
@@ -318,7 +327,7 @@ describe('Block reverting test', function () {
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
-        assert(lastExecuted.eq(values.lastExecutedL1BatchNumber));
+        assert(lastExecuted === values.lastExecutedL1BatchNumber);
 
         console.log('Send reverting transaction to L1');
         runBlockReverter([
@@ -334,7 +343,7 @@ describe('Block reverting test', function () {
         console.log('Check that batches are reverted on L1');
         const lastCommitted2 = await main_contract.getTotalBatchesCommitted();
         console.log(`lastCommitted = ${lastCommitted2}, want ${lastExecuted}`);
-        assert(lastCommitted2.eq(lastExecuted));
+        assert(lastCommitted2 === lastExecuted);
 
         console.log('Rollback db');
         runBlockReverter([
@@ -389,13 +398,13 @@ describe('Block reverting test', function () {
 
         // The reverted transactions are expected to be reexecuted before the next transaction is applied.
         // Hence we compare the state against the alice2, rather than against alice3.
-        const alice4want = alice2.add(BigNumber.from(depositAmount));
+        const alice4want = alice2 + depositAmount;
         const alice4 = await alice.getBalance();
         console.log(`Alice's balance is ${alice4}, want ${alice4want}`);
-        assert(alice4.eq(alice4want));
+        assert(alice4 === alice4want);
 
         console.log('Execute an L2 transaction');
-        await checkedRandomTransfer(alice, BigNumber.from(1));
+        await checkedRandomTransfer(alice, 1n);
     });
 
     after('Terminate nodes', async () => {
@@ -405,7 +414,7 @@ describe('Block reverting test', function () {
 });
 
 // Transfers amount from sender to a random wallet in an L2 transaction.
-async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
+async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint) {
     const senderBalanceBefore = await sender.getBalance();
     const receiver = zksync.Wallet.createRandom().connect(sender.provider);
     const transferHandle = await sender.sendTransaction({ to: receiver.address, value: amount, type: 0 });
@@ -418,11 +427,10 @@ async function checkedRandomTransfer(sender: zksync.Wallet, amount: BigNumber) {
     } while (txReceipt === null);
 
     const senderBalance = await sender.getBalance();
-    const receiverBalance = await receiver.getBalance();
+    const receiverBalance = await receiver.provider!.getBalance(receiver.address);
 
-    expect(receiverBalance.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
+    expect(receiverBalance === amount, 'Failed updated the balance of the receiver').to.be.true;
 
-    const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalance.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
-        .true;
+    const spentAmount = txReceipt.gasUsed * transferHandle.gasPrice! + amount;
+    expect(senderBalance + spentAmount >= senderBalanceBefore, 'Failed to update the balance of the sender').to.be.true;
 }

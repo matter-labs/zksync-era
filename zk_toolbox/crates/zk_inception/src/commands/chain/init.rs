@@ -1,9 +1,8 @@
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    logger,
+    git, logger,
     spinner::Spinner,
 };
 use config::{
@@ -15,7 +14,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,
@@ -26,9 +25,9 @@ use crate::{
         initialize_bridges,
     },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_BUILDING_L1_CONTRACTS,
-        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER,
+        MSG_SELECTED_CONFIG,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -43,6 +42,7 @@ pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
+    git::submodule_update(shell, config.link_to_code.clone())?;
 
     init(&mut args, shell, &config, &chain_config).await?;
 
@@ -57,10 +57,9 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
-    build_l1_contracts(shell, ecosystem_config)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
-    genesis_config.update_from_chain_config(&chain_config);
+    genesis_config.update_from_chain_config(chain_config);
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Copy ecosystem contracts
@@ -68,6 +67,12 @@ pub async fn init(
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    crate::commands::ecosystem::init::distribute_eth(
+        ecosystem_config,
+        chain_config,
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
     let mut secrets = chain_config.get_secrets_config()?;
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
     secrets.save_with_base_path(shell, &chain_config.configs)?;
@@ -88,7 +93,7 @@ pub async fn init(
     accept_admin(
         shell,
         ecosystem_config,
-        contracts_config.l1.governance_addr,
+        contracts_config.l1.chain_admin_addr,
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
@@ -135,7 +140,7 @@ async fn register_chain(
 ) -> anyhow::Result<()> {
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, &contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())
@@ -153,13 +158,5 @@ async fn register_chain(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
-    Ok(())
-}
-
-fn build_l1_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(ecosystem_config.path_to_foundry());
-    let spinner = Spinner::new(MSG_BUILDING_L1_CONTRACTS);
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
-    spinner.finish();
     Ok(())
 }

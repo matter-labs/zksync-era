@@ -10,25 +10,31 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for proof data handler server.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `ObjectStoreResource`
-///
-/// ## Adds tasks
-///
-/// - `ProofDataHandlerTask`
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub object_store: ObjectStoreResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
@@ -45,29 +51,30 @@ impl ProofDataHandlerLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ProofDataHandlerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "proof_data_handler_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool_resource = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let main_pool = pool_resource.get().await.unwrap();
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let main_pool = input.master_pool.get().await.unwrap();
+        let blob_store = input.object_store.0;
 
-        let object_store = context.get_resource::<ObjectStoreResource>().await?;
-
-        context.add_task(Box::new(ProofDataHandlerTask {
+        let task = ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
-            blob_store: object_store.0,
+            blob_store,
             main_pool,
             commitment_mode: self.commitment_mode,
-        }));
+        };
 
-        Ok(())
+        Ok(Output { task })
     }
 }
 
 #[derive(Debug)]
-struct ProofDataHandlerTask {
+pub struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
