@@ -33,20 +33,21 @@ struct Inception {
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
     /// Ecosystem related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "e")]
     Ecosystem(EcosystemCommands),
     /// Chain related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "c")]
     Chain(ChainCommands),
     /// Prover related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
     // Run External Node
-    #[command(subcommand)]
+    #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
+    #[command(subcommand, alias = "up")]
     Containers,
 }
 
