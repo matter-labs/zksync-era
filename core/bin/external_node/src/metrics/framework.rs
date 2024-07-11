@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use super::EN_METRICS;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_framework::{
     implementations::resources::pools::{MasterPool, PoolResource},
@@ -8,6 +7,8 @@ use zksync_node_framework::{
 };
 use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_types::{L1ChainId, L2ChainId};
+
+use super::EN_METRICS;
 
 #[derive(Debug)]
 pub struct ExternalNodeMetricsLayer {
