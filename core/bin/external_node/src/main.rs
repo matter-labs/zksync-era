@@ -103,7 +103,6 @@ async fn build_state_keeper(
         Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
-    .await
     .context("Failed initializing I/O for external node state keeper")?;
 
     Ok(ZkSyncStateKeeper::new(

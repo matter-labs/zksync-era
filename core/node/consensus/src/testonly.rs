@@ -493,8 +493,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
-            )
-            .await?;
+            )?;
 
             s.spawn_bg(async {
                 Ok(l2_block_sealer
@@ -606,8 +605,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
-            )
-            .await?;
+            )?;
             s.spawn_bg(async {
                 Ok(l2_block_sealer
                     .run()
