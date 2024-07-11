@@ -24,7 +24,7 @@ pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
 
 pub fn msg_created_ecosystem(name: &str) -> String {
-    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd path/to/ecosystem/name`)")
+    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd {name}`)")
 }
 
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";

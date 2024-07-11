@@ -111,6 +111,6 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         spinner.finish();
     }
 
-    logger::outro(msg_created_ecosystem(&ecosystem_name));
+    logger::outro(msg_created_ecosystem(ecosystem_name));
     Ok(())
 }
