@@ -158,6 +158,14 @@ impl TestTemplate {
         Ok(Self(db_url.parse()?))
     }
 
+    pub fn prover_empty() -> anyhow::Result<Self> {
+        let db_url = env::var("TEST_DATABASE_PROVER_URL").context(
+            "TEST_DATABASE_PROVER_URL must be set. Normally, this is done by the 'zk' tool. \
+            Make sure that you are running the tests with 'zk test rust' command or equivalent.",
+        )?;
+        Ok(Self(db_url.parse()?))
+    }
+
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
     pub async fn freeze<DB: DbMarker>(pool: ConnectionPool<DB>) -> anyhow::Result<Self> {
@@ -291,11 +299,32 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
+    pub async fn prover_test_pool() -> ConnectionPool<DB> {
+        const DEFAULT_CONNECTIONS: u32 = 100; // Expected to be enough for any unit test.
+        Self::constrained_prover_test_pool(DEFAULT_CONNECTIONS).await
+    }
+
     /// Same as [`Self::test_pool()`], but with a configurable number of connections. This is useful to test
     /// behavior of components that rely on singleton / constrained pools in production.
     pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<DB> {
         assert!(connections > 0, "Number of connections must be positive");
         let mut builder = TestTemplate::empty()
+            .expect("failed creating test template")
+            .create_db(connections)
+            .await
+            .expect("failed creating database for tests");
+        let mut pool = builder
+            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT))
+            .build()
+            .await
+            .expect("cannot build connection pool");
+        pool.traced_connections = Some(Arc::default());
+        pool
+    }
+
+    pub async fn constrained_prover_test_pool(connections: u32) -> ConnectionPool<DB> {
+        assert!(connections > 0, "Number of connections must be positive");
+        let mut builder = TestTemplate::prover_empty()
             .expect("failed creating test template")
             .create_db(connections)
             .await

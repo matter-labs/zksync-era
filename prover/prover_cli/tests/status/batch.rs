@@ -31,7 +31,7 @@ const COMPLETE_BATCH_STATUS_STDOUT: &str = "== Batch 0 Status ==
 #[tokio::test]
 #[doc = "prover_cli config"]
 async fn pli_config_succeeds() {
-    let connection_pool = ConnectionPool::<Prover>::test_pool().await;
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
     connection
@@ -478,7 +478,7 @@ Compressor: {}
 
 #[tokio::test]
 async fn basic_batch_status() {
-    let connection_pool = ConnectionPool::<Prover>::test_pool().await;
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
     connection
@@ -997,7 +997,7 @@ async fn basic_batch_status() {
 
 #[tokio::test]
 async fn verbose_batch_status() {
-    let connection_pool = ConnectionPool::<Prover>::test_pool().await;
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
     connection
