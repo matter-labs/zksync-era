@@ -17,7 +17,7 @@ url.workspace = true
 bigdecimal.workspace = true
 chrono.workspace = true
 serde.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["json"] }
 fraction.workspace = true
 rand.workspace = true
 
