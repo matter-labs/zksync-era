@@ -22,7 +22,7 @@ export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
 export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
 
 // Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
-export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('1000');
+export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('50');
 export const ERC20_PER_ACCOUNT = ethers.utils.parseEther('10000.0');
 
 /**
