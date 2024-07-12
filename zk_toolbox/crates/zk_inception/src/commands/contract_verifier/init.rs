@@ -51,7 +51,7 @@ fn download_binaries(
     shell: &Shell,
     releases: Vec<Version>,
     get_path: fn(&Path, &str) -> PathBuf,
-    link_to_code: &PathBuf,
+    link_to_code: &Path,
     name: &str,
 ) -> anyhow::Result<()> {
     for release in releases {
