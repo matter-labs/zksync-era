@@ -145,3 +145,51 @@ pub(super) fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
     });
     mock.build().into_client()
 }
+
+/// Creates a mock L2 client with the genesis block information.
+pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
+    let genesis_root_hash = env.genesis_params.root_hash;
+    let genesis_l2_block_hash = env.genesis_l2_block.hash;
+
+    MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || Ok(U64::from(0)))
+        .method("zks_getL1BatchDetails", move |number: L1BatchNumber| {
+            assert_eq!(number, L1BatchNumber(0));
+            Ok(api::L1BatchDetails {
+                number: L1BatchNumber(0),
+                base: utils::block_details_base(genesis_root_hash),
+            })
+        })
+        .method("eth_blockNumber", || Ok(U64::from(0)))
+        .method(
+            "eth_getBlockByNumber",
+            move |number: api::BlockNumber, _with_txs: bool| {
+                assert_eq!(number, api::BlockNumber::Number(0.into()));
+                Ok(api::Block::<api::TransactionVariant> {
+                    hash: genesis_l2_block_hash,
+                    ..api::Block::default()
+                })
+            },
+        )
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build()
+}
+
+/// Creates a mock L2 client that will mimic request timeouts on block info requests.
+pub(super) fn mock_l2_client_hanging() -> MockClient<L2> {
+    MockClient::builder(L2::default())
+        .method("eth_chainId", || Ok(U64::from(270)))
+        .method("zks_L1ChainId", || Ok(U64::from(9)))
+        .method("zks_L1BatchNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("eth_blockNumber", || {
+            Err::<(), _>(ClientError::RequestTimeout)
+        })
+        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
+        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
+        .build()
+}

@@ -3,8 +3,8 @@
 use assert_matches::assert_matches;
 use framework::inject_test_layers;
 use test_casing::test_casing;
-use zksync_types::{api, fee_model::FeeParams, Address, L1BatchNumber, U64};
-use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
+use zksync_types::{fee_model::FeeParams, L1BatchNumber, U64};
+use zksync_web3_decl::jsonrpsee::core::ClientError;
 
 use super::*;
 
@@ -23,31 +23,7 @@ async fn external_node_basics(components_str: &'static str) {
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block(components_str).await;
 
     let expected_health_components = utils::expected_health_components(&env.components);
-    let l2_client = MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || Ok(U64::from(0)))
-        .method("zks_getL1BatchDetails", move |number: L1BatchNumber| {
-            assert_eq!(number, L1BatchNumber(0));
-            Ok(api::L1BatchDetails {
-                number: L1BatchNumber(0),
-                base: utils::block_details_base(env.genesis_params.root_hash),
-            })
-        })
-        .method("eth_blockNumber", || Ok(U64::from(0)))
-        .method(
-            "eth_getBlockByNumber",
-            move |number: api::BlockNumber, _with_txs: bool| {
-                assert_eq!(number, api::BlockNumber::Number(0.into()));
-                Ok(api::Block::<api::TransactionVariant> {
-                    hash: env.genesis_l2_block.hash,
-                    ..api::Block::default()
-                })
-            },
-        )
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build();
+    let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let node_handle = tokio::task::spawn_blocking(move || {
@@ -116,18 +92,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block("core").await;
 
-    let l2_client = MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("eth_blockNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build();
+    let l2_client = utils::mock_l2_client_hanging();
     let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let mut node_handle = tokio::task::spawn_blocking(move || {
@@ -163,18 +128,7 @@ async fn running_tree_without_core_is_not_allowed() {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("tree").await;
 
-    let l2_client = MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("eth_blockNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build();
+    let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let node_handle = tokio::task::spawn_blocking(move || {
@@ -211,18 +165,7 @@ async fn running_tree_api_without_tree_is_not_allowed() {
     let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
     let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("core,tree_api").await;
 
-    let l2_client = MockClient::builder(L2::default())
-        .method("eth_chainId", || Ok(U64::from(270)))
-        .method("zks_L1ChainId", || Ok(U64::from(9)))
-        .method("zks_L1BatchNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("eth_blockNumber", || {
-            Err::<(), _>(ClientError::RequestTimeout)
-        })
-        .method("zks_getFeeParams", || Ok(FeeParams::sensible_v1_default()))
-        .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
-        .build();
+    let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(env.config.remote.diamond_proxy_addr);
 
     let node_handle = tokio::task::spawn_blocking(move || {
