@@ -373,7 +373,7 @@ describe.only('ETH token checks', () => {
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
 
-        await sleep(10);
+        await sleep(12000);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
