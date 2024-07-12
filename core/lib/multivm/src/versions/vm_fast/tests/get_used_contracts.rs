@@ -38,15 +38,12 @@ fn test_get_used_contracts() {
 
     assert!(vm
         .vm
-        .get_decommitted_hashes()
+        .decommitted_hashes()
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
     assert_eq!(
-        vm.vm
-            .get_decommitted_hashes()
-            .cloned()
-            .collect::<HashSet<U256>>(),
+        vm.vm.decommitted_hashes().collect::<HashSet<U256>>(),
         known_bytecodes_without_aa_code(&vm.vm)
     );
 
@@ -81,7 +78,7 @@ fn test_get_used_contracts() {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
         assert!(known_bytecodes_without_aa_code(&vm.vm).contains(&hash_to_u256));
-        assert!(!vm.vm.get_decommitted_hashes().contains(&hash_to_u256));
+        assert!(!vm.vm.decommitted_hashes().contains(&hash_to_u256));
     }
 }
 

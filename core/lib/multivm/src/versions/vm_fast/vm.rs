@@ -416,9 +416,8 @@ impl<S: ReadStorage> Vm<S> {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
-        self.inner.world_diff.get_decommitted_hashes().keys()
+    pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
+        self.inner.world_diff.decommitted_hashes()
     }
 }
 
@@ -629,7 +628,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
-            used_contract_hashes: vec![], // FIXME
+            used_contract_hashes: self.decommitted_hashes().collect(),
             system_logs: world_diff
                 .l2_to_l1_logs()
                 .iter()
