@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_fee_model"
+description = "ZKsync fee model"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

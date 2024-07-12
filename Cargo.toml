@@ -44,7 +44,6 @@ members = [
     "core/lib/constants",
     "core/lib/contract_verifier",
     "core/lib/contracts",
-    "core/lib/crypto",
     "core/lib/circuit_breaker",
     "core/lib/dal",
     "core/lib/env_config",
@@ -78,6 +77,9 @@ members = [
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
+
+    # Parts of prover workspace that are needed for Core workspace
+    "prover/prover_dal"
 ]
 resolver = "2"
 
@@ -219,70 +221,69 @@ zksync_protobuf = "=0.1.0-rc.2"
 zksync_protobuf_build = "=0.1.0-rc.2"
 
 # "Local" dependencies
-zksync_multivm = { path = "core/lib/multivm" }
-zksync_prover_dal = { path = "prover/prover_dal" }
-zksync_vlog = { path = "core/lib/vlog" }
-zksync_vm_utils = { path = "core/lib/vm_utils" }
-zksync_vm_benchmark_harness = { path = "core/tests/vm-benchmark/harness" }
-zksync_basic_types = { path = "core/lib/basic_types" }
-zksync_circuit_breaker = { path = "core/lib/circuit_breaker" }
-zksync_config = { path = "core/lib/config" }
-zksync_contract_verifier_lib = { path = "core/lib/contract_verifier" }
-zksync_contracts = { path = "core/lib/contracts" }
-zksync_core_leftovers = { path = "core/lib/zksync_core_leftovers" }
-zksync_crypto = { path = "core/lib/crypto" }
-zksync_dal = { path = "core/lib/dal" }
-zksync_db_connection = { path = "core/lib/db_connection" }
-zksync_env_config = { path = "core/lib/env_config" }
-zksync_eth_client = { path = "core/lib/eth_client" }
-zksync_da_client = { path = "core/lib/da_client" }
-zksync_default_da_clients = { path = "core/lib/default_da_clients" }
-zksync_eth_signer = { path = "core/lib/eth_signer" }
-zksync_health_check = { path = "core/lib/health_check" }
-zksync_l1_contract_interface = { path = "core/lib/l1_contract_interface" }
-zksync_mempool = { path = "core/lib/mempool" }
-zksync_merkle_tree = { path = "core/lib/merkle_tree" }
-zksync_mini_merkle_tree = { path = "core/lib/mini_merkle_tree" }
-zksync_object_store = { path = "core/lib/object_store" }
-zksync_protobuf_config = { path = "core/lib/protobuf_config" }
-zksync_prover_interface = { path = "core/lib/prover_interface" }
-zksync_queued_job_processor = { path = "core/lib/queued_job_processor" }
-zksync_snapshots_applier = { path = "core/lib/snapshots_applier" }
-zksync_state = { path = "core/lib/state" }
-zksync_storage = { path = "core/lib/storage" }
-zksync_system_constants = { path = "core/lib/constants" }
-zksync_tee_verifier = { path = "core/lib/tee_verifier" }
-zksync_test_account = { path = "core/tests/test_account" }
-zksync_types = { path = "core/lib/types" }
-zksync_utils = { path = "core/lib/utils" }
-zksync_web3_decl = { path = "core/lib/web3_decl" }
-zksync_crypto_primitives = { path = "core/lib/crypto_primitives" }
-zksync_external_price_api = { path = "core/lib/external_price_api" }
+zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
+zksync_prover_dal = { version = "0.1.0", path = "prover/prover_dal" }
+zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
+zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
+zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
+zksync_basic_types = { version = "0.1.0", path = "core/lib/basic_types" }
+zksync_circuit_breaker = { version = "0.1.0", path = "core/lib/circuit_breaker" }
+zksync_config = { version = "0.1.0", path = "core/lib/config" }
+zksync_contract_verifier_lib = { version = "0.1.0", path = "core/lib/contract_verifier" }
+zksync_contracts = { version = "0.1.0", path = "core/lib/contracts" }
+zksync_core_leftovers = { version = "0.1.0", path = "core/lib/zksync_core_leftovers" }
+zksync_dal = { version = "0.1.0", path = "core/lib/dal" }
+zksync_db_connection = { version = "0.1.0", path = "core/lib/db_connection" }
+zksync_env_config = { version = "0.1.0", path = "core/lib/env_config" }
+zksync_eth_client = { version = "0.1.0", path = "core/lib/eth_client" }
+zksync_da_client = { version = "0.1.0", path = "core/lib/da_client" }
+zksync_default_da_clients = { version = "0.1.0", path = "core/lib/default_da_clients" }
+zksync_eth_signer = { version = "0.1.0", path = "core/lib/eth_signer" }
+zksync_health_check = { version = "0.1.0", path = "core/lib/health_check" }
+zksync_l1_contract_interface = { version = "0.1.0", path = "core/lib/l1_contract_interface" }
+zksync_mempool = { version = "0.1.0", path = "core/lib/mempool" }
+zksync_merkle_tree = { version = "0.1.0", path = "core/lib/merkle_tree" }
+zksync_mini_merkle_tree = { version = "0.1.0", path = "core/lib/mini_merkle_tree" }
+zksync_object_store = { version = "0.1.0", path = "core/lib/object_store" }
+zksync_protobuf_config = { version = "0.1.0", path = "core/lib/protobuf_config" }
+zksync_prover_interface = { version = "0.1.0", path = "core/lib/prover_interface" }
+zksync_queued_job_processor = { version = "0.1.0", path = "core/lib/queued_job_processor" }
+zksync_snapshots_applier = { version = "0.1.0", path = "core/lib/snapshots_applier" }
+zksync_state = { version = "0.1.0", path = "core/lib/state" }
+zksync_storage = { version = "0.1.0", path = "core/lib/storage" }
+zksync_system_constants = { version = "0.1.0", path = "core/lib/constants" }
+zksync_tee_verifier = { version = "0.1.0", path = "core/lib/tee_verifier" }
+zksync_test_account = { version = "0.1.0", path = "core/tests/test_account" }
+zksync_types = { version = "0.1.0", path = "core/lib/types" }
+zksync_utils = { version = "0.1.0", path = "core/lib/utils" }
+zksync_web3_decl = { version = "0.1.0", path = "core/lib/web3_decl" }
+zksync_crypto_primitives = { version = "0.1.0", path = "core/lib/crypto_primitives" }
+zksync_external_price_api = { version = "0.1.0", path = "core/lib/external_price_api" }
 
 # Framework and components
-zksync_node_framework = { path = "core/node/node_framework" }
-zksync_node_framework_derive = { path = "core/lib/node_framework_derive" }
-zksync_eth_watch = { path = "core/node/eth_watch" }
-zksync_shared_metrics = { path = "core/node/shared_metrics" }
-zksync_proof_data_handler = { path = "core/node/proof_data_handler" }
-zksync_block_reverter = { path = "core/node/block_reverter" }
-zksync_commitment_generator = { path = "core/node/commitment_generator" }
-zksync_house_keeper = { path = "core/node/house_keeper" }
-zksync_node_genesis = { path = "core/node/genesis" }
-zksync_da_dispatcher = { path = "core/node/da_dispatcher" }
-zksync_eth_sender = { path = "core/node/eth_sender" }
-zksync_node_db_pruner = { path = "core/node/db_pruner" }
-zksync_node_fee_model = { path = "core/node/fee_model" }
-zksync_vm_runner = { path = "core/node/vm_runner" }
-zksync_node_test_utils = { path = "core/node/test_utils" }
-zksync_state_keeper = { path = "core/node/state_keeper" }
-zksync_reorg_detector = { path = "core/node/reorg_detector" }
-zksync_consistency_checker = { path = "core/node/consistency_checker" }
-zksync_metadata_calculator = { path = "core/node/metadata_calculator" }
-zksync_node_sync = { path = "core/node/node_sync" }
-zksync_node_storage_init = { path = "core/node/node_storage_init" }
-zksync_node_consensus = { path = "core/node/consensus" }
-zksync_contract_verification_server = { path = "core/node/contract_verification_server" }
-zksync_node_api_server = { path = "core/node/api_server" }
-zksync_tee_verifier_input_producer = { path = "core/node/tee_verifier_input_producer" }
-zksync_base_token_adjuster = { path = "core/node/base_token_adjuster" }
+zksync_node_framework = { version = "0.1.0", path = "core/node/node_framework" }
+zksync_node_framework_derive = { version = "0.1.0", path = "core/lib/node_framework_derive" }
+zksync_eth_watch = { version = "0.1.0", path = "core/node/eth_watch" }
+zksync_shared_metrics = { version = "0.1.0", path = "core/node/shared_metrics" }
+zksync_proof_data_handler = { version = "0.1.0", path = "core/node/proof_data_handler" }
+zksync_block_reverter = { version = "0.1.0", path = "core/node/block_reverter" }
+zksync_commitment_generator = { version = "0.1.0", path = "core/node/commitment_generator" }
+zksync_house_keeper = { version = "0.1.0", path = "core/node/house_keeper" }
+zksync_node_genesis = { version = "0.1.0", path = "core/node/genesis" }
+zksync_da_dispatcher = { version = "0.1.0", path = "core/node/da_dispatcher" }
+zksync_eth_sender = { version = "0.1.0", path = "core/node/eth_sender" }
+zksync_node_db_pruner = { version = "0.1.0", path = "core/node/db_pruner" }
+zksync_node_fee_model = { version = "0.1.0", path = "core/node/fee_model" }
+zksync_vm_runner = { version = "0.1.0", path = "core/node/vm_runner" }
+zksync_node_test_utils = { version = "0.1.0", path = "core/node/test_utils" }
+zksync_state_keeper = { version = "0.1.0", path = "core/node/state_keeper" }
+zksync_reorg_detector = { version = "0.1.0", path = "core/node/reorg_detector" }
+zksync_consistency_checker = { version = "0.1.0", path = "core/node/consistency_checker" }
+zksync_metadata_calculator = { version = "0.1.0", path = "core/node/metadata_calculator" }
+zksync_node_sync = { version = "0.1.0", path = "core/node/node_sync" }
+zksync_node_storage_init = { version = "0.1.0", path = "core/node/node_storage_init" }
+zksync_node_consensus = { version = "0.1.0", path = "core/node/consensus" }
+zksync_contract_verification_server = { version = "0.1.0", path = "core/node/contract_verification_server" }
+zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
+zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
+zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
