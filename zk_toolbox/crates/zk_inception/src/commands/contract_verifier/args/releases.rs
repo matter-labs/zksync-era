@@ -65,14 +65,12 @@ impl std::str::FromStr for Arch {
 fn get_compatible_archs(asset_name: &str) -> anyhow::Result<Vec<Arch>> {
     if let Ok(arch) = Arch::from_str(asset_name) {
         Ok(vec![arch])
+    } else if asset_name.contains(".linux") {
+        Ok(vec![Arch::LinuxAmd, Arch::LinuxArm])
+    } else if asset_name.contains(".darwin") {
+        Ok(vec![Arch::MacosAmd, Arch::MacosArm])
     } else {
-        if asset_name.contains(".linux") {
-            Ok(vec![Arch::LinuxAmd, Arch::LinuxArm])
-        } else if asset_name.contains(".darwin") {
-            Ok(vec![Arch::MacosAmd, Arch::MacosArm])
-        } else {
-            Err(anyhow::anyhow!(MSG_INVALID_ARCH_ERR))
-        }
+        Err(anyhow::anyhow!(MSG_INVALID_ARCH_ERR))
     }
 }
 

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
@@ -50,7 +50,7 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
 fn download_binaries(
     shell: &Shell,
     releases: Vec<Version>,
-    get_path: fn(&PathBuf, &str) -> PathBuf,
+    get_path: fn(&Path, &str) -> PathBuf,
     link_to_code: &PathBuf,
     name: &str,
 ) -> anyhow::Result<()> {
@@ -75,7 +75,7 @@ fn download_binary(
 ) -> anyhow::Result<()> {
     let binary_path = path.join(name);
     if shell.path_exists(binary_path.clone()) {
-        logger::info(&msg_binary_already_exists(name, version));
+        logger::info(msg_binary_already_exists(name, version));
         return Ok(());
     }
 
@@ -88,20 +88,20 @@ fn download_binary(
     Ok(())
 }
 
-fn get_zksolc_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
+fn get_zksolc_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code.join("etc/zksolc-bin/").join(version)
 }
 
-fn get_zkvyper_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
+fn get_zkvyper_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code.join("etc/zkvyper-bin/").join(version)
 }
 
-fn get_vyper_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
+fn get_vyper_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code
         .join("etc/vyper-bin/")
-        .join(version.replace("v", ""))
+        .join(version.replace('v', ""))
 }
 
-fn get_solc_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
+fn get_solc_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code.join("etc/solc-bin/").join(version)
 }
