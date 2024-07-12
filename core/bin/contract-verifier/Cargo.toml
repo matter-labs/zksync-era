@@ -1,6 +1,6 @@
 [package]
 name = "zksync_contract_verifier"
-description = "The zkEVM contract verifier"
+description = "The ZKsync contract verifier"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

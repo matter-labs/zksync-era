@@ -44,7 +44,6 @@ members = [
     "core/lib/constants",
     "core/lib/contract_verifier",
     "core/lib/contracts",
-    "core/lib/crypto",
     "core/lib/circuit_breaker",
     "core/lib/dal",
     "core/lib/env_config",
@@ -78,6 +77,9 @@ members = [
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
+
+    # Parts of prover workspace that are needed for Core workspace
+    "prover/prover_dal"
 ]
 resolver = "2"
 
@@ -230,7 +232,6 @@ zksync_config = { path = "core/lib/config" }
 zksync_contract_verifier_lib = { path = "core/lib/contract_verifier" }
 zksync_contracts = { path = "core/lib/contracts" }
 zksync_core_leftovers = { path = "core/lib/zksync_core_leftovers" }
-zksync_crypto = { path = "core/lib/crypto" }
 zksync_dal = { path = "core/lib/dal" }
 zksync_db_connection = { path = "core/lib/db_connection" }
 zksync_env_config = { path = "core/lib/env_config" }

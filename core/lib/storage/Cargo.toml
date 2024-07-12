@@ -1,6 +1,7 @@
 [package]
 name = "zksync_storage"
-version = "0.1.0"
+description = "ZKsync RocksDB storage interfaces"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

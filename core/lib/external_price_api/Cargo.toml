@@ -1,5 +1,6 @@
 [package]
 name = "zksync_external_price_api"
+description = "ZKsync clients for fetching token prices"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
