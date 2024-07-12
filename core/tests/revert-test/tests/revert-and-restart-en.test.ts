@@ -394,13 +394,13 @@ describe('Block reverting test', function () {
             const lastCommitted = await main_contract.getTotalBatchesCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted - lastExecuted >= 2n) {
+                console.log('Terminate the main node');
+                await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
                 break;
             }
             await utils.sleep(0.3);
         }
         const alice2 = await alice.getBalance();
-        console.log('Terminate the main node');
-        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
         const values_json = await runBlockReverter([
