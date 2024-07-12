@@ -1,6 +1,7 @@
 [package]
 name = "zksync_consistency_checker"
-version = "0.1.0"
+description = "Consistency checker for ZKsync network"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

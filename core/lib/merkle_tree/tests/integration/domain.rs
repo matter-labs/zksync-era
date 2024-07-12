@@ -5,7 +5,7 @@ use std::slice;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use tempfile::TempDir;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{domain::ZkSyncTree, HashTree, TreeEntry, TreeInstruction};
 use zksync_prover_interface::inputs::StorageLogMetadata;
 use zksync_storage::RocksDB;

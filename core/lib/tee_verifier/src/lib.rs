@@ -7,7 +7,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Context;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };

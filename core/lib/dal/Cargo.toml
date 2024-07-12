@@ -1,6 +1,7 @@
 [package]
 name = "zksync_dal"
-version = "0.1.0"
+description = "ZKsync data access layer"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

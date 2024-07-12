@@ -7903,28 +7903,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_crypto"
-version = "0.1.0"
-dependencies = [
- "blake2 0.10.6",
- "hex",
- "once_cell",
- "serde",
- "sha2 0.10.8",
- "thiserror",
- "zksync_basic_types",
-]
-
-[[package]]
 name = "zksync_crypto_primitives"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2 0.10.6",
  "hex",
  "rand 0.8.5",
  "secp256k1",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
  "zksync_utils",
@@ -8059,7 +8048,7 @@ dependencies = [
  "thread_local",
  "tracing",
  "vise",
- "zksync_crypto",
+ "zksync_crypto_primitives",
  "zksync_prover_interface",
  "zksync_storage",
  "zksync_types",
@@ -8072,7 +8061,7 @@ version = "0.1.0"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
- "zksync_crypto",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
