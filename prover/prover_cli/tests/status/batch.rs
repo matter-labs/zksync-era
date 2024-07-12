@@ -186,6 +186,7 @@ async fn insert_bwg_job(
         .save_witness_inputs(
             batch_number,
             "",
+            "",
             ProtocolSemanticVersion::default(),
             Eip4844Blobs::decode(&[0; 144]).unwrap(),
         )
