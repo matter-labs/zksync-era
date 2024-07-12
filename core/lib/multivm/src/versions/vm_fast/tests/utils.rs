@@ -8,9 +8,10 @@ use zksync_contracts::{
 };
 use zksync_state::ReadStorage;
 use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, H160, U256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H160, H256,
+    U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -22,6 +23,24 @@ pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, 
     }
 }
 
+pub(crate) fn verify_required_storage(
+    required_values: &[(H256, StorageKey)],
+    main_storage: &mut impl ReadStorage,
+    storage_changes: &BTreeMap<(H160, U256), U256>,
+) {
+    for &(required_value, key) in required_values {
+        let current_value = storage_changes
+            .get(&(*key.account().address(), h256_to_u256(*key.key())))
+            .copied()
+            .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)));
+
+        assert_eq!(
+            u256_to_h256(current_value),
+            required_value,
+            "Invalid value at key {key:?}"
+        );
+    }
+}
 pub(crate) fn get_balance(
     token_id: AccountTreeId,
     account: &Address,
@@ -32,7 +51,7 @@ pub(crate) fn get_balance(
 
     storage_changes
         .get(&(*key.account().address(), h256_to_u256(*key.key())))
-        .cloned()
+        .copied()
         .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
 }
 
