@@ -237,6 +237,7 @@ impl<'a> Connection<'a> {
             .start_transaction(ctx)
             .await
             .wrap("start_transaction()")?;
+
         let old = txn.genesis(ctx).await.wrap("genesis()")?;
         if let Some(old) = &old {
             if &config::GenesisSpec::from_genesis(old) == spec {
@@ -244,6 +245,7 @@ impl<'a> Connection<'a> {
                 return Ok(());
             }
         }
+
         tracing::info!("Performing a hard fork of consensus.");
         let genesis = validator::GenesisRaw {
             chain_id: spec.chain_id,
@@ -251,13 +253,13 @@ impl<'a> Connection<'a> {
                 .as_ref()
                 .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
             first_block: txn.next_block(ctx).await.context("next_block()")?,
-
             protocol_version: spec.protocol_version,
             validators: spec.validators.clone(),
-            attesters: None,
+            attesters: spec.attesters.clone(),
             leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
+
         txn.try_update_genesis(ctx, &genesis)
             .await
             .wrap("try_update_genesis()")?;

@@ -118,7 +118,6 @@ impl StateKeeperHandles {
             Box::new(main_node_client),
             L2ChainId::default(),
         )
-        .await
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);

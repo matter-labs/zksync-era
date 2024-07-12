@@ -148,13 +148,26 @@ describe('web3 API compatibility tests', () => {
         await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
 
+    test('Should check the syncing status', async () => {
+        // We can't know whether the node is synced (in EN case), so we just check the validity of the response.
+        const response = await alice.provider.send('eth_syncing', []);
+        // Sync status is either `false` or an object with the following fields.
+        if (response !== false) {
+            const expectedObject = {
+                currentBlock: expect.stringMatching(HEX_VALUE_REGEX),
+                highestBlock: expect.stringMatching(HEX_VALUE_REGEX),
+                startingBlock: expect.stringMatching(HEX_VALUE_REGEX)
+            };
+            expect(response).toMatchObject(expectedObject);
+        }
+    });
+
     // @ts-ignore
     test.each([
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
         ['eth_protocolVersion', [], 'zks/1'],
-        ['eth_syncing', [], false],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],

@@ -101,7 +101,9 @@ impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         drop(conn);
@@ -246,7 +248,9 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
