@@ -9,7 +9,8 @@ use zksync_types::{
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
     utils::{deployed_address_create, storage_key_for_eth_balance},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, U256,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
+    StorageKey, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -70,9 +71,19 @@ impl VmTester {
             // `insert_contracts(&mut self.storage, &self.custom_contracts);`
         }
 
+        let storage = self.storage.clone();
+        {
+            let mut storage = storage.borrow_mut();
+            // Commit pending storage changes (old VM versions commit them on successful execution)
+            for (&(address, slot), &value) in self.vm.inner.world_diff.get_storage_state() {
+                let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
+                storage.set_value(key, u256_to_h256(value));
+            }
+        }
+
         let mut l1_batch = self.vm.batch_env.clone();
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
+            let last_l2_block = load_last_l2_block(&storage).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
                 hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
@@ -85,12 +96,11 @@ impl VmTester {
             };
         }
 
-        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), self.storage.clone());
+        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), storage);
 
         if self.test_contract.is_some() {
             self.deploy_test_contract();
         }
-
         self.vm = vm;
     }
 }

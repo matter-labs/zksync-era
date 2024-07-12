@@ -106,3 +106,7 @@ pub(crate) fn load_precompiles_contract() -> Contract {
         "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
     )
 }
+
+pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
+}
