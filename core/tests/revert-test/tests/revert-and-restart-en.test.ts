@@ -176,7 +176,7 @@ class MainNode {
             components += ',consensus';
         }
 
-        runServerInBackground({
+        let proc = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
@@ -191,7 +191,9 @@ class MainNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                // NOTE: not an infinite loop, as the test will eventually timeout.
+                if (proc.exitCode != null) {
+                    assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+                }
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }
@@ -228,7 +230,7 @@ class ExtNode {
         }
 
         // Run server in background.
-        runExternalNodeInBackground({
+        let proc = runExternalNodeInBackground({
             stdio: [null, logs, logs],
             cwd: pathToHome,
             env: env,
@@ -242,7 +244,9 @@ class ExtNode {
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
-                // NOTE: not an infinite loop, as the test will eventually timeout.
+                if (proc.exitCode != null) {
+                    assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
+                }
                 console.log('waiting for api endpoint');
                 await utils.sleep(1);
             }

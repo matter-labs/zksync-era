@@ -1,4 +1,4 @@
-import { exec as _exec, spawn as _spawn, type ProcessEnvOptions } from 'child_process';
+import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { promisify } from 'util';
 
 // executes a command in background and returns a child process handle
@@ -13,7 +13,7 @@ export function background({
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
     env?: ProcessEnvOptions['env'];
-}) {
+}): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
     return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
@@ -30,11 +30,11 @@ export function runInBackground({
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
-}) {
+}): ChildProcessWithoutNullStreams {
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
     }
-    background({ command, stdio, cwd, env });
+    return background({ command, stdio, cwd, env });
 }
 
 export function runServerInBackground({
@@ -49,9 +49,9 @@ export function runServerInBackground({
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
-}) {
+}): ChildProcessWithoutNullStreams {
     let command = useZkInception ? 'zk_inception server' : 'zk server';
-    runInBackground({ command, components, stdio, cwd, env });
+    return runInBackground({ command, components, stdio, cwd, env });
 }
 
 export function runExternalNodeInBackground({
@@ -66,9 +66,9 @@ export function runExternalNodeInBackground({
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
-}) {
+}): ChildProcessWithoutNullStreams {
     let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
-    runInBackground({ command, components, stdio, cwd, env });
+    return runInBackground({ command, components, stdio, cwd, env });
 }
 
 // async executor of shell commands
