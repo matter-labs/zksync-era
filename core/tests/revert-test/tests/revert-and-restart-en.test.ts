@@ -203,7 +203,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -251,7 +251,15 @@ class ExtNode {
                 await utils.sleep(1);
             }
         }
-        return new ExtNode(tester);
+        return new ExtNode(tester, proc);
+    }
+
+    // Waits for the node process to exit.
+    public async waitForExit(): Promise<number> {
+        while (this.proc.exitCode === null) {
+            await utils.sleep(1);
+        }
+        return this.proc.exitCode;
     }
 }
 
@@ -442,7 +450,7 @@ describe('Block reverting test', function () {
         );
 
         console.log('Wait for the external node to detect reorg and terminate');
-        await utils.sleep(3);
+        await extNode.waitForExit();
 
         console.log('Restart external node and wait for it to revert.');
         extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
