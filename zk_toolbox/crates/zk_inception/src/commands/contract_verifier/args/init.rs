@@ -7,8 +7,9 @@ use super::releases::{get_releases_with_arch, Arch, Version};
 use crate::messages::{
     MSG_ARCH_NOT_SUPPORTED_ERR, MSG_FETCHING_VYPER_RELEASES_SPINNER,
     MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_FETCHING_ZKVYPER_RELEASES_SPINNER,
-    MSG_GET_VYPER_RELEASES_ERR, MSG_GET_ZKSOLC_RELEASES_ERR, MSG_GET_ZKVYPER_RELEASES_ERR,
-    MSG_NO_VERSION_FOUND_ERR, MSG_OS_NOT_SUPPORTED_ERR, MSG_VYPER_VERSION_PROMPT,
+    MSG_FETCH_SOLC_RELEASES_SPINNER, MSG_GET_SOLC_RELEASES_ERR, MSG_GET_VYPER_RELEASES_ERR,
+    MSG_GET_ZKSOLC_RELEASES_ERR, MSG_GET_ZKVYPER_RELEASES_ERR, MSG_NO_VERSION_FOUND_ERR,
+    MSG_OS_NOT_SUPPORTED_ERR, MSG_SOLC_VERSION_PROMPT, MSG_VYPER_VERSION_PROMPT,
     MSG_ZKSOLC_VERSION_PROMPT, MSG_ZKVYPER_VERSION_PROMPT,
 };
 
@@ -20,6 +21,9 @@ pub struct InitContractVerifierArgs {
     /// Version of zkvyper to install
     #[clap(long)]
     pub zkvyper_version: Option<String>,
+    /// Version of solc to install
+    #[clap(long)]
+    pub solc_version: Option<String>,
     /// Version of vyper to install
     #[clap(long)]
     pub vyper_version: Option<String>,
@@ -29,6 +33,7 @@ pub struct InitContractVerifierArgs {
 pub struct InitContractVerifierArgsFinal {
     pub zksolc_releases: Vec<Version>,
     pub zkvyper_releases: Vec<Version>,
+    pub solc_releases: Vec<Version>,
     pub vyper_releases: Vec<Version>,
 }
 
@@ -55,6 +60,14 @@ impl InitContractVerifierArgs {
         )
         .context(MSG_GET_ZKVYPER_RELEASES_ERR)?;
 
+        let solc_releases = get_releases_with_arch(
+            shell,
+            "ethereum/solc-bin",
+            arch,
+            MSG_FETCH_SOLC_RELEASES_SPINNER,
+        )
+        .context(MSG_GET_SOLC_RELEASES_ERR)?;
+
         let vyper_releases = get_releases_with_arch(
             shell,
             "vyperlang/vyper",
@@ -77,6 +90,13 @@ impl InitContractVerifierArgs {
         )?;
         let zkvyper_releases = get_releases_above_version(zkvyper_releases, zkvyper_version)?;
 
+        let solc_version = select_min_version(
+            self.solc_version,
+            solc_releases.clone(),
+            MSG_SOLC_VERSION_PROMPT,
+        )?;
+        let solc_releases = get_releases_above_version(solc_releases, solc_version)?;
+
         let vyper_version = select_min_version(
             self.vyper_version,
             vyper_releases.clone(),
@@ -87,6 +107,7 @@ impl InitContractVerifierArgs {
         Ok(InitContractVerifierArgsFinal {
             zksolc_releases,
             zkvyper_releases,
+            solc_releases,
             vyper_releases,
         })
     }

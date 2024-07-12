@@ -30,6 +30,14 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
 
     download_binaries(
         shell,
+        args.solc_releases,
+        get_solc_path,
+        &link_to_code,
+        "solc",
+    )?;
+
+    download_binaries(
+        shell,
         args.vyper_releases,
         get_vyper_path,
         &link_to_code,
@@ -92,4 +100,8 @@ fn get_vyper_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
     link_to_code
         .join("etc/vyper-bin/")
         .join(version.replace("v", ""))
+}
+
+fn get_solc_path(link_to_code: &PathBuf, version: &str) -> PathBuf {
+    link_to_code.join("etc/solc-bin/").join(version)
 }

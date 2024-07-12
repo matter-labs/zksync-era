@@ -18,6 +18,17 @@ struct GitHubAsset {
     browser_download_url: String,
 }
 
+#[derive(Deserialize)]
+struct SolcList {
+    builds: Vec<SolcBuild>,
+}
+
+#[derive(Deserialize)]
+struct SolcBuild {
+    path: String,
+    version: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
     pub version: String,
@@ -65,7 +76,11 @@ fn get_compatible_archs(asset_name: &str) -> anyhow::Result<Vec<Arch>> {
     }
 }
 
-fn get_releases(shell: &Shell, repo: &str) -> anyhow::Result<Vec<Version>> {
+fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Version>> {
+    if repo == "ethereum/solc-bin" {
+        return get_solc_releases(shell, arch);
+    }
+
     let response: std::process::Output = Cmd::new(cmd!(
         shell,
         "curl https://api.github.com/repos/{repo}/releases"
@@ -96,6 +111,36 @@ fn get_releases(shell: &Shell, repo: &str) -> anyhow::Result<Vec<Version>> {
     Ok(versions)
 }
 
+fn get_solc_releases(shell: &Shell, arch: Arch) -> anyhow::Result<Vec<Version>> {
+    let (arch_str, compatible_archs) = match arch {
+        Arch::LinuxAmd => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
+        Arch::LinuxArm => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
+        Arch::MacosAmd => ("macosx-amd64", vec![Arch::MacosAmd, Arch::MacosArm]),
+        Arch::MacosArm => ("macosx-amd64", vec![Arch::MacosAmd, Arch::MacosArm]),
+    };
+
+    let response: std::process::Output = Cmd::new(cmd!(
+        shell,
+        "curl https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/{arch_str}/list.json"
+    ))
+    .run_with_output()?;
+
+    let response = String::from_utf8(response.stdout)?;
+    let solc_list: SolcList = serde_json::from_str(&response)?;
+
+    let mut versions = vec![];
+    for build in solc_list.builds {
+        let path = build.path;
+        versions.push(Version {
+            version: build.version,
+            arch: compatible_archs.clone(),
+            url: format!("https://github.com/ethereum/solc-bin/raw/gh-pages/{arch_str}/{path}"),
+        });
+    }
+    versions.reverse();
+    Ok(versions)
+}
+
 pub fn get_releases_with_arch(
     shell: &Shell,
     repo: &str,
@@ -103,7 +148,7 @@ pub fn get_releases_with_arch(
     message: &str,
 ) -> anyhow::Result<Vec<Version>> {
     let spinner = Spinner::new(message);
-    let releases = get_releases(shell, repo)?;
+    let releases = get_releases(shell, repo, arch)?;
     let releases = releases
         .into_iter()
         .filter(|r| r.arch.contains(&arch))
