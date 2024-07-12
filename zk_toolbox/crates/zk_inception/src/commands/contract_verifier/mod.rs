@@ -10,6 +10,7 @@ pub mod run;
 pub enum ContractVerifierCommands {
     /// Run contract verifier
     Run,
+    /// Download required binaries for contract verifier
     Init(InitContractVerifierArgs),
 }
 
