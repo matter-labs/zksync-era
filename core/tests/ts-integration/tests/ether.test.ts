@@ -12,7 +12,7 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, Overrides } from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import {
     EIP712_TX_TYPE,
     ETH_ADDRESS,
@@ -371,7 +371,9 @@ describe.only('ETH token checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+        // await withdrawalTx.waitFinalize();
 
         await sleep(10);
 

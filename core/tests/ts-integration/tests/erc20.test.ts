@@ -156,7 +156,9 @@ describe('ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: tokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+        // await withdrawalTx.waitFinalize();
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
