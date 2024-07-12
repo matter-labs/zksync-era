@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_storage_init"
-version = "0.1.0"
+description = "ZKsync node storage initialization"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

@@ -1,6 +1,7 @@
 [package]
 name = "zksync_block_reverter"
-version = "0.1.0"
+description = "ZKsync block reverter library"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

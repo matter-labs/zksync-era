@@ -3,7 +3,6 @@ members = [
     # lib
     "prover_fri_utils",
     "prover_fri_types",
-    "prover_dal",
     # binaries
     "witness_generator",
     "vk_setup_data_generator_server_fri",

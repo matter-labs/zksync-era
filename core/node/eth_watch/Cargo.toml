@@ -1,6 +1,7 @@
 [package]
 name = "zksync_eth_watch"
-version = "0.1.0"
+description = "ZKsync Ethereum watcher"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
