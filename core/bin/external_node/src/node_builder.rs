@@ -2,6 +2,7 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context as _;
+use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
@@ -15,6 +16,7 @@ use zksync_node_api_server::{tx_sender::ApiContracts, web3::Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
+        block_reverter::BlockReverterLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
@@ -55,13 +57,14 @@ use zksync_state::RocksdbStorageOptions;
 
 use crate::{
     config::{self, ExternalNodeConfig},
+    metrics::framework::ExternalNodeMetricsLayer,
     Component,
 };
 
 /// Builder for the external node.
 #[derive(Debug)]
 pub(crate) struct ExternalNodeBuilder {
-    node: ZkStackServiceBuilder,
+    pub(crate) node: ZkStackServiceBuilder,
     config: ExternalNodeConfig,
 }
 
@@ -112,6 +115,15 @@ impl ExternalNodeBuilder {
 
     fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresMetricsLayer);
+        Ok(self)
+    }
+
+    fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ExternalNodeMetricsLayer {
+            l1_chain_id: self.config.required.l1_chain_id,
+            l2_chain_id: self.config.required.l2_chain_id,
+            postgres_pool_size: self.config.postgres.max_connections,
+        });
         Ok(self)
     }
 
@@ -431,6 +443,18 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_block_reverter_layer(mut self) -> anyhow::Result<Self> {
+        let mut layer = BlockReverterLayer::new(NodeRole::External);
+        // Reverting executed batches is more-or-less safe for external nodes.
+        layer
+            .allow_rolling_back_executed_batches()
+            .enable_rolling_back_postgres()
+            .enable_rolling_back_merkle_tree(self.config.required.merkle_tree_path.clone())
+            .enable_rolling_back_state_keeper_cache(self.config.required.state_cache_path.clone());
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g.:
     /// - genesis or snapshot recovery will be performed if it's required.
@@ -479,6 +503,21 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_reorg_detector_layer()?;
+
+        // Add layers that must run only on a single component.
+        if components.contains(&Component::Core) {
+            // Core is a singleton & mandatory component,
+            // so until we have a dedicated component for "auxiliary" tasks,
+            // it's responsible for things like metrics.
+            self = self
+                .add_postgres_metrics_layer()?
+                .add_external_node_metrics_layer()?;
+            // We assign the storage initialization to the core, as it's considered to be
+            // the "main" component.
+            self = self
+                .add_block_reverter_layer()?
+                .add_storage_initialization_layer(LayerKind::Task)?;
+        }
 
         // Add preconditions for all the components.
         self = self
@@ -536,11 +575,6 @@ impl ExternalNodeBuilder {
                     self = self.add_tree_data_fetcher_layer()?;
                 }
                 Component::Core => {
-                    // Core is a singleton & mandatory component,
-                    // so until we have a dedicated component for "auxiliary" tasks,
-                    // it's responsible for things like metrics.
-                    self = self.add_postgres_metrics_layer()?;
-
                     // Main tasks
                     self = self
                         .add_state_keeper_layer()?
@@ -549,10 +583,6 @@ impl ExternalNodeBuilder {
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?;
-
-                    // We assign the storage initialization to the core, as it's considered to be
-                    // the "main" component.
-                    self = self.add_storage_initialization_layer(LayerKind::Task)?;
                 }
             }
         }

@@ -1,7 +1,10 @@
-use std::{cell::OnceCell, path::PathBuf};
+use std::{
+    cell::OnceCell,
+    path::{Path, PathBuf},
+};
 
-use path_absolutize::Absolutize;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use common::logger;
+use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use types::{ChainId, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
@@ -60,25 +63,17 @@ impl Serialize for EcosystemConfig {
     }
 }
 
-impl<'de> Deserialize<'de> for EcosystemConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let config: EcosystemConfigInternal = Deserialize::deserialize(deserializer)?;
-        let bellman_cuda_dir = config.bellman_cuda_dir.map(|dir| {
-            dir.absolutize()
-                .expect("Failed to parse bellman-cuda path")
-                .to_path_buf()
-        });
+impl ReadConfig for EcosystemConfig {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let config: EcosystemConfigInternal = EcosystemConfigInternal::read(shell, path)?;
+
+        let bellman_cuda_dir = config
+            .bellman_cuda_dir
+            .map(|dir| shell.current_dir().join(dir));
         Ok(EcosystemConfig {
             name: config.name.clone(),
             l1_network: config.l1_network,
-            link_to_code: config
-                .link_to_code
-                .absolutize()
-                .expect("Failed to parse zksync-era path")
-                .to_path_buf(),
+            link_to_code: shell.current_dir().join(config.link_to_code),
             bellman_cuda_dir,
             chains: config.chains.clone(),
             config: config.config.clone(),
@@ -101,18 +96,39 @@ impl EcosystemConfig {
     }
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let path = PathBuf::from(CONFIG_NAME);
-        if !shell.path_exists(path) {
+        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
             });
-        }
+        };
 
-        let mut config = EcosystemConfig::read(shell, CONFIG_NAME)
-            .map_err(|e| EcosystemConfigFromFileError::InvalidConfig { source: e })?;
-        config.shell = shell.clone().into();
+        shell.change_dir(&path);
 
-        Ok(config)
+        let ecosystem = match EcosystemConfig::read(shell, CONFIG_NAME) {
+            Ok(mut config) => {
+                config.shell = shell.clone().into();
+                config
+            }
+            Err(_) => {
+                // Try to deserialize with chain config, if it's successful, likely we are in the folder
+                // with chain and we will find the ecosystem config somewhere in parent directories
+                let chain_config = ChainConfigInternal::read(shell, CONFIG_NAME)
+                    .map_err(|err| EcosystemConfigFromFileError::InvalidConfig { source: err })?;
+                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
+
+                let current_dir = shell.current_dir();
+                let Some(parent) = current_dir.parent() else {
+                    return Err(EcosystemConfigFromFileError::NotExists { path });
+                };
+                // Try to find ecosystem somewhere in parent directories
+                shell.change_dir(parent);
+                let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+                // change the default chain for using it in later executions
+                ecosystem_config.default_chain = chain_config.name;
+                ecosystem_config
+            }
+        };
+        Ok(ecosystem)
     }
 
     pub fn load_chain(&self, name: Option<String>) -> Option<ChainConfig> {
@@ -133,11 +149,7 @@ impl EcosystemConfig {
             external_node_config_path: config.external_node_config_path,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             l1_network: self.l1_network,
-            link_to_code: self
-                .link_to_code
-                .absolutize()
-                .expect("Failed to parse zksync-era path")
-                .into(),
+            link_to_code: self.get_shell().current_dir().join(&self.link_to_code),
             base_token: config.base_token,
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
@@ -204,19 +216,14 @@ impl EcosystemConfig {
     }
 
     fn get_internal(&self) -> EcosystemConfigInternal {
-        let bellman_cuda_dir = self.bellman_cuda_dir.clone().map(|dir| {
-            dir.absolutize()
-                .expect("Failed to parse bellman-cuda path")
-                .to_path_buf()
-        });
+        let bellman_cuda_dir = self
+            .bellman_cuda_dir
+            .clone()
+            .map(|dir| self.get_shell().current_dir().join(dir));
         EcosystemConfigInternal {
             name: self.name.clone(),
             l1_network: self.l1_network,
-            link_to_code: self
-                .link_to_code
-                .absolutize()
-                .expect("Failed to parse zksync-era path")
-                .into(),
+            link_to_code: self.get_shell().current_dir().join(&self.link_to_code),
             bellman_cuda_dir,
             chains: self.chains.clone(),
             config: self.config.clone(),
@@ -240,4 +247,18 @@ pub enum EcosystemConfigFromFileError {
 
 pub fn get_default_era_chain_id() -> ChainId {
     ERA_CHAIN_ID
+}
+
+// Find file in all parents repository and return necessary path or an empty error if nothing has been found
+fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
+    let _dir = shell.push_dir(path_buf);
+    if shell.path_exists(file_name) {
+        Ok(shell.current_dir())
+    } else {
+        let current_dir = shell.current_dir();
+        let Some(path) = current_dir.parent() else {
+            return Err(());
+        };
+        find_file(shell, path.to_path_buf(), file_name)
+    }
 }

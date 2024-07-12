@@ -48,6 +48,7 @@ zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 vise.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true
