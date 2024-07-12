@@ -110,3 +110,13 @@ pub(crate) fn load_precompiles_contract() -> Contract {
 pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
 }
+
+pub(crate) fn read_complex_upgrade() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
+}
+
+pub(crate) fn get_complex_upgrade_abi() -> Contract {
+    load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
+    )
+}

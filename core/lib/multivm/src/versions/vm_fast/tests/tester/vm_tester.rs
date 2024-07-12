@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
+use vm2::WorldDiff;
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr};
 use zksync_test_account::{Account, TxType};
@@ -51,6 +52,7 @@ impl VmTester {
 
     pub(crate) fn reset_with_empty_storage(&mut self) {
         self.storage = Rc::new(RefCell::new(get_empty_storage()));
+        self.vm.inner.world_diff = WorldDiff::default();
         self.reset_state(false);
     }
 
