@@ -103,7 +103,7 @@ mod tests {
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
-                pushgateway_url: "http://127.0.0.1:9091".into(),
+                pushgateway_url: Some("http://127.0.0.1:9091".into()),
                 push_interval_ms: Some(100),
             },
             healthcheck: HealthCheckConfig {

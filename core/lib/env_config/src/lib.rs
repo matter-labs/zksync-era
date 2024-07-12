@@ -23,6 +23,7 @@ mod utils;
 
 mod base_token_adjuster;
 mod da_dispatcher;
+mod external_price_api_client;
 mod genesis;
 #[cfg(test)]
 mod test_utils;

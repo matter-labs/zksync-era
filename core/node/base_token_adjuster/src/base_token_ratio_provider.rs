@@ -1,31 +1,39 @@
-use std::{fmt::Debug, num::NonZeroU64, time::Duration};
+use std::{
+    fmt::Debug,
+    num::NonZeroU64,
+    sync::{Arc, RwLock},
+};
 
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
+use zksync_config::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::fee_model::BaseTokenConversionRatio;
 
-const CACHE_UPDATE_INTERVAL: Duration = Duration::from_millis(500);
-
 #[async_trait]
-pub trait BaseTokenRatioProvider: Debug + Send + Sync {
+pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
 }
 
 #[derive(Debug, Clone)]
 pub struct DBBaseTokenRatioProvider {
     pub pool: ConnectionPool<Core>,
-    pub latest_ratio: BaseTokenConversionRatio,
+    pub latest_ratio: Arc<RwLock<BaseTokenConversionRatio>>,
+    config: BaseTokenAdjusterConfig,
 }
 
 impl DBBaseTokenRatioProvider {
-    pub async fn new(pool: ConnectionPool<Core>) -> anyhow::Result<Self> {
-        let mut fetcher = Self {
+    pub async fn new(
+        pool: ConnectionPool<Core>,
+        config: BaseTokenAdjusterConfig,
+    ) -> anyhow::Result<Self> {
+        let fetcher = Self {
             pool,
-            latest_ratio: BaseTokenConversionRatio::default(),
+            latest_ratio: Arc::default(),
+            config,
         };
-        fetcher.latest_ratio = fetcher.get_latest_price().await?;
+        fetcher.update_latest_price().await?;
 
         // TODO(PE-129): Implement latest ratio usability logic.
 
@@ -36,8 +44,12 @@ impl DBBaseTokenRatioProvider {
         Ok(fetcher)
     }
 
-    pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut timer = tokio::time::interval(CACHE_UPDATE_INTERVAL);
+    fn get_latest_ratio(&self) -> BaseTokenConversionRatio {
+        *self.latest_ratio.read().unwrap()
+    }
+
+    pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut timer = tokio::time::interval(self.config.price_cache_update_interval());
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
@@ -45,20 +57,15 @@ impl DBBaseTokenRatioProvider {
                 _ = stop_receiver.changed() => break,
             }
 
-            let latest_storage_ratio = self.get_latest_price().await?;
-
             // TODO(PE-129): Implement latest ratio usability logic.
-            self.latest_ratio = BaseTokenConversionRatio {
-                numerator: latest_storage_ratio.numerator,
-                denominator: latest_storage_ratio.denominator,
-            };
+            self.update_latest_price().await?;
         }
 
         tracing::info!("Stop signal received, base_token_ratio_provider is shutting down");
         Ok(())
     }
 
-    async fn get_latest_price(&self) -> anyhow::Result<BaseTokenConversionRatio> {
+    async fn update_latest_price(&self) -> anyhow::Result<()> {
         let latest_storage_ratio = self
             .pool
             .connection_tagged("db_base_token_ratio_provider")
@@ -68,28 +75,31 @@ impl DBBaseTokenRatioProvider {
             .get_latest_ratio()
             .await;
 
-        match latest_storage_ratio {
-            Ok(Some(latest_storage_price)) => Ok(BaseTokenConversionRatio {
+        let ratio = match latest_storage_ratio {
+            Ok(Some(latest_storage_price)) => BaseTokenConversionRatio {
                 numerator: latest_storage_price.numerator,
                 denominator: latest_storage_price.denominator,
-            }),
+            },
             Ok(None) => {
                 // TODO(PE-136): Insert initial ratio from genesis.
                 // Though the DB should be populated very soon after the server starts, it is possible
                 // to have no ratios in the DB right after genesis. Having initial ratios in the DB
                 // from the genesis stage will eliminate this possibility.
                 tracing::error!("No latest price found in the database. Using default ratio.");
-                Ok(BaseTokenConversionRatio::default())
+                BaseTokenConversionRatio::default()
             }
             Err(err) => anyhow::bail!("Failed to get latest base token ratio: {:?}", err),
-        }
+        };
+
+        *self.latest_ratio.write().unwrap() = ratio;
+        Ok(())
     }
 }
 
 #[async_trait]
 impl BaseTokenRatioProvider for DBBaseTokenRatioProvider {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
-        self.latest_ratio
+        self.get_latest_ratio()
     }
 }
 

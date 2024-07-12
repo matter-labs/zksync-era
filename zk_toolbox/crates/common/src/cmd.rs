@@ -1,5 +1,6 @@
 use std::{
     ffi::OsStr,
+    fmt::{Display, Formatter},
     io,
     process::{Command, Output, Stdio},
     string::FromUtf8Error,
@@ -21,10 +22,19 @@ pub struct Cmd<'a> {
 }
 
 #[derive(thiserror::Error, Debug)]
-#[error("Cmd error: {source} {stderr:?}")]
 pub struct CmdError {
-    stderr: Option<String>,
-    source: anyhow::Error,
+    pub stderr: Option<String>,
+    pub source: anyhow::Error,
+}
+
+impl Display for CmdError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut data = format!("{}", &self.source);
+        if let Some(stderr) = &self.stderr {
+            data = format!("{data}\n{stderr}");
+        }
+        write!(f, "{}", data)
+    }
 }
 
 impl From<xshell::Error> for CmdError {
@@ -83,7 +93,13 @@ impl<'a> Cmd<'a> {
         let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            run_low_level_process_command(self.inner.into())?
+            let output = run_low_level_process_command(self.inner.into())?;
+            if let Ok(data) = String::from_utf8(output.stderr.clone()) {
+                if !data.is_empty() {
+                    logger::info(data)
+                }
+            }
+            output
         } else {
             // Command will be logged manually.
             self.inner.set_quiet(true);

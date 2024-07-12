@@ -147,6 +147,15 @@ impl CommandReceiver {
                         .observe(metrics.time_spent_on_set_value);
                     return;
                 }
+                Command::FinishBatchWithCache(resp) => {
+                    let vm_block_result = self.finish_batch(&mut vm);
+                    let cache = (*storage_view).borrow().cache();
+                    if resp.send((vm_block_result, cache)).is_err() {
+                        break;
+                    }
+
+                    return;
+                }
             }
         }
         // State keeper can exit because of stop signal, so it's OK to exit mid-batch.

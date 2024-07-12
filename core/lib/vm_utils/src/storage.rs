@@ -83,18 +83,41 @@ pub fn l1_batch_params(
 
 /// Provider of L1 batch parameters for state keeper I/O implementations. The provider is stateless; i.e., it doesn't
 /// enforce a particular order of method calls.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct L1BatchParamsProvider {
     snapshot: Option<SnapshotRecoveryStatus>,
 }
 
 impl L1BatchParamsProvider {
-    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let snapshot = storage
+    pub fn new() -> Self {
+        Self { snapshot: None }
+    }
+
+    /// Performs the provider initialization. Must only be called with the initialized storage (e.g.
+    /// either after genesis or snapshot recovery).
+    pub async fn initialize(&mut self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
+        if storage
+            .blocks_dal()
+            .get_earliest_l1_batch_number()
+            .await?
+            .is_some()
+        {
+            // We have batches in the storage, no need for special treatment.
+            return Ok(());
+        }
+
+        let Some(snapshot) = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await?;
-        Ok(Self { snapshot })
+            .await
+            .context("failed getting snapshot recovery status")?
+        else {
+            anyhow::bail!(
+                "Storage is not initialized, it doesn't have batches or snapshot recovery status"
+            )
+        };
+        self.snapshot = Some(snapshot);
+        Ok(())
     }
 
     /// Returns state root hash and timestamp of an L1 batch with the specified number waiting for the hash to be computed

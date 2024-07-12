@@ -43,7 +43,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,
-        object_key: &str,
+        merkle_paths_blob_url: &str,
+        witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         eip_4844_blobs: Eip4844Blobs,
     ) {
@@ -54,6 +55,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 witness_inputs_fri (
                     l1_batch_number,
                     merkle_tree_paths_blob_url,
+                    witness_inputs_blob_url,
                     protocol_version,
                     eip_4844_blobs,
                     status,
@@ -62,11 +64,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5)
+                ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
-            object_key,
+            merkle_paths_blob_url,
+            witness_inputs_blob_url,
             protocol_version.minor as i32,
             blobs_raw,
             protocol_version.patch.0 as i32,
@@ -83,7 +86,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         last_l1_batch_to_process: u32,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
+    ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -112,7 +115,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         SKIP LOCKED
                 )
             RETURNING
-                witness_inputs_fri.*
+                witness_inputs_fri.l1_batch_number
             "#,
             i64::from(last_l1_batch_to_process),
             protocol_version.minor as i32,
@@ -122,21 +125,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            // Blobs can be `None` if we are using an `off-chain DA`
-            let blobs = if row.eip_4844_blobs.is_none() {
-                Eip4844Blobs::empty()
-            } else {
-                Eip4844Blobs::decode(&row.eip_4844_blobs.unwrap_or_else(|| {
-                    panic!(
-                        "missing eip 4844 blobs from the database for batch {}",
-                        row.l1_batch_number
-                    )
-                }))
-                .expect("failed to decode EIP4844 blobs")
-            };
-            (L1BatchNumber(row.l1_batch_number as u32), blobs)
-        })
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn get_basic_circuit_witness_job_attempts(
@@ -1476,6 +1465,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| BasicWitnessGeneratorJobInfo {
             l1_batch_number,
             merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
+            witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,
             status: row.status.parse::<WitnessJobStatus>().unwrap(),
             error: row.error,

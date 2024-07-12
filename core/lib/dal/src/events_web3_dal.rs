@@ -79,7 +79,8 @@ impl EventsWeb3Dal<'_, '_> {
                 ORDER BY miniblock_number ASC, event_index_in_block ASC
                 LIMIT ${}
             )
-            SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number", events_select.*
+            SELECT miniblocks.hash as "block_hash", miniblocks.l1_batch_number as "l1_batch_number",
+                miniblocks.timestamp as block_timestamp, events_select.*
             FROM events_select
             INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
             ORDER BY miniblock_number ASC, event_index_in_block ASC
@@ -222,7 +223,8 @@ impl EventsWeb3Dal<'_, '_> {
                 tx_hash AS "tx_hash!",
                 tx_index_in_block AS "tx_index_in_block!",
                 event_index_in_block AS "event_index_in_block!",
-                event_index_in_tx AS "event_index_in_tx!"
+                event_index_in_tx AS "event_index_in_tx!",
+                miniblocks.timestamp AS "block_timestamp"
             FROM
                 events_select
                 INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number

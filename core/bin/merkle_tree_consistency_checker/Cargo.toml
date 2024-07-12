@@ -1,5 +1,6 @@
 [package]
 name = "merkle_tree_consistency_checker"
+description = "Tool to verify consistency of ZKsync Merkle Tree"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

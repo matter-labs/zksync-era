@@ -1,6 +1,7 @@
 [package]
 name = "zksync_object_store"
-version = "0.1.0"
+description = "ZKsync implementation of object stores"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

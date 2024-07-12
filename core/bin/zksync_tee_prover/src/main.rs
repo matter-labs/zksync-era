@@ -1,15 +1,20 @@
 use anyhow::Context as _;
 use config::TeeProverConfig;
 use tee_prover::TeeProverLayer;
-use zksync_config::configs::ObservabilityConfig;
+use zksync_config::configs::{ObservabilityConfig, PrometheusConfig};
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
-    implementations::layers::sigint::SigintHandlerLayer, service::ZkStackServiceBuilder,
+    implementations::layers::{
+        prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer,
+    },
+    service::ZkStackServiceBuilder,
 };
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod api_client;
 mod config;
 mod error;
+mod metrics;
 mod tee_prover;
 
 /// This application serves as a TEE verifier, a.k.a. a TEE prover.
@@ -41,16 +46,24 @@ fn main() -> anyhow::Result<()> {
     let tee_prover_config = TeeProverConfig::from_env()?;
     let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
 
-    ZkStackServiceBuilder::new()
+    let prometheus_config = PrometheusConfig::from_env()?;
+
+    let mut builder = ZkStackServiceBuilder::new();
+    let mut builder_mut = builder
         .add_layer(SigintHandlerLayer)
         .add_layer(TeeProverLayer::new(
             tee_prover_config.api_url,
             tee_prover_config.signing_key,
             attestation_quote_bytes,
             tee_prover_config.tee_type,
-        ))
-        .build()?
-        .run()?;
+        ));
 
+    if let Some(gateway) = prometheus_config.gateway_endpoint() {
+        let exporter_config =
+            PrometheusExporterConfig::push(gateway, prometheus_config.push_interval());
+        builder_mut = builder_mut.add_layer(PrometheusExporterLayer(exporter_config));
+    }
+
+    builder_mut.build()?.run()?;
     Ok(())
 }

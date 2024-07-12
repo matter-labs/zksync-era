@@ -327,6 +327,9 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {

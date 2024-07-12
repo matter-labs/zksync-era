@@ -251,6 +251,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            chain_admin_addr: g.gen(),
             ecosystem_contracts: self.sample(g),
         }
     }
@@ -560,6 +561,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
+            prometheus_listener_port: self.sample(rng),
         }
     }
 }
@@ -724,6 +726,16 @@ impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
     }
 }
 
+impl Distribution<configs::consensus::WeightedAttester> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedAttester {
+        use configs::consensus::{AttesterPublicKey, WeightedAttester};
+        WeightedAttester {
+            key: AttesterPublicKey(self.sample(rng)),
+            weight: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
         use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
@@ -731,6 +743,7 @@ impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
             chain_id: L2ChainId::default(),
             protocol_version: ProtocolVersion(self.sample(rng)),
             validators: self.sample_collect(rng),
+            attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
         }
     }
@@ -743,6 +756,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
+            max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
                 .sample_range(rng)
@@ -768,9 +782,12 @@ impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
 
 impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
-        use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
+        use configs::consensus::{
+            AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey,
+        };
         ConsensusSecrets {
             validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
+            attester_key: self.sample_opt(|| AttesterSecretKey(String::into(self.sample(rng)))),
             node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
         }
     }

@@ -159,7 +159,11 @@ impl TreeUpdater {
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
-                    .insert_proof_generation_details(l1_batch_number, object_key)
+                    .insert_proof_generation_details(l1_batch_number)
+                    .await?;
+                storage
+                    .proof_generation_dal()
+                    .save_merkle_paths_artifacts_metadata(l1_batch_number, object_key)
                     .await?;
             }
             drop(storage);
@@ -214,9 +218,10 @@ impl TreeUpdater {
         } else {
             storage
                 .vm_runner_dal()
-                .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
+                .get_protective_reads_latest_processed_batch()
                 .await
                 .context("failed loading latest L1 batch number with protective reads")?
+                .unwrap_or_default()
         };
         drop(storage);
 
@@ -423,8 +428,9 @@ impl AsyncTree {
 
         let current_db_batch = storage
             .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch(L1BatchNumber(0))
-            .await?;
+            .get_protective_reads_latest_processed_batch()
+            .await?
+            .unwrap_or_default();
         let last_l1_batch_with_tree_data = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_tree_data()

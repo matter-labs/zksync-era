@@ -79,6 +79,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
             server_addr: *cfg.server_addr,
             public_addr: config::Host(cfg.public_addr.0.clone()),
             max_payload_size: usize::MAX,
+            max_batch_size: usize::MAX,
             gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
             gossip_static_inbound: cfg
                 .gossip
@@ -99,6 +100,12 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                     key: config::ValidatorPublicKey(key.public().encode()),
                     weight: 1,
                 }],
+                // We only have access to the main node attester key in the `cfg`, which is fine
+                // for validators because at the moment there is only one leader. It doesn't
+                // allow us to form a full attester committee. However in the current tests
+                // the `new_configs` used to produce the array of `network::Config` doesn't
+                // assign an attester key, so it doesn't matter.
+                attesters: Vec::new(),
                 leader: config::ValidatorPublicKey(key.public().encode()),
             }),
             rpc: None,
@@ -109,6 +116,10 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .validator_key
                 .as_ref()
                 .map(|k| config::ValidatorSecretKey(k.encode().into())),
+            attester_key: cfg
+                .attester_key
+                .as_ref()
+                .map(|k| config::AttesterSecretKey(k.encode().into())),
         },
     )
 }
@@ -483,8 +494,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
-            )
-            .await?;
+            )?;
 
             s.spawn_bg(async {
                 Ok(l2_block_sealer
@@ -596,8 +606,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
                 L2ChainId::default(),
-            )
-            .await?;
+            )?;
             s.spawn_bg(async {
                 Ok(l2_block_sealer
                     .run()

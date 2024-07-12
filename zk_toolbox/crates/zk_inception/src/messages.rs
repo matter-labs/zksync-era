@@ -22,7 +22,11 @@ pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
-pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+
+pub fn msg_created_ecosystem(name: &str) -> String {
+    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd {name}`)")
+}
+
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
@@ -185,7 +189,6 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
-pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Forge utils related messages
@@ -215,6 +218,19 @@ pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
+pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
+pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
+pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
+pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
+pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
+pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
+pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
+    "Failed to run witness vector generator";
+pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
+pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
 pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
@@ -244,6 +260,20 @@ pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store con
 pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
 pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
 pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
+pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
+pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
+pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
+pub(super) const MSG_CLONING_BELLMAN_CUDA_SPINNER: &str = "Cloning bellman-cuda...";
+pub(super) const MSG_BUILDING_BELLMAN_CUDA_SPINNER: &str = "Building bellman-cuda...";
+pub(super) const MSG_BELLMAN_CUDA_DIR_ERR: &str = "Failed to get bellman-cuda directory";
+pub(super) const MSG_BELLMAN_CUDA_DIR_PROMPT: &str =
+    "Provide the path to the bellman-cuda directory:";
+pub(super) const MSG_BELLMAN_CUDA_INITIALIZED: &str =
+    "bellman-cuda has been initialized successfully";
+pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
+    "Select the origin of bellman-cuda repository";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
+pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

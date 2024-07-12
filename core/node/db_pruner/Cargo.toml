@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_db_pruner"
+description = "ZKsync database pruner"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -6,9 +6,10 @@ use crate::{
         da_client::DAClientResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// A layer that wires the data availability dispatcher task.
@@ -16,6 +17,20 @@ use crate::{
 pub struct DataAvailabilityDispatcherLayer {
     state_keeper_config: StateKeeperConfig,
     da_config: DADispatcherConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub da_client: DAClientResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub da_dispatcher_task: DataAvailabilityDispatcher,
 }
 
 impl DataAvailabilityDispatcherLayer {
@@ -29,15 +44,17 @@ impl DataAvailabilityDispatcherLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for DataAvailabilityDispatcherLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "da_dispatcher_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool_resource = context.get_resource::<PoolResource<MasterPool>>()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
-        let master_pool = master_pool_resource.get_custom(2).await?;
-        let da_client = context.get_resource::<DAClientResource>()?.0;
+        let master_pool = input.master_pool.get_custom(2).await?;
+        let da_client = input.da_client.0;
 
         if let Some(limit) = da_client.blob_size_limit() {
             if self.state_keeper_config.max_pubdata_per_batch > limit as u64 {
@@ -48,13 +65,10 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             }
         }
 
-        context.add_task(DataAvailabilityDispatcher::new(
-            master_pool,
-            self.da_config,
-            da_client,
-        ));
+        let da_dispatcher_task =
+            DataAvailabilityDispatcher::new(master_pool, self.da_config, da_client);
 
-        Ok(())
+        Ok(Output { da_dispatcher_task })
     }
 }
 

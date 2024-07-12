@@ -2,7 +2,7 @@
 
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use test_casing::test_casing;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::MerkleTreeRecovery, Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
 };
