@@ -151,7 +151,7 @@ impl TestTemplate {
 
     /// Obtains the test database URL from the environment variable.
     pub fn empty() -> anyhow::Result<Self> {
-        let db_url = env::var("TEST_DATABASE_PROVER_URL").context(
+        let db_url = env::var("TEST_DATABASE_URL").context(
             "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
             Make sure that you are running the tests with 'zk test rust' command or equivalent.",
         )?;
