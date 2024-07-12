@@ -69,7 +69,7 @@ fn download_binaries(
 fn download_binary(
     shell: &Shell,
     url: &str,
-    path: &PathBuf,
+    path: &Path,
     name: &str,
     version: &str,
 ) -> anyhow::Result<()> {
