@@ -402,6 +402,7 @@ describe('Block reverting test', function () {
 
         console.log('Restart external node and wait for it to revert.');
         extNode = await ExtNode.spawn(extLogs, enableConsensus);
+        await utils.sleep(30);
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
