@@ -59,11 +59,6 @@
         let
           pkgs = final;
 
-          versionSuffix =
-            if officialRelease
-            then ""
-            else "-pre${builtins.substring 0 8 (self.lastModifiedDate or self.lastModified or "19700101")}_${self.shortRev or "dirty"}";
-
           rustVersion = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
 
           rustPlatform = pkgs.makeRustPlatform {
@@ -123,13 +118,11 @@
 
             zksync_server = pkgs.callPackage ./etc/nix/zksync-server.nix {
               inherit cargoArtifacts;
-              inherit versionSuffix;
               inherit craneLib;
               inherit commonArgs;
             };
             tee_prover = pkgs.callPackage ./etc/nix/tee-prover.nix {
               inherit cargoArtifacts;
-              inherit versionSuffix;
               inherit craneLib;
               inherit commonArgs;
             };
