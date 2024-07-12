@@ -129,7 +129,6 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
         )
-        .await
         .unwrap();
 
         (io, mempool)

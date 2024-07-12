@@ -1,16 +1,10 @@
-use std::sync::Arc;
-
 use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 
 use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
-    },
+    implementations::resources::pools::{MasterPool, PoolResource, ProverPool, ReplicaPool},
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    IntoContext,
 };
 
 /// Builder for the [`PoolsLayer`].
@@ -69,10 +63,6 @@ impl PoolsLayerBuilder {
 /// Wiring layer for connection pools.
 /// During wiring, also prepares the global configuration for the connection pools.
 ///
-/// ## Requests resources
-///
-/// - `AppHealthCheckResource` (adds a health check)
-///
 /// ## Adds resources
 ///
 /// - `PoolResource::<MasterPool>` (if master pool is enabled)
@@ -87,13 +77,6 @@ pub struct PoolsLayer {
     with_prover: bool,
 }
 
-#[derive(Debug, FromContext)]
-#[context(crate = crate)]
-pub struct Input {
-    #[context(default)]
-    pub app_health: AppHealthCheckResource,
-}
-
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
@@ -104,14 +87,14 @@ pub struct Output {
 
 #[async_trait::async_trait]
 impl WiringLayer for PoolsLayer {
-    type Input = Input;
+    type Input = ();
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
         "pools_layer"
     }
 
-    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         if !self.with_master && !self.with_replica && !self.with_prover {
             return Err(WiringError::Configuration(
                 "At least one pool should be enabled".to_string(),
@@ -164,21 +147,6 @@ impl WiringLayer for PoolsLayer {
         } else {
             None
         };
-
-        // Insert health checks for the core pool.
-        // Replica pool is preferred here.
-        let healthcheck_pool = match (&replica_pool, &master_pool) {
-            (Some(replica), _) => Some(replica.get().await?),
-            (_, Some(master)) => Some(master.get().await?),
-            _ => None,
-        };
-        if let Some(pool) = healthcheck_pool {
-            let db_health_check = ConnectionPoolHealthCheck::new(pool);
-            let AppHealthCheckResource(app_health) = input.app_health;
-            app_health
-                .insert_custom_component(Arc::new(db_health_check))
-                .map_err(WiringError::internal)?;
-        }
 
         Ok(Output {
             master_pool,

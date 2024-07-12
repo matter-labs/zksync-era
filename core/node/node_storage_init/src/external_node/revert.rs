@@ -12,7 +12,7 @@ use crate::RevertStorage;
 pub struct ExternalNodeReverter {
     pub client: Box<DynClient<L2>>,
     pub pool: ConnectionPool<Core>,
-    pub reverter: BlockReverter,
+    pub reverter: Option<BlockReverter>,
 }
 
 #[async_trait::async_trait]
@@ -22,8 +22,14 @@ impl RevertStorage for ExternalNodeReverter {
         to_batch: L1BatchNumber,
         _stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
+        let Some(block_reverter) = self.reverter.as_ref() else {
+            anyhow::bail!(
+                "Revert to block {to_batch} was requested, but the reverter was not provided."
+            );
+        };
+
         tracing::info!("Reverting to l1 batch number {to_batch}");
-        self.reverter.roll_back(to_batch).await?;
+        block_reverter.roll_back(to_batch).await?;
         tracing::info!("Revert successfully completed");
         Ok(())
     }
