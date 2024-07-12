@@ -42,6 +42,7 @@ mod postgres;
 mod rocksdb;
 mod shadow_storage;
 mod storage_factory;
+mod storage_overrides;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;

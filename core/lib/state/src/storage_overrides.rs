@@ -78,9 +78,8 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
         if let Some(account_state) = self.overridden_account_state.get(key.account()) {
             if let Some(value) = account_state.get(key.key()) {
                 return *value;
-            } else {
-                return H256::zero();
             }
+            return H256::zero();
         }
 
         if let Some(account_state_diff) = self.overridden_account_state_diff.get(key.account()) {
