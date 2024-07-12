@@ -54,7 +54,7 @@ jobs:
       - name: Build Docker images
         id: build
         run: |
-          nix build -L .#container-tee_prover-azure
+          nix build -L .#container-tee-prover-azure
           export IMAGE_TAG=$(docker load -i result | grep -Po 'Loaded image.*: \K.*')
           echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           echo "IMAGE_NAME=${IMAGE_TAG%:*}" >> "$GITHUB_OUTPUT"

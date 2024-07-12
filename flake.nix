@@ -46,8 +46,8 @@
 
           packages = {
             # to ease potential cross-compilation, the overlay is used
-            inherit (appliedOverlay.zksync-era) zksync_server tee_prover container-tee_prover-azure container-tee_prover-dcap;
-            default = appliedOverlay.zksync-era.zksync_server;
+            inherit (appliedOverlay.zksync-era) zksync tee_prover container-tee-prover-azure container-tee-prover-dcap;
+            default = appliedOverlay.zksync-era.zksync;
           };
 
           devShells.default = appliedOverlay.zksync-era.devShell;
@@ -112,30 +112,30 @@
         {
           zksync-era = rec {
             devShell = pkgs.callPackage ./etc/nix/devshell.nix {
-              inherit zksync_server;
+              inherit zksync;
               inherit commonArgs;
             };
 
-            zksync_server = pkgs.callPackage ./etc/nix/zksync-server.nix {
+            zksync = pkgs.callPackage ./etc/nix/zksync.nix {
               inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };
-            tee_prover = pkgs.callPackage ./etc/nix/tee-prover.nix {
+            tee_prover = pkgs.callPackage ./etc/nix/tee_prover.nix {
               inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };
 
-            container-tee_prover-azure = pkgs.callPackage ./etc/nix/container-tee-prover.nix {
+            container-tee-prover-azure = pkgs.callPackage ./etc/nix/container-tee_prover.nix {
               inherit tee_prover;
               isAzure = true;
-              container-name = "zksync-tee_prover-azure";
+              container-name = "zksync-tee-prover-azure";
             };
-            container-tee_prover-dcap = pkgs.callPackage ./etc/nix/container-tee-prover.nix {
+            container-tee-prover-dcap = pkgs.callPackage ./etc/nix/container-tee_prover.nix {
               inherit tee_prover;
               isAzure = false;
-              container-name = "zksync-tee_prover-dcap";
+              container-name = "zksync-tee-prover-dcap";
             };
           };
         };
