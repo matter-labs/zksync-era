@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
-use tokio::task;
+use tokio::task::{self, JoinError, JoinSet};
 use url::Url;
 use zksync_basic_types::H256;
 use zksync_node_framework::{
@@ -98,38 +98,6 @@ impl TeeProver {
             ))),
         }
     }
-
-    async fn step(&self) -> Result<(), TeeProverError> {
-        if let Some(job) = self.api_client.get_job().await? {
-            let prover_verify_clone = self.clone();
-            let handle: task::JoinHandle<Result<(Signature, L1BatchNumber, H256), TeeProverError>> =
-                task::spawn_blocking(move || {
-                    let (signature, batch_number, root_hash) = prover_verify_clone.verify(*job)?;
-                    Ok((signature, batch_number, root_hash))
-                });
-
-            let prover_submit_clone = self.clone();
-            tokio::spawn(async move {
-                if let Ok(result) = handle.await {
-                    let (signature, batch_number, root_hash) = result.unwrap();
-                    let _ = prover_submit_clone
-                        .api_client
-                        .submit_proof(
-                            batch_number,
-                            signature,
-                            &prover_submit_clone.public_key,
-                            root_hash,
-                            prover_submit_clone.tee_type,
-                        )
-                        .await;
-                }
-            });
-        } else {
-            tracing::trace!("There are currently no pending batches to be proven");
-        }
-
-        Ok(())
-    }
 }
 
 /// TEE prover configuration options.
@@ -143,6 +111,7 @@ pub struct TeeProverConfig {
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,
     pub max_backoff: Duration,
+    pub max_concurrent_proving_tasks: usize,
 }
 
 impl Default for TeeProverConfig {
@@ -152,6 +121,7 @@ impl Default for TeeProverConfig {
             initial_retry_backoff: Duration::from_secs(1),
             retry_backoff_multiplier: 2.0,
             max_backoff: Duration::from_secs(128),
+            max_concurrent_proving_tasks: 100,
         }
     }
 }
@@ -171,17 +141,101 @@ impl Task for TeeProver {
 
         let mut retries = 1;
         let mut backoff = self.config.initial_retry_backoff;
+        let mut join_set: JoinSet<Result<(Signature, L1BatchNumber, H256), TeeProverError>> =
+            JoinSet::new();
+        let mut exit_app = false;
 
         loop {
-            if *stop_receiver.0.borrow() {
-                tracing::info!("Stop signal received, shutting down TEE Prover component");
-                return Ok(());
+            // don't fetch more jobs until if you are already at full capacity; wait for some jobs to finish
+            while join_set.len() >= self.config.max_concurrent_proving_tasks {
+                tokio::select! {
+                    _ = stop_receiver.0.changed() => {
+                        tracing::info!("Stop signal received, shutting down TEE Prover component");
+                        exit_app = true;
+                        break;
+                    }
+                    join_result = join_set.join_next() => {
+                        match join_result {
+                            // there is something to be joined, but not sure if join was successful
+                            Some(result) => {
+                                match result {
+                                    // join was successful
+                                    Ok(result) => {
+                                        match result {
+                                            // everything went well, the proof was submitted successfully
+                                            Ok((signature, batch_number, root_hash)) => {
+                                                tracing::trace!("Proof for batch {} was submitted successfully.", batch_number);
+                                            }
+                                            // something went wrong during verification
+                                            Err(err) => {
+                                                tracing::error!(%err, "Failed to verify the batch."); // TODO add logic to retry verification
+                                            }
+                                        }
+                                    }
+                                    // JoinError, join was not successful; either panicked, or cancelled (unexpected)
+                                    Err(err) => {
+                                        if err.is_cancelled() {
+                                            tracing::error!("Join was cancelled.");
+                                        } else if err.is_panic() {
+                                            tracing::error!(%err, "Join panicked.");
+                                        } else {
+                                            tracing::error!("Join failed for an unknown/unexpected reason.");
+                                        }
+                                    }
+                                }
+                            }
+                            // nothing to join which means join_set is empty; no jobs left - that's good, continue
+                            None => { }
+                        }
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                        tracing::warn!("Soft timeout reached while waiting for {} pending proofs to complete. Continuing to wait.", join_set.len());
+                    }
+                }
             }
-            let result = self.step().await;
-            match result {
-                Ok(()) => {
-                    retries = 1;
-                    backoff = self.config.initial_retry_backoff;
+
+            if exit_app || *stop_receiver.0.borrow() {
+                tracing::info!("Stop signal received, shutting down TEE Prover component");
+                break;
+            }
+
+            match self.api_client.get_job().await {
+                Ok(job) => {
+                    if let Some(job) = self.api_client.get_job().await? {
+                        let prover_verify_clone = self.clone();
+                        let handle: task::JoinHandle<_> =
+                            task::spawn_blocking(move || Ok(prover_verify_clone.verify(*job)?));
+                        let prover_submit_clone = self.clone();
+                        join_set.spawn(async move {
+                            match handle.await.unwrap() {
+                                Ok((signature, batch_number, root_hash)) => {
+                                    tracing::trace!(
+                                        "Proof for batch {} was verified successfully.",
+                                        batch_number
+                                    );
+                                    prover_submit_clone
+                                        .api_client
+                                        .submit_proof(
+                                            batch_number,
+                                            signature,
+                                            &prover_submit_clone.public_key,
+                                            root_hash,
+                                            prover_submit_clone.tee_type,
+                                        )
+                                        .await
+                                        .map(|_| (signature, batch_number, root_hash))
+                                }
+                                Err(err) => {
+                                    tracing::error!(%err, "Failed to verify the batch.");
+                                    Err(err)
+                                }
+                            }
+                        });
+                        retries = 1;
+                        backoff = self.config.initial_retry_backoff;
+                    } else {
+                        tracing::trace!("There are currently no pending batches to be proven");
+                    }
                 }
                 Err(err) => {
                     if !err.is_transient() || retries > self.config.max_retries {
@@ -199,5 +253,9 @@ impl Task for TeeProver {
                 }
             }
         }
+
+        join_set.abort_all();
+
+        return Ok(());
     }
 }
