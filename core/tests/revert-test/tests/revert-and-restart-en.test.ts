@@ -142,9 +142,12 @@ async function runBlockReverter(args: string[]): Promise<string> {
     const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
-    const executedProcess = await exec(cmd, env.ZKSYNC_HOME, {
-        ...env,
-        PATH: process.env.PATH
+    const executedProcess = await exec(cmd, {
+        cwd: env.ZKSYNC_HOME,
+        env: {
+            ...env,
+            PATH: process.env.PATH
+        }
     });
 
     return executedProcess.stdout;
@@ -169,7 +172,7 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -223,7 +226,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
