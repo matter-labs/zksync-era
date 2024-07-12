@@ -37,7 +37,7 @@ async fn test_vm_reader() {
         }
         let nodes_ref: Vec<&[Token]> = nodes.iter().map(|v| v.as_slice()).collect();
         let nodes_slice: &[&[Token]] = nodes_ref.as_slice();
-        let consensus_authority_address = writer
+        let registry_address = writer
             .deploy_and_add_nodes(ctx, account.address, nodes_slice)
             .await;
 
@@ -48,14 +48,8 @@ async fn test_vm_reader() {
         )
         .await;
         let block_id = BlockId::Number(BlockNumber::Pending);
-        let mut reader = super::vm_reader::VMReader::new(
-            ctx,
-            block_id,
-            pool.clone(),
-            tx_sender.clone(),
-            consensus_authority_address,
-        )
-        .await;
+        let mut reader =
+            super::vm_reader::VMReader::new(pool.clone(), tx_sender.clone(), registry_address);
 
         let validators = reader.read_validator_committee(ctx, block_id).await;
         assert_eq!(validators.len(), num_nodes);

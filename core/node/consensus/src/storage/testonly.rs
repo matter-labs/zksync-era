@@ -217,29 +217,23 @@ impl VMWriter {
         owner: Address,
         nodes: &[&[Token]],
     ) -> Address {
-        let consensus_authority_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ConsensusAuthority.sol/ConsensusAuthority.json");
-        let consensus_authority_contract = load_contract("contracts/l2-contracts/artifacts-zk/contracts/ConsensusAuthority.sol/ConsensusAuthority.json");
-        let validator_registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ValidatorRegistry.sol/ValidatorRegistry.json");
-        let attester_registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/AttesterRegistry.sol/AttesterRegistry.json");
+        let registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json");
+        let registry_contract = load_contract("contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json");
 
         let mut txs: Vec<Transaction> = vec![];
         let deploy_tx = self.account.get_deploy_tx_with_factory_deps(
-            &consensus_authority_bytecode,
+            &registry_bytecode,
             Some(&[Token::Address(owner)]),
-            vec![validator_registry_bytecode, attester_registry_bytecode],
+            vec![],
             TxType::L2,
         );
         txs.push(deploy_tx.tx);
         for node in nodes {
-            let tx = self.gen_tx_add(&consensus_authority_contract, deploy_tx.address, node);
+            let tx = self.gen_tx_add(&registry_contract, deploy_tx.address, node);
             txs.push(tx);
         }
-        txs.push(
-            self.gen_tx_set_validator_committee(deploy_tx.address, &consensus_authority_contract),
-        );
-        txs.push(
-            self.gen_tx_set_attester_committee(deploy_tx.address, &consensus_authority_contract),
-        );
+        txs.push(self.gen_tx_set_validator_committee(deploy_tx.address, &registry_contract));
+        txs.push(self.gen_tx_set_attester_committee(deploy_tx.address, &registry_contract));
 
         self.node.push_block(&txs).await;
         self.pool
@@ -298,7 +292,7 @@ impl VMWriter {
                 value: Default::default(),
                 factory_deps: vec![],
             },
-            Some(fee(1_000_000)),
+            Some(fee(10_000_000)),
         )
     }
 }
