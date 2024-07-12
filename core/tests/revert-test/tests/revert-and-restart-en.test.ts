@@ -172,7 +172,7 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -226,7 +226,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester) { }
+    constructor(public tester: Tester) {}
 
     // Terminates all main node processes running.
     public static async terminateAll() {
