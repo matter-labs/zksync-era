@@ -27,9 +27,9 @@ pub struct InitContractVerifierArgs {
 
 #[derive(Debug, Clone)]
 pub struct InitContractVerifierArgsFinal {
-    pub zksolc_version: Version,
-    pub zkvyper_version: Version,
-    pub vyper_version: Version,
+    pub zksolc_releases: Vec<Version>,
+    pub zkvyper_releases: Vec<Version>,
+    pub vyper_releases: Vec<Version>,
 }
 
 impl InitContractVerifierArgs {
@@ -63,25 +63,31 @@ impl InitContractVerifierArgs {
         )
         .context(MSG_GET_VYPER_RELEASES_ERR)?;
 
-        let zksolc_version = select_version(
+        let zksolc_version = select_min_version(
             self.zksolc_version,
-            zksolc_releases,
+            zksolc_releases.clone(),
             MSG_ZKSOLC_VERSION_PROMPT,
         )?;
+        let zksolc_releases = get_releases_above_version(zksolc_releases, zksolc_version)?;
 
-        let zkvyper_version = select_version(
+        let zkvyper_version = select_min_version(
             self.zkvyper_version,
-            zkvyper_releases,
+            zkvyper_releases.clone(),
             MSG_ZKVYPER_VERSION_PROMPT,
         )?;
+        let zkvyper_releases = get_releases_above_version(zkvyper_releases, zkvyper_version)?;
 
-        let vyper_version =
-            select_version(self.vyper_version, vyper_releases, MSG_VYPER_VERSION_PROMPT)?;
+        let vyper_version = select_min_version(
+            self.vyper_version,
+            vyper_releases.clone(),
+            MSG_VYPER_VERSION_PROMPT,
+        )?;
+        let vyper_releases = get_releases_above_version(vyper_releases, vyper_version)?;
 
         Ok(InitContractVerifierArgsFinal {
-            zksolc_version,
-            zkvyper_version,
-            vyper_version,
+            zksolc_releases,
+            zkvyper_releases,
+            vyper_releases,
         })
     }
 }
@@ -109,7 +115,7 @@ fn get_arch() -> anyhow::Result<Arch> {
     Ok(arch)
 }
 
-fn select_version(
+fn select_min_version(
     selected: Option<String>,
     versions: Vec<Version>,
     prompt_msg: &str,
@@ -127,4 +133,16 @@ fn select_version(
         .to_owned();
 
     Ok(selected)
+}
+
+fn get_releases_above_version(
+    releases: Vec<Version>,
+    version: Version,
+) -> anyhow::Result<Vec<Version>> {
+    let pos = releases
+        .iter()
+        .position(|r| r.version == version.version)
+        .context(MSG_NO_VERSION_FOUND_ERR)?;
+
+    Ok(releases[..=pos].to_vec())
 }

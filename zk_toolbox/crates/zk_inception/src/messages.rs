@@ -286,9 +286,9 @@ pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
 pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
 pub(super) const MSG_FETCHING_ZKSOLC_RELEASES_SPINNER: &str = "Fetching zksolc releases...";
 pub(super) const MSG_FETCHING_ZKVYPER_RELEASES_SPINNER: &str = "Fetching zkvyper releases...";
-pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the zksolc version:";
-pub(super) const MSG_ZKVYPER_VERSION_PROMPT: &str = "Select the zkvyper version:";
-pub(super) const MSG_VYPER_VERSION_PROMPT: &str = "Select the vyper version:";
+pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the minimal zksolc version:";
+pub(super) const MSG_ZKVYPER_VERSION_PROMPT: &str = "Select the minimalzkvyper version:";
+pub(super) const MSG_VYPER_VERSION_PROMPT: &str = "Select the minimal vyper version:";
 pub(super) const MSG_NO_RELEASES_FOUND_ERR: &str = "No releases found for current architecture";
 pub(super) const MSG_NO_VERSION_FOUND_ERR: &str = "No version found";
 pub(super) const MSG_ARCH_NOT_SUPPORTED_ERR: &str = "Architecture not supported";
@@ -297,10 +297,13 @@ pub(super) const MSG_FETCHING_VYPER_RELEASES_SPINNER: &str = "Fetching vyper rel
 pub(super) const MSG_GET_VYPER_RELEASES_ERR: &str = "Failed to get vyper releases";
 pub(super) const MSG_GET_ZKVYPER_RELEASES_ERR: &str = "Failed to get zkvyper releases";
 
-pub(super) fn msg_binary_already_exists(name: &str) -> String {
-    format!("{} binary already exists. Skipping download.", name)
+pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
+    format!(
+        "{} {} binary already exists. Skipping download.",
+        name, version
+    )
 }
 
-pub(super) fn msg_downloading_binary_spinner(name: &str) -> String {
-    format!("Downloading {} binary", name)
+pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
+    format!("Downloading {} {} binary", name, version)
 }
