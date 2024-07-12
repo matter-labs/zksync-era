@@ -72,6 +72,7 @@ members = [
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
     "core/lib/external_price_api",
+    "core/lib/via_btc_adaptor",
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",
@@ -259,6 +260,8 @@ zksync_utils = { version = "0.1.0", path = "core/lib/utils" }
 zksync_web3_decl = { version = "0.1.0", path = "core/lib/web3_decl" }
 zksync_crypto_primitives = { version = "0.1.0", path = "core/lib/crypto_primitives" }
 zksync_external_price_api = { version = "0.1.0", path = "core/lib/external_price_api" }
+via_btc_adaptor= { version = "0.1.0", path = "core/lib/via_btc_adaptor" }
+
 
 # Framework and components
 zksync_node_framework = { version = "0.1.0", path = "core/node/node_framework" }
