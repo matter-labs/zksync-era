@@ -43,12 +43,19 @@ message WeightedValidator {
   optional uint64 weight = 2; // required
 }
 
+// Weighted member of an attester committee. 
+message WeightedAttester {
+  optional string key = 1; // required; AttesterPublic
+  optional uint64 weight = 2; // required
+}
+
 // Consensus genesis specification.
 message GenesisSpec {
   optional uint64 chain_id = 1; // required; L2ChainId, should be the same as `l2_chain_id` in the `zksync.config.genesis.Genesis`.
   optional uint32 protocol_version = 2; // required; validator::ProtocolVersion
   repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
   optional string leader = 4; // required; ValidatorPublicKey
+  repeated WeightedAttester attesters = 5; // can be empty; attester committee.
 }
 
 // Per peer connection RPC rate limits.

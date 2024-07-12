@@ -5,9 +5,9 @@ use std::time::Duration;
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::ConnectionPool;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
@@ -108,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         config,
         protocol_version,
         fri_prover_config.max_attempts,
+        Some(fri_prover_config.setup_data_path.clone()),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

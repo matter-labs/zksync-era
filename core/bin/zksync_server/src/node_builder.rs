@@ -21,8 +21,12 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
-        base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-        base_token_ratio_provider::BaseTokenRatioProviderLayer,
+        base_token::{
+            base_token_ratio_persister::BaseTokenRatioPersisterLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer,
+            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
+            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+        },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
@@ -35,6 +39,9 @@ use zksync_node_framework::{
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        node_storage_init::{
+            main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
+        },
         object_store::ObjectStoreLayer,
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
@@ -155,7 +162,9 @@ impl MainNodeBuilder {
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
         if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
-            self.node.add_layer(BaseTokenRatioProviderLayer {});
+            let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
+            self.node
+                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
 
         let gas_adjuster_config = try_load_config!(self.configs.eth)
@@ -511,6 +520,29 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.external_price_api_client_config);
+        match config.source.as_str() {
+            CoingeckoClientLayer::CLIENT_NAME => {
+                self.node.add_layer(CoingeckoClientLayer::new(config));
+            }
+            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
+                self.node.add_layer(NoOpExternalPriceApiClientLayer);
+            }
+            ForcedPriceClientLayer::CLIENT_NAME => {
+                self.node.add_layer(ForcedPriceClientLayer::new(config));
+            }
+            _ => {
+                anyhow::bail!(
+                    "Unknown external price API client source: {}",
+                    config.source
+                );
+            }
+        }
+
+        Ok(self)
+    }
+
     fn add_vm_runner_bwip_layer(mut self) -> anyhow::Result<Self> {
         let basic_witness_input_producer_config =
             try_load_config!(self.configs.basic_witness_input_producer_config);
@@ -524,12 +556,48 @@ impl MainNodeBuilder {
 
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
+        let contracts_config = self.contracts_config.clone();
         self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config));
+            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
 
         Ok(self)
     }
 
+    /// This layer will make sure that the database is initialized correctly,
+    /// e.g. genesis will be performed if it's required.
+    ///
+    /// Depending on the `kind` provided, either a task or a precondition will be added.
+    ///
+    /// *Important*: the task should be added by at most one component, because
+    /// it assumes unique control over the database. Multiple components adding this
+    /// layer in a distributed mode may result in the database corruption.
+    ///
+    /// This task works in pair with precondition, which must be present in every component:
+    /// the precondition will prevent node from starting until the database is initialized.
+    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        self.node.add_layer(MainNodeInitStrategyLayer {
+            genesis: self.genesis_config.clone(),
+            contracts: self.contracts_config.clone(),
+        });
+        let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::Precondition) {
+            layer = layer.as_precondition();
+        }
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    /// Builds the node with the genesis initialization task only.
+    pub fn only_genesis(mut self) -> anyhow::Result<ZkStackService> {
+        self = self
+            .add_pools_layer()?
+            .add_query_eth_client_layer()?
+            .add_storage_initialization_layer(LayerKind::Task)?;
+
+        Ok(self.node.build()?)
+    }
+
+    /// Builds the node with the specified components.
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers (resources and helper tasks).
         self = self
@@ -540,8 +608,12 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_sequencer_l1_gas_layer()?
-            .add_l1_batch_commitment_mode_validation_layer()?;
+            .add_sequencer_l1_gas_layer()?;
+
+        // Add preconditions for all the components.
+        self = self
+            .add_l1_batch_commitment_mode_validation_layer()?
+            .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -555,6 +627,13 @@ impl MainNodeBuilder {
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
             match component {
+                Component::StateKeeper => {
+                    // State keeper is the core component of the sequencer,
+                    // which is why we consider it to be responsible for the storage initialization.
+                    self = self
+                        .add_storage_initialization_layer(LayerKind::Task)?
+                        .add_state_keeper_layer()?;
+                }
                 Component::HttpApi => {
                     self = self
                         .add_tx_sender_layer()?
@@ -594,9 +673,6 @@ impl MainNodeBuilder {
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
                 }
-                Component::StateKeeper => {
-                    self = self.add_state_keeper_layer()?;
-                }
                 Component::TeeVerifierInputProducer => {
                     self = self.add_tee_verifier_input_producer_layer()?;
                 }
@@ -621,7 +697,9 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_protective_reads_layer()?;
                 }
                 Component::BaseTokenRatioPersister => {
-                    self = self.add_base_token_ratio_persister_layer()?;
+                    self = self
+                        .add_external_api_client_layer()?
+                        .add_base_token_ratio_persister_layer()?;
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
@@ -630,4 +708,11 @@ impl MainNodeBuilder {
         }
         Ok(self.node.build()?)
     }
+}
+
+/// Marker for layers that can add either a task or a precondition.
+#[derive(Debug)]
+enum LayerKind {
+    Task,
+    Precondition,
 }

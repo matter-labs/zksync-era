@@ -6,10 +6,9 @@ use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::ObjectStoreConfig;
-use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
+use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
@@ -195,7 +194,9 @@ async fn main() -> anyhow::Result<()> {
                 .clone()
                 .context("prometheus config needed when use_push_gateway enabled")?;
             PrometheusExporterConfig::push(
-                prometheus_config.gateway_endpoint(),
+                prometheus_config
+                    .gateway_endpoint()
+                    .context("gateway_endpoint needed when use_push_gateway enabled")?,
                 prometheus_config.push_interval(),
             )
         } else {
@@ -218,8 +219,10 @@ async fn main() -> anyhow::Result<()> {
                     false => None,
                     true => Some(
                         ObjectStoreFactory::new(
-                            ObjectStoreConfig::from_env()
-                                .context("ObjectStoreConfig::from_env()")?,
+                            prover_config
+                                .public_object_store
+                                .clone()
+                                .expect("public_object_store"),
                         )
                         .create_store()
                         .await?,
