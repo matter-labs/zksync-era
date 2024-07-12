@@ -81,9 +81,13 @@ async fn updating_health_status_return_value() {
 async fn aggregating_health_checks() {
     let (first_check, first_updater) = ReactiveHealthCheck::new("first");
     let (second_check, second_updater) = ReactiveHealthCheck::new("second");
+    let inner = AppHealthCheckInner {
+        components: vec![Arc::new(first_check), Arc::new(second_check)],
+        slow_time_limit: AppHealthCheck::DEFAULT_SLOW_TIME_LIMIT,
+        hard_time_limit: AppHealthCheck::DEFAULT_HARD_TIME_LIMIT,
+    };
     let checks = AppHealthCheck {
-        components: Mutex::new(vec![Arc::new(first_check), Arc::new(second_check)]),
-        ..AppHealthCheck::default()
+        inner: Mutex::new(inner),
     };
 
     let app_health = checks.check_health().await;

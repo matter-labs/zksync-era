@@ -8628,6 +8628,7 @@ version = "24.9.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "clap 4.4.6",
  "envy",
  "futures 0.3.28",

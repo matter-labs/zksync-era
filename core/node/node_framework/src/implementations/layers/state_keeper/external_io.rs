@@ -69,7 +69,6 @@ impl WiringLayer for ExternalIOLayer {
             Box::new(input.main_node_client.0.for_component("external_io")),
             self.chain_id,
         )
-        .await
         .context("Failed initializing I/O for external node state keeper")?;
 
         // Create sealer.

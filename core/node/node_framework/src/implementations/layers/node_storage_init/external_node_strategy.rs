@@ -81,13 +81,12 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                 app_health,
             }) as Arc<dyn InitializeStorage>
         });
-        let block_reverter = block_reverter.map(|block_reverter| {
-            Arc::new(ExternalNodeReverter {
-                client,
-                pool: pool.clone(),
-                reverter: block_reverter,
-            }) as Arc<dyn RevertStorage>
-        });
+        // We always want to detect reorgs, even if we can't roll them back.
+        let block_reverter = Some(Arc::new(ExternalNodeReverter {
+            client,
+            pool: pool.clone(),
+            reverter: block_reverter,
+        }) as Arc<dyn RevertStorage>);
         let strategy = NodeInitializationStrategy {
             genesis,
             snapshot_recovery,
