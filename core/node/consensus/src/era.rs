@@ -19,6 +19,11 @@ pub async fn run_main_node(
     secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
 ) -> anyhow::Result<()> {
+    tracing::info!(
+        is_attester = secrets.attester_key.is_some(),
+        is_validator = secrets.validator_key.is_some(),
+        "running main node"
+    );
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
@@ -47,8 +52,18 @@ pub async fn run_external_node(
         client: main_node_client.for_component("block_fetcher"),
     };
     let res = match cfg {
-        Some((cfg, secrets)) => en.run(ctx, actions, cfg, secrets).await,
-        None => en.run_fetcher(ctx, actions).await,
+        Some((cfg, secrets)) => {
+            tracing::info!(
+                is_attester = secrets.attester_key.is_some(),
+                is_validator = secrets.validator_key.is_some(),
+                "running external node"
+            );
+            en.run(ctx, actions, cfg, secrets).await
+        }
+        None => {
+            tracing::info!("running fetcher");
+            en.run_fetcher(ctx, actions).await
+        }
     };
     tracing::info!("Consensus actor stopped");
     res
