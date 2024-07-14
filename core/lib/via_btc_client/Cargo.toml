@@ -1,5 +1,5 @@
 [package]
-name = "via_btc_adaptor"
+name = "via_btc_client"
 description = "Via Network Bitcoin Inscription Standard Implementation"
 version.workspace = true
 edition.workspace = true
