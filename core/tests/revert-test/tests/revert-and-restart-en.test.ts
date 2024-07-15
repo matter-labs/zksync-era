@@ -16,7 +16,7 @@ import {
     getAllConfigsPath,
     loadConfig,
     shouldLoadConfigFromFile,
-    replaceAggregatedBlockProveDeadline
+    replaceAggregatedBlockExecuteDeadline
 } from 'utils/build/file-configs';
 import path from 'path';
 
@@ -177,7 +177,7 @@ class MainNode {
         env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
+            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
         }
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
@@ -513,7 +513,7 @@ describe('Block reverting test', function () {
         await ExtNode.terminateAll();
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 10);
+            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
         }
     });
 });

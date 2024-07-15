@@ -122,11 +122,11 @@ export function getConfigsFolderPath({
     return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
 }
 
-export function replaceAggregatedBlockProveDeadline(pathToHome: string, fileConfig: any, value: number) {
+export function replaceAggregatedBlockExecuteDeadline(pathToHome: string, fileConfig: any, value: number) {
     const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
-    const regex = /aggregated_block_prove_deadline:\s*\d+/g;
-    const newGeneralConfig = generalConfig.replace(regex, `aggregated_block_prove_deadline: ${value}`);
+    const regex = /aggregated_block_execute_deadline:\s*\d+/g;
+    const newGeneralConfig = generalConfig.replace(regex, `aggregated_block_execute_deadline: ${value}`);
 
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }
