@@ -12,7 +12,12 @@ import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
-import { getAllConfigsPath, loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import {
+    getAllConfigsPath,
+    loadConfig,
+    shouldLoadConfigFromFile,
+    replaceAggregatedBlockProveDeadline
+} from 'utils/build/file-configs';
 import path from 'path';
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -170,6 +175,14 @@ class MainNode {
         env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
+
+        if (fileConfig.loadFromFile) {
+            if (enableExecute) {
+                replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 1);
+            } else {
+                replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 1000);
+            }
+        }
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
         if (enableConsensus) {
@@ -502,6 +515,10 @@ describe('Block reverting test', function () {
     after('terminate nodes', async () => {
         await MainNode.terminateAll();
         await ExtNode.terminateAll();
+
+        if (fileConfig.loadFromFile) {
+            replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 10);
+        }
     });
 });
 
