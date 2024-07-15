@@ -20,7 +20,6 @@ serde_json.workspace = true
 chrono.workspace = true
 strum = { workspace = true, features = ["derive"] }
 num_enum.workspace = true
-sqlx = { workspace = true, feature= ["derive"]}
 anyhow.workspace = true
 url = { workspace = true, features = ["serde"] }
 serde_with.workspace = true
