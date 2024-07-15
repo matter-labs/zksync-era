@@ -177,11 +177,7 @@ class MainNode {
         env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         if (fileConfig.loadFromFile) {
-            if (enableExecute) {
-                replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 1);
-            } else {
-                replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, 1000);
-            }
+            replaceAggregatedBlockProveDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
         }
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
