@@ -1,0 +1,40 @@
+version: "3.8"
+services:
+  bitcoind:
+    image: "lightninglabs/bitcoin-core:25"
+    command:
+      - -regtest
+      - -server
+      - -rpcbind=0.0.0.0
+      - -rpcallowip=0.0.0.0/0
+      - -rpcuser=rpcuser
+      - -rpcpassword=rpcpassword
+      - -fallbackfee=0.0002
+      - -txindex
+    ports:
+      - "{RPC_PORT}:18443"
+    volumes:
+      - bitcoin_data_{RPC_PORT}:/home/bitcoin/.bitcoin
+
+  bitcoin-cli:
+    image: "lightninglabs/bitcoin-core:25"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcwait -rpcuser=rpcuser -rpcpassword=rpcpassword createwallet Alice
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcwait -rpcuser=rpcuser -rpcpassword=rpcpassword loadwallet Alice
+        ALICE_ADDRESS=$$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcwait -rpcuser=rpcuser -rpcpassword=rpcpassword -rpcwallet=Alice getnewaddress)
+        # coins need 100 confirmations to be spendable
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcwait -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 101 $${ALICE_ADDRESS}
+        # automatically mine 1 block every 10 seconds
+        trap 'exit 130' TERM INT EXIT
+        while true; do
+            bitcoin-cli -regtest -rpcconnect=bitcoind -rpcwait -rpcuser=rpcuser -rpcpassword=rpcpassword generatetoaddress 1 $${ALICE_ADDRESS}
+            sleep 10 &
+            wait $!
+        done
+
+volumes:
+  bitcoin_data_{RPC_PORT}:
+    name: bitcoin_data_{RPC_PORT}

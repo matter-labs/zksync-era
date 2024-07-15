@@ -12,3 +12,7 @@ categories.workspace = true
 
 [dependencies]
 
+[dev-dependencies]
+bitcoincore-rpc = "0.16.0"
+rand = "0.8"
+tempfile = "3.3"
