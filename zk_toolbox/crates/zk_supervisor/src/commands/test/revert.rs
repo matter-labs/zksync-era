@@ -32,10 +32,6 @@ fn install_and_build_dependencies(
     Cmd::new(cmd!(shell, "yarn install")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
 
-    // Build always zk_server and block_reverter binaries
-    Server::new(None, ecosystem_config.link_to_code.clone()).build(shell)?;
-    Cmd::new(cmd!(shell, "cargo build --release --bin block_reverter")).run()?;
-
     // Build external node if necessary
     if args.external_node {
         Cmd::new(cmd!(
