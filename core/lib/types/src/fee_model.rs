@@ -282,7 +282,7 @@ impl FeeParamsV2 {
     fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
         let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator.get())
             / BigDecimal::from(self.conversion_ratio.denominator.get());
-        let converted_price_bd = BigDecimal::from(price_in_wei) * conversion_ratio;
+        let converted_price_bd = BigDecimal::from(price_in_wei) / conversion_ratio;
 
         // Match on the converted price to ensure it can be represented as a u64
         match converted_price_bd.to_u64() {

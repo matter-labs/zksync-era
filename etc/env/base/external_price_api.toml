@@ -6,3 +6,7 @@
 source = "no-op"
 
 client_timeout_ms = 10000
+
+# The below configuration is used for dev purposes
+# It will override the base-token address used to calculate the conversion rate
+# forced_ethereum_erc20_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"
