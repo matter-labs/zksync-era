@@ -50,11 +50,11 @@ async fn execute_l2_tx(storage_type: StorageType) {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester.create_batch_executor(storage_type).await;
+    let mut executor = tester.create_batch_executor(storage_type).await;
 
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,12 +69,12 @@ impl SnapshotRecoveryMutation {
     fn mutate_snapshot(self, storage_snapshot: &mut StorageSnapshot, alice: &Account) {
         match self {
             Self::RemoveNonce => {
-                let nonce_key = get_nonce_key(&alice.address());
+                let nonce_key = get_nonce_key(&alice.address()).hashed_key();
                 let nonce_value = storage_snapshot.storage_logs.remove(&nonce_key);
                 assert!(nonce_value.is_some());
             }
             Self::RemoveBalance => {
-                let balance_key = storage_key_for_eth_balance(&alice.address());
+                let balance_key = storage_key_for_eth_balance(&alice.address()).hashed_key();
                 let balance_value = storage_snapshot.storage_logs.remove(&balance_key);
                 assert!(balance_value.is_some());
             }
@@ -82,8 +82,8 @@ impl SnapshotRecoveryMutation {
     }
 }
 
-const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: test_casing::Product<(
-    [std::option::Option<SnapshotRecoveryMutation>; 3],
+const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: Product<(
+    [Option<SnapshotRecoveryMutation>; 3],
     [StorageType; 3],
 )> = Product((SnapshotRecoveryMutation::ALL, StorageType::ALL));
 
@@ -107,13 +107,13 @@ async fn execute_l2_tx_after_snapshot_recovery(
     let snapshot = storage_snapshot.recover(&connection_pool).await;
 
     let mut tester = Tester::new(connection_pool);
-    let executor = tester
+    let mut executor = tester
         .recover_batch_executor_custom(&storage_type, &snapshot)
         .await;
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     if mutation.is_none() {
         assert_executed(&res);
-        executor.finish_batch().await;
+        executor.finish_batch().await.unwrap();
     } else {
         assert_rejected(&res);
     }
@@ -129,13 +129,16 @@ async fn execute_l1_tx() {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let res = executor.execute_tx(alice.l1_execute(PriorityOpId(1))).await;
+    let res = executor
+        .execute_tx(alice.l1_execute(PriorityOpId(1)))
+        .await
+        .unwrap();
     assert_executed(&res);
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that we can successfully execute a single L2 tx and a single L1 tx in batch executor.
@@ -147,17 +150,20 @@ async fn execute_l2_and_l1_txs() {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
-    let res = executor.execute_tx(alice.l1_execute(PriorityOpId(1))).await;
+    let res = executor
+        .execute_tx(alice.l1_execute(PriorityOpId(1)))
+        .await
+        .unwrap();
     assert_executed(&res);
 
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that we can successfully rollback the transaction and execute it once again.
@@ -170,18 +176,18 @@ async fn rollback() {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.execute();
-    let res_old = executor.execute_tx(tx.clone()).await;
+    let res_old = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res_old);
 
-    executor.rollback_last_tx().await;
+    executor.rollback_last_tx().await.unwrap();
 
     // Execute the same transaction, it must succeed.
-    let res_new = executor.execute_tx(tx).await;
+    let res_new = executor.execute_tx(tx).await.unwrap();
     assert_executed(&res_new);
 
     let (
@@ -203,7 +209,7 @@ async fn rollback() {
         "Execution results must be the same"
     );
 
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that incorrect transactions are marked as rejected.
@@ -215,12 +221,12 @@ async fn reject_tx() {
     let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     // Wallet is not funded, it can't pay for fees.
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_rejected(&res);
 }
 
@@ -234,15 +240,15 @@ async fn too_big_gas_limit() {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let big_gas_limit_tx = alice.execute_with_gas_limit(u32::MAX);
 
-    let res = executor.execute_tx(big_gas_limit_tx).await;
+    let res = executor.execute_tx(big_gas_limit_tx).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that we can't execute the same transaction twice.
@@ -254,16 +260,16 @@ async fn tx_cant_be_reexecuted() {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.execute();
-    let res1 = executor.execute_tx(tx.clone()).await;
+    let res1 = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res1);
 
     // Nonce is used for the second tx.
-    let res2 = executor.execute_tx(tx).await;
+    let res2 = executor.execute_tx(tx).await.unwrap();
     assert_rejected(&res2);
 }
 
@@ -276,23 +282,25 @@ async fn deploy_and_call_loadtest() {
     let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.deploy_loadnext_tx();
-    assert_executed(&executor.execute_tx(tx.tx).await);
+    assert_executed(&executor.execute_tx(tx.tx).await.unwrap());
     assert_executed(
         &executor
             .execute_tx(alice.loadnext_custom_gas_call(tx.address, 10, 10_000_000))
-            .await,
+            .await
+            .unwrap(),
     );
     assert_executed(
         &executor
             .execute_tx(alice.loadnext_custom_writes_call(tx.address, 1, 500_000_000))
-            .await,
+            .await
+            .unwrap(),
     );
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that a tx that is reverted by the VM still can be included into a batch.
@@ -305,12 +313,12 @@ async fn execute_reverted_tx() {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     let tx = alice.deploy_loadnext_tx();
-    assert_executed(&executor.execute_tx(tx.tx).await);
+    assert_executed(&executor.execute_tx(tx.tx).await.unwrap());
 
     assert_reverted(
         &executor
@@ -318,9 +326,10 @@ async fn execute_reverted_tx() {
                 tx.address, 1,
                 1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
             ))
-            .await,
+            .await
+            .unwrap(),
     );
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Runs the batch executor through a semi-realistic basic scenario:
@@ -336,44 +345,53 @@ async fn execute_realistic_scenario() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
     // A good tx should be executed successfully.
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
     // Execute a good tx successfully, roll if back, and execute it again.
     let tx_to_be_rolled_back = alice.execute();
-    let res = executor.execute_tx(tx_to_be_rolled_back.clone()).await;
+    let res = executor
+        .execute_tx(tx_to_be_rolled_back.clone())
+        .await
+        .unwrap();
     assert_executed(&res);
 
-    executor.rollback_last_tx().await;
+    executor.rollback_last_tx().await.unwrap();
 
-    let res = executor.execute_tx(tx_to_be_rolled_back.clone()).await;
+    let res = executor
+        .execute_tx(tx_to_be_rolled_back.clone())
+        .await
+        .unwrap();
     assert_executed(&res);
 
     // A good tx from a different account should be executed successfully.
-    let res = executor.execute_tx(bob.execute()).await;
+    let res = executor.execute_tx(bob.execute()).await.unwrap();
     assert_executed(&res);
 
     // If we try to execute an already executed again it should be rejected.
-    let res = executor.execute_tx(tx_to_be_rolled_back).await;
+    let res = executor.execute_tx(tx_to_be_rolled_back).await.unwrap();
     assert_rejected(&res);
 
     // An unrelated good tx should be executed successfully.
-    executor.rollback_last_tx().await; // Roll back the vm to the pre-rejected-tx state.
+    executor.rollback_last_tx().await.unwrap(); // Roll back the vm to the pre-rejected-tx state.
 
     // No need to reset the nonce because a tx with the current nonce was indeed executed.
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
     // A good L1 tx should also be executed successfully.
-    let res = executor.execute_tx(alice.l1_execute(PriorityOpId(1))).await;
+    let res = executor
+        .execute_tx(alice.l1_execute(PriorityOpId(1)))
+        .await
+        .unwrap();
     assert_executed(&res);
 
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 }
 
 /// Checks that we handle the bootloader out of gas error on execution phase.
@@ -393,11 +411,11 @@ async fn bootloader_out_of_gas_for_any_tx() {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
 }
 
@@ -412,14 +430,14 @@ async fn bootloader_tip_out_of_gas() {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let res = executor.execute_tx(alice.execute()).await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
-    let finished_batch = executor.finish_batch().await;
+    let finished_batch = executor.finish_batch().await.unwrap();
 
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
@@ -435,11 +453,11 @@ async fn bootloader_tip_out_of_gas() {
         validation_computational_gas_limit: u32::MAX,
     });
 
-    let second_executor = tester
+    let mut second_executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let res = second_executor.execute_tx(alice.execute()).await;
+    let res = second_executor.execute_tx(alice.execute()).await.unwrap();
     assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
 }
 
@@ -455,34 +473,34 @@ async fn catchup_rocksdb_cache() {
     tester.fund(&[alice.address(), bob.address()]).await;
 
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
-    let executor = tester.create_batch_executor(StorageType::Postgres).await;
+    let mut executor = tester.create_batch_executor(StorageType::Postgres).await;
     for _ in 0..10 {
-        let res = executor.execute_tx(alice.execute()).await;
+        let res = executor.execute_tx(alice.execute()).await.unwrap();
         assert_executed(&res);
     }
 
     // Execute one more tx on PG
     let tx = alice.execute();
-    let res = executor.execute_tx(tx.clone()).await;
+    let res = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
 
     // Async RocksDB cache should be aware of the tx and should reject it
-    let executor = tester
+    let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
-    let res = executor.execute_tx(tx.clone()).await;
+    let res = executor.execute_tx(tx.clone()).await.unwrap();
     assert_rejected(&res);
     // Execute one tx just so we can finish the batch
-    executor.rollback_last_tx().await; // Roll back the vm to the pre-rejected-tx state.
-    let res = executor.execute_tx(bob.execute()).await;
+    executor.rollback_last_tx().await.unwrap(); // Roll back the vm to the pre-rejected-tx state.
+    let res = executor.execute_tx(bob.execute()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await;
+    executor.finish_batch().await.unwrap();
     // Wait for all background tasks to exit, otherwise we might still be holding a RocksDB lock
     tester.wait_for_tasks().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
-    let executor = tester.create_batch_executor(StorageType::Rocksdb).await;
-    let res = executor.execute_tx(tx).await;
+    let mut executor = tester.create_batch_executor(StorageType::Rocksdb).await;
+    let res = executor.execute_tx(tx).await.unwrap();
     assert_rejected(&res);
 }

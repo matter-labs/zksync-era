@@ -4,15 +4,16 @@
 //! prohibitively slow.
 
 use std::{
-    thread,
+    any, thread,
     time::{Duration, Instant},
 };
 
+use anyhow::Context as _;
 use clap::Parser;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
     TreeInstruction,
@@ -23,6 +24,17 @@ use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 use crate::batch::WithBatching;
 
 mod batch;
+
+fn panic_to_error(panic: Box<dyn any::Any + Send>) -> anyhow::Error {
+    let panic_message = if let Some(&panic_string) = panic.downcast_ref::<&'static str>() {
+        panic_string.to_string()
+    } else if let Some(panic_string) = panic.downcast_ref::<String>() {
+        panic_string.to_string()
+    } else {
+        "(unknown panic)".to_string()
+    };
+    anyhow::Error::msg(panic_message)
+}
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
@@ -78,7 +90,7 @@ impl Cli {
             .init();
     }
 
-    fn run(self) {
+    fn run(self) -> anyhow::Result<()> {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
 
@@ -89,7 +101,7 @@ impl Cli {
             mock_db = PatchSet::default();
             &mut mock_db
         } else {
-            let dir = TempDir::new().expect("failed creating temp dir for RocksDB");
+            let dir = TempDir::new().context("failed creating temp dir for RocksDB")?;
             tracing::info!(
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
@@ -99,7 +111,8 @@ impl Cli {
                 include_indices_and_filters_in_block_cache: self.cache_indices,
                 ..RocksDBOptions::default()
             };
-            let db = RocksDB::with_options(dir.path(), db_options).unwrap();
+            let db =
+                RocksDB::with_options(dir.path(), db_options).context("failed creating RocksDB")?;
             rocksdb = RocksDBWrapper::from(db);
 
             if let Some(chunk_size) = self.chunk_size {
@@ -125,7 +138,7 @@ impl Cli {
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);
 
-        let mut tree = MerkleTree::with_hasher(db, hasher);
+        let mut tree = MerkleTree::with_hasher(db, hasher).context("cannot create tree")?;
         let mut next_key_idx = 0_u64;
         let mut next_value_idx = 0_u64;
         for version in 0..self.commit_count {
@@ -154,10 +167,14 @@ impl Cli {
                 let reads =
                     Self::generate_keys(read_indices.into_iter()).map(TreeInstruction::Read);
                 let instructions = kvs.map(TreeInstruction::Write).chain(reads).collect();
-                let output = tree.extend_with_proofs(instructions);
-                output.root_hash().unwrap()
+                let output = tree
+                    .extend_with_proofs(instructions)
+                    .context("failed extending tree")?;
+                output.root_hash().context("tree update is empty")?
             } else {
-                let output = tree.extend(kvs.collect());
+                let output = tree
+                    .extend(kvs.collect())
+                    .context("failed extending tree")?;
                 output.root_hash
             };
 
@@ -165,8 +182,11 @@ impl Cli {
                 if pruner_handle.set_target_retained_version(version).is_err() {
                     tracing::error!("Pruner unexpectedly stopped");
                     let (_, pruner_thread) = pruner_handles.unwrap();
-                    pruner_thread.join().expect("Pruner panicked");
-                    return; // unreachable
+                    pruner_thread
+                        .join()
+                        .map_err(panic_to_error)
+                        .context("pruner thread panicked")??;
+                    return Ok(()); // unreachable
                 }
             }
 
@@ -177,14 +197,18 @@ impl Cli {
         tracing::info!("Verifying tree consistency...");
         let start = Instant::now();
         tree.verify_consistency(self.commit_count - 1, false)
-            .expect("tree consistency check failed");
+            .context("tree consistency check failed")?;
         let elapsed = start.elapsed();
         tracing::info!("Verified tree consistency in {elapsed:?}");
 
         if let Some((pruner_handle, pruner_thread)) = pruner_handles {
             drop(pruner_handle);
-            pruner_thread.join().expect("Pruner panicked");
+            pruner_thread
+                .join()
+                .map_err(panic_to_error)
+                .context("pruner thread panicked")??;
         }
+        Ok(())
     }
 
     fn generate_keys(key_indexes: impl Iterator<Item = u64>) -> impl Iterator<Item = U256> {
@@ -197,6 +221,6 @@ impl Cli {
     }
 }
 
-fn main() {
-    Cli::parse().run();
+fn main() -> anyhow::Result<()> {
+    Cli::parse().run()
 }

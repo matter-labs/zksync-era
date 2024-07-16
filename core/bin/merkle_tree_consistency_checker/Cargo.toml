@@ -1,5 +1,6 @@
 [package]
 name = "merkle_tree_consistency_checker"
+description = "Tool to verify consistency of ZKsync Merkle Tree"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -16,7 +17,7 @@ zksync_env_config.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_types.workspace = true
 zksync_storage.workspace = true
-vlog.workspace = true
+zksync_vlog.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }

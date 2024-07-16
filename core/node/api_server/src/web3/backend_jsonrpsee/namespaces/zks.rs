@@ -10,11 +10,11 @@ use zksync_types::{
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
     web3::Bytes,
-    Address, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
-    namespaces::zks::ZksNamespaceServer,
+    namespaces::ZksNamespaceServer,
     types::Token,
 };
 
@@ -198,7 +198,7 @@ impl ZksNamespaceServer for ZksNamespace {
                     .logs
                     .storage_logs
                     .iter()
-                    .filter(|x| x.log_type != StorageLogQueryType::Read)
+                    .filter(|x| x.log.is_write())
                     .map(ApiStorageLog::from)
                     .collect_vec(),
                 events: result

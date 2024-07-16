@@ -132,23 +132,27 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
 
     #[doc(hidden)] // Used in integration tests; logically private
     #[allow(clippy::range_plus_one)] // exclusive range is required by `PrunePatchSet` constructor
-    pub fn prune_up_to(&mut self, target_retained_version: u64) -> Option<PruningStats> {
-        let min_stale_key_version = self.db.min_stale_key_version()?;
+    pub fn prune_up_to(
+        &mut self,
+        target_retained_version: u64,
+    ) -> anyhow::Result<Option<PruningStats>> {
+        let Some(min_stale_key_version) = self.db.min_stale_key_version() else {
+            return Ok(None);
+        };
 
         // We must retain at least one tree version.
-        let last_prunable_version = self.last_prunable_version();
-        if last_prunable_version.is_none() {
+        let Some(last_prunable_version) = self.last_prunable_version() else {
             tracing::debug!("Nothing to prune; skipping");
-            return None;
-        }
-        let target_retained_version = last_prunable_version?.min(target_retained_version);
+            return Ok(None);
+        };
+        let target_retained_version = last_prunable_version.min(target_retained_version);
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
         if stale_key_new_versions.is_empty() {
             tracing::debug!(
                 "No Merkle tree versions can be pruned; min stale key version is {min_stale_key_version}, \
                  target retained version is {target_retained_version}"
             );
-            return None;
+            return Ok(None);
         }
         tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 
@@ -162,15 +166,15 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 break;
             }
         }
-        load_stale_keys_latency.observe();
+        let load_stale_keys_latency = load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
             tracing::debug!("No stale keys to remove; skipping");
-            return None;
+            return Ok(None);
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);
         tracing::info!(
-            "Collected {} stale keys with new versions in {deleted_stale_key_versions:?}",
+            "Collected {} stale keys with new versions in {deleted_stale_key_versions:?} in {load_stale_keys_latency:?}",
             pruned_keys.len()
         );
 
@@ -181,9 +185,10 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         };
         let patch = PrunePatchSet::new(pruned_keys, deleted_stale_key_versions);
         let apply_patch_latency = PRUNING_TIMINGS.apply_patch.start();
-        self.db.prune(patch);
-        apply_patch_latency.observe();
-        Some(stats)
+        self.db.prune(patch)?;
+        let apply_patch_latency = apply_patch_latency.observe();
+        tracing::info!("Pruned stale keys in {apply_patch_latency:?}: {stats:?}");
+        Ok(Some(stats))
     }
 
     fn wait_for_abort(&mut self, timeout: Duration) -> bool {
@@ -196,14 +201,18 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         }
     }
 
-    /// Runs this pruner indefinitely until it is aborted.
-    pub fn run(mut self) {
+    /// Runs this pruner indefinitely until it is aborted, or a database error occurs.
+    ///
+    /// # Errors
+    ///
+    /// Propagates database I/O errors.
+    pub fn run(mut self) -> anyhow::Result<()> {
         tracing::info!("Started Merkle tree pruner {self:?}");
 
         let mut wait_interval = Duration::ZERO;
         while !self.wait_for_abort(wait_interval) {
             let retained_version = self.target_retained_version.load(Ordering::Relaxed);
-            wait_interval = if let Some(stats) = self.prune_up_to(retained_version) {
+            wait_interval = if let Some(stats) = self.prune_up_to(retained_version)? {
                 tracing::debug!(
                     "Performed pruning for target retained version {retained_version}: {stats:?}"
                 );
@@ -222,6 +231,8 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 self.poll_interval
             };
         }
+        tracing::info!("Stop signal received, tree pruning is shut down");
+        Ok(())
     }
 }
 
@@ -247,7 +258,10 @@ mod tests {
         for i in 0..5 {
             let key = Key::from(i);
             let value = ValueHash::from_low_u64_be(i);
-            MerkleTree::new(&mut db).extend(vec![TreeEntry::new(key, i + 1, value)]);
+            MerkleTree::new(&mut db)
+                .unwrap()
+                .extend(vec![TreeEntry::new(key, i + 1, value)])
+                .unwrap();
         }
         db
     }
@@ -255,12 +269,16 @@ mod tests {
     #[test]
     fn pruner_basics() {
         let mut db = create_db();
-        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(0));
+        assert_eq!(
+            MerkleTree::new(&mut db).unwrap().first_retained_version(),
+            Some(0)
+        );
 
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap())
-            .unwrap();
+            .unwrap()
+            .expect("tree was not pruned");
         assert!(stats.pruned_key_count > 0);
         assert_eq!(stats.deleted_stale_key_versions, 1..5);
         assert_eq!(stats.target_retained_version, 4);
@@ -272,7 +290,10 @@ mod tests {
         }
         assert!(db.root_mut(4).is_some());
 
-        assert_eq!(MerkleTree::new(&mut db).first_retained_version(), Some(4));
+        assert_eq!(
+            MerkleTree::new(&mut db).unwrap().first_retained_version(),
+            Some(4)
+        );
     }
 
     #[test]
@@ -284,7 +305,8 @@ mod tests {
         for i in 1..5 {
             let stats = pruner
                 .prune_up_to(pruner.last_prunable_version().unwrap())
-                .unwrap();
+                .unwrap()
+                .expect("tree was not pruned");
             assert!(stats.pruned_key_count > 0);
             assert_eq!(stats.deleted_stale_key_versions, i..(i + 1));
             assert_eq!(stats.target_retained_version, 4);
@@ -300,7 +322,7 @@ mod tests {
 
         drop(pruner_handle);
         let start = Instant::now();
-        join_handle.join().unwrap();
+        join_handle.join().unwrap().unwrap();
         assert!(start.elapsed() < Duration::from_secs(10));
     }
 
@@ -312,17 +334,18 @@ mod tests {
 
     fn test_tree_is_consistent_after_pruning(past_versions_to_keep: u64) {
         let mut db = PatchSet::default();
-        let mut tree = MerkleTree::new(&mut db);
+        let mut tree = MerkleTree::new(&mut db).unwrap();
         let kvs = generate_key_value_pairs(0..100);
         for chunk in kvs.chunks(20) {
-            tree.extend(chunk.to_vec());
+            tree.extend(chunk.to_vec()).unwrap();
         }
         let latest_version = tree.latest_version().unwrap();
 
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap() - past_versions_to_keep)
-            .unwrap();
+            .unwrap()
+            .expect("tree was not pruned");
         assert!(stats.pruned_key_count > 0);
         let first_retained_version = latest_version.saturating_sub(past_versions_to_keep);
         assert_eq!(stats.target_retained_version, first_retained_version);
@@ -332,7 +355,7 @@ mod tests {
         );
         assert_no_stale_keys(&db, first_retained_version);
 
-        let mut tree = MerkleTree::new(&mut db);
+        let mut tree = MerkleTree::new(&mut db).unwrap();
         assert_eq!(tree.first_retained_version(), Some(first_retained_version));
         for version in first_retained_version..=latest_version {
             tree.verify_consistency(version, true).unwrap();
@@ -340,19 +363,20 @@ mod tests {
 
         let kvs = generate_key_value_pairs(100..200);
         for chunk in kvs.chunks(10) {
-            tree.extend(chunk.to_vec());
+            tree.extend(chunk.to_vec()).unwrap();
         }
         let latest_version = tree.latest_version().unwrap();
 
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap() - past_versions_to_keep)
-            .unwrap();
+            .unwrap()
+            .expect("tree was not pruned");
         assert!(stats.pruned_key_count > 0);
         let first_retained_version = latest_version.saturating_sub(past_versions_to_keep);
         assert_eq!(stats.target_retained_version, first_retained_version);
 
-        let tree = MerkleTree::new(&mut db);
+        let tree = MerkleTree::new(&mut db).unwrap();
         for version in first_retained_version..=latest_version {
             tree.verify_consistency(version, true).unwrap();
         }
@@ -388,11 +412,14 @@ mod tests {
 
         let batch_count = if initialize_iteratively {
             for chunk in kvs.chunks(ITERATIVE_BATCH_COUNT) {
-                MerkleTree::new(&mut db).extend(chunk.to_vec());
+                MerkleTree::new(&mut db)
+                    .unwrap()
+                    .extend(chunk.to_vec())
+                    .unwrap();
             }
             ITERATIVE_BATCH_COUNT
         } else {
-            MerkleTree::new(&mut db).extend(kvs);
+            MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
             1
         };
         let keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
@@ -402,7 +429,7 @@ mod tests {
         let new_kvs = (0_u64..100)
             .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
-        MerkleTree::new(&mut db).extend(new_kvs);
+        MerkleTree::new(&mut db).unwrap().extend(new_kvs).unwrap();
 
         // Sanity check: before pruning, all old keys should be present.
         let new_keys_in_db: HashSet<_> = db.nodes_mut().map(|(key, _)| *key).collect();
@@ -411,7 +438,8 @@ mod tests {
         let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
         let stats = pruner
             .prune_up_to(pruner.last_prunable_version().unwrap())
-            .unwrap();
+            .unwrap()
+            .expect("tree was not pruned");
         assert_eq!(stats.pruned_key_count, keys_in_db.len() + batch_count);
         // ^ roots are not counted in `keys_in_db`
 
@@ -434,7 +462,7 @@ mod tests {
         let kvs: Vec<_> = (0_u64..100)
             .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
             .collect();
-        MerkleTree::new(&mut db).extend(kvs);
+        MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
         let leaf_keys_in_db = leaf_keys(&mut db);
 
         // Completely overwrite all keys in several batches.
@@ -443,7 +471,10 @@ mod tests {
             .map(|i| TreeEntry::new(Key::from(i), i + 1, new_value_hash))
             .collect();
         for chunk in new_kvs.chunks(20) {
-            MerkleTree::new(&mut db).extend(chunk.to_vec());
+            MerkleTree::new(&mut db)
+                .unwrap()
+                .extend(chunk.to_vec())
+                .unwrap();
             if prune_iteratively {
                 let (mut pruner, _handle) = MerkleTreePruner::new(&mut db);
                 pruner

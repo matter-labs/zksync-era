@@ -72,17 +72,68 @@ impl From<WitnessJobStatus> for Status {
     }
 }
 
-impl From<ProverJobStatus> for Status {
-    fn from(status: ProverJobStatus) -> Self {
-        match status {
-            ProverJobStatus::Queued => Status::Queued,
-            ProverJobStatus::InProgress(_) => Status::InProgress,
-            ProverJobStatus::Successful(_) => Status::Successful,
-            ProverJobStatus::Failed(_) => Status::InProgress,
-            ProverJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
-            ProverJobStatus::Ignored => Status::Custom("Ignored ⏩".to_owned()),
-            ProverJobStatus::InGPUProof => Status::Custom("In GPU Proof ⚡️".to_owned()),
+impl From<Vec<WitnessJobStatus>> for Status {
+    fn from(status_vector: Vec<WitnessJobStatus>) -> Self {
+        if status_vector.is_empty() {
+            Status::JobsNotFound
+        } else if status_vector
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::WaitingForProofs))
+        {
+            Status::WaitingForProofs
+        } else if status_vector.iter().all(|job| {
+            matches!(job, WitnessJobStatus::Queued)
+                || matches!(job, WitnessJobStatus::WaitingForProofs)
+        }) {
+            Status::Queued
+        } else if status_vector
+            .iter()
+            .all(|job| matches!(job, WitnessJobStatus::Successful(_)))
+        {
+            Status::Successful
+        } else {
+            Status::InProgress
         }
+    }
+}
+
+impl From<Vec<LeafWitnessGeneratorJobInfo>> for Status {
+    fn from(leaf_info_vector: Vec<LeafWitnessGeneratorJobInfo>) -> Self {
+        leaf_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<NodeWitnessGeneratorJobInfo>> for Status {
+    fn from(node_info_vector: Vec<NodeWitnessGeneratorJobInfo>) -> Self {
+        node_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<RecursionTipWitnessGeneratorJobInfo>> for Status {
+    fn from(scheduler_info_vector: Vec<RecursionTipWitnessGeneratorJobInfo>) -> Self {
+        scheduler_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
+    }
+}
+
+impl From<Vec<SchedulerWitnessGeneratorJobInfo>> for Status {
+    fn from(scheduler_info_vector: Vec<SchedulerWitnessGeneratorJobInfo>) -> Self {
+        scheduler_info_vector
+            .iter()
+            .map(|s| s.status.clone())
+            .collect::<Vec<WitnessJobStatus>>()
+            .into()
     }
 }
 

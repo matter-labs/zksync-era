@@ -1,6 +1,7 @@
 [package]
 name = "zksync_object_store"
-version = "0.1.0"
+description = "ZKsync implementation of object stores"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -22,9 +23,12 @@ google-cloud-auth.workspace = true
 http.workspace = true
 serde_json.workspace = true
 flate2.workspace = true
+rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 prost.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
+assert_matches.workspace = true
 tempfile.workspace = true

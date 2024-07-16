@@ -5,9 +5,10 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::Address;
+use zksync_types::{writes::TreeWrite, Address};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     io::{
@@ -247,20 +248,117 @@ impl L2BlockSealerTask {
     }
 }
 
+/// Stores tree writes for L1 batches to Postgres.
+/// It is expected to be run after `StateKeeperPersistence` as it appends data to `l1_batches` table.
+#[derive(Debug)]
+pub struct TreeWritesPersistence {
+    pool: ConnectionPool<Core>,
+}
+
+impl TreeWritesPersistence {
+    pub fn new(pool: ConnectionPool<Core>) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl StateKeeperOutputHandler for TreeWritesPersistence {
+    async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn handle_l1_batch(
+        &mut self,
+        updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+        let finished_batch = updates_manager
+            .l1_batch
+            .finished
+            .as_ref()
+            .context("L1 batch is not actually finished")?;
+
+        let mut next_index = connection
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch.number - 1)
+            .await?
+            .unwrap_or(0)
+            + 1;
+        let tree_input: Vec<_> = if let Some(state_diffs) = &finished_batch.state_diffs {
+            state_diffs
+                .iter()
+                .map(|diff| {
+                    let leaf_index = if diff.is_write_initial() {
+                        next_index += 1;
+                        next_index - 1
+                    } else {
+                        diff.enumeration_index
+                    };
+                    TreeWrite {
+                        address: diff.address,
+                        key: u256_to_h256(diff.key),
+                        value: u256_to_h256(diff.final_value),
+                        leaf_index,
+                    }
+                })
+                .collect()
+        } else {
+            let deduplicated_writes = finished_batch
+                .final_execution_state
+                .deduplicated_storage_logs
+                .iter()
+                .filter(|log_query| log_query.is_write());
+            let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
+                .clone()
+                .map(|log| log.key.hashed_key())
+                .collect();
+            let non_initial_writes = connection
+                .storage_logs_dal()
+                .get_l1_batches_and_indices_for_initial_writes(&deduplicated_writes_hashed_keys)
+                .await?;
+            deduplicated_writes
+                .map(|log| {
+                    let leaf_index = if let Some((_, leaf_index)) =
+                        non_initial_writes.get(&log.key.hashed_key())
+                    {
+                        *leaf_index
+                    } else {
+                        next_index += 1;
+                        next_index - 1
+                    };
+                    TreeWrite {
+                        address: *log.key.address(),
+                        key: *log.key.key(),
+                        value: log.value,
+                        leaf_index,
+                    }
+                })
+                .collect()
+        };
+
+        connection
+            .blocks_dal()
+            .set_tree_writes(updates_manager.l1_batch.number, tree_input)
+            .await?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
-    use multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_dal::CoreDal;
+    use zksync_multivm::zk_evm_latest::ethereum_types::{H256, U256};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId,
-        L1BatchNumber, L2BlockNumber, StorageKey, StorageLogQueryType,
+        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
+        writes::StateDiffRecord, L1BatchNumber, L2BlockNumber, StorageLogKind,
     };
-    use zksync_utils::u256_to_h256;
+    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::{
@@ -270,6 +368,7 @@ mod tests {
             create_execution_result, create_transaction, create_updates_manager,
             default_l1_batch_env, default_system_env, Query,
         },
+        OutputHandler,
     };
 
     async fn test_l2_block_and_l1_batch_processing(
@@ -280,6 +379,12 @@ mod tests {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
+        let initial_writes_in_genesis_batch = storage
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap()
+            .unwrap();
         // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
         storage
             .blocks_dal()
@@ -288,10 +393,12 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        let (mut persistence, l2_block_sealer) =
+        let (persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::default(), l2_block_sealer_capacity);
+        let mut output_handler = OutputHandler::new(Box::new(persistence))
+            .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
-        execute_mock_batch(&mut persistence).await;
+        execute_mock_batch(&mut output_handler).await;
 
         // Check that L2 block #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -327,9 +434,20 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(protective_reads.len(), 1, "{protective_reads:?}");
+        let tree_writes = storage
+            .blocks_dal()
+            .get_tree_writes(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(tree_writes.len(), 1, "{tree_writes:?}");
+        // This write is initial and should have the next index.
+        let actual_index = tree_writes[0].leaf_index;
+        let expected_index = initial_writes_in_genesis_batch + 1;
+        assert_eq!(actual_index, expected_index);
     }
 
-    async fn execute_mock_batch(persistence: &mut StateKeeperPersistence) -> H256 {
+    async fn execute_mock_batch(output_handler: &mut OutputHandler) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
         let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
 
@@ -339,7 +457,7 @@ mod tests {
             (U256::from(1), Query::Read(U256::from(0))),
             (U256::from(2), Query::InitialWrite(U256::from(1))),
         ];
-        let tx_result = create_execution_result(0, storage_logs);
+        let tx_result = create_execution_result(storage_logs);
         let storage_logs = tx_result.logs.storage_logs.clone();
         updates.extend_from_executed_transaction(
             tx,
@@ -349,33 +467,32 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
         );
-        persistence.handle_l2_block(&updates).await.unwrap();
+        output_handler.handle_l2_block(&updates).await.unwrap();
         updates.push_l2_block(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
         });
 
         let mut batch_result = default_vm_batch_result();
-        batch_result
-            .final_execution_state
-            .deduplicated_storage_log_queries =
-            storage_logs.iter().map(|query| query.log_query).collect();
-        batch_result.initially_written_slots = Some(
+        batch_result.final_execution_state.deduplicated_storage_logs =
+            storage_logs.iter().map(|log| log.log).collect();
+        batch_result.state_diffs = Some(
             storage_logs
                 .into_iter()
-                .filter(|&log| log.log_type == StorageLogQueryType::InitialWrite)
-                .map(|log| {
-                    let key = StorageKey::new(
-                        AccountTreeId::new(log.log_query.address),
-                        u256_to_h256(log.log_query.key),
-                    );
-                    key.hashed_key()
+                .filter(|&log| log.log.kind == StorageLogKind::InitialWrite)
+                .map(|log| StateDiffRecord {
+                    address: *log.log.key.address(),
+                    key: h256_to_u256(*log.log.key.key()),
+                    derived_key: log.log.key.hashed_key().0,
+                    enumeration_index: 0,
+                    initial_value: h256_to_u256(log.previous_value),
+                    final_value: h256_to_u256(log.log.value),
                 })
                 .collect(),
         );
 
         updates.finish_batch(batch_result);
-        persistence
+        output_handler
             .handle_l1_batch(Arc::new(updates))
             .await
             .unwrap();
@@ -413,9 +530,10 @@ mod tests {
         let (mut persistence, l2_block_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::default(), 1);
         persistence = persistence.with_tx_insertion().without_protective_reads();
+        let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
 
-        let tx_hash = execute_mock_batch(&mut persistence).await;
+        let tx_hash = execute_mock_batch(&mut output_handler).await;
 
         // Check that the transaction is persisted.
         let mut storage = pool.connection().await.unwrap();

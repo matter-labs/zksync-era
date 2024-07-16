@@ -1,4 +1,4 @@
-//! The declaration of the most primitive types used in zkSync network.
+//! The declaration of the most primitive types used in ZKsync network.
 //!
 //! Most of them are just re-exported from the `web3` crate.
 
@@ -26,6 +26,7 @@ pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod tee_types;
 pub mod url;
 pub mod vm_version;
 pub mod web3;
@@ -86,7 +87,7 @@ impl TryFrom<U256> for AccountTreeId {
     }
 }
 
-/// ChainId in the zkSync network.
+/// ChainId in the ZKsync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct L2ChainId(u64);
 
@@ -183,13 +184,13 @@ impl From<u32> for L2ChainId {
 }
 
 basic_type!(
-    /// zkSync network block sequential index.
+    /// ZKsync network block sequential index.
     L2BlockNumber,
     u32
 );
 
 basic_type!(
-    /// zkSync L1 batch sequential index.
+    /// ZKsync L1 batch sequential index.
     L1BatchNumber,
     u32
 );
@@ -201,13 +202,13 @@ basic_type!(
 );
 
 basic_type!(
-    /// zkSync account nonce.
+    /// ZKsync account nonce.
     Nonce,
     u32
 );
 
 basic_type!(
-    /// Unique identifier of the priority operation in the zkSync network.
+    /// Unique identifier of the priority operation in the ZKsync network.
     PriorityOpId,
     u64
 );

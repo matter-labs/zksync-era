@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
@@ -17,7 +17,8 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
-    snapshots::SnapshotRecoveryStatus,
+    protocol_version::ProtocolSemanticVersion,
+    snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
@@ -66,7 +67,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BaseSystemContractsHashes::default().bootloader,
             default_aa_code_hash: BaseSystemContractsHashes::default().default_aa,
-            protocol_version: ProtocolVersionId::latest(),
+            protocol_version: Some(ProtocolVersionId::latest()),
         },
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),
@@ -123,7 +124,7 @@ pub fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
         U256::zero(),
         L2ChainId::from(271),
         &K256PrivateKey::random(),
-        None,
+        vec![],
         PaymasterParams::default(),
     )
     .unwrap();
@@ -153,24 +154,24 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
 pub struct Snapshot {
     pub l1_batch: L1BatchHeader,
     pub l2_block: L2BlockHeader,
-    pub storage_logs: Vec<StorageLog>,
+    pub storage_logs: Vec<SnapshotStorageLog>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 impl Snapshot {
     // Constructs a dummy Snapshot based on the provided values.
-    pub fn make(
+    pub fn new(
         l1_batch: L1BatchNumber,
         l2_block: L2BlockNumber,
-        storage_logs: &[StorageLog],
+        storage_logs: Vec<SnapshotStorageLog>,
+        genesis_params: GenesisParams,
     ) -> Self {
-        let genesis_params = GenesisParams::mock();
         let contracts = genesis_params.base_system_contracts();
         let l1_batch = L1BatchHeader::new(
             l1_batch,
             l1_batch.0.into(),
             contracts.hashes(),
-            genesis_params.protocol_version(),
+            genesis_params.minor_protocol_version(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -182,10 +183,10 @@ impl Snapshot {
             batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
             fee_account_address: Address::zero(),
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
-                genesis_params.protocol_version().into(),
+                genesis_params.minor_protocol_version().into(),
             ),
             base_system_contracts_hashes: contracts.hashes(),
-            protocol_version: Some(genesis_params.protocol_version()),
+            protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,
             gas_limit: 0,
         };
@@ -196,7 +197,7 @@ impl Snapshot {
                 .into_iter()
                 .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
                 .collect(),
-            storage_logs: storage_logs.to_vec(),
+            storage_logs,
         }
     }
 }
@@ -208,7 +209,18 @@ pub async fn prepare_recovery_snapshot(
     l2_block: L2BlockNumber,
     storage_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
-    recover(storage, Snapshot::make(l1_batch, l2_block, storage_logs)).await
+    let storage_logs = storage_logs
+        .iter()
+        .enumerate()
+        .map(|(i, log)| SnapshotStorageLog {
+            key: log.key.hashed_key(),
+            value: log.value,
+            l1_batch_number_of_initial_write: l1_batch,
+            enumeration_index: i as u64 + 1,
+        })
+        .collect();
+    let snapshot = Snapshot::new(l1_batch, l2_block, storage_logs, GenesisParams::mock());
+    recover(storage, snapshot).await
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
@@ -243,10 +255,7 @@ pub async fn snapshot(storage: &mut Connection<'_, Core>) -> Snapshot {
             .snapshots_creator_dal()
             .get_storage_logs_chunk(l2_block, l1_batch.number, all_hashes)
             .await
-            .unwrap()
-            .into_iter()
-            .map(|l| StorageLog::new_write_log(l.key, l.value))
-            .collect(),
+            .unwrap(),
         factory_deps: storage
             .snapshots_creator_dal()
             .get_all_factory_deps(l2_block)
@@ -269,14 +278,16 @@ pub async fn recover(
     let tree_instructions: Vec<_> = snapshot
         .storage_logs
         .iter()
-        .enumerate()
-        .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+        .map(|log| {
+            let tree_key = U256::from_little_endian(log.key.as_bytes());
+            TreeInstruction::write(tree_key, log.enumeration_index, log.value)
+        })
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
     let protocol_version = storage
         .protocol_versions_dal()
-        .get_protocol_version(snapshot.l1_batch.protocol_version.unwrap())
+        .get_protocol_version_with_latest_patch(snapshot.l1_batch.protocol_version.unwrap())
         .await
         .unwrap();
     if let Some(protocol_version) = protocol_version {
@@ -290,6 +301,10 @@ pub async fn recover(
             .protocol_versions_dal()
             .save_protocol_version_with_tx(&ProtocolVersion {
                 base_system_contracts_hashes: snapshot.l1_batch.base_system_contracts_hashes,
+                version: ProtocolSemanticVersion {
+                    minor: snapshot.l1_batch.protocol_version.unwrap(),
+                    patch: 0.into(),
+                },
                 ..ProtocolVersion::default()
             })
             .await
@@ -308,10 +323,7 @@ pub async fn recover(
         .unwrap();
     storage
         .storage_logs_dal()
-        .insert_storage_logs(
-            snapshot.l2_block.number,
-            &[(H256::zero(), snapshot.storage_logs)],
-        )
+        .insert_storage_logs_from_snapshot(snapshot.l2_block.number, &snapshot.storage_logs)
         .await
         .unwrap();
 

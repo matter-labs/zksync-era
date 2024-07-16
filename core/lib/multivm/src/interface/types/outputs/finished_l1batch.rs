@@ -1,4 +1,4 @@
-use zksync_types::H256;
+use zksync_types::writes::StateDiffRecord;
 
 use super::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
 
@@ -13,7 +13,6 @@ pub struct FinishedL1Batch {
     pub final_bootloader_memory: Option<BootloaderMemory>,
     /// Pubdata to be published on L1. Could be none for old versions of the VM.
     pub pubdata_input: Option<Vec<u8>>,
-    /// List of hashed keys of slots that were initially written in the batch.
-    /// Could be none for old versions of the VM.
-    pub initially_written_slots: Option<Vec<H256>>,
+    /// List of state diffs. Could be none for old versions of the VM.
+    pub state_diffs: Option<Vec<StateDiffRecord>>,
 }

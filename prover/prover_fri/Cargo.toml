@@ -12,14 +12,14 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_types.workspace = true
-prover_dal.workspace = true
+zksync_prover_dal.workspace = true
 zksync_config.workspace = true
 zksync_env_config.workspace = true
-prometheus_exporter.workspace = true
-vlog.workspace = true
+zksync_vlog.workspace = true
 zksync_object_store.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_prover_fri_utils.workspace = true
+zksync_core_leftovers.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_utils.workspace = true
 vk_setup_data_generator_server_fri.workspace = true
@@ -41,6 +41,7 @@ async-trait.workspace = true
 local-ip-address.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 regex.workspace = true
+clap = { workspace = true, features = ["derive"] }
 
 [features]
 default = []

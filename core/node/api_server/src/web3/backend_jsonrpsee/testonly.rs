@@ -2,14 +2,14 @@
 
 use std::{mem, sync::Mutex};
 
-use jsonrpsee::{helpers::MethodResponseResult, MethodResponse};
+use zksync_web3_decl::jsonrpsee::MethodResponse;
 
 use super::metadata::MethodMetadata;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RecordedCall {
     pub metadata: MethodMetadata,
-    pub response: MethodResponseResult,
+    pub error_code: Option<i32>,
 }
 
 /// Test-only JSON-RPC recorded of all calls passing through `MetadataMiddleware`.
@@ -24,7 +24,7 @@ impl RecordedMethodCalls {
             .expect("recorded calls are poisoned")
             .push(RecordedCall {
                 metadata: metadata.clone(),
-                response: response.success_or_error,
+                error_code: response.as_error_code(),
             });
     }
 

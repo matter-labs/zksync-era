@@ -1,82 +1,140 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use zksync_state::{AsyncCatchupTask, ReadStorageFactory};
 use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
-    ZkSyncStateKeeper,
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
+    StateKeeperIO, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 
+pub mod external_io;
 pub mod main_batch_executor;
 pub mod mempool_io;
+pub mod output_handler;
+
+// Public re-export to not require the user to directly depend on `zksync_state`.
+pub use zksync_state::RocksdbStorageOptions;
 
 use crate::{
-    implementations::resources::state_keeper::{
-        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
-        StateKeeperIOResource,
+    implementations::resources::{
+        pools::{MasterPool, PoolResource},
+        state_keeper::{
+            BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+            StateKeeperIOResource,
+        },
     },
-    service::{ServiceContext, StopReceiver},
-    task::Task,
+    service::{ShutdownHook, StopReceiver},
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
-/// Requests:
-/// - `StateKeeperIOResource`
-/// - `BatchExecutorResource`
-/// - `ConditionalSealerResource`
-///
+/// Wiring layer for the state keeper.
 #[derive(Debug)]
-pub struct StateKeeperLayer;
+pub struct StateKeeperLayer {
+    state_keeper_db_path: String,
+    rocksdb_options: RocksdbStorageOptions,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub state_keeper_io: StateKeeperIOResource,
+    pub batch_executor: BatchExecutorResource,
+    pub output_handler: OutputHandlerResource,
+    pub conditional_sealer: ConditionalSealerResource,
+    pub master_pool: PoolResource<MasterPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub state_keeper: StateKeeperTask,
+    #[context(task)]
+    pub rocksdb_catchup: AsyncCatchupTask,
+    pub rocksdb_termination_hook: ShutdownHook,
+}
+
+impl StateKeeperLayer {
+    pub fn new(state_keeper_db_path: String, rocksdb_options: RocksdbStorageOptions) -> Self {
+        Self {
+            state_keeper_db_path,
+            rocksdb_options,
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for StateKeeperLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "state_keeper_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let io = context
-            .get_resource::<StateKeeperIOResource>()
-            .await?
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let io = input
+            .state_keeper_io
             .0
             .take()
             .context("StateKeeperIO was provided but taken by some other task")?;
-        let batch_executor_base = context
-            .get_resource::<BatchExecutorResource>()
-            .await?
+        let batch_executor_base = input
+            .batch_executor
             .0
             .take()
             .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
-        let output_handler = context
-            .get_resource::<OutputHandlerResource>()
-            .await?
+        let output_handler = input
+            .output_handler
             .0
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
-        let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
+        let sealer = input.conditional_sealer.0;
+        let master_pool = input.master_pool;
 
-        context.add_task(Box::new(StateKeeperTask {
+        let (storage_factory, rocksdb_catchup) = AsyncRocksdbCache::new(
+            master_pool.get_custom(2).await?,
+            self.state_keeper_db_path,
+            self.rocksdb_options,
+        );
+
+        let state_keeper = StateKeeperTask {
             io,
             batch_executor_base,
             output_handler,
             sealer,
-        }));
-        Ok(())
+            storage_factory: Arc::new(storage_factory),
+        };
+
+        let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
+            // Wait for all the instances of RocksDB to be destroyed.
+            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                .await
+                .context("failed terminating RocksDB instances")
+        });
+        Ok(Output {
+            state_keeper,
+            rocksdb_catchup,
+            rocksdb_termination_hook,
+        })
     }
 }
 
 #[derive(Debug)]
-struct StateKeeperTask {
+pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn BatchExecutor>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
 }
 
 #[async_trait::async_trait]
 impl Task for StateKeeperTask {
-    fn name(&self) -> &'static str {
-        "state_keeper"
+    fn id(&self) -> TaskId {
+        "state_keeper".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -86,14 +144,23 @@ impl Task for StateKeeperTask {
             self.batch_executor_base,
             self.output_handler,
             self.sealer,
+            self.storage_factory,
         );
-        let result = state_keeper.run().await;
+        state_keeper.run().await
+    }
+}
 
-        // Wait for all the instances of RocksDB to be destroyed.
-        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-            .await
-            .unwrap();
+#[async_trait::async_trait]
+impl Task for AsyncCatchupTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::OneshotTask
+    }
 
-        result
+    fn id(&self) -> TaskId {
+        "state_keeper/rocksdb_catchup_task".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

@@ -76,6 +76,7 @@ pub(super) enum LoadChangesStage {
     LoadProtectiveReads,
     LoadTouchedSlots,
     LoadLeafIndices,
+    LoadTreeWrites,
 }
 
 /// Latency metric for a certain stage of the tree update.

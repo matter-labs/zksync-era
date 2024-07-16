@@ -45,7 +45,8 @@ pub(crate) async fn create_test_tx_sender(
         batch_fee_model_input_provider,
         storage_caches,
     )
-    .await;
+    .await
+    .expect("failed building transaction sender");
 
     Arc::get_mut(&mut tx_sender.0).unwrap().executor = tx_executor;
     (tx_sender, vm_barrier)

@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{
@@ -12,14 +11,16 @@ use zksync_state_keeper::{
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
-    seal_criteria::IoSealCriteria,
+    seal_criteria::{IoSealCriteria, UnexecutableReason},
     updates::UpdatesManager,
 };
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use super::{
     client::MainNodeClient,
@@ -42,18 +43,13 @@ pub struct ExternalIO {
 }
 
 impl ExternalIO {
-    pub async fn new(
+    pub fn new(
         pool: ConnectionPool<Core>,
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.connection_tagged("sync_layer").await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
-            .await
-            .context("failed initializing L1 batch params provider")?;
-        drop(storage);
-
+        let l1_batch_params_provider = L1BatchParamsProvider::new();
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -136,6 +132,10 @@ impl StateKeeperIO for ExternalIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+        self.l1_batch_params_provider
+            .initialize(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current L2 block number {}",
             cursor.l1_batch,
@@ -303,10 +303,10 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
-            "Requested rejection of transaction {:?} because of the following error: {error}. \
+            "Requested rejection of transaction {:?} because of the following error: {reason}. \
              This is not supported on external node",
             tx.hash()
         );
@@ -336,32 +336,43 @@ impl StateKeeperIO for ExternalIO {
             .await
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
+        let minor = protocol_version
+            .minor_version()
+            .context("Missing minor protocol version")?;
+        let bootloader_code_hash = protocol_version
+            .bootloader_code_hash()
+            .context("Missing bootloader code hash")?;
+        let default_account_code_hash = protocol_version
+            .default_account_code_hash()
+            .context("Missing default account code hash")?;
+        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
-                protocol_version
-                    .version_id
-                    .try_into()
-                    .context("cannot convert protocol version")?,
+                ProtocolSemanticVersion {
+                    minor: minor
+                        .try_into()
+                        .context("cannot convert protocol version")?,
+                    patch: VersionPatch(0),
+                },
                 protocol_version.timestamp,
-                protocol_version.verification_keys_hashes,
-                protocol_version.base_system_contracts,
-                protocol_version.l2_system_upgrade_tx_hash,
+                Default::default(), // verification keys are unused for EN
+                BaseSystemContractsHashes {
+                    bootloader: bootloader_code_hash,
+                    default_aa: default_account_code_hash,
+                },
+                l2_system_upgrade_tx_hash,
             )
             .await?;
 
-        let BaseSystemContractsHashes {
-            bootloader,
-            default_aa,
-        } = protocol_version.base_system_contracts;
         let bootloader = self
-            .get_base_system_contract(bootloader, cursor.next_l2_block)
+            .get_base_system_contract(bootloader_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_aa, cursor.next_l2_block)
+            .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
         Ok(BaseSystemContracts {

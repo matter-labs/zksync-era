@@ -35,9 +35,6 @@ pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForNetwork {
     /// metrics etc.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<DynClient<Self::Net>>;
 
-    /// Returns the component tag previously set with [`Self::for_component()`].
-    fn component(&self) -> &'static str;
-
     #[doc(hidden)] // implementation detail
     fn clone_boxed(&self) -> Box<DynClient<Self::Net>>;
 
@@ -73,10 +70,6 @@ where
     fn for_component(mut self: Box<Self>, component_name: &'static str) -> Box<DynClient<C::Net>> {
         self.set_component(component_name);
         self
-    }
-
-    fn component(&self) -> &'static str {
-        TaggedClient::component(self)
     }
 
     async fn generic_notification(&self, method: &str, params: RawParams) -> Result<(), Error> {

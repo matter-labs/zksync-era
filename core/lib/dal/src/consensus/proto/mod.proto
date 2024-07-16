@@ -13,11 +13,33 @@ message Payload {
   optional uint64 fair_pubdata_price = 11; // required since 1.4.1; gwei
   optional uint32 virtual_blocks = 6; // required
   optional bytes operator_address = 7; // required; H160
+  // Set for protocol_version < 25.
   repeated Transaction transactions = 8;
+  // Set for protocol_version >= 25.
+  repeated TransactionV25 transactions_v25 = 12;
   optional bool last_in_batch = 10; // required
 }
 
+message L1Transaction {
+  optional bytes rlp = 1; // required; RLP encoded L2CanonicalTransaction
+  repeated bytes factory_deps = 2;
+}
+
+message L2Transaction {
+  optional bytes rlp = 1; // required; RLP encoded TransactionRequest
+}
+
+message TransactionV25 {
+  // required
+  oneof t {
+    L1Transaction l1 = 1;
+    L2Transaction l2 = 2;
+  }
+}
+
 message Transaction {
+  reserved 5;
+  reserved "received_timestamp_ms";
   oneof common_data {
     L1TxCommonData l1 = 1;
     L2TxCommonData l2 = 2;
@@ -30,7 +52,6 @@ message Transaction {
 message L1TxCommonData {
   optional bytes sender_address = 1; // required; H160
   optional uint64 serial_id = 2; // required
-  optional uint64 deadline_block = 3; // required
   optional bytes layer_2_tip_fee = 4; // required; U256
   optional bytes full_fee = 5; // required; U256
   optional bytes max_fee_per_gas = 6; // required; U256
@@ -38,11 +59,15 @@ message L1TxCommonData {
   optional bytes gas_per_pubdata_limit = 8; // required; U256
   optional uint32 op_processing_type = 9; // required
   optional uint32 priority_queue_type = 10; // required; U256
-  optional bytes eth_hash = 11; // required; H256
-  optional uint64 eth_block = 12; // required
+
   optional bytes canonical_tx_hash = 13; // // required; H256
   optional bytes to_mint = 14; // required; U256
   optional bytes refund_recipient_address = 15; // required; H160
+
+  // deprecated.
+  optional uint64 deadline_block = 3; // required; constant = 0
+  optional bytes eth_hash = 11; // required; constant = [0;32]
+  optional uint64 eth_block = 12; // required
 }
 
 message L2TxCommonData {
@@ -64,18 +89,20 @@ message ProtocolUpgradeTxCommonData {
   optional bytes max_fee_per_gas = 3; // required; U256
   optional bytes gas_limit = 4; // required; U256
   optional bytes gas_per_pubdata_limit = 5; // required; U256
-  optional bytes eth_hash = 6; // required; U256
-  optional uint64 eth_block = 7; // required
   optional bytes canonical_tx_hash = 8; // required; H256
   optional bytes to_mint = 9; // required; U256
   optional bytes refund_recipient_address = 10; // required; H160
+  
+  // deprecated.
+  optional bytes eth_hash = 6; // required; constant = [0;32]
+  optional uint64 eth_block = 7; // required
 }
 
 message Execute {
   optional bytes contract_address = 1; // required; H160
   optional bytes calldata = 2; // required
   optional bytes value = 3; // required; U256
-  repeated bytes factory_deps = 4; // optional
+  repeated bytes factory_deps = 4;
 }
 
 message InputData {

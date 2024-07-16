@@ -26,7 +26,7 @@ LLVM IR codegen references:
 The same as [setimmutable](yul.md#setimmutable).
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#setimmutable-loadimmutable).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable).
 
 LLVM IR codegen references:
 
@@ -38,7 +38,7 @@ LLVM IR codegen references:
 The same as [loadimmutable](yul.md#loadimmutable).
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#setimmutable-loadimmutable).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#setimmutable-loadimmutable).
 
 LLVM IR codegen references:
 
@@ -50,7 +50,7 @@ LLVM IR codegen references:
 The same as [linkersymbol](yul.md#linkersymbol).
 
 For more information, see the
-[zkSync Era documentation](https://era.zksync.io/docs/reference/architecture/differences-with-ethereum.html#libraries).
+[ZKsync Era documentation](https://docs.zksync.io/build/developer-reference/ethereum-differences/libraries).
 
 [The LLVM IR generator code](https://github.com/matter-labs/era-compiler-solidity/blob/main/src/yul/parser/statement/expression/function_call/mod.rs#L956).
 

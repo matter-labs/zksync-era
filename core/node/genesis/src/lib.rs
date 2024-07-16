@@ -1,23 +1,23 @@
-//! This module aims to provide a genesis setup for the zkSync Era network.
+//! This module aims to provide a genesis setup for the ZKsync Era network.
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -114,9 +114,8 @@ impl GenesisParams {
         // if the version doesn't exist
         let _: ProtocolVersionId = config
             .protocol_version
-            .ok_or(GenesisError::MalformedConfig("protocol_version"))?
-            .try_into()
-            .map_err(|_| GenesisError::ProtocolVersion(config.protocol_version.unwrap()))?;
+            .map(|p| p.minor)
+            .ok_or(GenesisError::MalformedConfig("protocol_version"))?;
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -138,16 +137,21 @@ impl GenesisParams {
         }
     }
 
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        // It's impossible to instantiate Genesis params with wrong protocol version
+    pub fn minor_protocol_version(&self) -> ProtocolVersionId {
         self.config
             .protocol_version
             .expect("Protocol version must be set")
-            .try_into()
-            .expect("Protocol version must be correctly initialized for genesis")
+            .minor
+    }
+
+    pub fn protocol_version(&self) -> ProtocolSemanticVersion {
+        self.config
+            .protocol_version
+            .expect("Protocol version must be set")
     }
 }
 
+#[derive(Debug)]
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,
@@ -161,7 +165,10 @@ pub fn mock_genesis_config() -> GenesisConfig {
     let first_l1_verifier_config = L1VerifierConfig::default();
 
     GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::latest() as u16),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: ProtocolVersionId::latest(),
+            patch: 0.into(),
+        }),
         genesis_root_hash: Some(H256::default()),
         rollup_last_leaf_index: Some(26),
         genesis_commitment: Some(H256::default()),
@@ -214,12 +221,13 @@ pub async fn insert_genesis_batch(
         .into_iter()
         .partition(|log_query| log_query.rw_flag);
 
-    let storage_logs: Vec<TreeInstruction<StorageKey>> = deduplicated_writes
+    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
         .iter()
         .enumerate()
         .map(|(index, log)| {
             TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)),
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+                    .hashed_key_u256(),
                 (index + 1) as u64,
                 u256_to_h256(log.written_value),
             )
@@ -244,7 +252,7 @@ pub async fn insert_genesis_batch(
         genesis_root_hash,
         rollup_last_leaf_index,
         base_system_contract_hashes,
-        genesis_params.protocol_version(),
+        genesis_params.minor_protocol_version(),
     );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
@@ -261,6 +269,10 @@ pub async fn insert_genesis_batch(
         commitment: block_commitment.hash().commitment,
         rollup_last_leaf_index,
     })
+}
+
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
 }
 
 pub async fn ensure_genesis_state(
@@ -324,13 +336,13 @@ pub async fn ensure_genesis_state(
 #[allow(clippy::too_many_arguments)]
 pub async fn create_genesis_l1_batch(
     storage: &mut Connection<'_, Core>,
-    protocol_version: ProtocolVersionId,
+    protocol_version: ProtocolSemanticVersion,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
-        id: protocol_version,
+        version: protocol_version,
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
@@ -341,7 +353,7 @@ pub async fn create_genesis_l1_batch(
         L1BatchNumber(0),
         0,
         base_system_contracts.hashes(),
-        protocol_version,
+        protocol_version.minor,
     );
 
     let genesis_l2_block_header = L2BlockHeader {
@@ -352,10 +364,10 @@ pub async fn create_genesis_l1_batch(
         l2_tx_count: 0,
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
-        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        protocol_version: Some(protocol_version),
+        protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
     };
@@ -404,15 +416,11 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
-    let mut storage = pool.connection().await?;
-
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
@@ -426,7 +434,7 @@ pub async fn save_set_chain_id_tx(
         .from_block(from.into())
         .to_block(BlockNumber::Latest)
         .build();
-    let mut logs = query_client.logs(filter).await?;
+    let mut logs = query_client.logs(&filter).await?;
     anyhow::ensure!(
         logs.len() == 1,
         "Expected a single set_chain_id event, got these {}: {:?}",

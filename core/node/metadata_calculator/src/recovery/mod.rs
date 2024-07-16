@@ -32,7 +32,6 @@ use std::{
 };
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -47,6 +46,7 @@ use zksync_types::{
 use super::{
     helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree, MerkleTreeHealth},
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
+    MetadataCalculatorRecoveryConfig,
 };
 
 #[cfg(test)]
@@ -54,17 +54,12 @@ mod tests;
 
 /// Handler of recovery life cycle events. This functionality is encapsulated in a trait to be able
 /// to control recovery behavior in tests.
-#[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
     fn recovery_started(&mut self, _chunk_count: u64, _recovered_chunk_count: u64) {
         // Default implementation does nothing
     }
 
-    async fn chunk_started(&self) {
-        // Default implementation does nothing
-    }
-
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         // Default implementation does nothing
     }
 }
@@ -87,7 +82,6 @@ impl<'a> RecoveryHealthUpdater<'a> {
     }
 }
 
-#[async_trait]
 impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
     fn recovery_started(&mut self, chunk_count: u64, recovered_chunk_count: u64) {
         self.chunk_count = chunk_count;
@@ -97,8 +91,13 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
             .set(recovered_chunk_count);
     }
 
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         let recovered_chunk_count = self.recovered_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
+        let chunks_left = self.chunk_count.saturating_sub(recovered_chunk_count);
+        tracing::info!(
+            "Recovered {recovered_chunk_count}/{} Merkle tree chunks, there are {chunks_left} left to process",
+            self.chunk_count
+        );
         RECOVERY_METRICS
             .recovered_chunk_count
             .set(recovered_chunk_count);
@@ -115,21 +114,19 @@ struct SnapshotParameters {
     l2_block: L2BlockNumber,
     expected_root_hash: H256,
     log_count: u64,
+    desired_chunk_size: u64,
 }
 
 impl SnapshotParameters {
-    /// This is intentionally not configurable because chunks must be the same for the entire recovery
-    /// (i.e., not changed after a node restart).
-    const DESIRED_CHUNK_SIZE: u64 = 200_000;
-
     async fn new(
         pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
+        config: &MetadataCalculatorRecoveryConfig,
     ) -> anyhow::Result<Self> {
         let l2_block = recovery.l2_block_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(l2_block)
@@ -139,11 +136,12 @@ impl SnapshotParameters {
             l2_block,
             expected_root_hash,
             log_count,
+            desired_chunk_size: config.desired_chunk_size,
         })
     }
 
     fn chunk_count(&self) -> u64 {
-        self.log_count.div_ceil(Self::DESIRED_CHUNK_SIZE)
+        self.log_count.div_ceil(self.desired_chunk_size)
     }
 }
 
@@ -163,10 +161,11 @@ impl GenericAsyncTree {
     /// with other components).
     pub async fn ensure_ready(
         self,
+        config: &MetadataCalculatorRecoveryConfig,
         main_pool: &ConnectionPool<Core>,
         recovery_pool: ConnectionPool<Core>,
-        stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
+        stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let started_at = Instant::now();
         let (tree, snapshot_recovery) = match self {
@@ -190,17 +189,19 @@ impl GenericAsyncTree {
                         "Starting Merkle tree recovery with status {snapshot_recovery:?}"
                     );
                     let l1_batch = snapshot_recovery.l1_batch_number;
-                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode);
+                    let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode, config)?;
                     (tree, snapshot_recovery)
                 } else {
                     // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
-                    return Ok(Some(AsyncTree::new(db, mode)));
+                    return Ok(Some(AsyncTree::new(db, mode)?));
                 }
             }
         };
 
-        let snapshot = SnapshotParameters::new(main_pool, &snapshot_recovery).await?;
-        tracing::debug!("Obtained snapshot parameters: {snapshot:?}");
+        let snapshot = SnapshotParameters::new(main_pool, &snapshot_recovery, config).await?;
+        tracing::debug!(
+            "Obtained snapshot parameters: {snapshot:?} based on recovery configuration {config:?}"
+        );
         let recovery_options = RecoveryOptions {
             chunk_count: snapshot.chunk_count(),
             concurrency_limit: recovery_pool.max_size() as usize,
@@ -227,6 +228,9 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
+        self.ensure_desired_chunk_size(snapshot.desired_chunk_size)
+            .await?;
+
         let start_time = Instant::now();
         let chunk_count = options.chunk_count;
         let chunks: Vec<_> = (0..chunk_count)
@@ -237,7 +241,7 @@ impl AsyncTreeRecovery {
             options.concurrency_limit
         );
 
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         let remaining_chunks = self
             .filter_chunks(&mut storage, snapshot.l2_block, &chunks)
             .await?;
@@ -257,26 +261,32 @@ impl AsyncTreeRecovery {
                 .acquire()
                 .await
                 .context("semaphore is never closed")?;
-            options.events.chunk_started().await;
-            Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?;
-            options.events.chunk_recovered().await;
+            if Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?
+            {
+                options.events.chunk_recovered();
+            }
             anyhow::Ok(())
         });
         future::try_join_all(chunk_tasks).await?;
 
+        let mut tree = tree.into_inner();
         if *stop_receiver.borrow() {
+            // Waiting for persistence is mostly useful for tests. Normally, the tree database won't be used in the same process
+            // after a stop signal is received, so there's no risk of data races with the background persistence thread.
+            tree.wait_for_persistence().await?;
             return Ok(None);
         }
 
         let finalize_latency = RECOVERY_METRICS.latency[&RecoveryStage::Finalize].start();
-        let mut tree = tree.into_inner();
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
             actual_root_hash == snapshot.expected_root_hash,
-            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}",
+            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}. \
+             If pruning is enabled and the tree is initialized some time after node recovery, \
+             this is caused by snapshot storage logs getting pruned; this setup is currently not supported",
             snapshot.expected_root_hash
         );
-        let tree = tree.finalize().await;
+        let tree = tree.finalize().await?;
         finalize_latency.observe();
         tracing::info!(
             "Tree recovery has finished, the recovery took {:?}! resuming normal tree operation",
@@ -330,20 +340,21 @@ impl AsyncTreeRecovery {
         Ok(output)
     }
 
+    /// Returns `Ok(true)` if the chunk was recovered, `Ok(false)` if the recovery process was interrupted.
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_l2_block: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
-        let mut storage = pool.connection().await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
         acquire_connection_latency.observe();
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         let entries_latency =
@@ -360,7 +371,7 @@ impl AsyncTreeRecovery {
         );
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         // Sanity check: all entry keys must be distinct. Otherwise, we may end up writing non-final values
@@ -390,17 +401,17 @@ impl AsyncTreeRecovery {
         lock_tree_latency.observe();
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         let extend_tree_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::ExtendTree].start();
-        tree.extend(all_entries).await;
+        tree.extend(all_entries).await?;
         let extend_tree_latency = extend_tree_latency.observe();
         tracing::debug!(
             "Extended Merkle tree with entries for chunk {key_chunk:?} in {extend_tree_latency:?}"
         );
-        Ok(())
+        Ok(true)
     }
 }
 

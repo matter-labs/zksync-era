@@ -57,6 +57,11 @@
         "ordinal": 10,
         "name": "picked_by",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -73,9 +78,10 @@
       true,
       false,
       false,
+      false,
       true,
       true,
-      true
+      false
     ]
   },
   "hash": "85a69b433c08847876bf6e7af9bc39ae8a6e053a0e03afd3fb5e02ee17157067"

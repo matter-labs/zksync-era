@@ -7,12 +7,11 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
@@ -20,6 +19,7 @@ use zksync_types::{
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use crate::{
     io::{
@@ -28,8 +28,10 @@ use crate::{
         L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
-    metrics::KEEPER_METRICS,
-    seal_criteria::{IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer},
+    metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
+    seal_criteria::{
+        IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
+    },
     updates::UpdatesManager,
     MempoolGuard,
 };
@@ -63,10 +65,19 @@ impl IoSealCriteria for MempoolIO {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         if self.timeout_sealer.should_seal_l2_block(manager) {
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::Timeout);
             return true;
         }
-        self.l2_block_max_payload_size_sealer
+
+        if self
+            .l2_block_max_payload_size_sealer
             .should_seal_l2_block(manager)
+        {
+            AGGREGATION_METRICS.l2_block_reason_inc(&L2BlockSealReason::PayloadSize);
+            return true;
+        }
+
+        false
     }
 }
 
@@ -79,6 +90,10 @@ impl StateKeeperIO for MempoolIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+        self.l1_batch_params_provider
+            .initialize(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
@@ -245,7 +260,8 @@ impl StateKeeperIO for MempoolIO {
                         tx.hash(),
                         tx.gas_limit()
                     );
-                    self.reject(&tx, &Halt::TooBigGasLimit.to_string()).await?;
+                    self.reject(&tx, UnexecutableReason::Halt(Halt::TooBigGasLimit))
+                        .await?;
                     continue;
                 }
                 return Ok(Some(tx));
@@ -265,10 +281,14 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn reject(&mut self, rejected: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(
+        &mut self,
+        rejected: &Transaction,
+        reason: UnexecutableReason,
+    ) -> anyhow::Result<()> {
         anyhow::ensure!(
             !rejected.is_l1(),
-            "L1 transactions should not be rejected: {error}"
+            "L1 transactions should not be rejected: {reason}"
         );
 
         // Reset the nonces in the mempool, but don't insert the transaction back.
@@ -276,14 +296,16 @@ impl StateKeeperIO for MempoolIO {
 
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        KEEPER_METRICS.rejected_transactions.inc();
+
+        KEEPER_METRICS.inc_rejected_txs(reason.as_metric_label());
+
         tracing::warn!(
-            "Transaction {} is rejected with error: {error}",
+            "Transaction {} is rejected with error: {reason}",
             rejected.hash()
         );
         storage
             .transactions_dal()
-            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
+            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {reason}"))
             .await?;
         Ok(())
     }
@@ -398,7 +420,7 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
 }
 
 impl MempoolIO {
-    pub async fn new(
+    pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool<Core>,
@@ -407,12 +429,6 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.connection_tagged("state_keeper").await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
-            .await
-            .context("failed initializing L1 batch params provider")?;
-        drop(storage);
-
         Ok(Self {
             mempool,
             pool,
@@ -420,7 +436,7 @@ impl MempoolIO {
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            l1_batch_params_provider,
+            l1_batch_params_provider: L1BatchParamsProvider::new(),
             fee_account,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),

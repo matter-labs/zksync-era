@@ -1,7 +1,7 @@
 use std::time::Instant;
 
-use prover_dal::{Connection, Prover, ProverDal};
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         circuit_definitions::recursion_layer::{
@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};
@@ -28,7 +28,7 @@ pub async fn fetch_next_circuit(
     storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &[CircuitIdRoundTuple],
-    protocol_version: &ProtocolVersionId,
+    protocol_version: &ProtocolSemanticVersion,
 ) -> Option<ProverJob> {
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
@@ -38,7 +38,7 @@ pub async fn fetch_next_circuit(
                 .fri_prover_jobs_dal()
                 .get_next_job_for_circuit_id_round(
                     circuit_ids_for_round_to_be_proven,
-                    protocol_version,
+                    *protocol_version,
                     &pod_name,
                 )
                 .await
@@ -47,7 +47,7 @@ pub async fn fetch_next_circuit(
             // Generalized prover: proving all circuits.
             storage
                 .fri_prover_jobs_dal()
-                .get_next_job(protocol_version, &pod_name)
+                .get_next_job(*protocol_version, &pod_name)
                 .await
         }
     }?;

@@ -1,15 +1,17 @@
 use std::any::type_name;
 
+use super::shutdown_hook::ShutdownHook;
 use crate::{
-    precondition::Precondition,
     resource::{Resource, ResourceId, StoredResource},
-    service::ZkStackService,
-    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
+    service::{named_future::NamedFuture, ZkStackService},
+    task::Task,
     wiring_layer::WiringError,
 };
 
-/// An interface to the service's resources provided to the tasks during initialization.
-/// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
+/// An interface to the service provided to the tasks during initialization.
+/// This the main point of interaction between with the service.
+///
+/// The context provides access to the runtime, resources, and allows adding new tasks.
 #[derive(Debug)]
 pub struct ServiceContext<'a> {
     layer: &'a str,
@@ -17,16 +19,26 @@ pub struct ServiceContext<'a> {
 }
 
 impl<'a> ServiceContext<'a> {
+    /// Instantiates a new context.
+    /// The context keeps information about the layer that created it for reporting purposes.
     pub(super) fn new(layer: &'a str, service: &'a mut ZkStackService) -> Self {
         Self { layer, service }
     }
 
     /// Provides access to the runtime used by the service.
+    ///
     /// Can be used to spawn additional tasks within the same runtime.
-    /// If some tasks stores the handle to spawn additional tasks, it is expected to do all the required
+    /// If some task stores the handle to spawn additional tasks, it is expected to do all the required
     /// cleanup.
     ///
-    /// In most cases, however, it is recommended to use [`add_task`] method instead.
+    /// In most cases, however, it is recommended to use [`add_task`](ServiceContext::add_task) or its alternative
+    /// instead.
+    ///
+    /// ## Note
+    ///
+    /// While `tokio::spawn` and `tokio::spawn_blocking` will work as well, using the runtime handle
+    /// from the context is still a recommended way to get access to runtime, as it tracks the access
+    /// to the runtimes by layers.
     pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
         tracing::info!(
             "Layer {} has requested access to the Tokio runtime",
@@ -36,73 +48,42 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds a task to the service.
+    ///
     /// Added tasks will be launched after the wiring process will be finished and all the preconditions
     /// are met.
-    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
-        tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
-        self.service.runnables.tasks.push(task);
+    pub fn add_task<T: Task>(&mut self, task: T) -> &mut Self {
+        tracing::info!("Layer {} has added a new task: {}", self.layer, task.id());
+        self.service.runnables.tasks.push(Box::new(task));
         self
     }
 
-    /// Adds an unconstrained task to the service.
-    /// Unconstrained tasks will be launched immediately after the wiring process is finished.
-    pub fn add_unconstrained_task(&mut self, task: Box<dyn UnconstrainedTask>) -> &mut Self {
+    /// Adds a future to be invoked after node shutdown.
+    /// May be used to perform cleanup tasks.
+    ///
+    /// The future is guaranteed to only be polled after all the node tasks are stopped or timed out.
+    /// All the futures will be awaited sequentially.
+    pub fn add_shutdown_hook(&mut self, hook: ShutdownHook) -> &mut Self {
         tracing::info!(
-            "Layer {} has added a new unconstrained task: {}",
+            "Layer {} has added a new shutdown hook: {}",
             self.layer,
-            task.name()
-        );
-        self.service.runnables.unconstrained_tasks.push(task);
-        self
-    }
-
-    /// Adds a precondition to the service.
-    pub fn add_precondition(&mut self, precondition: Box<dyn Precondition>) -> &mut Self {
-        tracing::info!(
-            "Layer {} has added a new precondition: {}",
-            self.layer,
-            precondition.name()
-        );
-        self.service.runnables.preconditions.push(precondition);
-        self
-    }
-
-    /// Adds an oneshot task to the service.
-    pub fn add_oneshot_task(&mut self, task: Box<dyn OneshotTask>) -> &mut Self {
-        tracing::info!(
-            "Layer {} has added a new oneshot task: {}",
-            self.layer,
-            task.name()
-        );
-        self.service.runnables.oneshot_tasks.push(task);
-        self
-    }
-
-    /// Adds an unconstrained oneshot task to the service.
-    pub fn add_unconstrained_oneshot_task(
-        &mut self,
-        task: Box<dyn UnconstrainedOneshotTask>,
-    ) -> &mut Self {
-        tracing::info!(
-            "Layer {} has added a new unconstrained oneshot task: {}",
-            self.layer,
-            task.name()
+            hook.id
         );
         self.service
             .runnables
-            .unconstrained_oneshot_tasks
-            .push(task);
+            .shutdown_hooks
+            .push(NamedFuture::new(hook.future, hook.id));
         self
     }
 
-    /// Attempts to retrieve the resource with the specified name.
-    /// Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
-    /// on behalf of the caller.
+    /// Attempts to retrieve the resource of the specified type.
     ///
     /// ## Panics
     ///
-    /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
+    /// Panics if the resource with the specified [`ResourceId`] exists, but is not of the requested type.
+    pub fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
+        // Implementation details:
+        // Internally the resources are stored as [`std::any::Any`], and this method does the downcasting
+        // on behalf of the caller.
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
@@ -143,13 +124,13 @@ impl<'a> ServiceContext<'a> {
         })
     }
 
-    /// Attempts to retrieve the resource with the specified name.
+    /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using the provided closure.
-    pub async fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
+    pub fn get_resource_or_insert_with<T: Resource + Clone, F: FnOnce() -> T>(
         &mut self,
         f: F,
     ) -> T {
-        if let Ok(resource) = self.get_resource::<T>().await {
+        if let Ok(resource) = self.get_resource::<T>() {
             return resource;
         }
 
@@ -166,18 +147,19 @@ impl<'a> ServiceContext<'a> {
         resource
     }
 
-    /// Attempts to retrieve the resource with the specified name.
+    /// Attempts to retrieve the resource of the specified type.
     /// If the resource is not available, it is created using `T::default()`.
-    pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
-        self.get_resource_or_insert_with(T::default).await
+    pub fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
+        self.get_resource_or_insert_with(T::default)
     }
 
     /// Adds a resource to the service.
-    /// If the resource with the same name is already provided, the method will return an error.
+    ///
+    /// If the resource with the same type is already provided, the method will return an error.
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
         let id = ResourceId::of::<T>();
         if self.service.resources.contains_key(&id) {
-            tracing::warn!(
+            tracing::info!(
                 "Layer {} has attempted to provide resource {} of type {}, but it is already available",
                 self.layer,
                 T::name(),

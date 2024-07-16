@@ -4,6 +4,7 @@ use serde::Deserialize;
 use tokio::sync::Semaphore;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{network::Network, Address, L2ChainId, H160};
+use zksync_utils::workspace_dir_or_current_dir;
 
 use crate::fs_utils::read_tokens;
 
@@ -40,7 +41,7 @@ pub struct LoadtestConfig {
     /// Address of the ERC-20 token to be used in test.
     ///
     /// Token must satisfy two criteria:
-    /// - Be supported by zkSync.
+    /// - Be supported by ZKsync.
     /// - Have `mint` operation.
     ///
     /// Note that we use ERC-20 token since we can't easily mint a lot of ETH on
@@ -189,14 +190,8 @@ fn default_main_token() -> H160 {
 }
 
 fn default_test_contracts_path() -> PathBuf {
-    let test_contracts_path = {
-        let home = std::env::var("ZKSYNC_HOME").unwrap();
-        let path = PathBuf::from(&home);
-        path.join("etc/contracts-test-data")
-    };
-
+    let test_contracts_path = workspace_dir_or_current_dir().join("etc/contracts-test-data");
     tracing::info!("Test contracts path: {}", test_contracts_path.display());
-
     test_contracts_path
 }
 
@@ -344,5 +339,18 @@ impl RequestLimiters {
             api_requests: Semaphore::new(config.sync_api_requests_limit),
             subscriptions: Semaphore::new(config.sync_pubsub_subscriptions_limit),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::fs_utils::loadnext_contract;
+
+    #[test]
+    fn check_read_test_contract() {
+        let test_contracts_path = default_test_contracts_path();
+        loadnext_contract(&test_contracts_path).unwrap();
     }
 }

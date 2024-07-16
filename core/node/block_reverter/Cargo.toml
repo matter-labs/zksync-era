@@ -1,6 +1,7 @@
 [package]
 name = "zksync_block_reverter"
-version = "0.1.0"
+description = "ZKsync block reverter library"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -21,11 +22,13 @@ zksync_state.workspace = true
 zksync_merkle_tree.workspace = true
 
 anyhow.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["time", "fs"] }
 serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+async-trait.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true

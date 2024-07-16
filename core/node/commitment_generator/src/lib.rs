@@ -1,17 +1,17 @@
-use std::time::Duration;
+use std::{num::NonZeroU32, ops, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
+use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
-        L1BatchCommitment, L1BatchCommitmentMode,
+        L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
     event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -21,34 +21,56 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{bootloader_initial_content_commitment, events_queue_commitment},
+    utils::{CommitmentComputer, RealCommitmentComputer},
 };
 
 mod metrics;
+#[cfg(test)]
+mod tests;
 mod utils;
 pub mod validation_task;
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
+/// Component responsible for generating commitments for L1 batches.
 #[derive(Debug)]
 pub struct CommitmentGenerator {
+    computer: Arc<dyn CommitmentComputer>,
     connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     commitment_mode: L1BatchCommitmentMode,
+    parallelism: NonZeroU32,
 }
 
 impl CommitmentGenerator {
+    /// Creates a commitment generator with the provided mode.
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
+            computer: Arc::new(RealCommitmentComputer),
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
             commitment_mode,
+            parallelism: Self::default_parallelism(),
         }
     }
 
+    /// Returns default parallelism for commitment generation based on the number of CPU cores available.
+    pub fn default_parallelism() -> NonZeroU32 {
+        // Leave at least one core free to handle other blocking tasks. `unwrap()`s are safe by design.
+        let cpus = u32::try_from(num_cpus::get().saturating_sub(1).clamp(1, 16)).unwrap();
+        NonZeroU32::new(cpus).unwrap()
+    }
+
+    /// Sets the degree of parallelism to be used by this generator. A reasonable value can be obtained
+    /// using [`Self::default_parallelism()`].
+    pub fn set_max_parallelism(&mut self, parallelism: NonZeroU32) {
+        self.parallelism = parallelism;
+    }
+
+    /// Returns a health check for this generator.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
     }
@@ -82,25 +104,26 @@ impl CommitmentGenerator {
             })?;
         drop(connection);
 
+        let computer = self.computer.clone();
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
-                    events_queue_commitment(&events_queue, protocol_version)
-                        .context("Events queue commitment is required for post-boojum batch")?;
+                    computer.events_queue_commitment(&events_queue, protocol_version)?;
                 latency.observe();
 
                 Ok(events_queue_commitment)
             });
 
+        let computer = self.computer.clone();
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.bootloader_content_commitment_latency.start();
-                let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-                    &initial_bootloader_contents,
-                    protocol_version,
-                )
-                .context("Bootloader content commitment is required for post-boojum batch")?;
+                let bootloader_initial_content_commitment = computer
+                    .bootloader_initial_content_commitment(
+                        &initial_bootloader_contents,
+                        protocol_version,
+                    )?;
                 latency.observe();
 
                 Ok(bootloader_initial_content_commitment)
@@ -157,7 +180,7 @@ impl CommitmentGenerator {
         };
         let touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await?;
         let touched_hashed_keys: Vec<_> =
             touched_slots.keys().map(|key| key.hashed_key()).collect();
@@ -262,7 +285,10 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
-    async fn step(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
+    async fn process_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<L1BatchCommitmentArtifacts> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
         let input = self.prepare_input(l1_batch_number).await?;
@@ -278,22 +304,45 @@ impl CommitmentGenerator {
         tracing::debug!(
             "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
         );
+        Ok(artifacts)
+    }
 
-        let latency =
-            METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
-        self.connection_pool
+    async fn step(
+        &self,
+        l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> anyhow::Result<()> {
+        let iterable_numbers =
+            (l1_batch_numbers.start().0..=l1_batch_numbers.end().0).map(L1BatchNumber);
+        let batch_futures = iterable_numbers.map(|number| async move {
+            let artifacts = self
+                .process_batch(number)
+                .await
+                .with_context(|| format!("failed processing L1 batch #{number}"))?;
+            anyhow::Ok((number, artifacts))
+        });
+        let artifacts = futures::future::try_join_all(batch_futures).await?;
+
+        let mut connection = self
+            .connection_pool
             .connection_tagged("commitment_generator")
-            .await?
-            .blocks_dal()
-            .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
-        let latency = latency.observe();
-        tracing::debug!(
-            "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
-        );
+        // Saving changes atomically is not required here; since we save batches in order, if we encounter a DB error,
+        // the commitment generator will be able to recover gracefully.
+        for (l1_batch_number, artifacts) in artifacts {
+            let latency =
+                METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
+            connection
+                .blocks_dal()
+                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
+                .await?;
+            let latency = latency.observe();
+            tracing::debug!(
+                "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+            );
+        }
 
         let health_details = serde_json::json!({
-            "l1_batch_number": l1_batch_number,
+            "l1_batch_number": *l1_batch_numbers.end(),
         });
         self.health_updater
             .update(Health::from(HealthStatus::Ready).with_details(health_details));
@@ -335,29 +384,72 @@ impl CommitmentGenerator {
         }
     }
 
+    async fn next_batch_range(&self) -> anyhow::Result<Option<ops::RangeInclusive<L1BatchNumber>>> {
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("commitment_generator")
+            .await?;
+        let Some(next_batch_number) = connection
+            .blocks_dal()
+            .get_next_l1_batch_ready_for_commitment_generation()
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let Some(last_batch_number) = connection
+            .blocks_dal()
+            .get_last_l1_batch_ready_for_commitment_generation()
+            .await?
+        else {
+            return Ok(None);
+        };
+        anyhow::ensure!(
+            next_batch_number <= last_batch_number,
+            "Unexpected node state: next L1 batch ready for commitment generation (#{next_batch_number}) is greater than \
+             the last L1 batch ready for commitment generation (#{last_batch_number})"
+        );
+        let last_batch_number =
+            last_batch_number.min(next_batch_number + self.parallelism.get() - 1);
+        Ok(Some(next_batch_number..=last_batch_number))
+    }
+
+    /// Runs this commitment generator indefinitely. It will process L1 batches added to the database
+    /// processed by the Merkle tree (or a tree fetcher), with a previously configured max parallelism.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting commitment generator with mode {:?} and parallelism {}",
+            self.commitment_mode,
+            self.parallelism
+        );
+        if self.connection_pool.max_size() < self.parallelism.get() {
+            tracing::warn!(
+                "Connection pool for commitment generation has fewer connections ({pool_size}) than \
+                 configured max parallelism ({parallelism}); commitment generation may be slowed down as a result",
+                pool_size = self.connection_pool.max_size(),
+                parallelism = self.parallelism.get()
+            );
+        }
         self.health_updater.update(HealthStatus::Ready.into());
+
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, commitment generator is shutting down");
                 break;
             }
 
-            let Some(l1_batch_number) = self
-                .connection_pool
-                .connection_tagged("commitment_generator")
-                .await?
-                .blocks_dal()
-                .get_next_l1_batch_ready_for_commitment_generation()
-                .await?
-            else {
+            let Some(l1_batch_numbers) = self.next_batch_range().await? else {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             };
 
-            tracing::info!("Started commitment generation for L1 batch #{l1_batch_number}");
-            self.step(l1_batch_number).await?;
-            tracing::info!("Finished commitment generation for L1 batch #{l1_batch_number}");
+            tracing::info!("Started commitment generation for L1 batches #{l1_batch_numbers:?}");
+            let step_latency = METRICS.step_latency.start();
+            self.step(l1_batch_numbers.clone()).await?;
+            let step_latency = step_latency.observe();
+            let batch_count = l1_batch_numbers.end().0 - l1_batch_numbers.start().0 + 1;
+            METRICS.step_batch_count.observe(batch_count.into());
+            tracing::info!("Finished commitment generation for L1 batches #{l1_batch_numbers:?} in {step_latency:?} ({:?} per batch)", step_latency / batch_count);
         }
         Ok(())
     }

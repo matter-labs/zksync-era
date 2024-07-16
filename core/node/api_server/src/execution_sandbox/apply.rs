@@ -9,14 +9,14 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use multivm::{
+use tokio::runtime::Handle;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
 };
-use tokio::runtime::Handle;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -366,7 +366,7 @@ impl StoredL2BlockInfo {
         );
         let l2_block_info = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_info_key, l2_block_number)
+            .get_historical_value_unchecked(l2_block_info_key.hashed_key(), l2_block_number)
             .await
             .context("failed reading L2 block info from VM state")?;
         let (l2_block_number_from_state, l2_block_timestamp) =
@@ -378,7 +378,10 @@ impl StoredL2BlockInfo {
         );
         let txs_rolling_hash = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, l2_block_number)
+            .get_historical_value_unchecked(
+                l2_block_txs_rolling_hash_key.hashed_key(),
+                l2_block_number,
+            )
             .await
             .context("failed reading transaction rolling hash from VM state")?;
 
@@ -403,12 +406,12 @@ impl StoredL2BlockInfo {
 }
 
 #[derive(Debug)]
-struct ResolvedBlockInfo {
+pub(crate) struct ResolvedBlockInfo {
     state_l2_block_number: L2BlockNumber,
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
-    protocol_version: ProtocolVersionId,
+    pub(crate) protocol_version: ProtocolVersionId,
     historical_fee_input: Option<BatchFeeInput>,
 }
 
@@ -429,7 +432,7 @@ impl BlockArgs {
         )
     }
 
-    async fn resolve_block_info(
+    pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<ResolvedBlockInfo> {

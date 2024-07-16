@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_sync"
-version = "0.1.0"
+description = "ZKsync node synchronization utilities"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -24,13 +25,15 @@ zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_concurrency.workspace = true
 vise.workspace = true
-vm_utils.workspace = true
+zksync_vm_utils.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+futures.workspace = true
 tracing.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
 thiserror.workspace = true
 
@@ -38,4 +41,5 @@ thiserror.workspace = true
 zksync_node_test_utils.workspace = true
 
 assert_matches.workspace = true
+once_cell.workspace = true
 test-casing.workspace = true

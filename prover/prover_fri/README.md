@@ -16,9 +16,9 @@ will pull jobs from the database and do their part of the pipeline, loading inte
 
 ```mermaid
 flowchart LR
-    A["Operator"] --> |Produces block| F[Prover Gateway]
-    F --> |Inserts into DB| B["Postgres DB"]
-    B --> |Retrieves proven block \nafter compression| F
+    A["Operator"] -->|Produces block| F[Prover Gateway]
+    F -->|Inserts into DB| B["Postgres DB"]
+    B -->|Retrieves proven block \nafter compression| F
     B --> C["Witness"]
     C --- C1["Basic Circuits"]
     C --- C2["Leaf Aggregation"]
@@ -27,9 +27,9 @@ flowchart LR
     C --- C5["Scheduler"]
     C --> B
     B --> D["Vector Generator/Prover"]
-    D --> |Proven Block| B
+    D -->|Proven Block| B
     B --> G["Compressor"]
-    G --> |Compressed block| B
+    G -->|Compressed block| B
 ```
 
 ## Prerequisites
@@ -55,14 +55,15 @@ installation as a pre-requisite, alongside these machine specs:
 2. Run the server. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler,vm_runner_bwip
    ```
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
 
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. You
-   need to be in the `prover/` directory (for all commands from here onwards, you need to be in the `prover/` directory)
-   and run:
+3. Generate the GPU setup data (no need to regenerate if it's already there). If you want to use this with the GPU
+   compressors, you need to change the key in the file from `setup_2^26.key` to `setup_2^24.key`. This will consume
+   around 20GB of disk. You need to be in the `prover/` directory (for all commands from here onwards, you need to be in
+   the `prover/` directory) and run:
 
    ```console
    ./setup.sh gpu
@@ -165,6 +166,43 @@ Machine specs:
 
    ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
+   ```
+
+## Running GPU compressors
+
+There is an option to run compressors with the GPU, which will significantly improve the performance.
+
+1. The hardware setup should be the same as for GPU prover
+2. Install and compile `era-bellman-cuda` library
+
+   ```console
+   git clone https://github.com/matter-labs/era-bellman-cuda
+   cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+   cmake --build bellman-cuda/build/
+   ```
+
+3. Set path of library as environmental variable
+
+   ```console
+   export BELLMAN_CUDA_DIR=$PWD/bellman-cuda
+   ```
+
+4. GPU compressor uses `setup_2^24.key`. Download it by using:
+
+   ```console
+   wget https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+   ```
+
+5. Set the env variable with it's path:
+
+   ```console
+   export CRS_FILE=$PWD/setup_2^24.key
+   ```
+
+6. Run the compressor using:
+
+   ```console
+   zk f cargo run --features "gpu" --release --bin zksync_proof_fri_compressor
    ```
 
 ## Checking the status of the prover

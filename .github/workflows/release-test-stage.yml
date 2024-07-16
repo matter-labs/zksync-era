@@ -17,7 +17,7 @@ jobs:
       prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
       all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
 
@@ -45,7 +45,7 @@ jobs:
       prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: Generate image tag suffix
         id: generate-tag-suffix
@@ -71,9 +71,21 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-push-tee-prover-images:
+    name: Build and push images
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/build-tee-prover-template.yml
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+
   build-push-contract-verifier:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-contract-verifier-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -103,3 +115,4 @@ jobs:
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}

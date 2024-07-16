@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
 use dialoguer::{theme::ColorfulTheme, Input};
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_config::configs::DatabaseSecrets;
-use zksync_env_config::FromEnv;
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::L1BatchNumber;
+
+use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
 pub(crate) struct Args {
@@ -22,7 +22,7 @@ pub(crate) struct Args {
     batch: L1BatchNumber,
 }
 
-pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
     let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Are you sure you want to delete the data?")
         .default("no".to_owned())
@@ -33,8 +33,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let secrets = DatabaseSecrets::from_env()?;
-    let prover_connection_pool = ConnectionPool::<Prover>::singleton(secrets.prover_url()?)
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.db_url)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

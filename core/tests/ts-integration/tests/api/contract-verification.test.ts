@@ -1,10 +1,11 @@
-import { TestMaster } from '../../src/index';
+import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import { deployContract, getContractSource, getTestContract } from '../../src/helpers';
 import { sleep } from 'zksync-ethers/build/utils';
+import { NodeMode } from '../../src/types';
 
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
@@ -44,7 +45,7 @@ describe('Tests for the contract verification API', () => {
             testMaster = TestMaster.getInstance(__filename);
             alice = testMaster.mainAccount();
 
-            if (process.env.ZKSYNC_ENV!.startsWith('ext-node')) {
+            if (testMaster.environment().nodeMode == NodeMode.External) {
                 console.warn("You are trying to run contract verification tests on external node. It's not supported.");
             }
         });
@@ -54,7 +55,7 @@ describe('Tests for the contract verification API', () => {
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
@@ -72,7 +73,7 @@ describe('Tests for the contract verification API', () => {
             let artifact = contracts.counter;
             // TODO: use plugin compilation when it's ready instead of pre-compiled bytecode.
             artifact.bytecode = fs.readFileSync(
-                `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/counter/zkVM_bytecode.txt`,
+                `${testMaster.environment().pathToHome}/core/tests/ts-integration/contracts/counter/zkVM_bytecode.txt`,
                 'utf8'
             );
 
@@ -80,7 +81,7 @@ describe('Tests for the contract verification API', () => {
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
@@ -101,7 +102,7 @@ describe('Tests for the contract verification API', () => {
                     factoryDeps: [contracts.create.factoryDep]
                 }
             });
-            const importContract = await contractHandle.deployed();
+            const importContract = await contractHandle.waitForDeployment();
             const standardJsonInput = {
                 language: 'Solidity',
                 sources: {
@@ -121,7 +122,7 @@ describe('Tests for the contract verification API', () => {
             const constructorArguments = importContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: importContract.address,
+                contractAddress: await importContract.getAddress(),
                 contractName: 'contracts/create/create.sol:Import',
                 sourceCode: standardJsonInput,
                 codeFormat: 'solidity-standard-json-input',
@@ -136,15 +137,19 @@ describe('Tests for the contract verification API', () => {
         });
 
         test('should test yul contract verification', async () => {
-            const contractPath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/yul/Empty.yul`;
+            const contractPath = `${
+                testMaster.environment().pathToHome
+            }/core/tests/ts-integration/contracts/yul/Empty.yul`;
             const sourceCode = fs.readFileSync(contractPath, 'utf8');
 
-            const bytecodePath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/yul/artifacts/Empty.yul/Empty.yul.zbin`;
+            const bytecodePath = `${
+                testMaster.environment().pathToHome
+            }/core/tests/ts-integration/contracts/yul/artifacts/Empty.yul/Empty.yul.zbin`;
             const bytecode = fs.readFileSync(bytecodePath);
 
             const contractFactory = new zksync.ContractFactory([], bytecode, alice);
             const deployTx = await contractFactory.deploy();
-            const contractAddress = (await deployTx.deployed()).address;
+            const contractAddress = await (await deployTx.waitForDeployment()).getAddress();
 
             const requestBody = {
                 contractAddress,
@@ -168,17 +173,17 @@ describe('Tests for the contract verification API', () => {
                 contracts.greeter2.bytecode,
                 alice
             );
-            const randomAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+            const randomAddress = ethers.hexlify(ethers.randomBytes(20));
             const contractHandle = await contractFactory.deploy(randomAddress, {
                 customData: {
                     factoryDeps: [contracts.greeter2.factoryDep]
                 }
             });
-            const contract = await contractHandle.deployed();
+            const contract = await contractHandle.waitForDeployment();
             const constructorArguments = contract.interface.encodeDeploy([randomAddress]);
 
             const requestBody = {
-                contractAddress: contract.address,
+                contractAddress: await contract.getAddress(),
                 contractName: 'Greeter2',
                 sourceCode: {
                     Greeter: getContractSource('vyper/Greeter.vy'),

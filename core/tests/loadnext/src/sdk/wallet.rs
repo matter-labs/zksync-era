@@ -155,6 +155,7 @@ where
                 meta.custom_signature = None;
             }
             req.from = Some(self.address());
+            req.chain_id = Some(self.signer.chain_id.as_u64());
             req
         };
         let domain = Eip712Domain::new(self.signer.chain_id);
@@ -164,7 +165,9 @@ where
             .sign_typed_data(&domain, &transaction_request)
             .await?;
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, self.signer.chain_id);
+        let encoded_tx = transaction_request
+            .get_signed_bytes(&signature)
+            .map_err(|_| ClientError::Other)?;
         let bytes = Bytes(encoded_tx);
 
         let tx_hash = self.provider.send_raw_transaction(bytes).await?;

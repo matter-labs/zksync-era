@@ -1,0 +1,28 @@
+[package]
+name = "config"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+authors.workspace = true
+exclude.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+common.workspace = true
+ethers.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+thiserror.workspace = true
+types.workspace = true
+url.workspace = true
+xshell.workspace = true
+zksync_config.workspace = true
+zksync_protobuf_config.workspace = true

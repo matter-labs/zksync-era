@@ -160,17 +160,16 @@ impl L2BlockSealSubtask for InsertStorageLogsSubtask {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
-        let write_logs = command.extract_deduplicated_write_logs(is_fictive);
+        let write_logs = command.extract_deduplicated_write_logs();
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertStorageLogs, is_fictive);
 
-        let write_log_count: usize = write_logs.iter().map(|(_, logs)| logs.len()).sum();
         connection
             .storage_logs_dal()
             .insert_storage_logs(command.l2_block.number, &write_logs)
             .await?;
 
-        progress.observe(write_log_count);
+        progress.observe(write_logs.len());
         Ok(())
     }
 
@@ -211,8 +210,8 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
                 .factory_deps_dal()
                 .insert_factory_deps(command.l2_block.number, &command.l2_block.new_factory_deps)
                 .await?;
-            progress.observe(command.l2_block.new_factory_deps.len());
         }
+        progress.observe(command.l2_block.new_factory_deps.len());
 
         Ok(())
     }
@@ -250,12 +249,11 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
             extract_added_tokens(command.l2_shared_bridge_addr, &command.l2_block.events);
         progress.observe(added_tokens.len());
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
         if !added_tokens.is_empty() {
-            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
-            let added_tokens_len = added_tokens.len();
             connection.tokens_dal().add_tokens(&added_tokens).await?;
-            progress.observe(added_tokens_len);
         }
+        progress.observe(added_tokens.len());
 
         Ok(())
     }
@@ -342,10 +340,12 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         progress.observe(user_l2_to_l1_log_count);
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2ToL1Logs, is_fictive);
-        connection
-            .events_dal()
-            .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
-            .await?;
+        if !user_l2_to_l1_logs.is_empty() {
+            connection
+                .events_dal()
+                .save_user_l2_to_l1_logs(command.l2_block.number, &user_l2_to_l1_logs)
+                .await?;
+        }
         progress.observe(user_l2_to_l1_log_count);
         Ok(())
     }
@@ -365,20 +365,19 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 
 #[cfg(test)]
 mod tests {
-    use multivm::{
+    use zksync_dal::{ConnectionPool, Core};
+    use zksync_multivm::{
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
     };
-    use zksync_dal::{ConnectionPool, Core};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
-        zk_evm_types::{LogQuery, Timestamp},
-        AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLogQuery,
-        StorageLogQueryType, VmEvent, U256,
+        AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
+        StorageLogKind, StorageLogWithPreviousValue, VmEvent,
     };
     use zksync_utils::h256_to_u256;
 
@@ -419,21 +418,13 @@ mod tests {
         }];
         let storage_key = StorageKey::new(AccountTreeId::new(Address::zero()), H256::zero());
         let storage_value = H256::from_low_u64_be(1);
-        let storage_logs = vec![StorageLogQuery {
-            log_query: LogQuery {
-                timestamp: Timestamp(0),
-                tx_number_in_block: 0,
-                aux_byte: 0,
-                shard_id: 0,
-                address: *storage_key.address(),
-                key: h256_to_u256(*storage_key.key()),
-                read_value: U256::zero(),
-                written_value: h256_to_u256(storage_value),
-                rw_flag: true,
-                rollback: false,
-                is_service: false,
+        let storage_logs = vec![StorageLogWithPreviousValue {
+            log: StorageLog {
+                key: storage_key,
+                value: storage_value,
+                kind: StorageLogKind::InitialWrite,
             },
-            log_type: StorageLogQueryType::InitialWrite,
+            previous_value: H256::zero(),
         }];
         let user_l2_to_l1_logs = vec![UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
@@ -516,7 +507,7 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .get(0)
+            .first()
             .cloned();
         assert!(tx_receipt.is_none());
 

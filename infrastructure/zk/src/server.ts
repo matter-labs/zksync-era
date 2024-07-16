@@ -1,22 +1,18 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { clean } from './clean';
 import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, useNodeFramework?: boolean) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components) {
+    if (rebuildTree || components || useNodeFramework) {
         options += ' --';
-    }
-    if (rebuildTree) {
-        clean('db');
-        options += ' --rebuild-tree';
     }
     if (components) {
         options += ` --components=${components}`;
@@ -75,7 +71,6 @@ export async function genesisFromBinary() {
 export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
-    .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
@@ -84,7 +79,7 @@ export const serverCommand = new Command('server')
         if (cmd.genesis) {
             await genesisFromSources();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework);
         }
     });
 

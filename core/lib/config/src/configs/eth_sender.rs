@@ -39,7 +39,6 @@ impl EthConfig {
                 timestamp_criteria_max_allowed_lag: 30,
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
-                proof_loading_mode: ProofLoadingMode::OldProofFromDb,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
@@ -82,6 +81,7 @@ pub enum PubdataSendingMode {
     #[default]
     Calldata,
     Blobs,
+    Custom,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -115,10 +115,7 @@ pub struct SenderConfig {
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
 
-    /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
-    pub proof_loading_mode: ProofLoadingMode,
-
-    /// The mode in which we send pubdata, either Calldata or Blobs
+    /// The mode in which we send pubdata: Calldata, Blobs or Custom (DA layers, Object Store, etc.)
     pub pubdata_sending_mode: PubdataSendingMode,
 }
 
@@ -156,7 +153,7 @@ impl SenderConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, Default)]
 pub struct GasAdjusterConfig {
     /// Priority Fee to be used by GasAdjuster
     pub default_priority_fee_per_gas: u64,

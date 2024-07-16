@@ -30,7 +30,7 @@ pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
 #[derive(Debug, Clone)]
 pub struct BatchDiff {
     /// Storage slots touched by this batch along with new values there.
-    pub state_diff: HashMap<StorageKey, H256>,
+    pub state_diff: HashMap<H256, H256>,
     /// Initial write indices introduced by this batch.
     pub enum_index_diff: HashMap<H256, u64>,
     /// Factory dependencies introduced by this batch.
@@ -140,11 +140,12 @@ impl<'a> PgOrRocksdbStorage<'a> {
 
 impl ReadStorage for RocksdbWithMemory {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        let hashed_key = key.hashed_key();
         match self
             .batch_diffs
             .iter()
             .rev()
-            .find_map(|b| b.state_diff.get(key))
+            .find_map(|b| b.state_diff.get(&hashed_key))
         {
             None => self.rocksdb.read_value(key),
             Some(value) => *value,
@@ -186,7 +187,7 @@ impl ReadStorage for RocksdbWithMemory {
 }
 
 impl ReadStorage for PgOrRocksdbStorage<'_> {
-    fn read_value(&mut self, key: &StorageKey) -> zksync_types::StorageValue {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),

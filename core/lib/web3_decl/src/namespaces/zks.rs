@@ -14,21 +14,18 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-#[cfg(feature = "client")]
-use crate::client::{ForNetwork, L2};
-use crate::types::{Bytes, Token};
+use crate::{
+    client::{ForNetwork, L2},
+    types::{Bytes, Token},
+};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
+    feature = "server",
     rpc(server, client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
+    not(feature = "server"),
     rpc(client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "zks")
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]

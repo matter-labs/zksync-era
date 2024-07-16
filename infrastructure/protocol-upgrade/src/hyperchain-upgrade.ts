@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawn } from 'zk/build/utils';
+import { spawn } from 'utils';
 import fs from 'fs';
 import { ethers } from 'ethers';
 
@@ -37,6 +37,7 @@ async function hyperchainUpgrade1() {
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR',
         'CONTRACTS_GENESIS_UPGRADE_ADDR',
         'CONTRACTS_GOVERNANCE_ADDR',
+        'CONTRACTS_CHAIN_ADMIN_ADDR',
         'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',

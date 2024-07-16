@@ -9,7 +9,7 @@ use zksync_types::L1BatchNumber;
 #[async_trait]
 pub trait VmRunnerIo: Debug + Send + Sync + 'static {
     /// Unique name of the VM runner instance.
-    fn name() -> &'static str;
+    fn name(&self) -> &'static str;
 
     /// Returns the last L1 batch number that has been processed by this VM runner instance.
     ///
@@ -30,6 +30,18 @@ pub trait VmRunnerIo: Debug + Send + Sync + 'static {
         &self,
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber>;
+
+    /// Marks the specified batch as being in progress. Must be called before a batch can be marked
+    /// as completed.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
+    async fn mark_l1_batch_as_processing(
+        &self,
+        conn: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()>;
 
     /// Marks the specified batch as the latest completed batch. All earlier batches are considered
     /// to be completed too. No guarantees about later batches.

@@ -5,11 +5,9 @@ use assert_matches::assert_matches;
 use tokio::{runtime::Runtime, sync::Barrier};
 
 use crate::{
-    service::{
-        ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
-        ZkStackServiceError,
-    },
-    task::Task,
+    service::{StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder, ZkStackServiceError},
+    task::{Task, TaskId},
+    IntoContext,
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.
@@ -30,11 +28,14 @@ struct DefaultLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for DefaultLayer {
+    type Input = ();
+    type Output = ();
+
     fn layer_name(&self) -> &'static str {
         self.name
     }
 
-    async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(())
     }
 }
@@ -87,11 +88,14 @@ struct WireErrorLayer;
 
 #[async_trait::async_trait]
 impl WiringLayer for WireErrorLayer {
+    type Input = ();
+    type Output = ();
+
     fn layer_name(&self) -> &'static str {
         "wire_error_layer"
     }
 
-    async fn wire(self: Box<Self>, _node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         Err(WiringError::Internal(anyhow!("wiring error")))
     }
 }
@@ -110,15 +114,24 @@ fn test_run_with_error_tasks() {
 #[derive(Debug)]
 struct TaskErrorLayer;
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+struct TaskErrorLayerOutput {
+    #[context(task)]
+    task: ErrorTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TaskErrorLayer {
+    type Input = ();
+    type Output = TaskErrorLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "task_error_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(Box::new(ErrorTask));
-        Ok(())
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(TaskErrorLayerOutput { task: ErrorTask })
     }
 }
 
@@ -127,8 +140,8 @@ struct ErrorTask;
 
 #[async_trait::async_trait]
 impl Task for ErrorTask {
-    fn name(&self) -> &'static str {
-        "error_task"
+    fn id(&self) -> TaskId {
+        "error_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         anyhow::bail!("error task")
@@ -150,25 +163,32 @@ struct TasksLayer {
     remaining_task_was_run: Arc<Mutex<bool>>,
 }
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+struct TasksLayerOutput {
+    #[context(task)]
+    successful_task: SuccessfulTask,
+    #[context(task)]
+    remaining_task: RemainingTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TasksLayer {
+    type Input = ();
+    type Output = TasksLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "tasks_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Barrier is needed to make sure that both tasks have started, otherwise the second task
-        // may exit even before it starts.
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         let barrier = Arc::new(Barrier::new(2));
-        node.add_task(Box::new(SuccessfulTask(
-            barrier.clone(),
-            self.successful_task_was_run.clone(),
-        )))
-        .add_task(Box::new(RemainingTask(
-            barrier.clone(),
-            self.remaining_task_was_run.clone(),
-        )));
-        Ok(())
+        let successful_task = SuccessfulTask(barrier.clone(), self.successful_task_was_run.clone());
+        let remaining_task = RemainingTask(barrier, self.remaining_task_was_run.clone());
+        Ok(TasksLayerOutput {
+            successful_task,
+            remaining_task,
+        })
     }
 }
 
@@ -178,8 +198,8 @@ struct SuccessfulTask(Arc<Barrier>, Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for SuccessfulTask {
-    fn name(&self) -> &'static str {
-        "successful_task"
+    fn id(&self) -> TaskId {
+        "successful_task".into()
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         self.0.wait().await;
@@ -196,8 +216,8 @@ struct RemainingTask(Arc<Barrier>, Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for RemainingTask {
-    fn name(&self) -> &'static str {
-        "remaining_task"
+    fn id(&self) -> TaskId {
+        "remaining_task".into()
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

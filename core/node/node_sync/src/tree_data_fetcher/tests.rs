@@ -8,74 +8,100 @@ use std::{
 };
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use test_casing::test_casing;
+use zksync_dal::Connection;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l1_batch, prepare_recovery_snapshot};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
-use super::{metrics::StepOutcomeLabel, *};
+use super::{metrics::StepOutcomeLabel, provider::TreeDataProviderResult, *};
 
 #[derive(Debug, Default)]
-struct MockMainNodeClient {
+pub(super) struct MockMainNodeClient {
     transient_error: Arc<AtomicBool>,
-    batch_details_responses: HashMap<L1BatchNumber, api::L1BatchDetails>,
+    batch_details_responses: HashMap<L1BatchNumber, H256>,
 }
 
-#[async_trait]
-impl MainNodeClient for MockMainNodeClient {
-    async fn batch_details(
-        &self,
-        number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
-        if self.transient_error.fetch_and(false, Ordering::Relaxed) {
-            let err = ClientError::RequestTimeout;
-            return Err(EnrichedClientError::new(err, "batch_details"));
-        }
-        Ok(self.batch_details_responses.get(&number).cloned())
+impl MockMainNodeClient {
+    pub fn insert_batch(&mut self, number: L1BatchNumber, root_hash: H256) {
+        self.batch_details_responses.insert(number, root_hash);
     }
 }
 
-fn mock_l1_batch_details(number: L1BatchNumber, root_hash: Option<H256>) -> api::L1BatchDetails {
-    api::L1BatchDetails {
-        number,
-        base: api::BlockDetailsBase {
-            timestamp: number.0.into(),
-            l1_tx_count: 0,
-            l2_tx_count: 10,
-            root_hash,
-            status: api::BlockStatus::Sealed,
-            commit_tx_hash: None,
-            committed_at: None,
-            prove_tx_hash: None,
-            proven_at: None,
-            execute_tx_hash: None,
-            executed_at: None,
-            l1_gas_price: 123,
-            l2_fair_gas_price: 456,
-            base_system_contracts_hashes: Default::default(),
-        },
+#[async_trait]
+impl TreeDataProvider for MockMainNodeClient {
+    async fn batch_details(
+        &mut self,
+        number: L1BatchNumber,
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
+        if self.transient_error.fetch_and(false, Ordering::Relaxed) {
+            let err = ClientError::RequestTimeout;
+            return Err(EnrichedClientError::new(err, "batch_details").into());
+        }
+        Ok(self
+            .batch_details_responses
+            .get(&number)
+            .copied()
+            .ok_or(MissingData::Batch))
     }
 }
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
+    seal_l1_batch_with_timestamp(storage, number, number.0.into()).await;
+}
+
+pub(super) async fn seal_l1_batch_with_timestamp(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+    timestamp: u64,
+) {
     let mut transaction = storage.start_transaction().await.unwrap();
+    // Insert a single L2 block belonging to the batch.
+    let mut block_header = create_l2_block(number.0);
+    block_header.timestamp = timestamp;
     transaction
         .blocks_dal()
-        .insert_mock_l1_batch(&create_l1_batch(number.0))
+        .insert_l2_block(&block_header)
         .await
         .unwrap();
+
+    let mut batch_header = create_l1_batch(number.0);
+    batch_header.timestamp = timestamp;
+    transaction
+        .blocks_dal()
+        .insert_mock_l1_batch(&batch_header)
+        .await
+        .unwrap();
+    transaction
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(batch_header.number)
+        .await
+        .unwrap();
+
     // One initial write per L1 batch
     let initial_writes = [StorageKey::new(
         AccountTreeId::new(Address::repeat_byte(1)),
         H256::from_low_u64_be(number.0.into()),
-    )];
+    )
+    .hashed_key()];
     transaction
         .storage_logs_dedup_dal()
         .insert_initial_writes(number, &initial_writes)
         .await
         .unwrap();
     transaction.commit().await.unwrap();
+}
+
+pub(super) async fn get_last_l2_block(
+    storage: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+) -> L2BlockHeader {
+    TreeDataFetcher::get_last_l2_block(storage, number)
+        .await
+        .unwrap()
 }
 
 #[derive(Debug)]
@@ -86,11 +112,12 @@ struct FetcherHarness {
 }
 
 impl FetcherHarness {
-    fn new(client: impl MainNodeClient, pool: ConnectionPool<Core>) -> Self {
+    fn new(client: impl TreeDataProvider, pool: ConnectionPool<Core>) -> Self {
         let (updates_sender, updates_receiver) = mpsc::unbounded_channel();
         let metrics = &*Box::leak(Box::<TreeDataFetcherMetrics>::default());
         let fetcher = TreeDataFetcher {
-            main_node_client: Box::new(client),
+            data_provider: CombinedDataProvider::new(client),
+            diamond_proxy_address: None,
             pool: pool.clone(),
             metrics,
             health_updater: ReactiveHealthCheck::new("tree_data_fetcher").1,
@@ -116,12 +143,13 @@ async fn tree_data_fetcher_steps() {
     let mut client = MockMainNodeClient::default();
     for number in 1..=5 {
         let number = L1BatchNumber(number);
-        let details = mock_l1_batch_details(number, Some(H256::from_low_u64_be(number.0.into())));
-        client.batch_details_responses.insert(number, details);
+        client
+            .batch_details_responses
+            .insert(number, H256::from_low_u64_be(number.0.into()));
         seal_l1_batch(&mut storage, number).await;
     }
 
-    let fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
+    let mut fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
     for number in 1..=5 {
         let step_outcome = fetcher.step().await.unwrap();
         assert_matches!(
@@ -180,12 +208,13 @@ async fn tree_data_fetcher_steps_after_snapshot_recovery() {
     let mut client = MockMainNodeClient::default();
     for i in 1..=5 {
         let number = snapshot.l1_batch_number + i;
-        let details = mock_l1_batch_details(number, Some(H256::from_low_u64_be(number.0.into())));
-        client.batch_details_responses.insert(number, details);
+        client
+            .batch_details_responses
+            .insert(number, H256::from_low_u64_be(number.0.into()));
         seal_l1_batch(&mut storage, number).await;
     }
 
-    let fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
+    let mut fetcher = FetcherHarness::new(client, pool.clone()).fetcher;
     for i in 1..=5 {
         let step_outcome = fetcher.step().await.unwrap();
         assert_matches!(
@@ -211,8 +240,9 @@ async fn tree_data_fetcher_recovers_from_transient_errors() {
     let mut client = MockMainNodeClient::default();
     for number in 1..=5 {
         let number = L1BatchNumber(number);
-        let details = mock_l1_batch_details(number, Some(H256::from_low_u64_be(number.0.into())));
-        client.batch_details_responses.insert(number, details);
+        client
+            .batch_details_responses
+            .insert(number, H256::from_low_u64_be(number.0.into()));
     }
     let transient_error = client.transient_error.clone();
 
@@ -277,21 +307,21 @@ impl SlowMainNode {
 }
 
 #[async_trait]
-impl MainNodeClient for SlowMainNode {
+impl TreeDataProvider for SlowMainNode {
     async fn batch_details(
-        &self,
+        &mut self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
+        _last_l2_block: &L2BlockHeader,
+    ) -> TreeDataProviderResult {
         if number != L1BatchNumber(1) {
-            return Ok(None);
+            return Ok(Err(MissingData::Batch));
         }
         let request_count = self.request_count.fetch_add(1, Ordering::Relaxed);
-        let root_hash = if request_count >= self.compute_root_hash_after {
-            Some(H256::repeat_byte(1))
+        Ok(if request_count >= self.compute_root_hash_after {
+            Ok(H256::repeat_byte(1))
         } else {
-            None
-        };
-        Ok(Some(mock_l1_batch_details(number, root_hash)))
+            Err(MissingData::RootHash)
+        })
     }
 }
 

@@ -38,13 +38,6 @@ impl<K: Copy> TreeInstruction<K> {
             Self::Write(entry) => entry.key,
         }
     }
-
-    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeInstruction<U> {
-        match self {
-            Self::Read(key) => TreeInstruction::Read(map_fn(key)),
-            Self::Write(entry) => TreeInstruction::Write(entry.map_key(map_fn)),
-        }
-    }
 }
 
 /// Entry in a Merkle tree associated with a key.
@@ -76,10 +69,6 @@ impl<K> TreeEntry<K> {
             value,
             leaf_index,
         }
-    }
-
-    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeEntry<U> {
-        TreeEntry::new(map_fn(&self.key), self.leaf_index, self.value)
     }
 }
 

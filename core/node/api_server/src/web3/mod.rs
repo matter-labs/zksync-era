@@ -24,7 +24,8 @@ use zksync_web3_decl::{
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
-        NetNamespaceServer, SnapshotsNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
+        NetNamespaceServer, SnapshotsNamespaceServer, UnstableNamespaceServer, Web3NamespaceServer,
+        ZksNamespaceServer,
     },
     types::Filter,
 };
@@ -37,8 +38,8 @@ use self::{
     mempool_cache::MempoolCache,
     metrics::API_METRICS,
     namespaces::{
-        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
-        ZksNamespace,
+        DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace,
+        UnstableNamespace, Web3Namespace, ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
     state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
@@ -86,8 +87,9 @@ enum ApiTransport {
     Http(SocketAddr),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum Namespace {
     Eth,
     Net,
@@ -97,6 +99,7 @@ pub enum Namespace {
     En,
     Pubsub,
     Snapshots,
+    Unstable,
 }
 
 impl Namespace {
@@ -406,8 +409,12 @@ impl ApiServer {
                 .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
-            rpc.merge(SnapshotsNamespace::new(rpc_state).into_rpc())
+            rpc.merge(SnapshotsNamespace::new(rpc_state.clone()).into_rpc())
                 .context("cannot merge snapshots namespace")?;
+        }
+        if namespaces.contains(&Namespace::Unstable) {
+            rpc.merge(UnstableNamespace::new(rpc_state).into_rpc())
+                .context("cannot merge unstable namespace")?;
         }
         Ok(rpc)
     }
@@ -539,8 +546,8 @@ impl ApiServer {
                         "Overriding max response size to {limit}B for sync method `{method_name}`"
                     );
                     let sync_method = sync_method.clone();
-                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size| {
-                        sync_method(id, params, limit)
+                    MethodCallback::Sync(Arc::new(move |id, params, _max_response_size, ext| {
+                        sync_method(id, params, limit, ext)
                     }))
                 }
                 (MethodCallback::Async(async_method), Some(limit)) => {
@@ -549,8 +556,8 @@ impl ApiServer {
                     );
                     let async_method = async_method.clone();
                     MethodCallback::Async(Arc::new(
-                        move |id, params, connection_id, _max_response_size| {
-                            async_method(id, params, connection_id, limit)
+                        move |id, params, connection_id, _max_response_size, ext| {
+                            async_method(id, params, connection_id, limit, ext)
                         },
                     ))
                 }
@@ -560,8 +567,8 @@ impl ApiServer {
                     );
                     let unsub_method = unsub_method.clone();
                     MethodCallback::Unsubscription(Arc::new(
-                        move |id, params, connection_id, _max_response_size| {
-                            unsub_method(id, params, connection_id, limit)
+                        move |id, params, connection_id, _max_response_size, ext| {
+                            unsub_method(id, params, connection_id, limit, ext)
                         },
                     ))
                 }
@@ -645,10 +652,10 @@ impl ApiServer {
         let cors = is_http.then(|| {
             CorsLayer::new()
                 // Allow `POST` when accessing the resource
-                .allow_methods([reqwest::Method::POST])
+                .allow_methods([http::Method::POST])
                 // Allow requests from any origin
                 .allow_origin(tower_http::cors::Any)
-                .allow_headers([reqwest::header::CONTENT_TYPE])
+                .allow_headers([http::header::CONTENT_TYPE])
         });
         // Setup metrics for the number of in-flight requests.
         let (in_flight_requests, counter) = InFlightRequestsLayer::pair();

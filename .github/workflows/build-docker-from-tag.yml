@@ -29,7 +29,7 @@ jobs:
       prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
       - name: Generate output with git tag
         id: set
         run: |
@@ -59,9 +59,21 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       en_alpha_release: true
 
+  build-push-tee-prover-images:
+    name: Build and push images
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/build-tee-prover-template.yml
+    if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
   build-push-contract-verifier:
     name: Build and push image
-    needs: [ setup ]
+    needs: [setup]
     uses: ./.github/workflows/build-contract-verifier-template.yml
     if: contains(github.ref_name, 'contract_verifier')
     secrets:
@@ -92,3 +104,4 @@ jobs:
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}

@@ -1,5 +1,4 @@
 use std::{
-    fmt,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -7,35 +6,24 @@ use std::{
     time::Duration,
 };
 
-use prover_dal::Prover;
 use tokio::sync::Mutex;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
+use zksync_prover_dal::Prover;
 use zksync_types::url::SensitiveUrl;
 
 use crate::resource::Resource;
 
 /// Represents a connection pool to a certain kind of database.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PoolResource<P: PoolKind> {
     connections_count: Arc<AtomicU32>,
     url: SensitiveUrl,
     max_connections: u32,
     statement_timeout: Option<Duration>,
+    acquire_timeout: Option<Duration>,
     unbound_pool: Arc<Mutex<Option<ConnectionPool<P::DbMarker>>>>,
     _kind: std::marker::PhantomData<P>,
-}
-
-impl<P: PoolKind> fmt::Debug for PoolResource<P> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PoolResource")
-            .field("connections_count", &self.connections_count)
-            .field("url", &self.url)
-            .field("max_connections", &self.max_connections)
-            .field("statement_timeout", &self.statement_timeout)
-            .field("unbound_pool", &self.unbound_pool)
-            .finish_non_exhaustive()
-    }
 }
 
 impl<P: PoolKind> Resource for PoolResource<P> {
@@ -49,12 +37,14 @@ impl<P: PoolKind> PoolResource<P> {
         url: SensitiveUrl,
         max_connections: u32,
         statement_timeout: Option<Duration>,
+        acquire_timeout: Option<Duration>,
     ) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             url,
             max_connections,
             statement_timeout,
+            acquire_timeout,
             unbound_pool: Arc::new(Mutex::new(None)),
             _kind: std::marker::PhantomData,
         }
@@ -63,6 +53,7 @@ impl<P: PoolKind> PoolResource<P> {
     fn builder(&self) -> ConnectionPoolBuilder<P::DbMarker> {
         let mut builder = ConnectionPool::builder(self.url.clone(), self.max_connections);
         builder.set_statement_timeout(self.statement_timeout);
+        builder.set_acquire_timeout(self.acquire_timeout);
         builder
     }
 

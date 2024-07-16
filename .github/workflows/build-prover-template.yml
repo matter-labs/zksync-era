@@ -32,6 +32,10 @@ on:
         type: string
         default: "89"
         required: false
+    outputs:
+      protocol_version:
+        description: "Protocol version of the binary"
+        value: ${{ jobs.build-images.outputs.protocol_version }}
 
 jobs:
   build-images:
@@ -41,7 +45,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
     strategy:
       matrix:
         component:
@@ -51,8 +55,11 @@ jobs:
           - witness-vector-generator
           - prover-fri-gateway
           - proof-fri-compressor
+          - proof-fri-gpu-compressor
+    outputs:
+      protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -68,6 +75,7 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
           ci_run sccache --start-server
 
@@ -79,10 +87,16 @@ jobs:
           ci_run zk
 
       # We need the CRS only for the fri compressor.
-      - name: download CRS
+      - name: download CRS for CPU compressor
         if: matrix.component == 'proof-fri-compressor'
         run: |
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: download CRS for GPU compressor
+        if: matrix.component == 'proof-fri-gpu-compressor'
+        run: |
+          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
+
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -101,7 +115,7 @@ jobs:
           retry_count=0
 
           while [[ $retry_count -lt $max_retries ]]; do
-            response=$(curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            response=$(run_retried curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
             http_code=$(echo "$response" | tail -n1)
 
             if [[ "$http_code" == "200" ]]; then
@@ -133,26 +147,38 @@ jobs:
           rm temp.json
           exit 1
 
+      - name: protocol-version
+        id: protocolversion
+        # TODO: use -C flag, when it will become stable.
+        shell: bash
+        run: |
+          ci_run bash -c "cd prover && cargo build --release --bin prover_version"
+          PPV=$(ci_run prover/target/release/prover_version)
+          echo Protocol version is ${PPV}
+          echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
+          echo "PROTOCOL_VERSION=${PPV}" >> $GITHUB_ENV
+
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
-        run: |          
-          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
+        run: |
+          PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH,PROTOCOL_VERSION" \
           ci_run zk docker $DOCKER_ACTION $COMPONENT
 
       - name: Show sccache stats
         if: always()
         run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
   
   copy-images:
     name: Copy images between docker registries
+    needs: build-images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
     runs-on: matterlabs-ci-runner
-    needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
@@ -176,6 +202,9 @@ jobs:
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
       - name: Login and push to Europe GAR
         run: |
@@ -183,4 +212,7 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           

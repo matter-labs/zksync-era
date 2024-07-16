@@ -1,5 +1,6 @@
 [package]
 name = "zksync_vm_runner"
+description = "ZKsync VM runner"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,14 +11,17 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-multivm.workspace = true
+zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_state_keeper.workspace = true
-vm_utils.workspace = true
+zksync_utils.workspace = true
+zksync_prover_interface.workspace = true
+zksync_object_store.workspace = true
+zksync_vm_utils.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -25,10 +29,12 @@ async-trait.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
 dashmap.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 zksync_node_test_utils.workspace = true
 zksync_node_genesis.workspace = true
+zksync_test_account.workspace = true
 backon.workspace = true
 futures = { workspace = true, features = ["compat"] }
 rand.workspace = true

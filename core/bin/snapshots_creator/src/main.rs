@@ -10,7 +10,6 @@
 //! at a time).
 
 use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
     configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
@@ -19,6 +18,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::creator::SnapshotCreator;
 
@@ -31,18 +31,18 @@ async fn maybe_enable_prometheus_metrics(
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
     let prometheus_config = PrometheusConfig::from_env().ok();
-    if let Some(prometheus_config) = prometheus_config {
-        let exporter_config = PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        );
+    match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
+        Some((Some(gateway_endpoint), push_interval)) => {
+            tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
+            let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
 
-        tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
-        Ok(Some(prometheus_exporter_task))
-    } else {
-        tracing::info!("Starting without prometheus exporter");
-        Ok(None)
+            let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
+            Ok(Some(prometheus_exporter_task))
+        }
+        _ => {
+            tracing::info!("Starting without prometheus exporter");
+            Ok(None)
+        }
     }
 }
 
@@ -55,13 +55,13 @@ async fn main() -> anyhow::Result<()> {
 
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
 
     let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
         SnapshotsObjectStoreConfig::from_env().context("SnapshotsObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await?;
 
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let creator_config =

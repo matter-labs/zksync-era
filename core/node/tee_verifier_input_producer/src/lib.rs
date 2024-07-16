@@ -11,17 +11,17 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::H256;
-use tokio::{runtime::Handle, task::JoinHandle};
-use vm_utils::storage::L1BatchParamsProvider;
+use tokio::task::JoinHandle;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_object_store::ObjectStore;
+use zksync_prover_interface::inputs::{
+    TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{PostgresStorage, ReadStorage};
-use zksync_tee_verifier::TeeVerifierInput;
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, L2BlockNumber, L2ChainId};
+use zksync_tee_verifier::Verify;
+use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use self::metrics::METRICS;
 
@@ -38,25 +38,24 @@ pub struct TeeVerifierInputProducer {
 impl TeeVerifierInputProducer {
     pub async fn new(
         connection_pool: ConnectionPool<Core>,
-        store_factory: &ObjectStoreFactory,
+        object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         Ok(TeeVerifierInputProducer {
             connection_pool,
-            object_store: store_factory.create_store().await,
+            object_store,
             l2_chain_id,
         })
     }
 
     async fn process_job_impl(
-        rt_handle: Handle,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         connection_pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<TeeVerifierInput> {
-        let prepare_basic_circuits_job: PrepareBasicCircuitsJob = object_store
+        let prepare_basic_circuits_job: WitnessInputMerklePaths = object_store
             .get(l1_batch_number)
             .await
             .context("failed to get PrepareBasicCircuitsJob from object store")?;
@@ -71,8 +70,6 @@ impl TeeVerifierInputProducer {
             .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
             .await?;
 
-        let last_batch_miniblock_number = l2_blocks_execution_data.first().unwrap().number - 1;
-
         let l1_batch_header = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -80,7 +77,9 @@ impl TeeVerifierInputProducer {
             .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?
             .unwrap();
 
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut connection)
             .await
             .context("failed initializing L1 batch params provider")?;
 
@@ -107,23 +106,33 @@ impl TeeVerifierInputProducer {
             .await
             .context("expected miniblock to be executed and sealed")?;
 
-        // need a new connection in the next block
-        drop(connection);
+        let used_contract_hashes = l1_batch_header
+            .used_contract_hashes
+            .into_iter()
+            .map(u256_to_h256)
+            .collect();
 
-        // `PostgresStorage` needs a blocking context
-        let used_contracts = rt_handle
-            .spawn_blocking(move || {
-                Self::get_used_contracts(
-                    last_batch_miniblock_number,
-                    l1_batch_header,
-                    connection_pool,
-                )
-            })
-            .await??;
+        // `get_factory_deps()` returns the bytecode in chunks of `Vec<[u8; 32]>`,
+        // but `fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>)` in `InMemoryStorage` wants flat byte vecs.
+        pub fn into_flattened<T: Clone, const N: usize>(data: Vec<[T; N]>) -> Vec<T> {
+            let mut new = Vec::new();
+            for slice in data.iter() {
+                new.extend_from_slice(slice);
+            }
+            new
+        }
+
+        let used_contracts = connection
+            .factory_deps_dal()
+            .get_factory_deps(&used_contract_hashes)
+            .await
+            .into_iter()
+            .map(|(hash, bytes)| (u256_to_h256(hash), into_flattened(bytes)))
+            .collect();
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 
-        let tee_verifier_input = TeeVerifierInput::new(
+        let tee_verifier_input = V1TeeVerifierInput::new(
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
             l1_batch_env,
@@ -144,32 +153,7 @@ impl TeeVerifierInputProducer {
             l1_batch_number.0
         );
 
-        Ok(tee_verifier_input)
-    }
-
-    fn get_used_contracts(
-        last_batch_miniblock_number: L2BlockNumber,
-        l1_batch_header: L1BatchHeader,
-        connection_pool: ConnectionPool<Core>,
-    ) -> anyhow::Result<Vec<(H256, Vec<u8>)>> {
-        let rt_handle = Handle::current();
-
-        let connection = rt_handle
-            .block_on(connection_pool.connection())
-            .context("failed to get connection for TeeVerifierInputProducer")?;
-
-        let mut pg_storage =
-            PostgresStorage::new(rt_handle, connection, last_batch_miniblock_number, true);
-
-        Ok(l1_batch_header
-            .used_contract_hashes
-            .into_iter()
-            .filter_map(|hash| {
-                pg_storage
-                    .load_factory_dep(u256_to_h256(hash))
-                    .map(|bytes| (u256_to_h256(hash), bytes))
-            })
-            .collect())
+        Ok(TeeVerifierInput::new(tee_verifier_input))
     }
 }
 
@@ -217,9 +201,7 @@ impl JobProcessor for TeeVerifierInputProducer {
         let connection_pool = self.connection_pool.clone();
         let object_store = self.object_store.clone();
         tokio::task::spawn(async move {
-            let rt_handle = Handle::current();
             Self::process_job_impl(
-                rt_handle,
                 job,
                 started_at,
                 connection_pool.clone(),
@@ -236,15 +218,13 @@ impl JobProcessor for TeeVerifierInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
+        let observer: vise::LatencyObserver = METRICS.upload_input_time.start();
         let object_path = self
             .object_store
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for TeeVerifierInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
+        observer.observe();
         let mut connection = self
             .connection_pool
             .connection()
@@ -260,10 +240,14 @@ impl JobProcessor for TeeVerifierInputProducer {
             .await
             .context("failed to mark job as successful for TeeVerifierInputProducer")?;
         transaction
+            .tee_proof_generation_dal()
+            .insert_tee_proof_generation_job(job_id)
+            .await?;
+        transaction
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as u64);
         Ok(())
     }
 

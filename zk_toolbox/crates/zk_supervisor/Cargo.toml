@@ -1,0 +1,24 @@
+[package]
+name = "zk_supervisor"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+authors.workspace = true
+exclude.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+common.workspace = true
+config.workspace = true
+human-panic.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tokio.workspace = true
+url.workspace = true
+xshell.workspace = true
+serde.workspace = true

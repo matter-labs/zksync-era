@@ -193,6 +193,11 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("scheduler_generation_timeout_in_secs")?,
+            prometheus_listener_port: self
+                .prometheus_listener_port
+                .map(|x| x.try_into())
+                .transpose()
+                .context("prometheus_listener_port")?,
         })
     }
 
@@ -213,6 +218,7 @@ impl ProtoRepr for proto::WitnessGenerator {
             scheduler_generation_timeout_in_secs: this
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),
+            prometheus_listener_port: this.prometheus_listener_port.map(|x| x.into()),
         }
     }
 }
@@ -289,7 +295,12 @@ impl proto::SetupLoadMode {
 impl ProtoRepr for proto::Prover {
     type Type = configs::FriProverConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let object_store = if let Some(object_store) = &self.object_store {
+        let public_object_store = if let Some(object_store) = &self.public_object_store {
+            Some(object_store.read()?)
+        } else {
+            None
+        };
+        let prover_object_store = if let Some(object_store) = &self.prover_object_store {
             Some(object_store.read()?)
         } else {
             None
@@ -325,7 +336,8 @@ impl ProtoRepr for proto::Prover {
             availability_check_interval_in_secs: self.availability_check_interval_in_secs,
             shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
                 .context("shall_save_to_public_bucket")?,
-            object_store,
+            public_object_store,
+            prover_object_store,
         })
     }
 
@@ -342,7 +354,8 @@ impl ProtoRepr for proto::Prover {
             zone_read_url: Some(this.zone_read_url.clone()),
             availability_check_interval_in_secs: this.availability_check_interval_in_secs,
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
-            object_store: this.object_store.as_ref().map(ProtoRepr::build),
+            prover_object_store: this.prover_object_store.as_ref().map(ProtoRepr::build),
+            public_object_store: this.public_object_store.as_ref().map(ProtoRepr::build),
         }
     }
 }

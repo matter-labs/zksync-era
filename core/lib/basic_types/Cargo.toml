@@ -1,6 +1,7 @@
 [package]
 name = "zksync_basic_types"
-version = "0.1.0"
+description = "ZKsync primitive types"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -21,6 +22,7 @@ strum = { workspace = true, features = ["derive"] }
 num_enum.workspace = true
 anyhow.workspace = true
 url = { workspace = true, features = ["serde"] }
+serde_with.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true

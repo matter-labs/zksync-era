@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
-import { confirmAction } from './utils';
+import { confirmAction } from 'utils';
 import * as down from './down';
 
 export function clean(path: string) {

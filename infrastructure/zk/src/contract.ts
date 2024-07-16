@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
 
@@ -155,6 +155,7 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_GENESIS_UPGRADE_ADDR',
         'CONTRACTS_GOVERNANCE_ADDR',
+        'CONTRACTS_CHAIN_ADMIN_ADDR',
         'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',

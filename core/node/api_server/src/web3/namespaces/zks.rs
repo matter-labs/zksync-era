@@ -1,10 +1,10 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use multivm::interface::VmExecutionResultAndLogs;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
@@ -29,7 +29,10 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState};
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+};
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -399,15 +402,20 @@ impl ZksNamespace {
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
             .map_err(DalError::generalize)?;
-        drop(storage);
 
         if tx_details.is_none() {
-            tx_details = self.state.tx_sink().lookup_tx_details(hash).await?;
+            tx_details = self
+                .state
+                .tx_sink()
+                .lookup_tx_details(&mut storage, hash)
+                .await?;
         }
         Ok(tx_details)
     }
@@ -492,11 +500,11 @@ impl ZksNamespace {
             .state
             .tree_api
             .as_deref()
-            .ok_or(Web3Error::TreeApiUnavailable)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let proofs_result = tree_api.get_proofs(l1_batch_number, hashed_keys).await;
         let proofs = match proofs_result {
             Ok(proofs) => proofs,
-            Err(TreeApiError::NotReady) => return Err(Web3Error::TreeApiUnavailable),
+            Err(TreeApiError::NotReady(_)) => return Err(Web3Error::TreeApiUnavailable),
             Err(TreeApiError::NoVersion(err)) => {
                 return if err.missing_version > err.version_count {
                     Ok(None)
@@ -536,7 +544,7 @@ impl ZksNamespace {
         self.state
             .api_config
             .base_token_address
-            .ok_or(Web3Error::NotImplemented)
+            .ok_or(Web3Error::MethodNotImplemented)
     }
 
     #[tracing::instrument(skip(self))]

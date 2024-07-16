@@ -16,9 +16,9 @@ use zksync_types::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, Address, StorageKey, StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    AccountTreeId, Address, StorageKey, StorageLogKind, BOOTLOADER_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
@@ -55,6 +55,35 @@ pub(crate) fn storage_key_of_log(query: &LogQuery) -> StorageKey {
     triplet_to_storage_key(query.shard_id, query.address, query.key)
 }
 
+/// The same struct as `zk_evm_1_5_0::aux_structures::LogQuery`, but without the fields that
+/// are not needed to maintain the frame stack of the transient storage.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ReducedTstoreLogQuery {
+    shard_id: u8,
+    address: Address,
+    key: U256,
+    written_value: U256,
+    read_value: U256,
+    rw_flag: bool,
+    timestamp: Timestamp,
+    rollback: bool,
+}
+
+impl From<LogQuery> for ReducedTstoreLogQuery {
+    fn from(query: LogQuery) -> Self {
+        Self {
+            shard_id: query.shard_id,
+            address: query.address,
+            key: query.key,
+            written_value: query.written_value,
+            read_value: query.read_value,
+            rw_flag: query.rw_flag,
+            timestamp: query.timestamp,
+            rollback: query.rollback,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // Access to the persistent storage. Please note that it
@@ -67,7 +96,8 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     pub(crate) storage_frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 
-    pub(crate) transient_storage_frames_stack: AppDataFrameManagerWithHistory<Box<LogQuery>, H>,
+    pub(crate) transient_storage_frames_stack:
+        AppDataFrameManagerWithHistory<Box<ReducedTstoreLogQuery>, H>,
 
     // The changes that have been paid for in the current transaction.
     // It is a mapping from storage key to the number of *bytes* that was paid by the user
@@ -100,6 +130,7 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.storage.rollback_to_timestamp(timestamp);
         self.storage_frames_stack.rollback_to_timestamp(timestamp);
+        self.transient_storage.rollback_to_timestamp(timestamp);
         self.transient_storage_frames_stack
             .rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
@@ -157,7 +188,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     fn record_storage_read(&mut self, query: LogQuery) {
         let storage_log_query = StorageLogQuery {
             log_query: query,
-            log_type: StorageLogQueryType::Read,
+            log_type: StorageLogKind::Read,
         };
 
         self.storage_frames_stack
@@ -175,9 +206,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         let is_initial_write = self.storage.get_ptr().borrow_mut().is_write_initial(&key);
         let log_query_type = if is_initial_write {
-            StorageLogQueryType::InitialWrite
+            StorageLogKind::InitialWrite
         } else {
-            StorageLogQueryType::RepeatedWrite
+            StorageLogKind::RepeatedWrite
         };
 
         let mut storage_log_query = StorageLogQuery {
@@ -191,12 +222,12 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .push_rollback(Box::new(storage_log_query), query.timestamp);
     }
 
-    fn record_transient_storage_read(&mut self, query: LogQuery) {
+    fn record_transient_storage_read(&mut self, query: ReducedTstoreLogQuery) {
         self.transient_storage_frames_stack
             .push_forward(Box::new(query), query.timestamp);
     }
 
-    fn write_transient_storage_value(&mut self, mut query: LogQuery) {
+    fn write_transient_storage_value(&mut self, mut query: ReducedTstoreLogQuery) {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
 
         self.transient_storage
@@ -401,9 +432,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
         if query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             if query.rw_flag {
-                self.write_transient_storage_value(query);
+                self.write_transient_storage_value(query.into());
             } else {
-                self.record_transient_storage_read(query);
+                self.record_transient_storage_read(query.into());
             }
         } else if query.aux_byte == STORAGE_AUX_BYTE {
             if query.rw_flag {
@@ -467,12 +498,12 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 .rev()
             {
                 let read_value = match query.log_type {
-                    StorageLogQueryType::Read => {
+                    StorageLogKind::Read => {
                         // Having Read logs in rollback is not possible
                         tracing::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
-                    StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
+                    StorageLogKind::InitialWrite | StorageLogKind::RepeatedWrite => {
                         query.log_query.read_value
                     }
                 };
@@ -539,7 +570,26 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
     }
 
     fn start_new_tx(&mut self, timestamp: Timestamp) {
-        self.transient_storage.zero_out(timestamp);
+        // Here we perform zeroing out the storage, while maintaining history about it,
+        // making it reversible.
+        //
+        // Note that while the history is preserved, the inner parts are fully cleared out.
+        // TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
+
+        let current_active_keys = self.transient_storage.drain_inner();
+        for (key, current_value) in current_active_keys {
+            self.write_transient_storage_value(ReducedTstoreLogQuery {
+                // We currently only support rollup shard id
+                shard_id: 0,
+                address: *key.address(),
+                key: h256_to_u256(*key.key()),
+                written_value: U256::zero(),
+                read_value: current_value,
+                rw_flag: true,
+                timestamp,
+                rollback: false,
+            })
+        }
     }
 }
 

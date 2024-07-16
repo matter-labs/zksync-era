@@ -18,8 +18,9 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::web3::{
-    backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter,
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -52,7 +53,7 @@ impl EthNamespace {
 
     pub async fn call_impl(
         &self,
-        request: CallRequest,
+        mut request: CallRequest,
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
@@ -70,8 +71,25 @@ impl EthNamespace {
         );
         drop(connection);
 
+        if request.gas.is_none() {
+            request.gas = Some(
+                self.state
+                    .tx_sender
+                    .get_default_eth_call_gas(block_args)
+                    .await
+                    .map_err(Web3Error::InternalError)?
+                    .into(),
+            )
+        }
+        let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
-        let call_result = self.state.tx_sender.eth_call(block_args, tx).await?;
+
+        // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
+        let call_result: Vec<u8> = self
+            .state
+            .tx_sender
+            .eth_call(block_args, call_overrides, tx)
+            .await?;
         Ok(call_result.into())
     }
 
@@ -179,7 +197,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = installed_filters.lock().await.get_and_update_stats(idx);
 
@@ -206,8 +224,15 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // Shortcut here on a somewhat unlikely case of the client requesting a pending block.
+            // Otherwise, since we don't read DB data in a transaction,
+            // we might resolve a block number to a block that will be inserted to the DB immediately after,
+            // and return `Ok(Some(_))`.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -271,8 +296,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -302,8 +331,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -374,7 +407,7 @@ impl EthNamespace {
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&storage_key, block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         Ok(value)
@@ -431,6 +464,9 @@ impl EthNamespace {
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
+
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
             TransactionId::Hash(hash) => storage
@@ -440,6 +476,11 @@ impl EthNamespace {
                 .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
+                if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+                    // See `get_block_impl()` for an explanation why this check is needed.
+                    return Ok(None);
+                }
+
                 let Ok(idx) = u32::try_from(idx) else {
                     return Ok(None); // index overflow means no transaction
                 };
@@ -460,7 +501,7 @@ impl EthNamespace {
         };
 
         if transaction.is_none() {
-            transaction = self.state.tx_sink().lookup_tx(id).await?;
+            transaction = self.state.tx_sink().lookup_tx(&mut storage, id).await?;
         }
         Ok(transaction)
     }
@@ -483,7 +524,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let mut storage = self.state.acquire_connection().await?;
         let last_block_number = storage
             .blocks_dal()
@@ -505,7 +546,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
@@ -525,7 +566,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters
             .lock()
             .await
@@ -539,7 +580,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         let mut filter = installed_filters
             .lock()
             .await
@@ -565,7 +606,7 @@ impl EthNamespace {
             .state
             .installed_filters
             .as_ref()
-            .ok_or(Web3Error::NotImplemented)?;
+            .ok_or(Web3Error::MethodNotImplemented)?;
         Ok(installed_filters.lock().await.remove(idx))
     }
 
@@ -647,6 +688,10 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
+        let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
@@ -654,6 +699,8 @@ impl EthNamespace {
             base_fee_per_gas,
             gas_used_ratio,
             reward,
+            base_fee_per_blob_gas,
+            blob_gas_used_ratio,
         })
     }
 
@@ -799,17 +846,17 @@ impl EthNamespace {
     }
 
     pub fn uncle_count_impl(&self, _block: BlockId) -> Option<U256> {
-        // We don't have uncles in zkSync.
+        // We don't have uncles in ZKsync.
         Some(0.into())
     }
 
     pub fn hashrate_impl(&self) -> U256 {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         U256::zero()
     }
 
     pub fn mining_impl(&self) -> bool {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         false
     }
 

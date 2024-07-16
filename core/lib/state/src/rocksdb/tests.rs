@@ -40,6 +40,12 @@ impl Default for RocksdbStorageEventListener {
     }
 }
 
+fn hash_storage_log_keys(logs: &HashMap<StorageKey, H256>) -> HashMap<H256, H256> {
+    logs.iter()
+        .map(|(key, value)| (key.hashed_key(), *value))
+        .collect()
+}
+
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
@@ -50,10 +56,11 @@ async fn rocksdb_storage_basics() {
         .into_iter()
         .map(|log| (log.key, log.value))
         .collect();
-    let changed_keys = RocksdbStorage::process_transaction_logs(&storage.db, storage_logs.clone());
+    let changed_keys =
+        RocksdbStorage::process_transaction_logs(&storage.db, hash_storage_log_keys(&storage_logs));
     storage.pending_patch.state = changed_keys
         .into_iter()
-        .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
+        .map(|(key, state_value)| (key, (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
     storage.save(Some(L1BatchNumber(0))).await.unwrap();
     {
@@ -64,13 +71,14 @@ async fn rocksdb_storage_basics() {
     }
 
     // Overwrite some of the logs.
-    for log in storage_logs.values_mut().step_by(2) {
-        *log = StorageValue::zero();
+    for log_value in storage_logs.values_mut().step_by(2) {
+        *log_value = StorageValue::zero();
     }
-    let changed_keys = RocksdbStorage::process_transaction_logs(&storage.db, storage_logs.clone());
+    let changed_keys =
+        RocksdbStorage::process_transaction_logs(&storage.db, hash_storage_log_keys(&storage_logs));
     storage.pending_patch.state = changed_keys
         .into_iter()
-        .map(|(key, state_value)| (key.hashed_key(), (state_value.value, 1))) // enum index doesn't matter in the test
+        .map(|(key, state_value)| (key, (state_value.value, 1))) // enum index doesn't matter in the test
         .collect();
     storage.save(Some(L1BatchNumber(1))).await.unwrap();
 

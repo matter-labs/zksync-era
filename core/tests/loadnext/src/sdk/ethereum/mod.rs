@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface,
+    Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -17,7 +18,7 @@ use zksync_types::{
     Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::{
-    client::Client,
+    client::{Client, DynClient, L1},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -102,8 +103,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(l1_chain_id.into())
             .build();
+        let query_client: Box<DynClient<L1>> = Box::new(query_client);
         let eth_client = SigningClient::new(
-            Box::new(query_client).for_component("provider"),
+            query_client.for_component("provider"),
             hyperchain_contract(),
             eth_addr,
             eth_signer,
@@ -129,11 +131,11 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
-    pub fn query_client(&self) -> &dyn EthInterface {
+    pub fn query_client(&self) -> &DynClient<L1> {
         self.eth_client.as_ref()
     }
 
-    /// Returns the zkSync contract address.
+    /// Returns the ZKsync contract address.
     pub fn contract_address(&self) -> H160 {
         self.client().contract_addr()
     }
@@ -157,7 +159,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .call(self.query_client())
             .await
             .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                ContractCallError::EthereumGateway(err) => {
+                    ClientError::NetworkError(err.to_string())
+                }
                 _ => ClientError::MalformedResponse(err.to_string()),
             })
     }
@@ -192,7 +196,9 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .call(self.query_client())
             .await
             .map_err(|err| match err {
-                Error::EthereumGateway(err) => ClientError::NetworkError(err.to_string()),
+                ContractCallError::EthereumGateway(err) => {
+                    ClientError::NetworkError(err.to_string())
+                }
                 _ => ClientError::MalformedResponse(err.to_string()),
             })
     }
@@ -266,7 +272,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Performs a transfer of funds from one Ethereum account to another.
-    /// Note: This operation is performed on Ethereum, and not related to zkSync directly.
+    /// Note: This operation is performed on Ethereum, and not related to ZKsync directly.
     pub async fn transfer(
         &self,
         token_address: Address,
@@ -359,7 +365,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         gas_limit: U256,
         gas_per_pubdata_byte: u32,
         gas_price: Option<U256>,
-    ) -> Result<U256, Error> {
+    ) -> Result<U256, ContractCallError> {
         let gas_price = if let Some(gas_price) = gas_price {
             gas_price
         } else {
@@ -437,7 +443,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         Ok(tx_hash)
     }
 
-    /// Performs a deposit in zkSync network.
+    /// Performs a deposit in ZKsync network.
     /// For ERC20 tokens, a deposit must be approved beforehand via the `EthereumProvider::approve_erc20_token_deposits` method.
     #[allow(clippy::too_many_arguments)]
     pub async fn deposit(

@@ -7,12 +7,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::{
-    core::{client::ClientT, params::BatchRequestBuilder, ClientError},
-    rpc_params,
-    types::{error::OVERSIZED_RESPONSE_CODE, ErrorObjectOwned},
-};
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{
@@ -23,6 +17,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -47,7 +42,15 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
+    jsonrpsee::{
+        core::{client::ClientT, params::BatchRequestBuilder, ClientError},
+        http_client::HttpClient,
+        rpc_params,
+        types::{
+            error::{ErrorCode, OVERSIZED_RESPONSE_CODE},
+            ErrorObjectOwned,
+        },
+    },
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -70,13 +73,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 async fn setting_response_size_limits() {
     let mut rpc_module = RpcModule::new(());
     rpc_module
-        .register_method("test_limited", |params, _ctx| {
+        .register_method("test_limited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
         .unwrap();
     rpc_module
-        .register_method("test_unlimited", |params, _ctx| {
+        .register_method("test_unlimited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
@@ -670,7 +673,7 @@ impl HttpTest for TransactionCountTest {
             );
             storage
                 .storage_logs_dal()
-                .insert_storage_logs(l2_block_number, &[(H256::zero(), vec![nonce_log])])
+                .insert_storage_logs(l2_block_number, &[nonce_log])
                 .await?;
         }
 
@@ -884,7 +887,7 @@ impl HttpTest for AllAccountBalancesTest {
         let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
+            .insert_storage_logs(L2BlockNumber(1), &[eth_balance_log])
             .await?;
         // Create a custom token, but don't set balance for it yet.
         let custom_token = TokenInfo {
@@ -910,7 +913,7 @@ impl HttpTest for AllAccountBalancesTest {
             StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![token_balance_log])])
+            .insert_storage_logs(L2BlockNumber(2), &[token_balance_log])
             .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
@@ -951,7 +954,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_blockNumber");
         assert_eq!(calls[0].metadata.block_id, None);
         assert_eq!(calls[0].metadata.block_diff, None);
@@ -962,7 +965,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -975,7 +978,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -984,59 +987,42 @@ impl HttpTest for RpcCallsTracingTest {
         assert_eq!(calls[0].metadata.block_diff, None);
 
         // Check protocol-level errors.
-        ClientT::request::<serde_json::Value, _>(
-            &client,
-            "eth_unknownMethod",
-            jsonrpsee::rpc_params![],
-        )
-        .await
-        .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(&client, "eth_unknownMethod", rpc_params![])
+            .await
+            .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::MethodNotFound.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::MethodNotFound.code()));
         assert!(!calls[0].metadata.has_app_error);
 
-        ClientT::request::<serde_json::Value, _>(
-            &client,
-            "eth_getBlockByNumber",
-            jsonrpsee::rpc_params![0],
-        )
-        .await
-        .unwrap_err();
+        ClientT::request::<serde_json::Value, _>(&client, "eth_getBlockByNumber", rpc_params![0])
+            .await
+            .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(!calls[0].metadata.has_app_error);
 
         // Check app-level error.
         ClientT::request::<serde_json::Value, _>(
             &client,
             "eth_getFilterLogs",
-            jsonrpsee::rpc_params![U256::from(1)],
+            rpc_params![U256::from(1)],
         )
         .await
         .unwrap_err();
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(calls[0].metadata.has_app_error);
 
         // Check batch RPC request.
         let mut batch = BatchRequestBuilder::new();
-        batch.insert("eth_blockNumber", jsonrpsee::rpc_params![])?;
-        batch.insert("zks_L1BatchNumber", jsonrpsee::rpc_params![])?;
+        batch.insert("eth_blockNumber", rpc_params![])?;
+        batch.insert("zks_L1BatchNumber", rpc_params![])?;
         let response = ClientT::batch_request::<U64>(&client, batch).await?;
         for response_part in response {
             assert_eq!(response_part.unwrap(), U64::from(0));

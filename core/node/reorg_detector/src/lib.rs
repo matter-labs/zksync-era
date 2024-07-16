@@ -41,6 +41,12 @@ pub enum HashMatchError {
     Internal(#[from] anyhow::Error),
 }
 
+impl From<DalError> for HashMatchError {
+    fn from(err: DalError) -> Self {
+        Self::Internal(err.generalize())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -82,6 +88,12 @@ impl Error {
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
         Self::HashMatch(HashMatchError::Internal(err))
+    }
+}
+
+impl From<DalError> for Error {
+    fn from(err: DalError) -> Self {
+        Self::HashMatch(HashMatchError::Internal(err.generalize()))
     }
 }
 
@@ -255,21 +267,15 @@ impl ReorgDetector {
     }
 
     async fn check_consistency(&mut self) -> Result<(), Error> {
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection().await?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_tree_data()
-            .await
-            .map_err(DalError::generalize)?
+            .await?
         else {
             return Ok(());
         };
-        let Some(local_l2_block) = storage
-            .blocks_dal()
-            .get_sealed_l2_block_number()
-            .await
-            .map_err(DalError::generalize)?
-        else {
+        let Some(local_l2_block) = storage.blocks_dal().get_sealed_l2_block_number().await? else {
             return Ok(());
         };
         drop(storage);
@@ -299,12 +305,11 @@ impl ReorgDetector {
 
         // Check that the first L1 batch matches, to make sure that
         // we are actually tracking the same chain as the main node.
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection().await?;
         let first_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
-            .await
-            .map_err(DalError::generalize)?
+            .await?
             .context("all L1 batches disappeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
@@ -324,12 +329,11 @@ impl ReorgDetector {
 
     /// Compares hashes of the given local L2 block and the same L2 block from main node.
     async fn l2_block_hashes_match(&self, l2_block: L2BlockNumber) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection().await?;
         let local_hash = storage
             .blocks_dal()
             .get_l2_block_header(l2_block)
-            .await
-            .map_err(DalError::generalize)?
+            .await?
             .with_context(|| format!("Header does not exist for local L2 block #{l2_block}"))?
             .hash;
         drop(storage);
@@ -353,12 +357,11 @@ impl ReorgDetector {
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.connection().await.context("connection()")?;
+        let mut storage = self.pool.connection().await?;
         let local_hash = storage
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)
-            .await
-            .map_err(DalError::generalize)?
+            .await?
             .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
@@ -372,7 +375,34 @@ impl ReorgDetector {
         Ok(remote_hash == local_hash)
     }
 
-    /// Localizes a re-org: performs binary search to determine the last non-diverged block.
+    /// Because the node can fetch L1 batch root hash from an external source using the tree data fetcher, there's no strict guarantee
+    /// that L1 batch root hashes can necessarily be binary searched on their own (i.e., that there exists N such that root hashes of the first N batches match
+    /// on the main node and this node, and root hashes of L1 batches N + 1, N + 2, ... diverge). The tree data fetcher makes a reasonable attempt
+    /// to detect a reorg and to not persist root hashes for diverging L1 batches, but we don't trust this logic to work in all cases (yet?).
+    ///
+    /// Hence, we perform binary search both by L1 root hashes and the last L2 block hash in the batch; unlike L1 batches, L2 block hashes are *always* fully computed
+    /// based only on data locally processed by the node. Additionally, an L2 block hash of the last block in a batch encompasses a reasonably large part of L1 batch contents.
+    async fn root_hashes_and_contents_match(
+        &self,
+        l1_batch: L1BatchNumber,
+    ) -> Result<bool, HashMatchError> {
+        let root_hashes_match = self.root_hashes_match(l1_batch).await?;
+        if !root_hashes_match {
+            return Ok(false);
+        }
+
+        let mut storage = self.pool.connection().await?;
+        let (_, last_l2_block_in_batch) = storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch)
+            .await?
+            .with_context(|| format!("L1 batch #{l1_batch} does not have L2 blocks"))?;
+        drop(storage);
+
+        self.l2_block_hashes_match(last_l2_block_in_batch).await
+    }
+
+    /// Localizes a re-org: performs binary search to determine the last non-diverged L1 batch.
     async fn detect_reorg(
         &self,
         known_valid_l1_batch: L1BatchNumber,
@@ -384,7 +414,10 @@ impl ReorgDetector {
             known_valid_l1_batch.0,
             diverged_l1_batch.0,
             |number| async move {
-                match self.root_hashes_match(L1BatchNumber(number)).await {
+                match self
+                    .root_hashes_and_contents_match(L1BatchNumber(number))
+                    .await
+                {
                     Err(HashMatchError::MissingData(_)) => Ok(true),
                     res => res,
                 }

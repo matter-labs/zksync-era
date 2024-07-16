@@ -1,9 +1,14 @@
 //! Test utils.
 
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt, future,
+    sync::{Arc, RwLock},
+};
 
 use async_trait::async_trait;
-use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use tokio::sync::watch;
+use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError, StoredObject};
 use zksync_types::{
     api,
     block::L2BlockHeader,
@@ -15,11 +20,33 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     web3::Bytes,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageValue, H160, H256,
+    StorageValue, H256,
 };
-use zksync_web3_decl::error::EnrichedClientResult;
+use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::SnapshotsApplierMainNodeClient;
+
+pub(super) trait SnapshotLogKey: Clone {
+    const VERSION: SnapshotVersion;
+
+    fn random() -> Self;
+}
+
+impl SnapshotLogKey for H256 {
+    const VERSION: SnapshotVersion = SnapshotVersion::Version1;
+
+    fn random() -> Self {
+        Self::random()
+    }
+}
+
+impl SnapshotLogKey for StorageKey {
+    const VERSION: SnapshotVersion = SnapshotVersion::Version0;
+
+    fn random() -> Self {
+        Self::new(AccountTreeId::new(Address::random()), H256::random())
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct MockMainNodeClient {
@@ -27,6 +54,19 @@ pub(super) struct MockMainNodeClient {
     pub fetch_l2_block_responses: HashMap<L2BlockNumber, api::BlockDetails>,
     pub fetch_newest_snapshot_response: Option<SnapshotHeader>,
     pub tokens_response: Vec<TokenInfo>,
+    pub tokens_response_error: Arc<RwLock<Option<EnrichedClientError>>>,
+}
+
+impl MockMainNodeClient {
+    /// Sets the error to be returned by the `fetch_tokens` method.
+    /// Error will be returned just once. Next time the request will succeed.
+    pub(super) fn set_token_response_error(&self, error: EnrichedClientError) {
+        *self.tokens_response_error.write().unwrap() = Some(error);
+    }
+
+    fn take_token_response_error(&self) -> Option<EnrichedClientError> {
+        self.tokens_response_error.write().unwrap().take()
+    }
 }
 
 #[async_trait]
@@ -45,14 +85,33 @@ impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
 
-    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
-        Ok(self.fetch_newest_snapshot_response.clone())
+    async fn fetch_newest_snapshot_l1_batch_number(
+        &self,
+    ) -> EnrichedClientResult<Option<L1BatchNumber>> {
+        Ok(self
+            .fetch_newest_snapshot_response
+            .as_ref()
+            .map(|response| response.l1_batch_number))
+    }
+
+    async fn fetch_snapshot(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        Ok(self
+            .fetch_newest_snapshot_response
+            .clone()
+            .filter(|response| response.l1_batch_number == l1_batch_number))
     }
 
     async fn fetch_tokens(
         &self,
         _at_l2_block: L2BlockNumber,
     ) -> EnrichedClientResult<Vec<TokenInfo>> {
+        if let Some(error) = self.take_token_response_error() {
+            return Err(error);
+        }
+
         Ok(self.tokens_response.clone())
     }
 }
@@ -140,6 +199,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        fair_pubdata_price: None,
         base_system_contracts_hashes: Default::default(),
     }
 }
@@ -165,16 +225,13 @@ fn l1_batch_details(number: L1BatchNumber, root_hash: H256) -> api::L1BatchDetai
     }
 }
 
-pub(super) fn random_storage_logs(
+pub(super) fn random_storage_logs<K: SnapshotLogKey>(
     l1_batch_number: L1BatchNumber,
     count: u64,
-) -> Vec<SnapshotStorageLog> {
+) -> Vec<SnapshotStorageLog<K>> {
     (0..count)
         .map(|i| SnapshotStorageLog {
-            key: StorageKey::new(
-                AccountTreeId::from_fixed_bytes(H160::random().to_fixed_bytes()),
-                H256::random(),
-            ),
+            key: K::random(),
             value: StorageValue::random(),
             l1_batch_number_of_initial_write: l1_batch_number,
             enumeration_index: i + 1,
@@ -218,31 +275,33 @@ pub(super) fn mock_tokens() -> Vec<TokenInfo> {
     ]
 }
 
-pub(super) fn mock_snapshot_header(status: &SnapshotRecoveryStatus) -> SnapshotHeader {
+pub(super) fn mock_snapshot_header(
+    version: u16,
+    status: &SnapshotRecoveryStatus,
+) -> SnapshotHeader {
     SnapshotHeader {
-        version: SnapshotVersion::Version0.into(),
+        version,
         l1_batch_number: status.l1_batch_number,
         l2_block_number: status.l2_block_number,
-        storage_logs_chunks: vec![
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 0,
-                filepath: "file0".to_string(),
-            },
-            SnapshotStorageLogsChunkMetadata {
-                chunk_id: 1,
-                filepath: "file1".to_string(),
-            },
-        ],
+        storage_logs_chunks: (0..status.storage_logs_chunks_processed.len() as u64)
+            .map(|chunk_id| SnapshotStorageLogsChunkMetadata {
+                chunk_id,
+                filepath: format!("file{chunk_id}"),
+            })
+            .collect(),
         factory_deps_filepath: "some_filepath".to_string(),
     }
 }
 
-pub(super) async fn prepare_clients(
+pub(super) async fn prepare_clients<K>(
     status: &SnapshotRecoveryStatus,
-    logs: &[SnapshotStorageLog],
-) -> (Arc<dyn ObjectStore>, MockMainNodeClient) {
-    let object_store_factory = ObjectStoreFactory::mock();
-    let object_store = object_store_factory.create_store().await;
+    logs: &[SnapshotStorageLog<K>],
+) -> (Arc<dyn ObjectStore>, MockMainNodeClient)
+where
+    K: SnapshotLogKey,
+    for<'a> SnapshotStorageLogsChunk<K>: StoredObject<Key<'a> = SnapshotStorageLogsStorageKey>,
+{
+    let object_store = MockObjectStore::arc();
     let mut client = MockMainNodeClient::default();
     let factory_dep_bytes: Vec<u8> = (0..32).collect();
     let factory_deps = SnapshotFactoryDependencies {
@@ -274,7 +333,7 @@ pub(super) async fn prepare_clients(
             .unwrap();
     }
 
-    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(status));
+    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(K::VERSION.into(), status));
     client.fetch_l1_batch_responses.insert(
         status.l1_batch_number,
         l1_batch_details(status.l1_batch_number, status.l1_batch_root_hash),
@@ -288,4 +347,65 @@ pub(super) async fn prepare_clients(
         ),
     );
     (object_store, client)
+}
+
+/// Object store wrapper that hangs up after processing the specified number of requests.
+/// Used to emulate the snapshot applier being restarted since, if it's configured to have concurrency 1,
+/// the applier will request an object from the store strictly after fully processing all previously requested objects.
+#[derive(Debug)]
+pub(super) struct HangingObjectStore {
+    inner: Arc<dyn ObjectStore>,
+    stop_after_count: usize,
+    count_sender: watch::Sender<usize>,
+}
+
+impl HangingObjectStore {
+    pub fn new(
+        inner: Arc<dyn ObjectStore>,
+        stop_after_count: usize,
+    ) -> (Self, watch::Receiver<usize>) {
+        let (count_sender, count_receiver) = watch::channel(0);
+        let this = Self {
+            inner,
+            stop_after_count,
+            count_sender,
+        };
+        (this, count_receiver)
+    }
+}
+
+#[async_trait]
+impl ObjectStore for HangingObjectStore {
+    async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        let mut should_proceed = true;
+        self.count_sender.send_modify(|count| {
+            *count += 1;
+            if *count > self.stop_after_count {
+                should_proceed = false;
+            }
+        });
+
+        if should_proceed {
+            self.inner.get_raw(bucket, key).await
+        } else {
+            future::pending().await // Hang up the snapshot applier task
+        }
+    }
+
+    async fn put_raw(
+        &self,
+        _bucket: Bucket,
+        _key: &str,
+        _value: Vec<u8>,
+    ) -> Result<(), ObjectStoreError> {
+        unreachable!("Should not be used in snapshot applier")
+    }
+
+    async fn remove_raw(&self, _bucket: Bucket, _key: &str) -> Result<(), ObjectStoreError> {
+        unreachable!("Should not be used in snapshot applier")
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        self.inner.storage_prefix_raw(bucket)
+    }
 }

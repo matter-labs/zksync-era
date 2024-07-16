@@ -190,11 +190,6 @@ export async function statusProver() {
     main_pool = new Pool({ connectionString: process.env.DATABASE_URL });
     prover_pool = new Pool({ connectionString: process.env.DATABASE_PROVER_URL });
 
-    if (process.env.ETH_SENDER_SENDER_PROOF_LOADING_MODE != 'FriProofFromGcs') {
-        console.log(`${redStart}Can only show status for FRI provers.${resetColor}`);
-        return;
-    }
-
     // Fetch the first and most recent sealed batch numbers
     const stateKeeperStatus = (
         await queryAndReturnRows(main_pool, 'select min(number), max(number) from l1_batches')

@@ -1,7 +1,7 @@
 //! Data structures that have more metadata than their primary versions declared in this crate.
 //! For example, L1 batch defined here has the `root_hash` field which is absent in `L1BatchHeader`.
 //!
-//! Existence of this module is caused by the execution model of zkSync: when executing transactions,
+//! Existence of this module is caused by the execution model of ZKsync: when executing transactions,
 //! we aim to avoid expensive operations like the state root hash recalculation. State root hash is not
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
@@ -467,7 +467,7 @@ pub struct L1BatchMetaParameters {
     pub zkporter_is_available: bool,
     pub bootloader_code_hash: H256,
     pub default_aa_code_hash: H256,
-    pub protocol_version: ProtocolVersionId,
+    pub protocol_version: Option<ProtocolVersionId>,
 }
 
 impl L1BatchMetaParameters {
@@ -478,7 +478,10 @@ impl L1BatchMetaParameters {
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
 
-        if self.protocol_version.is_post_1_5_0() {
+        if self
+            .protocol_version
+            .map_or(false, |ver| ver.is_post_1_5_0())
+        {
             // EVM simulator hash for now is the same as the default AA hash.
             result.extend(self.default_aa_code_hash.as_bytes());
         }
@@ -533,7 +536,7 @@ pub struct L1BatchCommitment {
     pub meta_parameters: L1BatchMetaParameters,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct L1BatchCommitmentHash {
     pub pass_through_data: H256,
@@ -543,13 +546,12 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(input: CommitmentInput) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
             default_aa_code_hash: input.common().default_aa_code_hash,
-            protocol_version: input.common().protocol_version,
+            protocol_version: Some(input.common().protocol_version),
         };
 
         Self {
@@ -718,7 +720,7 @@ impl CommitmentInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct L1BatchCommitmentArtifacts {
     pub commitment_hash: L1BatchCommitmentHash,
     pub l2_l1_merkle_root: H256,

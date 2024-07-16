@@ -67,6 +67,16 @@
         "ordinal": 12,
         "name": "eip_4844_blobs",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "witness_inputs_blob_url",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -87,6 +97,8 @@
       true,
       true,
       true,
+      true,
+      false,
       true
     ]
   },

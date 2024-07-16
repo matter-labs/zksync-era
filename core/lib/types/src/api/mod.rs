@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
     web3::{AccessList, Bytes, Index},
@@ -27,6 +28,8 @@ pub enum BlockNumber {
     Finalized,
     /// Latest sealed block
     Latest,
+    /// Last block that was committed on L1
+    L1Committed,
     /// Earliest block (genesis)
     Earliest,
     /// Latest block (may be the block that is currently open).
@@ -51,6 +54,7 @@ impl Serialize for BlockNumber {
             BlockNumber::Committed => serializer.serialize_str("committed"),
             BlockNumber::Finalized => serializer.serialize_str("finalized"),
             BlockNumber::Latest => serializer.serialize_str("latest"),
+            BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
         }
@@ -73,6 +77,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "committed" => BlockNumber::Committed,
                     "finalized" => BlockNumber::Finalized,
                     "latest" => BlockNumber::Latest,
+                    "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     "pending" => BlockNumber::Pending,
                     num => {
@@ -89,7 +94,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
     }
 }
 
-/// Block unified identifier in terms of zkSync
+/// Block unified identifier in terms of ZKsync
 ///
 /// This is an utility structure that cannot be (de)serialized, it has to be created manually.
 /// The reason is because Web3 API provides multiple methods for referring block either by hash or number,
@@ -438,6 +443,9 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {
@@ -640,18 +648,81 @@ impl From<Call> for DebugCall {
     }
 }
 
+// TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase
+// to keep compatibility between old and new versions.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
-    /// Protocol version ID
-    pub version_id: u16,
+    /// Minor version of the protocol
+    #[deprecated]
+    pub version_id: Option<u16>,
+    /// Minor version of the protocol
+    #[serde(rename = "minorVersion")]
+    pub minor_version: Option<u16>,
     /// Timestamp at which upgrade should be performed
     pub timestamp: u64,
     /// Verifier configuration
-    pub verification_keys_hashes: L1VerifierConfig,
+    #[deprecated]
+    pub verification_keys_hashes: Option<L1VerifierConfig>,
     /// Hashes of base system contracts (bootloader and default account)
-    pub base_system_contracts: BaseSystemContractsHashes,
+    #[deprecated]
+    pub base_system_contracts: Option<BaseSystemContractsHashes>,
+    /// Bootloader code hash
+    #[serde(rename = "bootloaderCodeHash")]
+    pub bootloader_code_hash: Option<H256>,
+    /// Default account code hash
+    #[serde(rename = "defaultAccountCodeHash")]
+    pub default_account_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
+    #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
+    /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
+    pub l2_system_upgrade_tx_hash_new: Option<H256>,
+}
+
+#[allow(deprecated)]
+impl ProtocolVersion {
+    pub fn new(
+        minor_version: u16,
+        timestamp: u64,
+        bootloader_code_hash: H256,
+        default_account_code_hash: H256,
+        l2_system_upgrade_tx_hash: Option<H256>,
+    ) -> Self {
+        Self {
+            version_id: Some(minor_version),
+            minor_version: Some(minor_version),
+            timestamp,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(BaseSystemContractsHashes {
+                bootloader: bootloader_code_hash,
+                default_aa: default_account_code_hash,
+            }),
+            bootloader_code_hash: Some(bootloader_code_hash),
+            default_account_code_hash: Some(default_account_code_hash),
+            l2_system_upgrade_tx_hash,
+            l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
+        }
+    }
+
+    pub fn bootloader_code_hash(&self) -> Option<H256> {
+        self.bootloader_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.bootloader))
+    }
+
+    pub fn default_account_code_hash(&self) -> Option<H256> {
+        self.default_account_code_hash
+            .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn minor_version(&self) -> Option<u16> {
+        self.minor_version.or(self.version_id)
+    }
+
+    pub fn l2_system_upgrade_tx_hash(&self) -> Option<H256> {
+        self.l2_system_upgrade_tx_hash_new
+            .or(self.l2_system_upgrade_tx_hash)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -698,6 +769,8 @@ pub struct BlockDetailsBase {
     pub executed_at: Option<DateTime<Utc>>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    // Cost of publishing one byte (in wei).
+    pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 
@@ -750,4 +823,47 @@ pub struct ApiStorageLog {
     pub address: Address,
     pub key: U256,
     pub written_value: U256,
+}
+
+/// Raw transaction execution data.
+/// Data is taken from `TransactionExecutionMetrics`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionExecutionInfo {
+    pub execution_info: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TODO (PLA-965): remove test after removing deprecating fields.
+    #[allow(deprecated)]
+    #[test]
+    fn check_protocol_version_type_compatibility() {
+        let new_version = ProtocolVersion {
+            version_id: Some(24),
+            minor_version: Some(24),
+            timestamp: 0,
+            verification_keys_hashes: Some(Default::default()),
+            base_system_contracts: Some(Default::default()),
+            bootloader_code_hash: Some(Default::default()),
+            default_account_code_hash: Some(Default::default()),
+            l2_system_upgrade_tx_hash: Default::default(),
+            l2_system_upgrade_tx_hash_new: Default::default(),
+        };
+
+        #[derive(Deserialize)]
+        #[allow(dead_code)]
+        struct OldProtocolVersion {
+            pub version_id: u16,
+            pub timestamp: u64,
+            pub verification_keys_hashes: L1VerifierConfig,
+            pub base_system_contracts: BaseSystemContractsHashes,
+            pub l2_system_upgrade_tx_hash: Option<H256>,
+        }
+
+        serde_json::from_str::<OldProtocolVersion>(&serde_json::to_string(&new_version).unwrap())
+            .unwrap();
+    }
 }

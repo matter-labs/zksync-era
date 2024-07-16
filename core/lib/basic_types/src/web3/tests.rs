@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn block_id_can_be_deserialized() {
+    let block_id: BlockId = serde_json::from_str("\"latest\"").unwrap();
+    assert_eq!(block_id, BlockId::Number(BlockNumber::Latest));
+    let block_id: BlockId = serde_json::from_str("\"pending\"").unwrap();
+    assert_eq!(block_id, BlockId::Number(BlockNumber::Pending));
+    let block_id: BlockId = serde_json::from_str("\"earliest\"").unwrap();
+    assert_eq!(block_id, BlockId::Number(BlockNumber::Earliest));
+    let block_id: BlockId = serde_json::from_str("\"0x12\"").unwrap();
+    assert_eq!(
+        block_id,
+        BlockId::Number(BlockNumber::Number(U64::from(0x12)))
+    );
+
+    let block_id: BlockId = serde_json::from_str(
+        r#"{ "blockHash": "0x4242424242424242424242424242424242424242424242424242424242424242" }"#,
+    )
+    .unwrap();
+    assert_eq!(block_id, BlockId::Hash(H256::repeat_byte(0x42)));
+}
+
+#[test]
 fn block_can_be_deserialized() {
     let post_dencun = r#"
         {

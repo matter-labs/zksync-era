@@ -1,28 +1,31 @@
 //! WS-related tests.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
 
+use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
-use reqwest::StatusCode;
+use http::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
-use zksync_types::{api, Address, L1BatchNumber, H256, U64};
+use zksync_types::{api, Address, L1BatchNumber, H160, H2048, H256, U64};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
-        core::client::{Subscription, SubscriptionClientT},
+        core::{
+            client::{ClientT, Subscription, SubscriptionClientT},
+            params::BatchRequestBuilder,
+            ClientError,
+        },
         rpc_params,
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
-    types::{BlockHeader, PubSubFilter},
+    types::{BlockHeader, Bytes, PubSubFilter},
 };
 
 use super::*;
 use crate::web3::metrics::SubscriptionType;
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_subscription(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
@@ -45,7 +48,6 @@ async fn wait_for_subscription(
         .expect("Timed out waiting for subscription")
 }
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
@@ -70,7 +72,6 @@ async fn wait_for_notifiers(
     wait_future.await.expect("Timed out waiting for notifier");
 }
 
-#[allow(clippy::needless_pass_by_ref_mut)] // false positive
 async fn wait_for_notifier_l2_block(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_type: SubscriptionType,
@@ -287,15 +288,45 @@ impl WsTest for BasicSubscriptionsTest {
             .await
             .context("Timed out waiting for new block header")?
             .context("New blocks subscription terminated")??;
+
+        let sha3_uncles_hash =
+            H256::from_str("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
+                .unwrap();
+
         assert_eq!(
             received_block_header.number,
             Some(new_l2_block.number.0.into())
         );
         assert_eq!(received_block_header.hash, Some(new_l2_block.hash));
+        assert_matches!(received_block_header.parent_hash, H256(_));
+        assert_eq!(received_block_header.uncles_hash, sha3_uncles_hash);
+        assert_eq!(received_block_header.author, H160::zero());
+        assert_eq!(received_block_header.state_root, H256::zero());
+        assert_eq!(received_block_header.transactions_root, H256::zero());
+        assert_eq!(received_block_header.receipts_root, H256::zero());
+        assert_eq!(
+            received_block_header.number,
+            Some(U64::from(new_l2_block.number.0))
+        );
+        assert_matches!(received_block_header.gas_used, U256(_));
+        assert_eq!(
+            received_block_header.gas_limit,
+            new_l2_block.gas_limit.into()
+        );
+        assert_eq!(
+            received_block_header.base_fee_per_gas,
+            Some(new_l2_block.base_fee_per_gas.into())
+        );
+        assert_eq!(received_block_header.extra_data, Bytes::default());
+        assert_eq!(received_block_header.logs_bloom, H2048::default());
         assert_eq!(
             received_block_header.timestamp,
             new_l2_block.timestamp.into()
         );
+        assert_eq!(received_block_header.difficulty, U256::zero());
+        assert_eq!(received_block_header.mix_hash, None);
+        assert_eq!(received_block_header.nonce, None);
+
         blocks_subscription.unsubscribe().await?;
         Ok(())
     }

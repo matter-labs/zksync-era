@@ -1,13 +1,15 @@
-use std::fmt;
+use std::{error::Error as StdError, fmt, sync::Arc};
 
+use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::interface::{
-    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
-};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
+use zksync_multivm::interface::{
+    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+};
+use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -16,14 +18,13 @@ use crate::{
     types::ExecutionMetricsForCriteria,
 };
 
+pub mod main_executor;
 #[cfg(test)]
 mod tests;
 
-pub mod main_executor;
-
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
-pub(crate) enum TxExecutionResult {
+pub enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
@@ -58,10 +59,44 @@ impl TxExecutionResult {
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
         &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<BatchExecutorHandle>;
+}
+
+#[derive(Debug)]
+enum HandleOrError {
+    Handle(JoinHandle<anyhow::Result<()>>),
+    Err(Arc<dyn StdError + Send + Sync>),
+}
+
+impl HandleOrError {
+    async fn wait_for_error(&mut self) -> anyhow::Error {
+        let err_arc = match self {
+            Self::Handle(handle) => {
+                let err = match handle.await {
+                    Ok(Ok(())) => anyhow::anyhow!("batch executor unexpectedly stopped"),
+                    Ok(Err(err)) => err,
+                    Err(err) => anyhow::Error::new(err).context("batch executor panicked"),
+                };
+                let err: Box<dyn StdError + Send + Sync> = err.into();
+                let err: Arc<dyn StdError + Send + Sync> = err.into();
+                *self = Self::Err(err.clone());
+                err
+            }
+            Self::Err(err) => err.clone(),
+        };
+        anyhow::Error::new(err_arc)
+    }
+
+    async fn wait(self) -> anyhow::Result<()> {
+        match self {
+            Self::Handle(handle) => handle.await.context("batch executor panicked")?,
+            Self::Err(err_arc) => Err(anyhow::Error::new(err_arc)),
+        }
+    }
 }
 
 /// A public interface for interaction with the `BatchExecutor`.
@@ -69,7 +104,7 @@ pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
 /// the batches.
 #[derive(Debug)]
 pub struct BatchExecutorHandle {
-    handle: JoinHandle<()>,
+    handle: HandleOrError,
     commands: mpsc::Sender<Command>,
 }
 
@@ -77,23 +112,36 @@ impl BatchExecutorHandle {
     /// Creates a batch executor handle from the provided sender and thread join handle.
     /// Can be used to inject an alternative batch executor implementation.
     #[doc(hidden)]
-    pub(super) fn from_raw(handle: JoinHandle<()>, commands: mpsc::Sender<Command>) -> Self {
-        Self { handle, commands }
+    pub(super) fn from_raw(
+        handle: JoinHandle<anyhow::Result<()>>,
+        commands: mpsc::Sender<Command>,
+    ) -> Self {
+        Self {
+            handle: HandleOrError::Handle(handle),
+            commands,
+        }
     }
 
-    pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
+    pub async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
-        self.commands
+        let send_failed = self
+            .commands
             .send(Command::ExecuteTx(Box::new(tx), response_sender))
             .await
-            .unwrap();
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
 
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::ExecuteTx]
             .start();
-        let res = response_receiver.await.unwrap();
+        let res = match response_receiver.await {
+            Ok(res) => res,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
         let elapsed = latency.observe();
 
         if let TxExecutionResult::Success { tx_metrics, .. } = &res {
@@ -110,52 +158,103 @@ impl BatchExecutorHandle {
                 .failed_tx_gas_limit_per_nanosecond
                 .observe(tx_gas_limit as f64 / elapsed.as_nanos() as f64);
         }
-        res
+        Ok(res)
     }
 
-    pub(super) async fn start_next_l2_block(&self, env: L2BlockEnv) {
+    pub async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
-        self.commands
+        let send_failed = self
+            .commands
             .send(Command::StartNextL2Block(env, response_sender))
             .await
-            .unwrap();
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::StartNextL2Block]
             .start();
-        response_receiver.await.unwrap();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
         latency.observe();
+        Ok(())
     }
 
-    pub(super) async fn rollback_last_tx(&self) {
+    pub async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
-        self.commands
+        let send_failed = self
+            .commands
             .send(Command::RollbackLastTx(response_sender))
             .await
-            .unwrap();
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::RollbackLastTx]
             .start();
-        response_receiver.await.unwrap();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
         latency.observe();
+        Ok(())
     }
 
-    pub(super) async fn finish_batch(self) -> FinishedL1Batch {
+    pub async fn finish_batch(mut self) -> anyhow::Result<FinishedL1Batch> {
         let (response_sender, response_receiver) = oneshot::channel();
-        self.commands
+        let send_failed = self
+            .commands
             .send(Command::FinishBatch(response_sender))
             .await
-            .unwrap();
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
         let latency = EXECUTOR_METRICS.batch_executor_command_response_time
             [&ExecutorCommand::FinishBatch]
             .start();
-        let finished_batch = response_receiver.await.unwrap();
-        self.handle.await.unwrap();
+        let finished_batch = match response_receiver.await {
+            Ok(batch) => batch,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
+        self.handle.wait().await?;
         latency.observe();
-        finished_batch
+        Ok(finished_batch)
+    }
+
+    pub async fn finish_batch_with_cache(
+        mut self,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::FinishBatchWithCache(response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::FinishBatchWithCache]
+            .start();
+        let batch_with_cache = match response_receiver.await {
+            Ok(batch_with_cache) => batch_with_cache,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
+
+        self.handle.wait().await?;
+
+        latency.observe();
+        Ok(batch_with_cache)
     }
 }
 
@@ -165,4 +264,5 @@ pub(super) enum Command {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    FinishBatchWithCache(oneshot::Sender<(FinishedL1Batch, StorageViewCache)>),
 }

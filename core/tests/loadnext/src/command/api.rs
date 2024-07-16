@@ -53,7 +53,7 @@ impl AllWeighted for ApiRequestType {
 pub struct ApiRequest {
     /// Type of the request to be performed.
     pub request_type: ApiRequestType,
-    /// zkSync block number, generated randomly.
+    /// ZKsync block number, generated randomly.
     pub block_number: api::BlockNumber,
 }
 

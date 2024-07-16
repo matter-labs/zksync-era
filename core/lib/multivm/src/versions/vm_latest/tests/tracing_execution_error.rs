@@ -30,7 +30,7 @@ fn test_tracing_of_execution_errors() {
             contract_address,
             calldata: get_execute_error_calldata(),
             value: Default::default(),
-            factory_deps: Some(vec![]),
+            factory_deps: vec![],
         },
         None,
     );

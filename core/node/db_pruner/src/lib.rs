@@ -1,20 +1,22 @@
 //! Postgres pruning component.
 
-use std::{fmt, sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
-use serde::Serialize;
-use tokio::{sync::watch, time::Instant};
+use serde::{Deserialize, Serialize};
+use tokio::sync::watch;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 use self::{
-    metrics::{MetricPruneType, METRICS},
+    metrics::{ConditionOutcome, PruneType, METRICS},
     prune_conditions::{
         ConsistencyCheckerProcessedBatch, L1BatchExistsCondition, L1BatchOlderThanPruneCondition,
-        NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition,
+        NextL1BatchHasMetadataCondition, NextL1BatchWasExecutedCondition, PruneCondition,
     },
 };
 
@@ -36,7 +38,7 @@ pub struct DbPrunerConfig {
     pub minimum_l1_batch_age: Duration,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct DbPrunerHealth {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_soft_pruned_l1_batch: Option<L1BatchNumber>,
@@ -59,6 +61,17 @@ impl From<PruningInfo> for DbPrunerHealth {
     }
 }
 
+/// Outcome of a single pruning iteration.
+#[derive(Debug)]
+enum PruningIterationOutcome {
+    /// Nothing to prune.
+    NoOp,
+    /// Iteration resulted in pruning.
+    Pruned,
+    /// Pruning was interrupted because of a stop signal.
+    Interrupted,
+}
+
 /// Postgres database pruning component.
 #[derive(Debug)]
 pub struct DbPruner {
@@ -68,33 +81,27 @@ pub struct DbPruner {
     prune_conditions: Vec<Arc<dyn PruneCondition>>,
 }
 
-/// Interface to be used for health checks.
-#[async_trait]
-trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
-    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
-}
-
 impl DbPruner {
     pub fn new(config: DbPrunerConfig, connection_pool: ConnectionPool<Core>) -> Self {
         let mut conditions: Vec<Arc<dyn PruneCondition>> = vec![
             Arc::new(L1BatchExistsCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(NextL1BatchHasMetadataCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(NextL1BatchWasExecutedCondition {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
             Arc::new(ConsistencyCheckerProcessedBatch {
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }),
         ];
         if config.minimum_l1_batch_age > Duration::ZERO {
             // Do not add a condition if it's trivial in order to not clutter logs.
             conditions.push(Arc::new(L1BatchOlderThanPruneCondition {
                 minimum_age: config.minimum_l1_batch_age,
-                conn: connection_pool.clone(),
+                pool: connection_pool.clone(),
             }));
         }
 
@@ -124,15 +131,24 @@ impl DbPruner {
         let mut errored_conditions = vec![];
 
         for condition in &self.prune_conditions {
-            match condition.is_batch_prunable(l1_batch_number).await {
-                Ok(true) => successful_conditions.push(condition.to_string()),
-                Ok(false) => failed_conditions.push(condition.to_string()),
+            let outcome = match condition.is_batch_prunable(l1_batch_number).await {
+                Ok(true) => {
+                    successful_conditions.push(condition.to_string());
+                    ConditionOutcome::Success
+                }
+                Ok(false) => {
+                    failed_conditions.push(condition.to_string());
+                    ConditionOutcome::Fail
+                }
                 Err(error) => {
                     errored_conditions.push(condition.to_string());
                     tracing::warn!("Pruning condition '{condition}' resulted in an error: {error}");
+                    ConditionOutcome::Error
                 }
-            }
+            };
+            METRICS.observe_condition(condition.as_ref(), outcome);
         }
+
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
             tracing::debug!(
@@ -168,7 +184,7 @@ impl DbPruner {
     }
 
     async fn soft_prune(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<bool> {
-        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
+        let start = Instant::now();
         let mut transaction = storage.start_transaction().await?;
 
         let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -180,7 +196,7 @@ impl DbPruner {
                 + self.config.pruned_batch_chunk_size,
         );
         if !self.is_l1_batch_prunable(next_l1_batch_to_prune).await {
-            latency.observe();
+            METRICS.pruning_chunk_duration[&PruneType::NoOp].observe(start.elapsed());
             return Ok(false);
         }
 
@@ -196,7 +212,8 @@ impl DbPruner {
 
         transaction.commit().await?;
 
-        let latency = latency.observe();
+        let latency = start.elapsed();
+        METRICS.pruning_chunk_duration[&PruneType::Soft].observe(latency);
         tracing::info!(
             "Soft pruned db l1_batches up to {next_l1_batch_to_prune} and L2 blocks up to {next_l2_block_to_prune}, operation took {latency:?}",
         );
@@ -207,8 +224,12 @@ impl DbPruner {
         Ok(true)
     }
 
-    async fn hard_prune(&self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
-        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
+    async fn hard_prune(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<PruningIterationOutcome> {
+        let latency = METRICS.pruning_chunk_duration[&PruneType::Hard].start();
         let mut transaction = storage.start_transaction().await?;
 
         let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -221,10 +242,21 @@ impl DbPruner {
                 format!("bogus pruning info {current_pruning_info:?}: trying to hard-prune data, but there is no soft-pruned L2 block")
             })?;
 
-        let stats = transaction
-            .pruning_dal()
-            .hard_prune_batches_range(last_soft_pruned_l1_batch, last_soft_pruned_l2_block)
-            .await?;
+        let mut dal = transaction.pruning_dal();
+        let stats = tokio::select! {
+            result = dal.hard_prune_batches_range(
+                last_soft_pruned_l1_batch,
+                last_soft_pruned_l2_block,
+            ) => result?,
+
+            _ = stop_receiver.changed() => {
+                // `hard_prune_batches_range()` can take a long time. It looks better to roll back it explicitly here if a node is getting shut down
+                // rather than waiting a node to force-exit after a timeout, which would interrupt the DB connection and will lead to an implicit rollback.
+                tracing::info!("Hard pruning interrupted; rolling back pruning transaction");
+                transaction.rollback().await?;
+                return Ok(PruningIterationOutcome::Interrupted);
+            }
+        };
         METRICS.observe_hard_pruning(stats);
         transaction.commit().await?;
 
@@ -236,10 +268,13 @@ impl DbPruner {
         current_pruning_info.last_hard_pruned_l1_batch = Some(last_soft_pruned_l1_batch);
         current_pruning_info.last_hard_pruned_l2_block = Some(last_soft_pruned_l2_block);
         self.update_health(current_pruning_info);
-        Ok(())
+        Ok(PruningIterationOutcome::Pruned)
     }
 
-    async fn run_single_iteration(&self) -> anyhow::Result<bool> {
+    async fn run_single_iteration(
+        &self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> anyhow::Result<PruningIterationOutcome> {
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
         self.update_health(current_pruning_info);
@@ -250,15 +285,20 @@ impl DbPruner {
         {
             let pruning_done = self.soft_prune(&mut storage).await?;
             if !pruning_done {
-                return Ok(false);
+                return Ok(PruningIterationOutcome::NoOp);
             }
         }
         drop(storage); // Don't hold a connection across a timeout
 
-        tokio::time::sleep(self.config.removal_delay).await;
+        if tokio::time::timeout(self.config.removal_delay, stop_receiver.changed())
+            .await
+            .is_ok()
+        {
+            return Ok(PruningIterationOutcome::Interrupted);
+        }
+
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
-        self.hard_prune(&mut storage).await?;
-        Ok(true)
+        self.hard_prune(&mut storage, stop_receiver).await
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -272,13 +312,12 @@ impl DbPruner {
                 .collect::<Vec<_>>()
         );
 
-        let mut last_vacuum_time = Instant::now();
         while !*stop_receiver.borrow_and_update() {
             if let Err(err) = self.update_l1_batches_metric().await {
                 tracing::warn!("Error updating DB pruning metrics: {err:?}");
             }
 
-            let should_sleep = match self.run_single_iteration().await {
+            let should_sleep = match self.run_single_iteration(&mut stop_receiver).await {
                 Err(err) => {
                     // As this component is not really mission-critical, all errors are generally ignored
                     tracing::warn!(
@@ -291,17 +330,10 @@ impl DbPruner {
                     self.health_updater.update(health);
                     true
                 }
-                Ok(pruning_done) => !pruning_done,
+                Ok(PruningIterationOutcome::Interrupted) => break,
+                Ok(PruningIterationOutcome::Pruned) => false,
+                Ok(PruningIterationOutcome::NoOp) => true,
             };
-
-            if Instant::now().duration_since(last_vacuum_time) > Duration::from_secs(24 * 3600) {
-                let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
-                storage
-                    .pruning_dal()
-                    .run_vacuum_after_hard_pruning()
-                    .await?;
-                last_vacuum_time = Instant::now();
-            }
 
             if should_sleep
                 && tokio::time::timeout(next_iteration_delay, stop_receiver.changed())

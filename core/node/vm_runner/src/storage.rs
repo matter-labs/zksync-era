@@ -1,26 +1,47 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
-    marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
-use once_cell::sync::OnceCell;
 use tokio::sync::{watch, RwLock};
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage,
-    RocksdbStorageBuilder, RocksdbStorageOptions, RocksdbWithMemory, StateKeeperColumnFamily,
+    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell,
+    RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
 };
-use zksync_storage::RocksDB;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
-use crate::VmRunnerIo;
+use crate::{metrics::METRICS, VmRunnerIo};
+
+#[async_trait]
+pub trait StorageLoader: ReadStorageFactory {
+    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
+    /// re-execute. These are the transactions that are included in a sealed L2 block belonging
+    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
+    /// transactions is the same as it was when state keeper executed them.
+    ///
+    /// Can return `None` if the requested batch is not available yet.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<BatchExecuteData>>;
+
+    /// A workaround for Rust's limitations on upcasting coercion. See
+    /// https://github.com/rust-lang/rust/issues/65991.
+    ///
+    /// Should always be implementable as [`StorageLoader`] requires [`ReadStorageFactory`].
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory>;
+}
 
 /// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
@@ -54,7 +75,7 @@ pub struct VmRunnerStorage<Io: VmRunnerIo> {
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
     state: Arc<RwLock<State>>,
-    _marker: PhantomData<Io>,
+    io: Io,
 }
 
 #[derive(Debug)]
@@ -71,7 +92,7 @@ impl State {
     }
 }
 
-impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
+impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
     /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
         pool: ConnectionPool<Core>,
@@ -79,8 +100,10 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
         io: Io,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
-        let mut conn = pool.connection_tagged(Io::name()).await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
+        let mut conn = pool.connection_tagged(io.name()).await?;
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         drop(conn);
@@ -89,20 +112,28 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             l1_batch_number: L1BatchNumber(0),
             storage: BTreeMap::new(),
         }));
-        let task =
-            StorageSyncTask::new(pool.clone(), chain_id, rocksdb_path, io, state.clone()).await?;
+        let task = StorageSyncTask::new(
+            pool.clone(),
+            chain_id,
+            rocksdb_path,
+            io.clone(),
+            state.clone(),
+        )
+        .await?;
         Ok((
             Self {
                 pool,
                 l1_batch_params_provider,
                 chain_id,
                 state,
-                _marker: PhantomData,
+                io,
             },
             task,
         ))
     }
+}
 
+impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
     async fn access_storage_inner(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
@@ -143,24 +174,17 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             },
         )))
     }
+}
 
-    /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
-    /// re-execute. These are the transactions that are included in a sealed L2 block belonging
-    /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
-    /// transactions is the same as it was when state keeper executed them.
-    ///
-    /// Can return `None` if there are no batches to be processed.
-    ///
-    /// # Errors
-    ///
-    /// Propagates DB errors.
-    pub async fn load_batch(
+#[async_trait]
+impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
+    async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<BatchExecuteData>> {
         let state = self.state.read().await;
         if state.rocksdb.is_none() {
-            let mut conn = self.pool.connection_tagged(Io::name()).await?;
+            let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             return StorageSyncTask::<Io>::load_batch_execute_data(
                 &mut conn,
                 l1_batch_number,
@@ -181,6 +205,10 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
             }
             Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
         }
+    }
+
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
+        self
     }
 }
 
@@ -205,7 +233,7 @@ pub struct StorageSyncTask<Io: VmRunnerIo> {
     pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
-    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
+    rocksdb_cell: RocksdbCell,
     io: Io,
     state: Arc<RwLock<State>>,
     catchup_task: AsyncCatchupTask,
@@ -219,19 +247,16 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         io: Io,
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
-        let mut conn = pool.connection_tagged(Io::name()).await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
+        let mut conn = pool.connection_tagged(io.name()).await?;
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
-        let rocksdb_cell = Arc::new(OnceCell::new());
-        let catchup_task = AsyncCatchupTask::new(
-            pool.clone(),
-            rocksdb_path,
-            RocksdbStorageOptions::default(),
-            rocksdb_cell.clone(),
-            Some(io.latest_processed_batch(&mut conn).await?),
-        );
+        let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
         drop(conn);
+
+        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), rocksdb_path);
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -239,32 +264,41 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             rocksdb_cell,
             io,
             state,
-            catchup_task,
+            catchup_task: catchup_task.with_target_l1_batch_number(target_l1_batch_number),
         })
     }
 
+    /// Access the underlying [`VmRunnerIo`].
+    pub fn io(&self) -> &Io {
+        &self.io
+    }
+
+    /// Block until RocksDB cache instance is caught up with Postgres and then continuously makes
+    /// sure that the new ready batches are loaded into the cache.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
         self.catchup_task.run(stop_receiver.clone()).await?;
-        let rocksdb = self.rocksdb_cell.get().ok_or_else(|| {
-            anyhow::anyhow!("Expected RocksDB to be initialized by `AsyncCatchupTask`")
-        })?;
+        let rocksdb = self.rocksdb_cell.wait().await?;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("`StorageSyncTask` was interrupted");
                 return Ok(());
             }
-            let mut conn = self.pool.connection_tagged(Io::name()).await?;
+            let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
             let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
             if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch + 1) {
                 // RocksDB is already caught up, we might not need to do anything.
                 // Just need to check that the memory diff is up-to-date in case this is a fresh start.
+                let last_ready_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
                 let state = self.state.read().await;
-                if state
-                    .storage
-                    .contains_key(&self.io.last_ready_to_be_loaded_batch(&mut conn).await?)
+                if last_ready_batch == latest_processed_batch
+                    || state.storage.contains_key(&last_ready_batch)
                 {
                     // No need to do anything, killing time until last processed batch is updated.
                     drop(conn);
@@ -299,6 +333,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             drop(state);
             let max_desired = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
             for l1_batch_number in max_present.0 + 1..=max_desired.0 {
+                let latency = METRICS.storage_load_time.start();
                 let l1_batch_number = L1BatchNumber(l1_batch_number);
                 let Some(execute_data) = Self::load_batch_execute_data(
                     &mut conn,
@@ -335,6 +370,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
                     .storage
                     .insert(l1_batch_number, BatchData { execute_data, diff });
                 drop(state);
+                latency.observe();
             }
             drop(conn);
         }

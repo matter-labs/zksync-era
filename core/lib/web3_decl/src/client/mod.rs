@@ -46,6 +46,7 @@ mod boxed;
 mod metrics;
 mod mock;
 mod network;
+mod rustls;
 mod shared;
 #[cfg(test)]
 mod tests;
@@ -140,6 +141,8 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
 impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
     pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = HttpClientBuilder::default().build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }
@@ -150,6 +153,8 @@ impl<Net: Network> WsClient<Net> {
     pub async fn ws(
         url: SensitiveUrl,
     ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = ws_client::WsClientBuilder::default()
             .build(url.expose_str())
             .await?;
@@ -196,7 +201,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
             origin,
             &stats,
         );
-        tracing::warn!(
+        tracing::debug!(
             network = network_label,
             component = self.component_name,
             %origin,
@@ -228,13 +233,13 @@ impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
     fn network(&self) -> Self::Net {
         self.network
     }
-}
 
-impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
     fn component(&self) -> &'static str {
         self.component_name
     }
+}
 
+impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
     fn set_component(&mut self, component_name: &'static str) {
         self.component_name = component_name;
     }

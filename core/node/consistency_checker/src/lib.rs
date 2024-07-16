@@ -5,7 +5,10 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
@@ -26,7 +29,9 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum CheckError {
     #[error("Web3 error communicating with L1")]
-    Web3(#[from] L1ClientError),
+    Web3(#[from] EnrichedClientError),
+    #[error("error calling L1 contract")]
+    ContractCall(#[from] ContractCallError),
     /// Error that is caused by the main node providing incorrect information etc.
     #[error("failed validating commit transaction")]
     Validation(anyhow::Error),
@@ -37,10 +42,12 @@ enum CheckError {
 
 impl CheckError {
     fn is_transient(&self) -> bool {
-        matches!(
-            self,
-            Self::Web3(L1ClientError::EthereumGateway(err)) if err.is_transient()
-        )
+        match self {
+            Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
+                err.is_transient()
+            }
+            _ => false,
+        }
     }
 }
 
@@ -147,17 +154,14 @@ impl LocalL1BatchCommitData {
         batch_number: L1BatchNumber,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
-        let Some(storage_l1_batch) = storage
+        let Some(commit_tx_id) = storage
             .blocks_dal()
-            .get_storage_l1_batch(batch_number)
+            .get_eth_commit_tx_id(batch_number)
             .await?
         else {
             return Ok(None);
         };
 
-        let Some(commit_tx_id) = storage_l1_batch.eth_commit_tx_id else {
-            return Ok(None);
-        };
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
@@ -168,7 +172,7 @@ impl LocalL1BatchCommitData {
 
         let Some(l1_batch) = storage
             .blocks_dal()
-            .get_l1_batch_with_metadata(storage_l1_batch)
+            .get_l1_batch_metadata(batch_number)
             .await?
         else {
             return Ok(None);
@@ -258,6 +262,7 @@ pub fn detect_da(
     /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
     const PUBDATA_SOURCE_CALLDATA: u8 = 0;
     const PUBDATA_SOURCE_BLOBS: u8 = 1;
+    const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -288,6 +293,7 @@ pub fn detect_da(
     match last_reference_token.first() {
         Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
         Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
         Some(&byte) => Err(parse_error(format!(
             "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
                 got {byte}"
@@ -298,14 +304,14 @@ pub fn detect_da(
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
-    /// ABI of the zkSync contract
+    /// ABI of the ZKsync contract
     contract: ethabi::Contract,
-    /// Address of the zkSync diamond proxy on L1
+    /// Address of the ZKsync diamond proxy on L1
     diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<dyn EthInterface>,
+    l1_client: Box<DynClient<L1>>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -317,7 +323,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: Box<dyn EthInterface>,
+        l1_client: Box<DynClient<L1>>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
@@ -378,7 +384,7 @@ impl ConsistencyChecker {
             let event = self
                 .contract
                 .event("BlockCommit")
-                .context("`BlockCommit` event not found for zkSync L1 contract")
+                .context("`BlockCommit` event not found for ZKsync L1 contract")
                 .map_err(CheckError::Internal)?;
 
             let committed_batch_numbers_by_logs =
@@ -530,7 +536,10 @@ impl ConsistencyChecker {
 
         while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
             if err.is_transient() {
-                tracing::warn!("Transient error checking diamond proxy contract; will retry after a delay: {err}");
+                tracing::warn!(
+                    "Transient error checking diamond proxy contract; will retry after a delay: {:#}",
+                    anyhow::Error::from(err)
+                );
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await
                     .is_ok()
@@ -627,7 +636,10 @@ impl ConsistencyChecker {
                     }
                 }
                 Err(err) if err.is_transient() => {
-                    tracing::warn!("Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {err}");
+                    tracing::warn!(
+                        "Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {:#}",
+                        anyhow::Error::from(err)
+                    );
                     if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                         .await
                         .is_ok()

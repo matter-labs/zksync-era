@@ -19,6 +19,7 @@ pub(crate) enum VmExecutionResult {
     Ok(Vec<u8>),
     Revert(Vec<u8>),
     Panic,
+    #[allow(dead_code)]
     MostLikelyDidNotFinish(Address, u16),
 }
 
@@ -34,6 +35,7 @@ pub(crate) const fn aux_heap_page_from_base(base: MemoryPage) -> MemoryPage {
     MemoryPage(base.0 + 3)
 }
 
+#[allow(dead_code)]
 pub(crate) trait FixedLengthIterator<'a, I: 'a, const N: usize>: Iterator<Item = I>
 where
     Self: 'a,
@@ -45,6 +47,7 @@ where
 
 pub(crate) trait IntoFixedLengthByteIterator<const N: usize> {
     type IntoIter: FixedLengthIterator<'static, u8, N>;
+    #[allow(dead_code)]
     fn into_le_iter(self) -> Self::IntoIter;
     fn into_be_iter(self) -> Self::IntoIter;
 }

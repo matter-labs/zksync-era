@@ -13,13 +13,14 @@ use std::{
 };
 
 use async_trait::async_trait;
-use multivm::{
+use tokio::sync::{mpsc, watch, watch::Receiver};
+use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use tokio::sync::{mpsc, watch};
-use zksync_contracts::BaseSystemContracts;
 use zksync_node_test_utils::create_l2_transaction;
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_types::{
     fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -28,8 +29,10 @@ use zksync_types::{
 use crate::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{IoSealCriteria, SequencerSealer},
-    testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
+    seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
+    testonly::{
+        default_vm_batch_result, storage_view_cache, successful_exec, BASE_SYSTEM_CONTRACTS,
+    },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -128,7 +131,7 @@ impl TestScenario {
         mut self,
         description: &'static str,
         tx: Transaction,
-        err: Option<String>,
+        err: UnexecutableReason,
     ) -> Self {
         self.actions
             .push_back(ScenarioItem::Reject(description, tx, err));
@@ -204,6 +207,7 @@ impl TestScenario {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(sealer),
+            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -269,7 +273,7 @@ pub(crate) fn successful_exec_with_metrics(
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        reason: multivm::interface::Halt::InnerTxError,
+        reason: zksync_multivm::interface::Halt::InnerTxError,
     }
 }
 
@@ -281,7 +285,7 @@ enum ScenarioItem {
     IncrementProtocolVersion(&'static str),
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
-    Reject(&'static str, Transaction, Option<String>),
+    Reject(&'static str, Transaction, UnexecutableReason),
     L2BlockSeal(
         &'static str,
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
@@ -410,6 +414,7 @@ impl TestBatchExecutorBuilder {
 impl BatchExecutor for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -421,8 +426,10 @@ impl BatchExecutor for TestBatchExecutorBuilder {
             self.txs.pop_front().unwrap(),
             self.rollback_set.clone(),
         );
-        let handle = tokio::task::spawn_blocking(move || executor.run());
-
+        let handle = tokio::task::spawn_blocking(move || {
+            executor.run();
+            Ok(())
+        });
         Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
@@ -494,6 +501,9 @@ impl TestBatchExecutor {
                     resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
+                Command::FinishBatchWithCache(resp) => resp
+                    .send((default_vm_batch_result(), storage_view_cache()))
+                    .unwrap(),
             }
         }
     }
@@ -756,20 +766,14 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
+    async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
         };
         assert_eq!(tx, &expected_tx, "Incorrect transaction has been rejected");
-        if let Some(expected_err) = expected_err {
-            assert!(
-                error.contains(&expected_err),
-                "Transaction was rejected with an unexpected error. Expected part was {}, but the actual error was {}",
-                expected_err,
-                error
-            );
-        }
+        assert_eq!(reason, expected_err);
+
         self.skipping_txs = false;
         Ok(())
     }
@@ -810,6 +814,7 @@ pub(crate) struct MockBatchExecutor;
 impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
+        _storage_factory: Arc<dyn ReadStorageFactory>,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
@@ -825,11 +830,30 @@ impl BatchExecutor for MockBatchExecutor {
                     Command::FinishBatch(resp) => {
                         // Blanket result, it doesn't really matter.
                         resp.send(default_vm_batch_result()).unwrap();
-                        return;
+                        break;
                     }
+                    Command::FinishBatchWithCache(resp) => resp
+                        .send((default_vm_batch_result(), storage_view_cache()))
+                        .unwrap(),
                 }
             }
+            anyhow::Ok(())
         });
         Some(BatchExecutorHandle::from_raw(handle, send))
+    }
+}
+
+#[derive(Debug)]
+pub struct MockReadStorageFactory;
+
+#[async_trait]
+impl ReadStorageFactory for MockReadStorageFactory {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &Receiver<bool>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+        // Presume that the storage is never accessed in mocked environment
+        unimplemented!()
     }
 }

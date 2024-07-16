@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -20,17 +21,21 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    recovery::MerkleTreeRecovery,
+    recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageKey, H256};
+use zksync_types::{
+    block::{L1BatchHeader, L1BatchTreeData},
+    writes::TreeWrite,
+    AccountTreeId, L1BatchNumber, StorageKey, H256,
+};
 
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
-    MetadataCalculatorConfig,
+    MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -86,9 +91,10 @@ impl MerkleTreeHealthCheck {
         let weak_reader = Arc::<OnceCell<WeakAsyncTreeReader>>::default();
         let weak_reader_for_task = weak_reader.clone();
         tokio::spawn(async move {
-            weak_reader_for_task
-                .set(reader.wait().await.unwrap().downgrade())
-                .ok();
+            if let Some(reader) = reader.wait().await {
+                weak_reader_for_task.set(reader.downgrade()).ok();
+            }
+            // Otherwise, the tree is dropped before getting initialized; this is not an error in this context.
         });
 
         Self {
@@ -188,15 +194,15 @@ impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
         "`AsyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled or returned an error";
 
-    pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+    pub fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
         let tree = match mode {
             MerkleTreeMode::Full => ZkSyncTree::new(db),
             MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
-        };
-        Self {
+        }?;
+        Ok(Self {
             inner: Some(tree),
             mode,
-        }
+        })
     }
 
     fn as_ref(&self) -> &ZkSyncTree {
@@ -230,9 +236,21 @@ impl AsyncTree {
         self.as_ref().next_l1_batch_number()
     }
 
+    pub fn min_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.as_ref().reader().min_l1_batch_number()
+    }
+
     #[cfg(test)]
     pub fn root_hash(&self) -> H256 {
         self.as_ref().root_hash()
+    }
+
+    pub fn data_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> Option<L1BatchTreeData> {
+        let (hash, leaf_count) = self.as_ref().root_info(l1_batch_number)?;
+        Some(L1BatchTreeData {
+            hash,
+            rollup_last_leaf_index: leaf_count + 1,
+        })
     }
 
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
@@ -250,13 +268,13 @@ impl AsyncTree {
 
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.process_l1_batch(&batch.storage_logs);
-            (tree, metadata)
+            let metadata = tree.process_l1_batch(&batch.storage_logs)?;
+            anyhow::Ok((tree, metadata))
         })
         .await
         .with_context(|| {
             format!("Merkle tree panicked when processing L1 batch #{batch_number}")
-        })?;
+        })??;
 
         self.inner = Some(tree);
         Ok(metadata)
@@ -267,17 +285,17 @@ impl AsyncTree {
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
-                tree.save();
-                tree
+                tree.save()?;
+                anyhow::Ok(tree)
             })
             .await
-            .context("Merkle tree panicked during saving")?,
+            .context("Merkle tree panicked during saving")??,
         );
         Ok(())
     }
 
-    pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
-        self.as_mut().roll_back_logs(last_l1_batch_to_keep);
+    pub fn roll_back_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
+        self.as_mut().roll_back_logs(last_l1_batch_to_keep)
     }
 }
 
@@ -297,12 +315,35 @@ impl AsyncTreeReader {
     }
 
     pub async fn info(self) -> MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || MerkleTreeInfo {
-            mode: self.mode,
-            root_hash: self.inner.root_hash(),
-            next_l1_batch_number: self.inner.next_l1_batch_number(),
-            min_l1_batch_number: self.inner.min_l1_batch_number(),
-            leaf_count: self.inner.leaf_count(),
+        tokio::task::spawn_blocking(move || {
+            loop {
+                let next_l1_batch_number = self.inner.next_l1_batch_number();
+                let latest_l1_batch_number = next_l1_batch_number.checked_sub(1);
+                let root_info = if let Some(number) = latest_l1_batch_number {
+                    self.inner.root_info(L1BatchNumber(number))
+                } else {
+                    // No L1 batches in the tree yet.
+                    Some((ZkSyncTree::empty_tree_hash(), 0))
+                };
+                let Some((root_hash, leaf_count)) = root_info else {
+                    // It is possible (although very unlikely) that the latest tree version was removed after requesting it,
+                    // hence the outer loop; RocksDB doesn't provide consistent data views by default.
+                    tracing::info!(
+                        "Tree version at L1 batch {latest_l1_batch_number:?} was removed after requesting the latest tree L1 batch; \
+                         re-requesting tree information"
+                    );
+                    continue;
+                };
+
+                // `min_l1_batch_number` is not necessarily consistent with other retrieved tree data, but this looks fine.
+                break MerkleTreeInfo {
+                    mode: self.mode,
+                    root_hash,
+                    next_l1_batch_number,
+                    min_l1_batch_number: self.inner.min_l1_batch_number(),
+                    leaf_count,
+                };
+            }
         })
         .await
         .unwrap()
@@ -337,7 +378,7 @@ struct WeakAsyncTreeReader {
 impl WeakAsyncTreeReader {
     fn upgrade(&self) -> Option<AsyncTreeReader> {
         Some(AsyncTreeReader {
-            inner: ZkSyncTreeReader::new(self.db.upgrade()?.into()),
+            inner: ZkSyncTreeReader::new(self.db.upgrade()?.into()).ok()?,
             mode: self.mode,
         })
     }
@@ -353,16 +394,14 @@ impl LazyAsyncTreeReader {
         self.0.borrow().clone()
     }
 
-    /// Waits until the tree is initialized and returns a reader for it.
-    pub async fn wait(mut self) -> anyhow::Result<AsyncTreeReader> {
+    /// Waits until the tree is initialized and returns a reader for it. If the tree is dropped before
+    /// getting initialized, returns `None`.
+    pub async fn wait(mut self) -> Option<AsyncTreeReader> {
         loop {
             if let Some(reader) = self.0.borrow().clone() {
-                break Ok(reader);
+                break Some(reader);
             }
-            self.0
-                .changed()
-                .await
-                .context("Tree dropped without getting ready; not resolving tree reader")?;
+            self.0.changed().await.ok()?;
         }
     }
 }
@@ -378,11 +417,32 @@ impl AsyncTreeRecovery {
     const INCONSISTENT_MSG: &'static str =
         "`AsyncTreeRecovery` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
-    pub fn new(db: RocksDBWrapper, recovered_version: u64, mode: MerkleTreeMode) -> Self {
-        Self {
-            inner: Some(MerkleTreeRecovery::new(db, recovered_version)),
+    pub fn new(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
+    ) -> anyhow::Result<Self> {
+        Ok(Self::with_handle(db, recovered_version, mode, config)?.0)
+    }
+
+    // Public for testing purposes
+    pub fn with_handle(
+        db: RocksDBWrapper,
+        recovered_version: u64,
+        mode: MerkleTreeMode,
+        config: &MetadataCalculatorRecoveryConfig,
+    ) -> anyhow::Result<(Self, Option<PersistenceThreadHandle>)> {
+        let mut recovery = MerkleTreeRecovery::new(db, recovered_version)?;
+        let handle = config
+            .parallel_persistence_buffer
+            .map(|buffer_capacity| recovery.parallelize_persistence(buffer_capacity.get()))
+            .transpose()?;
+        let this = Self {
+            inner: Some(recovery),
             mode,
-        }
+        };
+        Ok((this, handle))
     }
 
     pub fn recovered_version(&self) -> u64 {
@@ -390,6 +450,40 @@ impl AsyncTreeRecovery {
             .as_ref()
             .expect(Self::INCONSISTENT_MSG)
             .recovered_version()
+    }
+
+    pub async fn ensure_desired_chunk_size(
+        &mut self,
+        desired_chunk_size: u64,
+    ) -> anyhow::Result<()> {
+        const CHUNK_SIZE_KEY: &str = "recovery.desired_chunk_size";
+
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        let tree = tokio::task::spawn_blocking(move || {
+            // **Important.** Tags should not be mutated on error (i.e., it would be an error to unconditionally call `tags.insert()`
+            // and then check the previous value).
+            tree.update_custom_tags(|tags| {
+                if let Some(chunk_size_in_tree) = tags.get(CHUNK_SIZE_KEY) {
+                    let chunk_size_in_tree: u64 = chunk_size_in_tree
+                        .parse()
+                        .with_context(|| format!("error parsing desired_chunk_size `{chunk_size_in_tree}` in Merkle tree tags"))?;
+                    anyhow::ensure!(
+                        chunk_size_in_tree == desired_chunk_size,
+                        "Mismatch between the configured desired chunk size ({desired_chunk_size}) and one that was used previously ({chunk_size_in_tree}). \
+                         Either change the desired chunk size in configuration, or reset Merkle tree recovery by clearing its RocksDB directory"
+                    );
+                } else {
+                    tags.insert(CHUNK_SIZE_KEY.to_owned(), desired_chunk_size.to_string());
+                }
+                Ok(())
+            })
+            .context("failed updating Merkle tree tags")??;
+            anyhow::Ok(tree)
+        })
+        .await??;
+
+        self.inner = Some(tree);
+        Ok(())
     }
 
     /// Returns an entry for the specified keys.
@@ -413,23 +507,32 @@ impl AsyncTreeRecovery {
     }
 
     /// Extends the tree with a chunk of recovery entries.
-    pub async fn extend(&mut self, entries: Vec<TreeEntry>) {
+    pub async fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let tree = tokio::task::spawn_blocking(move || {
-            tree.extend_random(entries);
-            tree
+            tree.extend_random(entries)?;
+            anyhow::Ok(tree)
         })
         .await
-        .unwrap();
+        .context("extending tree with recovery entries panicked")??;
 
         self.inner = Some(tree);
+        Ok(())
     }
 
-    pub async fn finalize(self) -> AsyncTree {
+    /// Waits until all pending chunks are persisted.
+    pub async fn wait_for_persistence(self) -> anyhow::Result<()> {
+        let tree = self.inner.expect(Self::INCONSISTENT_MSG);
+        tokio::task::spawn_blocking(|| tree.wait_for_persistence())
+            .await
+            .context("panicked while waiting for pending recovery chunks to be persisted")?
+    }
+
+    pub async fn finalize(self) -> anyhow::Result<AsyncTree> {
         let tree = self.inner.expect(Self::INCONSISTENT_MSG);
         let db = tokio::task::spawn_blocking(|| tree.finalize())
             .await
-            .unwrap();
+            .context("finalizing tree panicked")??;
         AsyncTree::new(db, self.mode)
     }
 }
@@ -449,19 +552,24 @@ pub(super) enum GenericAsyncTree {
 }
 
 impl GenericAsyncTree {
-    pub async fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> Self {
+    pub async fn new(
+        db: RocksDBWrapper,
+        config: &MetadataCalculatorConfig,
+    ) -> anyhow::Result<Self> {
+        let mode = config.mode;
+        let recovery = config.recovery.clone();
         tokio::task::spawn_blocking(move || {
             let Some(manifest) = db.manifest() else {
-                return Self::Empty { db, mode };
+                return Ok(Self::Empty { db, mode });
             };
-            if let Some(version) = manifest.recovered_version() {
-                Self::Recovering(AsyncTreeRecovery::new(db, version, mode))
+            anyhow::Ok(if let Some(version) = manifest.recovered_version() {
+                Self::Recovering(AsyncTreeRecovery::new(db, version, mode, &recovery)?)
             } else {
-                Self::Ready(AsyncTree::new(db, mode))
-            }
+                Self::Ready(AsyncTree::new(db, mode)?)
+            })
         })
         .await
-        .unwrap()
+        .context("loading Merkle tree panicked")?
     }
 }
 
@@ -504,7 +612,7 @@ impl Delayer {
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
     pub header: L1BatchHeader,
-    pub storage_logs: Vec<TreeInstruction<StorageKey>>,
+    pub storage_logs: Vec<TreeInstruction>,
     mode: MerkleTreeMode,
 }
 
@@ -550,10 +658,85 @@ impl L1BatchWithLogs {
             MerkleTreeMode::Lightweight => HashSet::new(),
         };
 
+        let load_tree_writes_latency = METRICS.start_load_stage(LoadChangesStage::LoadTreeWrites);
+        let mut tree_writes = storage
+            .blocks_dal()
+            .get_tree_writes(l1_batch_number)
+            .await?;
+        if tree_writes.is_none() && l1_batch_number.0 > 0 {
+            // If `tree_writes` are present for the previous L1 batch, then it is expected them to be eventually present for the current batch as well.
+            // Waiting for tree writes should be faster then constructing them, so we wait with a reasonable timeout.
+            let tree_writes_present_for_previous_batch = storage
+                .blocks_dal()
+                .check_tree_writes_presence(l1_batch_number - 1)
+                .await?;
+            if tree_writes_present_for_previous_batch {
+                tree_writes = Self::wait_for_tree_writes(storage, l1_batch_number).await?;
+            }
+        }
+        load_tree_writes_latency.observe();
+
+        let storage_logs = if let Some(tree_writes) = tree_writes {
+            // If tree writes are present in DB then simply use them.
+            let writes = tree_writes.into_iter().map(|tree_write| {
+                let storage_key =
+                    StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
+                TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
+            });
+            let reads = protective_reads.into_iter().map(TreeInstruction::Read);
+
+            writes
+                .chain(reads)
+                .sorted_by_key(|tree_instruction| tree_instruction.key())
+                .map(TreeInstruction::with_hashed_key)
+                .collect()
+        } else {
+            // Otherwise, load writes' data from other tables.
+            Self::extract_storage_logs_from_db(storage, l1_batch_number, protective_reads).await?
+        };
+
+        load_changes_latency.observe();
+
+        Ok(Some(Self {
+            header,
+            storage_logs,
+            mode,
+        }))
+    }
+
+    async fn wait_for_tree_writes(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<TreeWrite>>> {
+        const INTERVAL: Duration = Duration::from_millis(50);
+        const TIMEOUT: Duration = Duration::from_secs(5);
+
+        tokio::time::timeout(TIMEOUT, async {
+            loop {
+                if let Some(tree_writes) = connection
+                    .blocks_dal()
+                    .get_tree_writes(l1_batch_number)
+                    .await?
+                {
+                    break anyhow::Ok(tree_writes);
+                }
+                tokio::time::sleep(INTERVAL).await;
+            }
+        })
+        .await
+        .ok()
+        .transpose()
+    }
+
+    async fn extract_storage_logs_from_db(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+        protective_reads: HashSet<StorageKey>,
+    ) -> anyhow::Result<Vec<TreeInstruction>> {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
-        let mut touched_slots = storage
+        let mut touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await
             .context("cannot fetch touched slots")?;
         touched_slots_latency.observe_with_count(touched_slots.len());
@@ -561,7 +744,7 @@ impl L1BatchWithLogs {
         let leaf_indices_latency = METRICS.start_load_stage(LoadChangesStage::LoadLeafIndices);
         let hashed_keys_for_writes: Vec<_> =
             touched_slots.keys().map(StorageKey::hashed_key).collect();
-        let l1_batches_for_initial_writes = storage
+        let l1_batches_for_initial_writes = connection
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_writes)
             .await
@@ -576,7 +759,7 @@ impl L1BatchWithLogs {
             // their further processing. This is not a required step; the logic below works fine without it.
             // Indeed, extra no-op updates that could be added to `storage_logs` as a consequence of no filtering,
             // are removed on the Merkle tree level (see the tree domain wrapper).
-            let log = TreeInstruction::Read(storage_key);
+            let log = TreeInstruction::Read(storage_key.hashed_key_u256());
             storage_logs.insert(storage_key, log);
         }
         tracing::debug!(
@@ -592,28 +775,25 @@ impl L1BatchWithLogs {
                 if initial_write_batch_for_key <= l1_batch_number {
                     storage_logs.insert(
                         storage_key,
-                        TreeInstruction::write(storage_key, leaf_index, value),
+                        TreeInstruction::write(storage_key.hashed_key_u256(), leaf_index, value),
                     );
                 }
             }
         }
 
-        load_changes_latency.observe();
-        Ok(Some(Self {
-            header,
-            storage_logs: storage_logs.into_values().collect(),
-            mode,
-        }))
+        Ok(storage_logs.into_values().collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-    use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
-    use zksync_types::{StorageKey, StorageLog};
+    use zksync_prover_interface::inputs::WitnessInputMerklePaths;
+    use zksync_types::{writes::TreeWrite, StorageKey, StorageLog, U256};
 
     use super::*;
     use crate::tests::{extend_db_state, gen_storage_logs, mock_config, reset_db_state};
@@ -636,7 +816,7 @@ mod tests {
                 .unwrap();
             let touched_slots = storage
                 .storage_logs_dal()
-                .get_touched_slots_for_l1_batch(l1_batch_number)
+                .get_touched_slots_for_executed_l1_batch(l1_batch_number)
                 .await
                 .unwrap();
 
@@ -668,7 +848,10 @@ mod tests {
                     );
                 }
 
-                storage_logs.insert(storage_key, TreeInstruction::Read(storage_key));
+                storage_logs.insert(
+                    storage_key,
+                    TreeInstruction::Read(storage_key.hashed_key_u256()),
+                );
             }
 
             for (storage_key, value) in touched_slots {
@@ -677,7 +860,7 @@ mod tests {
                     let (_, leaf_index) = l1_batches_for_initial_writes[&storage_key.hashed_key()];
                     storage_logs.insert(
                         storage_key,
-                        TreeInstruction::write(storage_key, leaf_index, value),
+                        TreeInstruction::write(storage_key.hashed_key_u256(), leaf_index, value),
                     );
                 }
             }
@@ -702,8 +885,62 @@ mod tests {
         reset_db_state(&pool, 5).await;
 
         let mut storage = pool.connection().await.unwrap();
+        let mut tree_writes = Vec::new();
+
+        // Create a lookup table for storage key preimages
+        let all_storage_logs = storage
+            .storage_logs_dal()
+            .dump_all_storage_logs_for_tests()
+            .await;
+        let logs_by_hashed_key: HashMap<_, _> = all_storage_logs
+            .into_iter()
+            .map(|log| {
+                let tree_key = U256::from_little_endian(log.hashed_key.as_bytes());
+                (tree_key, log)
+            })
+            .collect();
+
+        // Check equivalence in case `tree_writes` are not present in DB.
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
+            let batch_with_logs =
+                L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
+                    .await
+                    .unwrap()
+                    .expect("no L1 batch");
+            let slow_batch_with_logs = L1BatchWithLogs::slow(&mut storage, l1_batch_number)
+                .await
+                .unwrap();
+            assert_eq!(batch_with_logs, slow_batch_with_logs);
+
+            let writes = batch_with_logs
+                .storage_logs
+                .into_iter()
+                .filter_map(|instruction| match instruction {
+                    TreeInstruction::Write(tree_entry) => Some(TreeWrite {
+                        address: logs_by_hashed_key[&tree_entry.key].address.unwrap(),
+                        key: logs_by_hashed_key[&tree_entry.key].key.unwrap(),
+                        value: tree_entry.value,
+                        leaf_index: tree_entry.leaf_index,
+                    }),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            tree_writes.push(writes);
+        }
+
+        // Insert `tree_writes` and check again.
+        for l1_batch_number in 0..5 {
+            let l1_batch_number = L1BatchNumber(l1_batch_number);
+            storage
+                .blocks_dal()
+                .set_tree_writes(
+                    l1_batch_number,
+                    tree_writes[l1_batch_number.0 as usize].clone(),
+                )
+                .await
+                .unwrap();
+
             let batch_with_logs =
                 L1BatchWithLogs::new(&mut storage, l1_batch_number, MerkleTreeMode::Full)
                     .await
@@ -742,7 +979,7 @@ mod tests {
 
     async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
         let db = create_db(mock_config(temp_dir.path())).await.unwrap();
-        AsyncTree::new(db, MerkleTreeMode::Full)
+        AsyncTree::new(db, MerkleTreeMode::Full).unwrap()
     }
 
     async fn assert_log_equivalence(
@@ -800,7 +1037,7 @@ mod tests {
         );
     }
 
-    fn assert_equivalent_witnesses(lhs: PrepareBasicCircuitsJob, rhs: PrepareBasicCircuitsJob) {
+    fn assert_equivalent_witnesses(lhs: WitnessInputMerklePaths, rhs: WitnessInputMerklePaths) {
         assert_eq!(lhs.next_enumeration_index(), rhs.next_enumeration_index());
         let lhs_paths = lhs.into_merkle_paths();
         let rhs_paths = rhs.into_merkle_paths();
@@ -868,11 +1105,7 @@ mod tests {
         let mut logs = gen_storage_logs(100..120, 1);
         let logs_copy = logs[0].clone();
         logs.push(logs_copy);
-        let read_logs: Vec<_> = logs[1]
-            .iter()
-            .step_by(3)
-            .map(StorageLog::to_test_log_query)
-            .collect();
+        let read_logs: Vec<_> = logs[1].iter().step_by(3).cloned().collect();
         extend_db_state(&mut storage, logs).await;
         storage
             .storage_logs_dedup_dal()

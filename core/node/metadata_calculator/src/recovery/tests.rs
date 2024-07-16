@@ -1,18 +1,18 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::path::Path;
+use std::{path::Path, sync::Mutex};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::CoreDal;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
-use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_merkle_tree::{domain::ZkSyncTree, recovery::PersistenceThreadHandle, TreeInstruction};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
@@ -33,6 +33,7 @@ fn calculating_chunk_count() {
         l2_block: L2BlockNumber(1),
         log_count: 160_000_000,
         expected_root_hash: H256::zero(),
+        desired_chunk_size: 200_000,
     };
     assert_eq!(snapshot.chunk_count(), 800);
 
@@ -43,9 +44,13 @@ fn calculating_chunk_count() {
     assert_eq!(snapshot.chunk_count(), 1);
 }
 
-async fn create_tree_recovery(path: &Path, l1_batch: L1BatchNumber) -> AsyncTreeRecovery {
+async fn create_tree_recovery(
+    path: &Path,
+    l1_batch: L1BatchNumber,
+    config: &MetadataCalculatorRecoveryConfig,
+) -> (AsyncTreeRecovery, Option<PersistenceThreadHandle>) {
     let db = create_db(mock_config(path)).await.unwrap();
-    AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
+    AsyncTreeRecovery::with_handle(db, l1_batch.0.into(), MerkleTreeMode::Full, config).unwrap()
 }
 
 #[tokio::test]
@@ -53,7 +58,8 @@ async fn basic_recovery_workflow() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
-    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
         .await
         .unwrap();
 
@@ -64,7 +70,7 @@ async fn basic_recovery_workflow() {
         println!("Recovering tree with {chunk_count} chunks");
 
         let tree_path = temp_dir.path().join(format!("recovery-{chunk_count}"));
-        let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+        let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
         let (health_check, health_updater) = ReactiveHealthCheck::new("tree");
         let recovery_options = RecoveryOptions {
             chunk_count,
@@ -96,7 +102,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     // Add all logs from the genesis L1 batch to `logs` so that they cover all state keys.
     let genesis_logs = storage
         .storage_logs_dal()
-        .get_touched_slots_for_l1_batch(L1BatchNumber(0))
+        .get_touched_slots_for_executed_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
     let genesis_logs = genesis_logs
@@ -107,7 +113,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     drop(storage);
 
     // Ensure that metadata for L1 batch #1 is present in the DB.
-    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool).await;
+    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool, true).await;
     let l1_batch_root_hash = run_calculator(calculator).await;
 
     SnapshotRecoveryStatus {
@@ -126,6 +132,7 @@ async fn prepare_recovery_snapshot_with_genesis(
 struct TestEventListener {
     expected_recovered_chunks: u64,
     stop_threshold: u64,
+    persistence_handle: Mutex<Option<(PersistenceThreadHandle, u64)>>,
     processed_chunk_count: AtomicU64,
     stop_sender: watch::Sender<bool>,
 }
@@ -135,6 +142,7 @@ impl TestEventListener {
         Self {
             expected_recovered_chunks: 0,
             stop_threshold,
+            persistence_handle: Mutex::default(),
             processed_chunk_count: AtomicU64::new(0),
             stop_sender,
         }
@@ -144,38 +152,72 @@ impl TestEventListener {
         self.expected_recovered_chunks = count;
         self
     }
+
+    fn crash_persistence_after(
+        mut self,
+        chunk_count: u64,
+        handle: PersistenceThreadHandle,
+    ) -> Self {
+        assert!(chunk_count < self.stop_threshold);
+        self.persistence_handle = Mutex::new(Some((handle, chunk_count)));
+        self
+    }
 }
 
-#[async_trait]
 impl HandleRecoveryEvent for TestEventListener {
     fn recovery_started(&mut self, _chunk_count: u64, recovered_chunk_count: u64) {
         assert_eq!(recovered_chunk_count, self.expected_recovered_chunks);
     }
 
-    async fn chunk_recovered(&self) {
+    fn chunk_recovered(&self) {
         let processed_chunk_count = self.processed_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
         if processed_chunk_count >= self.stop_threshold {
             self.stop_sender.send_replace(true);
         }
+
+        let mut persistence_handle = self.persistence_handle.lock().unwrap();
+        if let Some((_, crash_threshold)) = &*persistence_handle {
+            if processed_chunk_count >= *crash_threshold {
+                let (handle, _) = persistence_handle.take().unwrap();
+                handle.test_stop_processing();
+            }
+        }
     }
 }
 
-#[test_casing(3, [5, 7, 8])]
+#[derive(Debug, Clone, Copy)]
+enum FaultToleranceCase {
+    Sequential,
+    Parallel,
+    ParallelWithCrash,
+}
+
+impl FaultToleranceCase {
+    const ALL: [Self; 3] = [Self::Sequential, Self::Parallel, Self::ParallelWithCrash];
+}
+
+#[test_casing(9, Product(([5, 7, 8], FaultToleranceCase::ALL)))]
 #[tokio::test]
-async fn recovery_fault_tolerance(chunk_count: u64) {
+async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(pool.clone(), &temp_dir).await;
 
     let tree_path = temp_dir.path().join("recovery");
-    let tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let mut config = MetadataCalculatorRecoveryConfig::default();
+    assert!(config.parallel_persistence_buffer.is_some());
+    if matches!(case, FaultToleranceCase::Sequential) {
+        config.parallel_persistence_buffer = None;
+    }
+
+    let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
         events: Box::new(TestEventListener::new(1, stop_sender)),
     };
-    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
+    let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery, &config)
         .await
         .unwrap();
     assert!(tree
@@ -184,29 +226,44 @@ async fn recovery_fault_tolerance(chunk_count: u64) {
         .unwrap()
         .is_none());
 
-    // Emulate a restart and recover 2 more chunks.
-    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    // Emulate a restart and recover 2 more chunks (or 1 + emulated persistence crash).
+    let (mut tree, handle) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
+    let mut event_listener = TestEventListener::new(2, stop_sender).expect_recovered_chunks(1);
+    let expected_recovered_chunks = if matches!(case, FaultToleranceCase::ParallelWithCrash) {
+        event_listener = event_listener.crash_persistence_after(1, handle.unwrap());
+        2
+    } else {
+        drop(handle); // necessary to terminate the background persistence thread in time
+        3
+    };
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
-        events: Box::new(TestEventListener::new(2, stop_sender).expect_recovered_chunks(1)),
+        events: Box::new(event_listener),
     };
-    assert!(tree
+    let recovery_result = tree
         .recover(snapshot, recovery_options, &pool, &stop_receiver)
-        .await
-        .unwrap()
-        .is_none());
+        .await;
+    if matches!(case, FaultToleranceCase::ParallelWithCrash) {
+        let err = format!("{:#}", recovery_result.unwrap_err());
+        assert!(err.contains("emulated persistence crash"), "{err}");
+    } else {
+        assert!(recovery_result.unwrap().is_none());
+    }
 
     // Emulate another restart and recover remaining chunks.
-    let mut tree = create_tree_recovery(&tree_path, L1BatchNumber(1)).await;
+    let (mut tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
     assert_ne!(tree.root_hash().await, snapshot_recovery.l1_batch_root_hash);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
-        events: Box::new(TestEventListener::new(u64::MAX, stop_sender).expect_recovered_chunks(3)),
+        events: Box::new(
+            TestEventListener::new(u64::MAX, stop_sender)
+                .expect_recovered_chunks(expected_recovered_chunks),
+        ),
     };
     let tree = tree
         .recover(snapshot, recovery_options, &pool, &stop_receiver)
@@ -249,6 +306,10 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await
@@ -301,7 +362,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
                 .iter()
                 .chain(&new_logs)
                 .enumerate()
-                .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+                .map(|(i, log)| {
+                    TreeInstruction::write(log.key.hashed_key_u256(), i as u64 + 1, log.value)
+                })
                 .collect();
             let expected_new_root_hash =
                 ZkSyncTree::process_genesis_batch(&all_tree_instructions).root_hash;

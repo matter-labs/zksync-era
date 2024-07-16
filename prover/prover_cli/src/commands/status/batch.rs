@@ -4,11 +4,11 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
-use prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{
-        BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafWitnessGeneratorJobInfo,
+        BasicWitnessGeneratorJobInfo, ExtendedJobCountStatistics, LeafWitnessGeneratorJobInfo,
         NodeWitnessGeneratorJobInfo, ProofCompressionJobInfo, ProverJobFriInfo, ProverJobStatus,
         RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo,
     },
@@ -38,6 +38,22 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
             "== {} ==",
             format!("Batch {} Status", batch_data.batch_number).bold()
         );
+
+        if let Status::Custom(msg) = batch_data.compressor.witness_generator_jobs_status() {
+            if msg.contains("Sent to server") {
+                println!("> Proof sent to server ✅");
+                continue;
+            }
+        }
+
+        let basic_witness_generator_status = batch_data
+            .basic_witness_generator
+            .witness_generator_jobs_status();
+        if matches!(basic_witness_generator_status, Status::JobsNotFound) {
+            println!("> No batch found. 🚫");
+            continue;
+        }
+
         if !args.verbose {
             display_batch_status(batch_data);
         } else {
@@ -365,7 +381,7 @@ fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>, max_attempt
 }
 
 fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
-    let mut jobs_counts = JobCountStatistics::default();
+    let mut jobs_counts = ExtendedJobCountStatistics::default();
     let total_jobs = jobs.len();
     jobs.iter().for_each(|job| match job.status {
         ProverJobStatus::Queued => jobs_counts.queued += 1,

@@ -5,7 +5,7 @@ use vise::{Gauge, LabeledFamily, Metrics};
 pub(crate) struct LoadtestMetrics {
     #[metrics(labels = ["label"])]
     pub tps: LabeledFamily<String, Gauge<f64>>,
-    pub master_account_balance: Gauge<u64>,
+    pub master_account_balance: Gauge<f64>,
 }
 
 #[vise::register]

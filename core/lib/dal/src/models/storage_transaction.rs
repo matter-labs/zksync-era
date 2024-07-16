@@ -1,6 +1,7 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::Zero;
+use serde_json::Value;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
@@ -42,7 +43,6 @@ pub struct StorageTransaction {
     pub received_at: NaiveDateTime,
     pub in_mempool: bool,
 
-    pub l1_block_number: Option<i32>,
     pub l1_batch_number: Option<i64>,
     pub l1_batch_tx_index: Option<i32>,
     pub miniblock_number: Option<i64>,
@@ -66,6 +66,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    // DEPRECATED.
+    pub l1_block_number: Option<i32>,
 }
 
 impl From<StorageTransaction> for L1TxCommonData {
@@ -137,10 +140,9 @@ impl From<StorageTransaction> for L1TxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .unwrap_or_else(|| U256::from(1u32)),
-            deadline_block: 0,
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
+            // DEPRECATED.
+            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
         }
     }
 }
@@ -282,7 +284,7 @@ impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .expect("gas_per_pubdata_limit field is missing for protocol upgrade tx"),
-            eth_hash: Default::default(),
+            // DEPRECATED.
             eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }
@@ -294,7 +296,7 @@ impl From<StorageTransaction> for Transaction {
         let hash = H256::from_slice(&tx.hash);
         let execute = serde_json::from_value::<Execute>(tx.data.clone())
             .unwrap_or_else(|_| panic!("invalid json in database for tx {:?}", hash));
-        let received_timestamp_ms = tx.received_at.timestamp_millis() as u64;
+        let received_timestamp_ms = tx.received_at.and_utc().timestamp_millis() as u64;
         match tx.tx_format {
             Some(t) if t == i32::from(PRIORITY_OPERATION_L2_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
@@ -335,6 +337,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
@@ -395,8 +398,15 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
     }
 }
 
+/// Details of the transaction execution.
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct StorageTransactionDetails {
+pub struct StorageTransactionExecutionInfo {
+    /// This is an opaque JSON field, with VM version specific contents.
+    pub execution_info: Value,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub(crate) struct StorageTransactionDetails {
     pub is_priority: bool,
     pub initiator_address: Vec<u8>,
     pub gas_limit: Option<BigDecimal>,

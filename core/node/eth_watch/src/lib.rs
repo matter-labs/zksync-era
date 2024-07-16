@@ -1,6 +1,6 @@
 //! Ethereum watcher polls the Ethereum node for the relevant events, such as priority operations (aka L1 transactions),
 //! protocol upgrades etc.
-//! New events are accepted to the zkSync network once they have the sufficient amount of L1 confirmations.
+//! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
 use std::time::Duration;
 
@@ -9,8 +9,8 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
-    ProtocolVersionId,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -22,6 +22,7 @@ use self::{
     },
     metrics::{PollStage, METRICS},
 };
+use crate::event_processors::DecentralizedUpgradesEventProcessor;
 
 mod client;
 mod event_processors;
@@ -31,7 +32,7 @@ mod tests;
 
 #[derive(Debug)]
 struct EthWatchState {
-    last_seen_version_id: ProtocolVersionId,
+    last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
     last_processed_ethereum_block: u64,
 }
@@ -49,8 +50,8 @@ pub struct EthWatch {
 impl EthWatch {
     pub async fn new(
         diamond_proxy_addr: Address,
-        state_transition_manager_address: Option<Address>,
         governance_contract: &Contract,
+        chain_admin_contract: &Contract,
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
@@ -63,13 +64,18 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            state_transition_manager_address.unwrap_or(diamond_proxy_addr),
-            state.last_seen_version_id,
+            diamond_proxy_addr,
+            state.last_seen_protocol_version,
             governance_contract,
+        );
+        let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
+            state.last_seen_protocol_version,
+            chain_admin_contract,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(governance_upgrades_processor),
+            Box::new(decentralized_upgrades_processor),
         ];
 
         let topics = event_processors
@@ -97,9 +103,9 @@ impl EthWatch {
             .await?
             .map_or(PriorityOpId(0), |e| e + 1);
 
-        let last_seen_version_id = storage
+        let last_seen_protocol_version = storage
             .protocol_versions_dal()
-            .last_version_id()
+            .latest_semantic_version()
             .await?
             .context("expected at least one (genesis) version to be present in DB")?;
 
@@ -121,7 +127,7 @@ impl EthWatch {
 
         Ok(EthWatchState {
             next_expected_priority_id,
-            last_seen_version_id,
+            last_seen_protocol_version,
             last_processed_ethereum_block,
         })
     }
@@ -185,7 +191,7 @@ impl EthWatch {
             let relevant_topic = processor.relevant_topic();
             let processor_events = events
                 .iter()
-                .filter(|event| event.topics.get(0) == Some(&relevant_topic))
+                .filter(|event| event.topics.first() == Some(&relevant_topic))
                 .cloned()
                 .collect();
             processor

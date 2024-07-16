@@ -578,6 +578,51 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     );
 }
 
+/// Tests the worst-case scenario w.r.t. L1 batch root hashes: *all* root hashes match locally and on the main node, only L2 block hashes diverge.
+#[test_casing(3, [2, 5, 8])]
+#[tokio::test]
+async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) {
+    const L1_BATCH_COUNT: u32 = 10;
+
+    assert!(last_correct_l1_batch < L1_BATCH_COUNT);
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let mut client = MockMainNodeClient::default();
+    client
+        .l1_batch_root_hashes
+        .insert(L1BatchNumber(0), Ok(genesis_batch.root_hash));
+    for number in 1..L1_BATCH_COUNT {
+        let l2_block_hash = H256::from_low_u64_le(number.into());
+        store_l2_block(&mut storage, number, l2_block_hash).await;
+        let remote_l2_block_hash = if number <= last_correct_l1_batch {
+            l2_block_hash
+        } else {
+            H256::zero()
+        };
+        client
+            .l2_block_hashes
+            .insert(L2BlockNumber(number), remote_l2_block_hash);
+
+        let l1_batch_root_hash = H256::from_low_u64_be(number.into());
+        seal_l1_batch(&mut storage, number, l1_batch_root_hash).await;
+        client
+            .l1_batch_root_hashes
+            .insert(L1BatchNumber(number), Ok(l1_batch_root_hash));
+    }
+    drop(storage);
+
+    let mut detector = create_mock_detector(client, pool);
+    assert_matches!(
+        detector.check_consistency().await,
+        Err(Error::ReorgDetected(L1BatchNumber(num))) if num == last_correct_l1_batch
+    );
+}
+
 #[derive(Debug)]
 struct SlowMainNode {
     l1_batch_root_hash_call_count: Arc<AtomicUsize>,

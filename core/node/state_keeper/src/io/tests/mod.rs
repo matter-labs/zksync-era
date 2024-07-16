@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
@@ -241,7 +241,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
             Query::RepeatedWrite(U256::from(1), U256::from(4)),
         ),
     ];
-    let execution_result = create_execution_result(0, storage_logs);
+    let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
@@ -259,7 +259,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
             Query::RepeatedWrite(U256::from(3), U256::from(6)),
         ),
     ];
-    let execution_result = create_execution_result(1, storage_logs);
+    let execution_result = create_execution_result(storage_logs);
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
@@ -311,7 +311,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();
     let read_key = StorageKey::new(account, H256::from_low_u64_be(1));
-    assert!(!touched_slots.contains_key(&read_key));
+    assert!(!touched_slots.contains_key(&read_key.hashed_key()));
 
     // The storage logs must be inserted and read in the correct order, so that
     // `touched_slots` contain the most recent values in the L1 batch.
@@ -320,7 +320,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     for (key, value) in written_kvs {
         let key = StorageKey::new(account, H256::from_low_u64_be(key));
         let expected_value = H256::from_low_u64_be(value);
-        assert_eq!(touched_slots[&key], expected_value);
+        assert_eq!(touched_slots[&key.hashed_key()], expected_value);
     }
 }
 
@@ -345,9 +345,9 @@ async fn processing_events_when_sealing_l2_block() {
     });
     let events: Vec<_> = events.collect();
 
-    for (i, events_chunk) in events.chunks(4).enumerate() {
+    for events_chunk in events.chunks(4) {
         let tx = create_transaction(10, 100);
-        let mut execution_result = create_execution_result(i as u16, []);
+        let mut execution_result = create_execution_result([]);
         execution_result.logs.events = events_chunk.to_vec();
         l2_block.extend_from_executed_transaction(
             tx,
@@ -454,7 +454,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
         tx.into(),
-        create_execution_result(0, []),
+        create_execution_result([]),
         vec![],
         BlockGasCount::default(),
         ExecutionMetrics::default(),

@@ -24,30 +24,13 @@ impl proto::ProofSendingMode {
     }
 }
 
-impl proto::ProofLoadingMode {
-    fn new(x: &configs::eth_sender::ProofLoadingMode) -> Self {
-        use configs::eth_sender::ProofLoadingMode as From;
-        match x {
-            From::OldProofFromDb => Self::OldProofFromDb,
-            From::FriProofFromGcs => Self::FriProofFromGcs,
-        }
-    }
-
-    fn parse(&self) -> configs::eth_sender::ProofLoadingMode {
-        use configs::eth_sender::ProofLoadingMode as To;
-        match self {
-            Self::OldProofFromDb => To::OldProofFromDb,
-            Self::FriProofFromGcs => To::FriProofFromGcs,
-        }
-    }
-}
-
 impl proto::PubdataSendingMode {
     fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
         use configs::eth_sender::PubdataSendingMode as From;
         match x {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
+            From::Custom => Self::Custom,
         }
     }
 
@@ -56,6 +39,7 @@ impl proto::PubdataSendingMode {
         match self {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
+            Self::Custom => To::Custom,
         }
     }
 }
@@ -127,10 +111,6 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
-            proof_loading_mode: required(&self.proof_loading_mode)
-                .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
-                .context("proof_loading_mode")?
-                .parse(),
         })
     }
 
@@ -161,7 +141,6 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
-            proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
         }
     }
 }

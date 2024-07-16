@@ -3,6 +3,7 @@ use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 use crate::ReadStorage;
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "shadow_storage")]
 struct ShadowStorageMetrics {
@@ -49,9 +50,9 @@ impl<'a> ShadowStorage<'a> {
 }
 
 impl ReadStorage for ShadowStorage<'_> {
-    fn read_value(&mut self, &key: &StorageKey) -> StorageValue {
-        let source_value = self.source_storage.read_value(&key);
-        let expected_value = self.to_check_storage.read_value(&key);
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        let source_value = self.source_storage.as_mut().read_value(key);
+        let expected_value = self.to_check_storage.as_mut().read_value(key);
         if source_value != expected_value {
             self.metrics.read_value_mismatch.inc();
             tracing::error!(
@@ -64,8 +65,8 @@ impl ReadStorage for ShadowStorage<'_> {
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let source_value = self.source_storage.is_write_initial(key);
-        let expected_value = self.to_check_storage.is_write_initial(key);
+        let source_value = self.source_storage.as_mut().is_write_initial(key);
+        let expected_value = self.to_check_storage.as_mut().is_write_initial(key);
         if source_value != expected_value {
             self.metrics.is_write_initial_mismatch.inc();
             tracing::error!(
@@ -92,18 +93,16 @@ impl ReadStorage for ShadowStorage<'_> {
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        let source_value = self.source_storage.get_enumeration_index(key);
-        let expected_value = self.to_check_storage.get_enumeration_index(key);
+        let source_value = self.source_storage.as_mut().get_enumeration_index(key);
+        let expected_value = self.to_check_storage.as_mut().get_enumeration_index(key);
         if source_value != expected_value {
             tracing::error!(
-                "get_enumeration_index({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to \
-                to_check={:?}", key, self.l1_batch_number, source_value, expected_value
+                "get_enumeration_index({key:?}) -- l1_batch_number={:?} -- \
+                 expected source={source_value:?} to be equal to to_check={expected_value:?}",
+                self.l1_batch_number
             );
-
             self.metrics.get_enumeration_index_mismatch.inc();
         }
         source_value
     }
 }
-
-// TODO: Add unit tests when we swap metrics crate; blocked by: https://linear.app/matterlabs/issue/QIT-3/rework-metrics-approach

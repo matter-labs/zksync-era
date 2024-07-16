@@ -64,9 +64,7 @@ impl L1BatchStagesMap {
     }
 
     fn get(&self, number: L1BatchNumber) -> Option<L1BatchStage> {
-        let Some(index) = number.0.checked_sub(self.first_batch_number.0) else {
-            return None;
-        };
+        let index = number.0.checked_sub(self.first_batch_number.0)?;
         self.stages.get(index as usize).copied()
     }
 
@@ -160,6 +158,7 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
+            fair_pubdata_price: None,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         },
         operator_address: Address::zero(),

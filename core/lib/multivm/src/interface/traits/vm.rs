@@ -19,7 +19,7 @@
 //!     sync::Arc
 //! };
 //! use once_cell::sync::OnceCell;
-//! use multivm::{
+//! use zksync_multivm::{
 //!     interface::{L1BatchEnv, SystemEnv, VmInterface},
 //!     tracers::CallTracer ,
 //!     vm_latest::ToTracerPointer
@@ -143,7 +143,7 @@ pub trait VmInterface<S, H: HistoryMode> {
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: None,
-            initially_written_slots: None,
+            state_diffs: None,
         }
     }
 }

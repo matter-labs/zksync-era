@@ -21,7 +21,7 @@ use crate::{
         },
         storage_transaction::CallTrace,
     },
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -165,20 +165,26 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         from_block: L2BlockNumber,
     ) -> DalResult<Vec<BlockHeader>> {
-        let rows = sqlx::query!(
+        let blocks_rows: Vec<_> = sqlx::query!(
             r#"
             SELECT
-                miniblocks.hash,
-                miniblocks.number,
+                miniblocks.hash AS "block_hash",
+                miniblocks.number AS "block_number",
                 prev_miniblock.hash AS "parent_hash?",
-                miniblocks.timestamp
+                miniblocks.timestamp AS "block_timestamp",
+                miniblocks.base_fee_per_gas AS "base_fee_per_gas",
+                miniblocks.gas_limit AS "block_gas_limit?",
+                transactions.gas_limit AS "transaction_gas_limit?",
+                transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
                 miniblocks
                 LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
+                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number > $1
             ORDER BY
-                miniblocks.number ASC
+                miniblocks.number ASC,
+                transactions.index_in_block ASC
             "#,
             i64::from(from_block.0),
         )
@@ -187,30 +193,50 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let blocks = rows.into_iter().map(|row| BlockHeader {
-            hash: Some(H256::from_slice(&row.hash)),
-            parent_hash: row
-                .parent_hash
-                .as_deref()
-                .map_or_else(H256::zero, H256::from_slice),
-            uncles_hash: EMPTY_UNCLES_HASH,
-            author: H160::zero(),
-            state_root: H256::zero(),
-            transactions_root: H256::zero(),
-            receipts_root: H256::zero(),
-            number: Some(U64::from(row.number)),
-            gas_used: U256::zero(),
-            gas_limit: U256::zero(),
-            base_fee_per_gas: None,
-            extra_data: Bytes::default(),
-            // TODO: include logs
-            logs_bloom: H2048::default(),
-            timestamp: U256::from(row.timestamp),
-            difficulty: U256::zero(),
-            mix_hash: None,
-            nonce: None,
-        });
-        Ok(blocks.collect())
+        let mut headers_map = std::collections::HashMap::new();
+
+        for row in blocks_rows.iter() {
+            let entry = headers_map
+                .entry(row.block_number)
+                .or_insert_with(|| BlockHeader {
+                    hash: Some(H256::from_slice(&row.block_hash)),
+                    parent_hash: row
+                        .parent_hash
+                        .as_deref()
+                        .map_or_else(H256::zero, H256::from_slice),
+                    uncles_hash: EMPTY_UNCLES_HASH,
+                    author: H160::zero(),
+                    state_root: H256::zero(),
+                    transactions_root: H256::zero(),
+                    receipts_root: H256::zero(),
+                    number: Some(U64::from(row.block_number)),
+                    gas_used: U256::zero(),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
+                    base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas.clone())),
+                    extra_data: Bytes::default(),
+                    logs_bloom: H2048::default(),
+                    timestamp: U256::from(row.block_timestamp),
+                    difficulty: U256::zero(),
+                    mix_hash: None,
+                    nonce: None,
+                });
+
+            if let (Some(gas_limit), Some(refunded_gas)) = (
+                row.transaction_gas_limit.clone(),
+                row.transaction_refunded_gas,
+            ) {
+                entry.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
+            }
+        }
+
+        let mut headers: Vec<BlockHeader> = headers_map.into_values().collect();
+        headers.sort_by_key(|header| header.number);
+
+        Ok(headers)
     }
 
     pub async fn resolve_block_id(
@@ -244,6 +270,24 @@ impl BlocksWeb3Dal<'_, '_> {
                 ),
                 api::BlockId::Number(api::BlockNumber::Latest | api::BlockNumber::Committed) => (
                     "SELECT MAX(number) AS number FROM miniblocks";
+                ),
+                api::BlockId::Number(api::BlockNumber::L1Committed) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
                 ),
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
@@ -380,28 +424,10 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<Vec<L2ToL1Log>> {
-        let raw_logs = sqlx::query!(
-            r#"
-            SELECT
-                l2_to_l1_logs
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("get_l2_to_l1_logs")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
-        .await?
-        .map(|row| row.l2_to_l1_logs)
-        .unwrap_or_default();
-
-        Ok(raw_logs
-            .into_iter()
-            .map(|bytes| L2ToL1Log::from_slice(&bytes))
-            .collect())
+        self.storage
+            .blocks_dal()
+            .get_l2_to_l1_logs_for_batch::<L2ToL1Log>(l1_batch_number)
+            .await
     }
 
     pub async fn get_l1_batch_number_of_l2_block(
@@ -603,6 +629,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
                 miniblocks.protocol_version,
@@ -647,7 +674,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 mb AS (
                     SELECT
                         l1_gas_price,
-                        l2_fair_gas_price
+                        l2_fair_gas_price,
+                        fair_pubdata_price
                     FROM
                         miniblocks
                     WHERE
@@ -669,6 +697,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
+                mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash
             FROM
@@ -704,6 +733,7 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
+        aggregated_operations::AggregatedActionType,
         block::{L2BlockHasher, L2BlockHeader},
         fee::TransactionExecutionMetrics,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
@@ -712,8 +742,8 @@ mod tests {
     use super::*;
     use crate::{
         tests::{
-            create_l2_block_header, create_snapshot_recovery, mock_execution_result,
-            mock_l2_transaction,
+            create_l1_batch_header, create_l2_block_header, create_snapshot_recovery,
+            mock_execution_result, mock_l2_transaction,
         },
         ConnectionPool, Core, CoreDal,
     };
@@ -871,6 +901,79 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(l2_block_number, Some(L2BlockNumber(43)));
+    }
+
+    #[tokio::test]
+    async fn resolving_l1_committed_block_id() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let l2_block_header = create_l2_block_header(1);
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let l1_batch_header = create_l1_batch_header(0);
+
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+        assert_eq!(resolved_l2_block_number, Some(L2BlockNumber(0)));
+
+        let mocked_commit_eth_tx = conn
+            .eth_sender_dal()
+            .save_eth_tx(
+                0,
+                vec![],
+                AggregatedActionType::Commit,
+                Address::default(),
+                0,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let tx_hash = H256::random();
+        conn.eth_sender_dal()
+            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, tx_hash, &[], 0)
+            .await
+            .unwrap();
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, U256::zero())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .set_eth_tx_id(
+                l1_batch_header.number..=l1_batch_header.number,
+                mocked_commit_eth_tx.id,
+                AggregatedActionType::Commit,
+            )
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+
+        assert_eq!(resolved_l2_block_number, Some(l2_block_header.number));
     }
 
     #[tokio::test]

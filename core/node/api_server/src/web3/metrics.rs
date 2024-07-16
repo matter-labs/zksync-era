@@ -102,6 +102,7 @@ enum BlockIdLabel {
     Committed,
     Finalized,
     Latest,
+    L1Committed,
     Earliest,
     Pending,
     Number,
@@ -139,6 +140,7 @@ impl From<&MethodMetadata> for MethodLabels {
             api::BlockId::Number(api::BlockNumber::Committed) => BlockIdLabel::Committed,
             api::BlockId::Number(api::BlockNumber::Finalized) => BlockIdLabel::Finalized,
             api::BlockId::Number(api::BlockNumber::Latest) => BlockIdLabel::Latest,
+            api::BlockId::Number(api::BlockNumber::L1Committed) => BlockIdLabel::L1Committed,
             api::BlockId::Number(api::BlockNumber::Earliest) => BlockIdLabel::Earliest,
             api::BlockId::Number(api::BlockNumber::Pending) => BlockIdLabel::Pending,
         });
@@ -185,7 +187,7 @@ impl Web3ErrorKind {
             Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
-            Web3Error::InternalError(_) | Web3Error::NotImplemented => Self::Internal,
+            Web3Error::InternalError(_) | Web3Error::MethodNotImplemented => Self::Internal,
         }
     }
 }

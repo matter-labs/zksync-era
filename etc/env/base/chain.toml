@@ -1,13 +1,13 @@
-# zkSync chain parameters
+# ZKsync chain parameters
 
 [chain.eth]
 # Name of the used Ethereum network
 network = "localhost"
-# Name of current zkSync network
+# Name of current ZKsync network
 # Used for Sentry environment
 zksync_network = "localhost"
-# ID of current zkSync network treated as ETH network ID.
-# Used to distinguish zkSync from other Web3-capable networks.
+# ID of current ZKsync network treated as ETH network ID.
+# Used to distinguish ZKsync from other Web3-capable networks.
 zksync_network_id = 270
 
 [chain.state_keeper]
@@ -78,13 +78,13 @@ max_gas_per_batch = 200000000
 max_pubdata_per_batch = 100000
 
 # The version of the fee model to use.
-# - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+# - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 # Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
 # processing the batch on L1.
-# - `V2`, the second model that was used in zkSync Era. There the pubdata price might be independent from the L1 gas price. Also,
-# The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+# - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
+# The fair L2 gas price is expected to be both the proving/computation price for the operator and the costs that come from
 # processing the batch on L1.
-fee_model_version = "V1"
+fee_model_version = "V2"
 
 # Max number of computational gas that validation step is allowed to take.
 validation_computational_gas_limit = 300000

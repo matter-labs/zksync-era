@@ -1,21 +1,21 @@
-//! Helper module to submit transactions into the zkSync Network.
+//! Helper module to submit transactions into the ZKsync Network.
 
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use multivm::{
-    interface::VmExecutionResultAndLogs,
-    utils::{
-        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
-        get_max_batch_gas_limit,
-    },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-};
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
+};
+use zksync_multivm::{
+    interface::VmExecutionResultAndLogs,
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_eth_call_gas_limit, get_max_batch_gas_limit,
+    },
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -28,6 +28,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
+    transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
     ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
@@ -60,7 +61,7 @@ pub async fn build_tx_sender(
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender, VmConcurrencyBarrier) {
+) -> anyhow::Result<(TxSender, VmConcurrencyBarrier)> {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let master_pool_sink = MasterPoolSink::new(master_pool);
     let tx_sender_builder = TxSenderBuilder::new(
@@ -76,15 +77,13 @@ pub async fn build_tx_sender(
     let batch_fee_input_provider =
         ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
 
-    let tx_sender = tx_sender_builder
-        .build(
-            Arc::new(batch_fee_input_provider),
-            Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(),
-            storage_caches,
-        )
-        .await;
-    (tx_sender, vm_barrier)
+    let tx_sender = tx_sender_builder.build(
+        Arc::new(batch_fee_input_provider),
+        Arc::new(vm_concurrency_limiter),
+        ApiContracts::load_from_disk().await?,
+        storage_caches,
+    );
+    Ok((tx_sender, vm_barrier))
 }
 
 #[derive(Debug, Clone)]
@@ -160,7 +159,14 @@ impl ApiContracts {
     /// Loads the contracts from the local file system.
     /// This method is *currently* preferred to be used in all contexts,
     /// given that there is no way to fetch "playground" contracts from the main node.
-    pub fn load_from_disk() -> Self {
+    pub async fn load_from_disk() -> anyhow::Result<Self> {
+        tokio::task::spawn_blocking(Self::load_from_disk_blocking)
+            .await
+            .context("loading `ApiContracts` panicked")
+    }
+
+    /// Blocking version of [`Self::load_from_disk()`].
+    pub fn load_from_disk_blocking() -> Self {
         Self {
             estimate_gas: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
@@ -232,7 +238,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build(
+    pub fn build(
         self,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -525,9 +531,9 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps_length() > MAX_NEW_FACTORY_DEPS {
+        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
             return Err(SubmitTxError::TooManyFactoryDependencies(
-                tx.execute.factory_deps_length(),
+                tx.execute.factory_deps.len(),
                 MAX_NEW_FACTORY_DEPS,
             ));
         }
@@ -965,6 +971,7 @@ impl TxSender {
     pub(super) async fn eth_call(
         &self,
         block_args: BlockArgs,
+        call_overrides: CallOverrides,
         tx: L2Tx,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
@@ -977,6 +984,7 @@ impl TxSender {
                 vm_permit,
                 self.shared_args().await?,
                 self.0.replica_connection_pool.clone(),
+                call_overrides,
                 tx,
                 block_args,
                 vm_execution_cache_misses_limit,
@@ -1035,5 +1043,20 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+
+    pub(crate) async fn get_default_eth_call_gas(
+        &self,
+        block_args: BlockArgs,
+    ) -> anyhow::Result<u64> {
+        let mut connection = self.acquire_replica_connection().await?;
+
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .context("failed to resolve block info")?
+            .protocol_version;
+
+        Ok(get_eth_call_gas_limit(protocol_version.into()))
     }
 }

@@ -1,13 +1,13 @@
 pub mod storage;
 
 use anyhow::{anyhow, Context};
-use multivm::{
+use tokio::runtime::Handle;
+use zksync_dal::{Connection, Core};
+use zksync_multivm::{
     interface::{VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use tokio::runtime::Handle;
-use zksync_dal::{Connection, Core};
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
@@ -24,8 +24,9 @@ pub fn create_vm(
     mut connection: Connection<'_, Core>,
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<VmAndStorage> {
-    let l1_batch_params_provider = rt_handle
-        .block_on(L1BatchParamsProvider::new(&mut connection))
+    let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+    rt_handle
+        .block_on(l1_batch_params_provider.initialize(&mut connection))
         .context("failed initializing L1 batch params provider")?;
     let first_l2_block_in_batch = rt_handle
         .block_on(

@@ -7,7 +7,7 @@ use rand::{
     Rng, SeedableRng,
 };
 use test_casing::test_casing;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_types::{H256, U256};
 
 use super::*;
@@ -187,7 +187,7 @@ fn inserting_node_in_non_empty_database() {
         TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
     ];
     let (_, patch) = storage.extend(kvs);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     let mut updater = TreeUpdater::new(1, db.root(0).unwrap());
     let sorted_keys = SortedKeys::new([THIRD_KEY, E_KEY, SECOND_KEY].into_iter());
@@ -238,7 +238,7 @@ fn inserting_node_in_non_empty_database_with_moved_key() {
         TreeEntry::new(THIRD_KEY, 2, H256([3; 32])),
     ];
     let (_, patch) = storage.extend(kvs);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     let mut updater = TreeUpdater::new(1, db.root(0).unwrap());
     let sorted_keys = SortedKeys::new([SECOND_KEY].into_iter());
@@ -314,7 +314,7 @@ fn reading_keys_does_not_change_child_version() {
         TreeEntry::new(SECOND_KEY, 2, H256([1; 32])),
     ];
     let (_, patch) = storage.extend(kvs);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![
@@ -344,7 +344,7 @@ fn read_ops_are_not_reflected_in_patch() {
         TreeEntry::new(SECOND_KEY, 2, H256([1; 32])),
     ];
     let (_, patch) = storage.extend(kvs);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![TreeInstruction::Read(FIRST_KEY)];
@@ -369,7 +369,7 @@ fn read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
         .map(|i| TreeEntry::new(big_endian_key(i), i + 1, H256::zero()))
         .collect();
     let (_, patch) = storage.extend(kvs);
-    database.apply_patch(patch);
+    database.apply_patch(patch).unwrap();
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
     for _ in 0..100 {
@@ -389,7 +389,7 @@ fn read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
         let storage = Storage::new(&database, &(), 1, true);
         let (_, patch) = storage.extend_with_proofs(instructions);
         assert_no_copied_nodes(&database, &patch);
-        database.apply_patch(patch);
+        database.apply_patch(patch).unwrap();
     }
 }
 
@@ -421,7 +421,7 @@ fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: boo
     let (_, patch) = storage.extend(kvs);
 
     assert!(patch.stale_keys_by_version[&0].is_empty());
-    database.apply_patch(patch);
+    database.apply_patch(patch).unwrap();
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
     for new_version in 1..=100 {
@@ -438,7 +438,7 @@ fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: boo
             storage.extend(updates.collect()).1
         };
         assert_replaced_keys(&database, &patch);
-        database.apply_patch(patch);
+        database.apply_patch(patch).unwrap();
     }
 }
 
@@ -474,7 +474,7 @@ fn tree_handles_keys_at_terminal_level() {
         .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
         .collect();
     let (_, patch) = Storage::new(&db, &(), 0, true).extend(kvs);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     // Overwrite a key and check that we don't panic.
     let new_kvs = vec![TreeEntry::new(
@@ -547,7 +547,7 @@ fn recovery_with_node_hierarchy(chunk_size: usize) {
     for recovery_chunk in recovery_entries.chunks(chunk_size) {
         let patch = Storage::new(&db, &(), recovery_version, false)
             .extend_during_linear_recovery(recovery_chunk.to_vec());
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
     }
     assert_eq!(db.updated_version, Some(recovery_version));
     let patch = db.patches_by_version.remove(&recovery_version).unwrap();
@@ -598,7 +598,7 @@ fn recovery_with_deep_node_hierarchy(chunk_size: usize) {
     for recovery_chunk in recovery_entries.chunks(chunk_size) {
         let patch = Storage::new(&db, &(), recovery_version, false)
             .extend_during_linear_recovery(recovery_chunk.to_vec());
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
     }
     let mut patch = db.patches_by_version.remove(&recovery_version).unwrap();
     // Manually remove all stale keys from the patch
@@ -658,7 +658,7 @@ fn recovery_workflow_with_multiple_stages() {
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_linear_recovery(recovery_entries.collect());
     assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 100);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     let more_recovery_entries = (100_u64..200).map(|i| TreeEntry {
         key: Key::from(i),
@@ -669,7 +669,7 @@ fn recovery_workflow_with_multiple_stages() {
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_linear_recovery(more_recovery_entries.collect());
     assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 200);
-    db.apply_patch(patch);
+    db.apply_patch(patch).unwrap();
 
     // Check that all entries can be accessed
     let storage = Storage::new(&db, &(), recovery_version + 1, true);
@@ -717,7 +717,7 @@ fn test_recovery_pruning_equivalence(
     let mut db = PatchSet::default();
     for (version, chunk) in entries.chunks(chunk_size).enumerate() {
         let (_, patch) = Storage::new(&db, hasher, version as u64, true).extend(chunk.to_vec());
-        db.apply_patch(patch);
+        db.apply_patch(patch).unwrap();
     }
     // Unite all remaining nodes to a map and manually remove all stale keys.
     let recovered_version = db.manifest.version_count - 1;
@@ -753,7 +753,7 @@ fn test_recovery_pruning_equivalence(
             RecoveryKind::Linear => storage.extend_during_linear_recovery(recovery_chunk.to_vec()),
             RecoveryKind::Random => storage.extend_during_random_recovery(recovery_chunk.to_vec()),
         };
-        recovered_db.apply_patch(patch);
+        recovered_db.apply_patch(patch).unwrap();
     }
     let sub_patch = recovered_db
         .patches_by_version

@@ -31,14 +31,14 @@ jobs:
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-          components:
-            - contract-verifier
-            - verified-sources-fetcher
-          platforms:
-            - linux/amd64
+        components:
+          - contract-verifier
+          - verified-sources-fetcher
+        platforms:
+          - linux/amd64
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
 
@@ -57,7 +57,7 @@ jobs:
           filtered_tag=""
           while [ true ]; do
             echo "Page: $page"
-            tags=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
+            tags=$(run_retried curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
@@ -73,9 +73,9 @@ jobs:
           done
           echo "Contracts tag is: ${filtered_tag}"
           mkdir -p ./contracts
-          curl --retry 5 -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
-          curl --retry 5 -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
-          curl --retry 5 -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
+          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
+          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
+          run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
           tar -C ./contracts -zxf l1-contracts.tar.gz
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
@@ -102,7 +102,9 @@ jobs:
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
           mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
+          ci_run pre_download_compilers.sh
           ci_run sccache --start-server
 
       - name: init
@@ -113,7 +115,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk || true
           ci_run yarn zk build
-          ci_run curl --retry 5 -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
@@ -136,14 +138,14 @@ jobs:
           COMPONENT: ${{ matrix.components }}
           PLATFORM: ${{ matrix.platforms }}
         run: |
-          ci_run rustup default nightly-2023-08-21
+          ci_run run_retried rustup default nightly-2024-05-07
           platform=$(echo $PLATFORM | tr '/' '-')
           ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
 
   create_manifest:
     name: Create release manifest
@@ -160,7 +162,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: login to Docker registries
         run: |

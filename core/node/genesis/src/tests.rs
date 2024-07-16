@@ -53,7 +53,10 @@ async fn running_genesis_with_non_latest_protocol_version() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
     let params = GenesisParams::load_genesis_params(GenesisConfig {
-        protocol_version: Some(ProtocolVersionId::Version10 as u16),
+        protocol_version: Some(ProtocolSemanticVersion {
+            minor: ProtocolVersionId::Version10,
+            patch: 0.into(),
+        }),
         ..mock_genesis_config()
     })
     .unwrap();

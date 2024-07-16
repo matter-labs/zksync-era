@@ -11,10 +11,11 @@
       "contracts/system-contracts",
       "etc/contracts-test-data",
       "etc/ERC20",
+      "etc/utils",
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
-      "core/tests/snapshot-recovery-test",
+      "core/tests/recovery-test",
       "core/tests/upgrade-test",
       "core/tests/ts-integration",
       "infrastructure/protocol-upgrade"
@@ -30,23 +31,22 @@
     "l2-contracts": "yarn workspace l2-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
-    "snapshot-recovery-test": "yarn workspace snapshot-recovery-test",
+    "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
+    "utils": "yarn workspace utils",
     "zk": "yarn workspace zk"
   },
   "devDependencies": {
-    "@ethersproject/bignumber": "~5.5.0",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^4.10.0",
     "babel-eslint": "^10.1.0",
-    "eslint": "^7.16.0",
     "eslint-config-alloy": "^3.8.2",
+    "eslint": "^7.16.0",
     "markdownlint-cli": "^0.24.0",
     "npm-run-all": "^4.1.5",
-    "prettier": "^2.3.2",
     "prettier-plugin-solidity": "=1.0.0-dev.22",
+    "prettier": "^2.3.2",
     "solhint": "^3.3.2",
-    "sql-formatter": "^13.1.0",
-    "zksync-ethers": "5.8.0-beta.5"
+    "sql-formatter": "^13.1.0"
   }
 }

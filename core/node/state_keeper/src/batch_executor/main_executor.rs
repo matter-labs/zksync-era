@@ -1,7 +1,13 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::OnceCell;
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc, watch},
+};
+use zksync_multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
@@ -9,11 +15,6 @@ use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
-};
-use once_cell::sync::OnceCell;
-use tokio::{
-    runtime::Handle,
-    sync::{mpsc, watch},
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
@@ -30,19 +31,19 @@ use crate::{
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
-    storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
+    /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
+    /// For new blocks, bytecode compression is mandatory -- if bytecode compression is not supported,
+    /// the transaction will be rejected.
+    /// Note that this flag, if set to `true`, is strictly more permissive than if set to `false`. It means
+    /// that in cases where the node is expected to process any transactions processed by the sequencer
+    /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
 }
 
 impl MainBatchExecutor {
-    pub fn new(
-        storage_factory: Arc<dyn ReadStorageFactory>,
-        save_call_traces: bool,
-        optional_bytecode_compression: bool,
-    ) -> Self {
+    pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
         Self {
-            storage_factory,
             save_call_traces,
             optional_bytecode_compression,
         }
@@ -53,6 +54,7 @@ impl MainBatchExecutor {
 impl BatchExecutor for MainBatchExecutor {
     async fn init_batch(
         &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
@@ -66,24 +68,21 @@ impl BatchExecutor for MainBatchExecutor {
             commands: commands_receiver,
         };
 
-        let storage_factory = self.storage_factory.clone();
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             if let Some(storage) = Handle::current()
                 .block_on(
                     storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
                 )
-                .expect("failed getting access to state keeper storage")
+                .context("failed accessing state keeper storage")?
             {
                 executor.run(storage, l1_batch_params, system_env);
             } else {
                 tracing::info!("Interrupted while trying to access state keeper storage");
             }
+            anyhow::Ok(())
         });
-        Some(BatchExecutorHandle {
-            handle,
-            commands: commands_sender,
-        })
+        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
 
@@ -117,19 +116,27 @@ impl CommandReceiver {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let result = self.execute_tx(&tx, &mut vm);
-                    resp.send(result).unwrap();
+                    if resp.send(result).is_err() {
+                        break;
+                    }
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
-                    resp.send(()).unwrap();
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
                     self.start_next_l2_block(l2_block_env, &mut vm);
-                    resp.send(()).unwrap();
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm);
-                    resp.send(vm_block_result).unwrap();
+                    if resp.send(vm_block_result).is_err() {
+                        break;
+                    }
 
                     // `storage_view` cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
@@ -138,6 +145,15 @@ impl CommandReceiver {
                         .observe(metrics.time_spent_on_get_value);
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                         .observe(metrics.time_spent_on_set_value);
+                    return;
+                }
+                Command::FinishBatchWithCache(resp) => {
+                    let vm_block_result = self.finish_batch(&mut vm);
+                    let cache = (*storage_view).borrow().cache();
+                    if resp.send((vm_block_result, cache)).is_err() {
+                        break;
+                    }
+
                     return;
                 }
             }
@@ -217,6 +233,8 @@ impl CommandReceiver {
         result
     }
 
+    /// Attempts to execute transaction with or without bytecode compression.
+    /// If compression fails, the transaction will be re-executed without compression.
     fn execute_tx_in_vm_with_optional_compression<S: WriteStorage>(
         &self,
         tx: &Transaction,
@@ -282,10 +300,8 @@ impl CommandReceiver {
         (result.1, compressed_bytecodes, trace)
     }
 
-    // Err when transaction is rejected.
-    // `Ok(TxExecutionStatus::Success)` when the transaction succeeded
-    // `Ok(TxExecutionStatus::Failure)` when the transaction failed.
-    // Note that failed transactions are considered properly processed and are included in blocks
+    /// Attempts to execute transaction with mandatory bytecode compression.
+    /// If bytecode compression fails, the transaction will be rejected.
     fn execute_tx_in_vm<S: WriteStorage>(
         &self,
         tx: &Transaction,

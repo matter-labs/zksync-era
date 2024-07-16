@@ -1,5 +1,5 @@
 use zksync_types::U256;
-use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::net::NetNamespaceServer};
+use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::NetNamespaceServer};
 
 use crate::web3::NetNamespace;
 

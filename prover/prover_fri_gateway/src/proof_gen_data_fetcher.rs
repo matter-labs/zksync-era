@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::ProverDal;
+use zksync_prover_dal::ProverDal;
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
 };
@@ -9,22 +9,29 @@ use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 impl PeriodicApiStruct {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let store = &*self.blob_store;
-        let blob_url = store
-            .put(data.l1_batch_number, &data.data)
+        let merkle_paths = store
+            .put(data.l1_batch_number, &data.witness_input_data.merkle_paths)
+            .await
+            .expect("Failed to save proof generation data to GCS");
+        let witness_inputs = store
+            .put(data.l1_batch_number, &data.witness_input_data)
             .await
             .expect("Failed to save proof generation data to GCS");
         let mut connection = self.pool.connection().await.unwrap();
+
         connection
             .fri_protocol_versions_dal()
-            .save_prover_protocol_version(data.protocol_version_id, data.l1_verifier_config)
+            .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
             .await;
+
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(
                 data.l1_batch_number,
-                &blob_url,
-                data.protocol_version_id,
-                data.eip_4844_blobs,
+                &merkle_paths,
+                &witness_inputs,
+                data.protocol_version,
+                data.witness_input_data.eip_4844_blobs,
             )
             .await;
     }
