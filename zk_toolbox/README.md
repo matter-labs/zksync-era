@@ -123,13 +123,29 @@ You can generate the setup keys with:
 zk_inception prover generate-sk
 ```
 
-
 Finally, run the prover:
 
 ```bash
 zk_inception prover run
 ```
 
-You can specify the prover component to run by providing `--component <component>` argument. Possible components are: `gateway, witness-generator, witness-vector-generator, prover, compressor`
+You can specify the prover component to run by providing `--component <component>` argument. Possible components are:
+`gateway, witness-generator, witness-vector-generator, prover, compressor`
 
+### Contract verifier
 
+Running the contract verifier:
+
+First, download the required `solc`, `zksolc`, `vyper` and `zkvyper` binaries with:
+
+```bash
+zk_inception contract-verifier init
+```
+
+Select the min version of each and the tool will download the missing binaries.
+
+Then, run the contract verifier with:
+
+```bash
+zk_inception contract-verifier run
+```
