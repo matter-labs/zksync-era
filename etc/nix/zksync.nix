@@ -1,11 +1,10 @@
 { cargoArtifacts
 , craneLib
-, versionSuffix
 , commonArgs
 }:
 craneLib.buildPackage (commonArgs // {
   pname = "zksync";
-  version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version + versionSuffix;
+  version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
   cargoExtraArgs = "--all";
   inherit cargoArtifacts;
 

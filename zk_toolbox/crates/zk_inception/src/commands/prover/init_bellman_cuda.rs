@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
+use common::{check_prover_prequisites, cmd::Cmd, git, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -38,19 +38,15 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 
 fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
-    Cmd::new(cmd!(
+    let path = git::clone(
         shell,
-        "git clone https://github.com/matter-labs/era-bellman-cuda"
-    ))
-    .run()?;
+        shell.current_dir(),
+        "https://github.com/matter-labs/era-bellman-cuda",
+        BELLMAN_CUDA_DIR,
+    )?;
     spinner.finish();
 
-    Ok(shell
-        .current_dir()
-        .join(BELLMAN_CUDA_DIR)
-        .to_str()
-        .context(MSG_BELLMAN_CUDA_DIR_ERR)?
-        .to_string())
+    Ok(path.to_str().context(MSG_BELLMAN_CUDA_DIR_ERR)?.to_string())
 }
 
 fn build_bellman_cuda(shell: &Shell, bellman_cuda_dir: &str) -> anyhow::Result<()> {

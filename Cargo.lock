@@ -8415,29 +8415,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_crypto"
-version = "0.1.0"
-dependencies = [
- "blake2 0.10.6",
- "hex",
- "once_cell",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "thiserror",
- "zksync_basic_types",
-]
-
-[[package]]
 name = "zksync_crypto_primitives"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2 0.10.6",
  "hex",
  "rand 0.8.5",
  "secp256k1",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "thiserror",
  "zksync_basic_types",
  "zksync_utils",
@@ -8640,6 +8628,7 @@ version = "24.9.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "clap 4.4.6",
  "envy",
  "futures 0.3.28",
@@ -8802,7 +8791,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vise",
- "zksync_crypto",
+ "zksync_crypto_primitives",
  "zksync_prover_interface",
  "zksync_storage",
  "zksync_system_constants",
@@ -8831,7 +8820,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
- "zksync_crypto",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
  "zksync_merkle_tree",
@@ -8852,7 +8841,7 @@ dependencies = [
  "criterion",
  "once_cell",
  "zksync_basic_types",
- "zksync_crypto",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -9549,7 +9538,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
- "zksync_crypto",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_merkle_tree",

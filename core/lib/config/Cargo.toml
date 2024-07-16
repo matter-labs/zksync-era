@@ -1,6 +1,7 @@
 [package]
 name = "zksync_config"
-version = "0.1.0"
+description = "ZKsync core configuration"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

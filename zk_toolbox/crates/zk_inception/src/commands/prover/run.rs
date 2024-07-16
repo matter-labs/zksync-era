@@ -16,6 +16,7 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
+    check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem_config
@@ -42,7 +43,6 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 }
 
 fn run_gateway(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();

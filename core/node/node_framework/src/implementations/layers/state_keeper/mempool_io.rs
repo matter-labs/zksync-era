@@ -129,8 +129,7 @@ impl WiringLayer for MempoolIOLayer {
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
-        )
-        .await?;
+        )?;
 
         // Create sealer.
         let sealer = SequencerSealer::new(self.state_keeper_config);

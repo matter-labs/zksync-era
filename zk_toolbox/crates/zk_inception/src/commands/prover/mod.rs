@@ -15,10 +15,12 @@ pub enum ProverCommands {
     /// Initialize prover
     Init(Box<ProverInitArgs>),
     /// Generate setup keys
+    #[command(alias = "sk")]
     GenerateSK,
     /// Run prover
     Run(ProverRunArgs),
     /// Initialize bellman-cuda
+    #[command(alias = "cuda")]
     InitBellmanCuda(Box<InitBellmanCudaArgs>),
 }
 

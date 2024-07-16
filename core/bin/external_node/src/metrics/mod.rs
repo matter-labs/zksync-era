@@ -3,8 +3,11 @@ use std::time::Duration;
 use tokio::sync::watch;
 use vise::{EncodeLabelSet, Gauge, Info, Metrics};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::{L1ChainId, L2ChainId};
 
-use crate::{config::ExternalNodeConfig, metadata::SERVER_VERSION};
+use crate::metadata::SERVER_VERSION;
+
+pub(crate) mod framework;
 
 /// Immutable EN parameters that affect multiple components.
 #[derive(Debug, Clone, Copy, EncodeLabelSet)]
@@ -26,12 +29,17 @@ pub(crate) struct ExternalNodeMetrics {
 }
 
 impl ExternalNodeMetrics {
-    pub(crate) fn observe_config(&self, config: &ExternalNodeConfig) {
+    pub(crate) fn observe_config(
+        &self,
+        l1_chain_id: L1ChainId,
+        l2_chain_id: L2ChainId,
+        postgres_pool_size: u32,
+    ) {
         let info = ExternalNodeInfo {
             server_version: SERVER_VERSION,
-            l1_chain_id: config.required.l1_chain_id.0,
-            l2_chain_id: config.required.l2_chain_id.as_u64(),
-            postgres_pool_size: config.postgres.max_connections,
+            l1_chain_id: l1_chain_id.0,
+            l2_chain_id: l2_chain_id.as_u64(),
+            postgres_pool_size,
         };
         tracing::info!("Setting general node information: {info:?}");
 

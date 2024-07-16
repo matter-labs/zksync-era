@@ -22,7 +22,11 @@ pub(super) const MSG_L1_NETWORK_PROMPT: &str = "Select the L1 network";
 pub(super) const MSG_START_CONTAINERS_PROMPT: &str =
     "Do you want to start containers after creating the ecosystem?";
 pub(super) const MSG_CREATING_ECOSYSTEM: &str = "Creating ecosystem";
-pub(super) const MSG_CREATED_ECOSYSTEM: &str = "Ecosystem created successfully";
+
+pub fn msg_created_ecosystem(name: &str) -> String {
+    format!("Ecosystem {name} created successfully (All subsequent commands should be executed from ecosystem folder `cd {name}`)")
+}
+
 pub(super) const MSG_CLONING_ERA_REPO_SPINNER: &str = "Cloning zksync-era repository...";
 pub(super) const MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER: &str =
     "Creating initial configurations...";
@@ -185,7 +189,6 @@ pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosys
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
-pub(super) const MSG_BUILDING_L1_CONTRACTS: &str = "Building L1 contracts...";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Forge utils related messages
@@ -274,4 +277,36 @@ pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code alread
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
+}
+
+/// Contract verifier related messages
+pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
+pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";
+pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
+pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
+pub(super) const MSG_FETCHING_ZKSOLC_RELEASES_SPINNER: &str = "Fetching zksolc releases...";
+pub(super) const MSG_FETCHING_ZKVYPER_RELEASES_SPINNER: &str = "Fetching zkvyper releases...";
+pub(super) const MSG_FETCH_SOLC_RELEASES_SPINNER: &str = "Fetching solc releases...";
+pub(super) const MSG_FETCHING_VYPER_RELEASES_SPINNER: &str = "Fetching vyper releases...";
+pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the minimal zksolc version:";
+pub(super) const MSG_ZKVYPER_VERSION_PROMPT: &str = "Select the minimal zkvyper version:";
+pub(super) const MSG_SOLC_VERSION_PROMPT: &str = "Select the minimal solc version:";
+pub(super) const MSG_VYPER_VERSION_PROMPT: &str = "Select the minimal vyper version:";
+pub(super) const MSG_NO_RELEASES_FOUND_ERR: &str = "No releases found for current architecture";
+pub(super) const MSG_NO_VERSION_FOUND_ERR: &str = "No version found";
+pub(super) const MSG_ARCH_NOT_SUPPORTED_ERR: &str = "Architecture not supported";
+pub(super) const MSG_OS_NOT_SUPPORTED_ERR: &str = "OS not supported";
+pub(super) const MSG_GET_VYPER_RELEASES_ERR: &str = "Failed to get vyper releases";
+pub(super) const MSG_GET_SOLC_RELEASES_ERR: &str = "Failed to get solc releases";
+pub(super) const MSG_GET_ZKVYPER_RELEASES_ERR: &str = "Failed to get zkvyper releases";
+
+pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
+    format!(
+        "{} {} binary already exists. Skipping download.",
+        name, version
+    )
+}
+
+pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
+    format!("Downloading {} {} binary", name, version)
 }

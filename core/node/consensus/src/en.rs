@@ -32,6 +32,15 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
+        let attester = config::attester_key(&secrets)
+            .context("attester_key")?
+            .map(|key| executor::Attester { key });
+
+        tracing::debug!(
+            is_attester = attester.is_some(),
+            "external node attester mode"
+        );
+
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
@@ -101,9 +110,7 @@ impl EN {
                         replica_store: Box::new(store.clone()),
                         payload_manager: Box::new(store.clone()),
                     }),
-                attester: config::attester_key(&secrets)
-                    .context("attester_key")?
-                    .map(|key| executor::Attester { key }),
+                attester,
             };
             executor.run(ctx).await?;
 

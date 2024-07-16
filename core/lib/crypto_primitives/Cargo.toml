@@ -1,5 +1,6 @@
 [package]
 name = "zksync_crypto_primitives"
+description = "ZKsync core cryptographic primitives"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,6 +13,8 @@ categories.workspace = true
 
 [dependencies]
 secp256k1 = { workspace = true, features = ["global-context"] }
+sha2.workspace = true
+blake2.workspace = true
 zksync_utils.workspace = true
 zksync_basic_types.workspace = true
 thiserror.workspace = true
