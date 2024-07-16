@@ -1,8 +1,7 @@
+use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
+
 use bitcoincore_rpc::{Auth, Client};
 use rand::Rng;
-use std::process::Command;
-use std::time::Duration;
-use std::{env, fs, path::PathBuf, thread};
 use tempfile::TempDir;
 
 const COMPOSE_TEMPLATE_PATH: &str = concat!(
@@ -89,8 +88,9 @@ impl Drop for BitcoinRegtest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bitcoincore_rpc::RpcApi;
+
+    use super::*;
 
     #[test]
     fn test_bitcoin_regtest() {

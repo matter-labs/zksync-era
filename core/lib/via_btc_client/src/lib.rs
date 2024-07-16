@@ -2,8 +2,7 @@ mod traits;
 mod types;
 
 mod client;
-mod signer;
-mod inscriber;
 mod indexer;
+mod inscriber;
+mod signer;
 mod transaction_builder;
-
