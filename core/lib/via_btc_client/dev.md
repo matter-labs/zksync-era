@@ -42,12 +42,12 @@ check [readme.md](./readme.md) for usage examples.
 
 unit tests should be implemented for each module in their own file.
 
-for checking the integration and seeing the result of the whole system, we can use the `examples` directory.
+for checking the integration and seeing the result of the whole system, we can use the `tests` directory.
 this directory is binary and we can import the library and use it in the main function to see the result of the functions.
 
 for running the example, use the following command:
 
-`cargo run --bin via_btc_example`
+`cargo run --bin via_btc_test`
 
 ## Development
 before starting implementation of every module, we should define or modify the module's trait in the `traits.rs` file.

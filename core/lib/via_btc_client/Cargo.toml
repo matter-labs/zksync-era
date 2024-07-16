@@ -11,8 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "via_btc_example"
-path = "examples/main.rs"
+name = "via_btc_test"
+path = "tests/main.rs"
 
 [dependencies]
 zksync_types.workspace = true
