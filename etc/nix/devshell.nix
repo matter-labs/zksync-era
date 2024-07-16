@@ -1,9 +1,9 @@
 { pkgs
-, zksync_server
+, zksync
 , commonArgs
 }:
 pkgs.mkShell {
-  inputsFrom = [ zksync_server ];
+  inputsFrom = [ zksync ];
 
   packages = with pkgs; [
     docker-compose

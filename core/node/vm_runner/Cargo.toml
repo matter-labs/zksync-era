@@ -1,5 +1,6 @@
 [package]
 name = "zksync_vm_runner"
+description = "ZKsync VM runner"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

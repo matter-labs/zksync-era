@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_sync"
-version = "0.1.0"
+description = "ZKsync node synchronization utilities"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

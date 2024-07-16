@@ -23,7 +23,11 @@ pub async fn run_main_node(
         .context("validator_key")?
         .context("missing validator_key")?;
 
-    let attester_key_opt = config::attester_key(&secrets).context("attester_key")?;
+    let attester = config::attester_key(&secrets)
+        .context("attester_key")?
+        .map(|key| Attester { key });
+
+    tracing::debug!(is_attester = attester.is_some(), "main node attester mode");
 
     scope::run!(&ctx, |ctx, s| async {
         if let Some(spec) = &cfg.genesis_spec {
@@ -66,7 +70,7 @@ pub async fn run_main_node(
                 replica_store: Box::new(store.clone()),
                 payload_manager: Box::new(store.clone()),
             }),
-            attester: attester_key_opt.map(|key| Attester { key }),
+            attester,
         };
         executor.run(ctx).await
     })

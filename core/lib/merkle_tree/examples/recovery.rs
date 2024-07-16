@@ -7,7 +7,7 @@ use clap::Parser;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::MerkleTreeRecovery, HashTree, Key, MerkleTree, PatchSet, PruneDatabase,
     RocksDBWrapper, TreeEntry, ValueHash,

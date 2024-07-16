@@ -251,6 +251,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: g.gen(),
             l1_multicall3_addr: g.gen(),
             base_token_addr: g.gen(),
+            chain_admin_addr: g.gen(),
             ecosystem_contracts: self.sample(g),
         }
     }
@@ -755,6 +756,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
+            max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
             gossip_static_inbound: self
                 .sample_range(rng)

@@ -3,6 +3,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber};
@@ -120,6 +121,26 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         cert: &attester::BatchQC,
     ) -> Result<(), InsertCertificateError> {
+        use crate::storage::consensus_dal::InsertCertificateError as E;
+
+        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
+
+        let Some(l1_batch) = self
+            .0
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .map_err(E::Dal)?
+        else {
+            return Err(E::MissingPayload.into());
+        };
+
+        let l1_batch_info = StoredBatchInfo::from(&l1_batch);
+
+        if l1_batch_info.hash().0 != *cert.message.hash.0.as_bytes() {
+            return Err(E::PayloadMismatch.into());
+        }
+
         Ok(ctx
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await??)
@@ -216,6 +237,7 @@ impl<'a> Connection<'a> {
             .start_transaction(ctx)
             .await
             .wrap("start_transaction()")?;
+
         let old = txn.genesis(ctx).await.wrap("genesis()")?;
         if let Some(old) = &old {
             if &config::GenesisSpec::from_genesis(old) == spec {
@@ -223,6 +245,7 @@ impl<'a> Connection<'a> {
                 return Ok(());
             }
         }
+
         tracing::info!("Performing a hard fork of consensus.");
         let genesis = validator::GenesisRaw {
             chain_id: spec.chain_id,
@@ -230,13 +253,13 @@ impl<'a> Connection<'a> {
                 .as_ref()
                 .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
             first_block: txn.next_block(ctx).await.context("next_block()")?,
-
             protocol_version: spec.protocol_version,
             validators: spec.validators.clone(),
-            attesters: None,
+            attesters: spec.attesters.clone(),
             leader_selection: spec.leader_selection.clone(),
         }
         .with_hash();
+
         txn.try_update_genesis(ctx, &genesis)
             .await
             .wrap("try_update_genesis()")?;
@@ -344,8 +367,8 @@ impl<'a> Connection<'a> {
 
         // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
         // It is supposed to be a Merkle proof that the rolling hash of the batch has been included
-        // in the L1 state tree. The state root hash of L1 won't be available in the DB, it requires
-        // an API client.
+        // in the L1 system contract state tree. It is *not* the Ethereum state root hash, so producing
+        // it can be done without an L1 client, which is only required for validation.
         let batch = attester::SyncBatch {
             number,
             payloads,

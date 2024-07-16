@@ -1,5 +1,6 @@
 pub mod base_token;
 pub mod batch_status_updater;
+pub mod block_reverter;
 pub mod circuit_breaker_checker;
 pub mod commitment_generator;
 pub mod consensus;

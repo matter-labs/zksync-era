@@ -1,6 +1,7 @@
 [package]
 name = "zksync_state"
-version = "0.1.0"
+description = "ZKsync state keeper state"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

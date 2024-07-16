@@ -73,6 +73,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
+
       - name: Start services
         run: |
           ci_localnet_up
@@ -80,6 +81,10 @@ jobs:
 
       - name: Initialize ecosystem
         run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+          
           ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://reth:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \

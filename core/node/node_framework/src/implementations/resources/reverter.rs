@@ -11,3 +11,9 @@ impl Resource for BlockReverterResource {
         "common/block_reverter".into()
     }
 }
+
+impl From<BlockReverter> for BlockReverterResource {
+    fn from(reverter: BlockReverter) -> Self {
+        Self(Unique::new(reverter))
+    }
+}
