@@ -3,12 +3,24 @@ name = "via_btc_client"
 description = "Via Network Bitcoin Inscription Standard Implementation"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
+authors = ["Via Network"]
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
+[[bin]]
+name = "via_btc_test"
+path = "tests/main.rs"
 
+[dependencies]
+zksync_types.workspace = true
+zksync_config.workspace = true
+
+thiserror.workspace = true
+async-trait.workspace = true
+jsonrpsee = { workspace = true, features = [
+    "client",
+    "macros",
+] }
