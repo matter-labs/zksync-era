@@ -53,6 +53,8 @@ pub enum InceptionSubcommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
+    /// Update zkSync
+    Update,
 }
 
 #[derive(Parser, Debug)]
@@ -110,6 +112,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
+        InceptionSubcommands::Update => commands::update::run(shell)?,
     }
     Ok(())
 }

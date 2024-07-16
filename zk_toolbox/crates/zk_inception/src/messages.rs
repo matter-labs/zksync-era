@@ -310,3 +310,10 @@ pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
 pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
     format!("Downloading {} {} binary", name, version)
 }
+
+/// Update related messages
+
+pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
+pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
+pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
+pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";

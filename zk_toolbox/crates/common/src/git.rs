@@ -29,3 +29,9 @@ pub fn submodule_update(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<
     .run()?;
     Ok(())
 }
+
+pub fn pull(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
+    Cmd::new(cmd!(shell, "git pull")).run()?;
+    Ok(())
+}
