@@ -106,3 +106,30 @@ zk_inception server
 ```
 
 You can specify the chain you are running by providing `--chain <chain_name>` argument
+
+### Prover
+
+To run the prover, follow these steps:
+
+First, initialize the prover:
+
+```bash
+zk_inception prover init
+```
+
+You can generate the setup keys with:
+
+```bash
+zk_inception prover generate-sk
+```
+
+
+Finally, run the prover:
+
+```bash
+zk_inception prover run
+```
+
+You can specify the prover component to run by providing `--component <component>` argument. Possible components are: `gateway, witness-generator, witness-vector-generator, prover, compressor`
+
+
