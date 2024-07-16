@@ -74,7 +74,10 @@ pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created s
 // Tests related messages
 pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
+pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
+pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
+    "Run recovery from a snapshot instead of genesis";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
