@@ -24,8 +24,9 @@ jsonrpsee = { workspace = true, features = [
     "client",
     "macros",
 ] }
+bitcoin = "0.32.2"
+bitcoincore-rpc = "0.19.0"
 
 [dev-dependencies]
-bitcoincore-rpc = "0.16.0"
 rand = "0.8"
 tempfile = "3.3"
