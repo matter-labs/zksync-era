@@ -118,9 +118,13 @@ jobs:
         run: |
           ci_run zk_supervisor test revert --ignore-prerequisites --verbose
 
-      - name: Run recovery tests
+      - name: Run recovery tests (from genesis)
         run: |
           ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
   
       - name: Show server.log logs
         if: always()

@@ -39,8 +39,13 @@ fn run_test(
 ) -> anyhow::Result<()> {
     Spinner::new("Running test...").freeze();
 
-    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts"))
-        .env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let cmd = if args.snapshot {
+        cmd!(shell, "yarn mocha tests/snapshot-recovery.test.ts")
+    } else {
+        cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts")
+    };
+
+    let cmd = Cmd::new(cmd).env("CHAIN_NAME", &ecosystem_config.default_chain);
     cmd.with_force_run().run()?;
 
     Ok(())
