@@ -11,6 +11,11 @@ import {
     sleep,
     FundedWallet
 } from '../src';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import path from 'path';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 /**
  * Tests recovery of an external node from scratch.
@@ -43,10 +48,26 @@ describe('genesis recovery', () => {
     let externalNodeProcess: NodeProcess;
     let externalNodeBatchNumber: number;
 
+    let apiWeb3JsonRpcHttpUrl: string;
+    let ethRpcUrl: string;
+
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zksync.Provider('http://127.0.0.1:3050');
+
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+
+            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        } else {
+            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
+            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+        }
+
+        mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
+        // TODO source from file config?
         externalNode = new zksync.Provider('http://127.0.0.1:3060');
         await NodeProcess.stopAll('KILL');
     });
@@ -54,7 +75,6 @@ describe('genesis recovery', () => {
     let fundedWallet: FundedWallet;
 
     before('create test wallet', async () => {
-        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
         console.log(`Using L1 RPC at ${ethRpcUrl}`);
         const eth = new ethers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
