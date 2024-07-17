@@ -1,6 +1,7 @@
-use crate::types;
 use async_trait::async_trait;
 use bitcoin::{Address, Block, Transaction, Txid};
+
+use crate::types;
 
 #[allow(dead_code)]
 #[async_trait]

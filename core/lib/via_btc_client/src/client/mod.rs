@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use bitcoin::{Address, Network, Txid};
-use bitcoin::address::NetworkUnchecked;
-use crate::traits::{BitcoinOps, BitcoinRpc};
-use crate::types::BitcoinClientResult;
+use bitcoin::{address::NetworkUnchecked, Address, Network, Txid};
+
+use crate::{
+    traits::{BitcoinOps, BitcoinRpc},
+    types::BitcoinClientResult,
+};
 
 mod rpc_client;
 #[allow(unused)]
@@ -18,8 +20,8 @@ pub struct BitcoinClient {
 #[async_trait]
 impl BitcoinOps for BitcoinClient {
     async fn new(_rpc_url: &str) -> BitcoinClientResult<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         todo!()
     }
