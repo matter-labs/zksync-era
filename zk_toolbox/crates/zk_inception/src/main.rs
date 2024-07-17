@@ -48,7 +48,7 @@ pub enum InceptionSubcommands {
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
-    #[command(subcommand, alias = "up")]
+    #[command(alias = "up")]
     Containers,
     /// Run contract verifier
     #[command(subcommand)]
