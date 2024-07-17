@@ -2,9 +2,8 @@ use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS};
-
 use super::args::recovery::RecoveryArgs;
+use crate::messages::{MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS};
 
 const RECOVERY_TESTS_PATH: &str = "core/tests/recovery-test";
 
