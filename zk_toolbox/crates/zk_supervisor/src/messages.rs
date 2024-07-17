@@ -99,6 +99,10 @@ pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 
+// Recovery tests related messages
+pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
+pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
 // Cleaning related messages
 pub(super) const MSG_DOCKER_COMPOSE_DOWN: &str = "docker compose down";
 pub(super) const MSG_DOCKER_COMPOSE_REMOVE_VOLUMES: &str = "docker compose remove volumes";

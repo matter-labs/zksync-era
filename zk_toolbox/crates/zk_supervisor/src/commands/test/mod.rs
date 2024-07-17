@@ -25,6 +25,6 @@ pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
     match args {
         TestCommands::Integration(args) => integration::run(shell, args),
         TestCommands::Revert(args) => revert::run(shell, args),
-        TestCommands::Recovery(args) => todo!(),
+        TestCommands::Recovery(args) => recovery::run(shell, args),
     }
 }
