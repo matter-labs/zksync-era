@@ -1,10 +1,10 @@
-use async_trait::async_trait;
-
 use crate::types;
+use async_trait::async_trait;
+use bitcoin::{Address, Block, Transaction, Txid};
 
 #[allow(dead_code)]
 #[async_trait]
-pub trait BitcoinClient: Send + Sync {
+pub trait BitcoinOps: Send + Sync {
     async fn new(rpc_url: &str) -> types::BitcoinClientResult<Self>
     where
         Self: Sized;
@@ -13,10 +13,24 @@ pub trait BitcoinClient: Send + Sync {
         &self,
         signed_transaction: &str,
     ) -> types::BitcoinClientResult<String>;
-    async fn fetch_utxos(&self, address: &str) -> types::BitcoinClientResult<Vec<&str>>;
+    async fn fetch_utxos(&self, address: &str) -> types::BitcoinClientResult<Vec<String>>;
     async fn check_tx_confirmation(&self, txid: &str) -> types::BitcoinClientResult<bool>;
     async fn fetch_block_height(&self) -> types::BitcoinClientResult<u128>;
     async fn fetch_and_parse_block(&self, block_height: u128) -> types::BitcoinClientResult<&str>;
+}
+
+#[allow(dead_code)]
+#[async_trait]
+pub trait BitcoinRpc: Send + Sync {
+    async fn get_balance(&self, address: &Address) -> types::BitcoinRpcResult<u64>;
+    async fn send_raw_transaction(&self, tx_hex: &str) -> types::BitcoinRpcResult<Txid>;
+    async fn list_unspent(
+        &self,
+        address: &Address,
+    ) -> types::BitcoinRpcResult<Vec<bitcoin::OutPoint>>;
+    async fn get_transaction(&self, tx_id: &Txid) -> types::BitcoinRpcResult<Transaction>;
+    async fn get_block_count(&self) -> types::BitcoinRpcResult<u64>;
+    async fn get_block(&self, block_height: u128) -> types::BitcoinRpcResult<Block>;
 }
 
 #[allow(dead_code)]
