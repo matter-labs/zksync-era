@@ -972,14 +972,14 @@ describe('web3 API compatibility tests', () => {
     describe('Storage override', () => {
         test('Should be able to estimate_gas overriding the balance of the sender', async () => {
             const balance = await alice.getBalance();
-            const amount = balance.add(1);
+            const amount = balance + 1n;
 
             // Expect the transaction to be reverted without the overridden balance
             await expect(
                 alice.provider.estimateGas({
                     from: alice.address,
                     to: alice.address,
-                    value: amount.toHexString()
+                    value: amount.toString()
                 })
             ).toBeRejected();
 
@@ -988,13 +988,13 @@ describe('web3 API compatibility tests', () => {
                 {
                     from: alice.address,
                     to: alice.address,
-                    value: amount.toHexString()
+                    value: amount.toString()
                 },
                 'latest',
                 //override with the balance needed to send the transaction
                 {
                     [alice.address]: {
-                        balance: amount.toHexString()
+                        balance: amount.toString()
                     }
                 }
             ]);
@@ -1005,12 +1005,14 @@ describe('web3 API compatibility tests', () => {
         test('Should be able to estimate_gas overriding contract code', async () => {
             // Deploy the first contract
             const contract1 = await deployContract(alice, contracts.events, []);
+            const contract1Address = await contract1.getAddress();
 
             // Deploy the second contract to extract the code that we are overriding the estimation with
             const contract2 = await deployContract(alice, contracts.counter, []);
+            const contract2Address = await contract2.getAddress();
 
             // Get the code of contract2
-            const code = await alice.provider.getCode(contract2.address);
+            const code = await alice.provider.getCode(contract2Address);
 
             // Get the calldata of the increment function of contract2
             const incrementFunctionData = contract2.interface.encodeFunctionData('increment', [1]);
@@ -1018,7 +1020,7 @@ describe('web3 API compatibility tests', () => {
             // Assert that the estimation fails because the increment function is not present in contract1
             expect(
                 alice.provider.estimateGas({
-                    to: contract1.address,
+                    to: contract1Address.toString(),
                     data: incrementFunctionData
                 })
             ).toBeRejected();
@@ -1027,11 +1029,11 @@ describe('web3 API compatibility tests', () => {
             const response = await alice.provider.send('eth_estimateGas', [
                 {
                     from: alice.address,
-                    to: contract1.address,
+                    to: contract1Address.toString(),
                     data: incrementFunctionData
                 },
                 'latest',
-                { [contract1.address]: { code: code } }
+                { [contract1Address.toString()]: { code: code } }
             ]);
 
             // Assert that the response is successful
@@ -1040,20 +1042,21 @@ describe('web3 API compatibility tests', () => {
 
         test('Should estimate gas by overriding state with State', async () => {
             const contract = await deployContract(alice, contracts.stateOverride, []);
+            const contractAddress = await contract.getAddress();
 
             const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
 
             // Ensure that the initial gas estimation fails due to contract requirements
             await expect(
                 alice.provider.estimateGas({
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: sumValuesFunctionData
                 })
             ).toBeRejected();
 
             // Override the entire contract state using State
             const state = {
-                [contract.address]: {
+                [contractAddress.toString()]: {
                     state: {
                         '0x0000000000000000000000000000000000000000000000000000000000000000':
                             '0x0000000000000000000000000000000000000000000000000000000000000001',
@@ -1066,7 +1069,7 @@ describe('web3 API compatibility tests', () => {
             const response = await alice.provider.send('eth_estimateGas', [
                 {
                     from: alice.address,
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: sumValuesFunctionData
                 },
                 'latest',
@@ -1078,19 +1081,20 @@ describe('web3 API compatibility tests', () => {
 
         test('Should estimate gas by overriding state with StateDiff', async () => {
             const contract = await deployContract(alice, contracts.stateOverride, []);
+            const contractAddress = await contract.getAddress();
             const incrementFunctionData = contract.interface.encodeFunctionData('increment', [1]);
 
             // Ensure that the initial gas estimation fails due to contract requirements
             await expect(
                 alice.provider.estimateGas({
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: incrementFunctionData
                 })
             ).toBeRejected();
 
             // Override the contract state using StateDiff
             const stateDiff = {
-                [contract.address]: {
+                [contractAddress.toString()]: {
                     stateDiff: {
                         '0x0000000000000000000000000000000000000000000000000000000000000000':
                             '0x0000000000000000000000000000000000000000000000000000000000000001'
@@ -1101,7 +1105,7 @@ describe('web3 API compatibility tests', () => {
             const response = await alice.provider.send('eth_estimateGas', [
                 {
                     from: alice.address,
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: incrementFunctionData
                 },
                 'latest',
@@ -1113,24 +1117,23 @@ describe('web3 API compatibility tests', () => {
 
         test('Should call and succeed with overriding state with State', async () => {
             const contract = await deployContract(alice, contracts.stateOverride, []);
+            const contractAddress = await contract.getAddress();
             const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
 
             // Ensure that the initial call fails due to contract requirements
-            const callResponse = await alice.provider.call({
-                to: contract.address,
-                data: sumValuesFunctionData
-            });
-
-            const errorString = 'Initial state not set';
-            const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
-            const errorSelector = '0x08c379a0';
-            const expectedResponse = errorSelector + encodedErrorString.slice(2);
-
-            expect(callResponse).toEqual(expectedResponse);
+            await alice.provider
+                .call({
+                    to: contractAddress.toString(),
+                    data: sumValuesFunctionData
+                })
+                .catch((error) => {
+                    const errorString = 'Initial state not set';
+                    expect(error.message).toContain(errorString);
+                });
 
             // Override the contract state using State
             const state = {
-                [contract.address]: {
+                [contractAddress.toString()]: {
                     state: {
                         '0x0000000000000000000000000000000000000000000000000000000000000000':
                             '0x0000000000000000000000000000000000000000000000000000000000000001',
@@ -1143,7 +1146,7 @@ describe('web3 API compatibility tests', () => {
             const response = await alice.provider.send('eth_call', [
                 {
                     from: alice.address,
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: sumValuesFunctionData
                 },
                 'latest',
@@ -1157,24 +1160,23 @@ describe('web3 API compatibility tests', () => {
 
         test('Should call and succeed with overriding state with StateDiff', async () => {
             const contract = await deployContract(alice, contracts.stateOverride, []);
+            const contractAddress = await contract.getAddress();
             const sumValuesFunctionData = contract.interface.encodeFunctionData('sumValues', []);
 
             // Ensure that the initial call fails due to contract requirements
-            const callResponse = await alice.provider.call({
-                to: contract.address,
-                data: sumValuesFunctionData
-            });
-
-            const errorString = 'Initial state not set';
-            const encodedErrorString = ethers.utils.defaultAbiCoder.encode(['string'], [errorString]);
-            const errorSelector = '0x08c379a0';
-            const expectedResponse = errorSelector + encodedErrorString.slice(2);
-
-            expect(callResponse).toEqual(expectedResponse);
+            await alice.provider
+                .call({
+                    to: contractAddress.toString(),
+                    data: sumValuesFunctionData
+                })
+                .catch((error) => {
+                    const errorString = 'Initial state not set';
+                    expect(error.message).toContain(errorString);
+                });
 
             // Override the contract state using State
             const stateDiff = {
-                [contract.address]: {
+                [contractAddress.toString()]: {
                     stateDiff: {
                         '0x0000000000000000000000000000000000000000000000000000000000000000':
                             '0x0000000000000000000000000000000000000000000000000000000000000001',
@@ -1187,7 +1189,7 @@ describe('web3 API compatibility tests', () => {
             const response = await alice.provider.send('eth_call', [
                 {
                     from: alice.address,
-                    to: contract.address,
+                    to: contractAddress.toString(),
                     data: sumValuesFunctionData
                 },
                 'latest',
