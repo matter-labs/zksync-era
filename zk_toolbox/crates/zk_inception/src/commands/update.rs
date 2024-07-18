@@ -1,3 +1,4 @@
+use anyhow::Context;
 use common::{
     git::{pull, submodule_update},
     logger,
@@ -6,15 +7,19 @@ use common::{
 use config::EcosystemConfig;
 use xshell::Shell;
 
-use crate::messages::{
-    MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
-    MSG_ZKSYNC_UPDATED,
+use crate::{
+    consts::GENERAL_FILE,
+    messages::{
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_GENERAL_CONFIG,
+        MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+    },
 };
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = EcosystemConfig::from_file(shell)?;
-    let link_to_code = ecosystem.link_to_code;
+    let link_to_code = ecosystem.link_to_code.clone();
+
     let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
     pull(shell, link_to_code.clone())?;
     spinner.finish();
@@ -22,6 +27,51 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     submodule_update(shell, link_to_code.clone())?;
     spinner.finish();
 
+    logger::info(MSG_UPDATING_GENERAL_CONFIG);
+    let updated_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
+    let updated_config = serde_yaml::from_reader(std::fs::File::open(updated_config_path)?)?;
+
+    let current_config_path = ecosystem
+        .load_chain(Some(ecosystem.default_chain.clone()))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?
+        .path_to_general_config();
+    let mut current_config =
+        serde_yaml::from_reader(std::fs::File::open(current_config_path.clone())?)?;
+
+    let mut diff = serde_yaml::Mapping::new();
+
+    merge_yaml(&mut current_config, updated_config, &mut diff)?;
+
+    logger::debug("Diff:");
+    for (key, value) in diff {
+        logger::debug(format!("{:?}: {:?}", key, value));
+    }
+
+    // Save updated config
+    let general_config = serde_yaml::to_string(&current_config)?;
+    std::fs::write(current_config_path, general_config)?;
+
     logger::outro(MSG_ZKSYNC_UPDATED);
+    Ok(())
+}
+
+fn merge_yaml(
+    a: &mut serde_yaml::Value,
+    b: serde_yaml::Value,
+    diff: &mut serde_yaml::Mapping,
+) -> anyhow::Result<()> {
+    match (a, b) {
+        (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
+            for (key, value) in b {
+                if a.contains_key(&key) {
+                    merge_yaml(a.get_mut(&key).unwrap(), value, diff)?;
+                } else {
+                    a.insert(key.clone(), value.clone());
+                    diff.insert(key, value);
+                }
+            }
+        }
+        (_a, _b) => {} // Don't overwrite a
+    }
     Ok(())
 }

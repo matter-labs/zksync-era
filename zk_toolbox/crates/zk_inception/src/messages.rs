@@ -317,3 +317,4 @@ pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
 pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
 pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
+pub(super) const MSG_UPDATING_GENERAL_CONFIG: &str = "Updating general config";
