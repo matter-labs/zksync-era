@@ -1,5 +1,4 @@
 import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
-import { promisify } from 'util';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
