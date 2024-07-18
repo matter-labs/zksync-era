@@ -102,12 +102,6 @@ jobs:
     name: CI for zk_toolbox
     uses: ./.github/workflows/ci-zk-toolbox-reusable.yml
 
-  ci-for-zk-toolbox-isolated:
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    name: Isolated CI for zk_toolbox
-    uses: ./.github/workflows/ci-zk-toolbox-isolated.yml
-
   ci-for-docs:
     needs: changed_files
     if: needs.changed_files.outputs.docs == 'true'
