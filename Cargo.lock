@@ -7449,6 +7449,7 @@ dependencies = [
  "rand 0.8.5",
  "tempfile",
  "thiserror",
+ "tokio",
  "zksync_config",
  "zksync_types",
 ]

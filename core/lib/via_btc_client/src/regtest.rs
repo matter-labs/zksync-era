@@ -5,8 +5,8 @@ use rand::Rng;
 use tempfile::TempDir;
 
 const COMPOSE_TEMPLATE_PATH: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/tests/docker-compose-btc-template.yml"
+env!("CARGO_MANIFEST_DIR"),
+"/tests/docker-compose-btc-template.yml"
 );
 
 #[allow(unused)]
@@ -47,9 +47,11 @@ impl BitcoinRegtest {
                 "up",
                 "-d",
             ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status()?;
 
-        thread::sleep(Duration::from_secs(15));
+        thread::sleep(Duration::from_secs(10));
 
         Ok(())
     }
@@ -63,18 +65,15 @@ impl BitcoinRegtest {
                 "down",
                 "--volumes",
             ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status()?;
 
         Ok(())
     }
 
-    pub fn rpc_client(&self) -> std::io::Result<Client> {
-        let url = format!("http://127.0.0.1:{}", self.rpc_port);
-        Client::new(
-            &url,
-            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string()),
-        )
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    pub fn get_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.rpc_port)
     }
 }
 
@@ -97,7 +96,11 @@ mod tests {
         let regtest = BitcoinRegtest::new().expect("Failed to create BitcoinRegtest");
         regtest.run().expect("Failed to run Bitcoin regtest");
 
-        let rpc = regtest.rpc_client().expect("Failed to create RPC client");
+        let url = regtest.get_url();
+        let rpc = Client::new(
+            &url,
+            Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string()),
+        ).expect("Failed to create RPC client");
 
         let balance = rpc.get_balance(None, None).expect("Failed to get balance");
         assert!(balance.to_btc() > 0.0);
