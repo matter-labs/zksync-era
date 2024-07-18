@@ -70,12 +70,3 @@ export function runExternalNodeInBackground({
     }
     return runInBackground({ command, components, stdio, cwd, env });
 }
-
-// async executor of shell commands
-// spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
-// returns { stdout, stderr }
-const promisified = promisify(_exec);
-export function exec(command: string, options: ProcessEnvOptions) {
-    command = command.replace(/\n/g, ' ');
-    return promisified(command, options);
-}
