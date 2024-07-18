@@ -17,13 +17,29 @@ pub struct BitcoinClient {
     sender_address: Address,
 }
 
+impl BitcoinClient {
+    pub fn new(rpc: Box<dyn BitcoinRpc>, network: Network, sender_address: Address) -> Self {
+        Self {
+            rpc,
+            network,
+            sender_address,
+        }
+    }
+}
+
 #[async_trait]
 impl BitcoinOps for BitcoinClient {
-    async fn new(_rpc_url: &str) -> BitcoinClientResult<Self>
+    async fn new(rpc_url: &str, network: Network, sender_address: &str) -> BitcoinClientResult<Self>
     where
         Self: Sized,
     {
-        todo!()
+        // TODO: change rpc_user & rpc_password here, move it to args
+        let rpc = Box::new(BitcoinRpcClient::new(rpc_url, "rpcuser", "rpcpassword")?);
+        let sender_address = sender_address
+            .parse::<Address<NetworkUnchecked>>()?
+            .require_network(network)?;
+
+        Ok(Self::new(rpc, network, sender_address))
     }
 
     async fn get_balance(&self, address: &str) -> BitcoinClientResult<u128> {
@@ -50,8 +66,16 @@ impl BitcoinOps for BitcoinClient {
 
     async fn check_tx_confirmation(&self, txid: &str) -> BitcoinClientResult<bool> {
         let txid = Txid::from_raw_hash(txid.parse()?);
-        let _tx = self.rpc.get_transaction(&txid).await?;
-        todo!()
+        let latest_block_hash = self.rpc.get_best_block_hash().await?;
+        let tx_info = self
+            .rpc
+            .get_raw_transaction_info(&txid, Some(&latest_block_hash))
+            .await?;
+
+        match tx_info.confirmations {
+            Some(confirmations) => Ok(confirmations > 0),
+            None => Ok(false),
+        }
     }
 
     async fn fetch_block_height(&self) -> BitcoinClientResult<u128> {

@@ -65,17 +65,31 @@ impl BitcoinRpc for BitcoinRpcClient {
         let block_hash = self.client.get_block_hash(block_height as u64)?;
         self.client.get_block(&block_hash).map_err(|e| e.into())
     }
+
+    async fn get_best_block_hash(&self) -> BitcoinRpcResult<bitcoin::BlockHash> {
+        self.client.get_best_block_hash().map_err(|e| e.into())
+    }
+
+    async fn get_raw_transaction_info(
+        &self,
+        txid: &Txid,
+        block_hash: Option<&bitcoin::BlockHash>,
+    ) -> BitcoinRpcResult<bitcoincore_rpc::json::GetRawTransactionResult> {
+        self.client
+            .get_raw_transaction_info(txid, block_hash)
+            .map_err(|e| e.into())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::traits::BitcoinRpc;
-    use bitcoin::Network;
     use std::str::FromStr;
+
+    use bitcoin::Network;
     use tokio;
 
-    use crate::regtest::BitcoinRegtest;
+    use super::*;
+    use crate::{regtest::BitcoinRegtest, traits::BitcoinRpc};
 
     struct TestContext {
         _regtest: BitcoinRegtest,
@@ -109,7 +123,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_balance() {
         let context = TestContext::setup().await;
-        let balance = context.client.get_balance(&context.test_address).await.unwrap();
+        let balance = context
+            .client
+            .get_balance(&context.test_address)
+            .await
+            .unwrap();
         assert_eq!(balance, 0, "Initial balance should be 0");
     }
 
@@ -130,8 +148,15 @@ mod tests {
     #[tokio::test]
     async fn test_list_unspent() {
         let context = TestContext::setup().await;
-        let unspent = context.client.list_unspent(&context.test_address).await.unwrap();
-        assert!(unspent.is_empty(), "Initially, there should be no unspent outputs");
+        let unspent = context
+            .client
+            .list_unspent(&context.test_address)
+            .await
+            .unwrap();
+        assert!(
+            unspent.is_empty(),
+            "Initially, there should be no unspent outputs"
+        );
     }
 
     #[tokio::test]
@@ -145,8 +170,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction() {
         let context = TestContext::setup().await;
-        let dummy_txid = Txid::from_str("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b").unwrap();
+        let dummy_txid =
+            Txid::from_str("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b")
+                .unwrap();
         let result = context.client.get_transaction(&dummy_txid).await;
-        assert!(result.is_err(), "Getting non-existent transaction should fail");
+        assert!(
+            result.is_err(),
+            "Getting non-existent transaction should fail"
+        );
     }
 }

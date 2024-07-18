@@ -1,6 +1,6 @@
 this library contains multiple modules that provide different functionalities for the sequencer/verifier node.
 
-## Modules:
+## Modules
 
 1. **client**: provides communication tools with the Bitcoin network. (broadcast, get block, get transaction
    confirmation, etc.)
@@ -10,7 +10,7 @@ this library contains multiple modules that provide different functionalities fo
 4. **transaction_builder**: provides tools for creating unsigned transaction for withdrawal (UTXO selection).
 5. **signer**: provides tools for signing transactions.
 
-## responsibilities of shared files:
+## responsibilities of shared files
 
 - **traits.rs**:
   - contains traits.

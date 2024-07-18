@@ -5,8 +5,8 @@ use rand::Rng;
 use tempfile::TempDir;
 
 const COMPOSE_TEMPLATE_PATH: &str = concat!(
-env!("CARGO_MANIFEST_DIR"),
-"/tests/docker-compose-btc-template.yml"
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/docker-compose-btc-template.yml"
 );
 
 #[allow(unused)]
@@ -100,7 +100,8 @@ mod tests {
         let rpc = Client::new(
             &url,
             Auth::UserPass("rpcuser".to_string(), "rpcpassword".to_string()),
-        ).expect("Failed to create RPC client");
+        )
+        .expect("Failed to create RPC client");
 
         let balance = rpc.get_balance(None, None).expect("Failed to get balance");
         assert!(balance.to_btc() > 0.0);

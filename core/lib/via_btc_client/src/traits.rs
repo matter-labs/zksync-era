@@ -1,12 +1,16 @@
 use async_trait::async_trait;
-use bitcoin::{Address, Block, Transaction, Txid};
+use bitcoin::{Address, Block, Network, Transaction, Txid};
 
 use crate::types;
 
 #[allow(dead_code)]
 #[async_trait]
 pub trait BitcoinOps: Send + Sync {
-    async fn new(rpc_url: &str) -> types::BitcoinClientResult<Self>
+    async fn new(
+        rpc_url: &str,
+        network: Network,
+        sender_address: &str,
+    ) -> types::BitcoinClientResult<Self>
     where
         Self: Sized;
     async fn get_balance(&self, address: &str) -> types::BitcoinClientResult<u128>;
@@ -32,6 +36,12 @@ pub trait BitcoinRpc: Send + Sync {
     async fn get_transaction(&self, tx_id: &Txid) -> types::BitcoinRpcResult<Transaction>;
     async fn get_block_count(&self) -> types::BitcoinRpcResult<u64>;
     async fn get_block(&self, block_height: u128) -> types::BitcoinRpcResult<Block>;
+    async fn get_best_block_hash(&self) -> types::BitcoinRpcResult<bitcoin::BlockHash>;
+    async fn get_raw_transaction_info(
+        &self,
+        txid: &Txid,
+        block_hash: Option<&bitcoin::BlockHash>,
+    ) -> types::BitcoinRpcResult<bitcoincore_rpc::json::GetRawTransactionResult>;
 }
 
 #[allow(dead_code)]
