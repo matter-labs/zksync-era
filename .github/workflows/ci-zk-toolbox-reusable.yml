@@ -102,6 +102,14 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
+  
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
+            
       - name: Run external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
@@ -118,14 +126,6 @@ jobs:
         run: |
           ci_run zk_supervisor test revert --ignore-prerequisites --verbose
 
-      - name: Run recovery tests (from genesis)
-        run: |
-          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
-
-      - name: Run recovery tests (from snapshot)
-        run: |
-          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
-  
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
