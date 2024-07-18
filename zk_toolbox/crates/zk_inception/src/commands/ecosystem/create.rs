@@ -1,4 +1,7 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::bail;
 use common::{git, logger, spinner::Spinner};
@@ -19,10 +22,11 @@ use crate::{
         },
     },
     messages::{
-        msg_created_ecosystem, MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
-        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
-        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-        MSG_STARTING_CONTAINERS_SPINNER,
+        msg_created_ecosystem, msg_directory_does_not_contain_cargo_toml_err,
+        msg_path_to_zksync_does_not_exist_err, MSG_CLONING_ERA_REPO_SPINNER,
+        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
+        MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
+        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -62,6 +66,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         link_to_code
     } else {
         let path = PathBuf::from_str(&args.link_to_code)?;
+        check_link_to_code(&path)?;
         git::submodule_update(shell, path.clone())?;
         path
     };
@@ -112,5 +117,21 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     }
 
     logger::outro(msg_created_ecosystem(ecosystem_name));
+    Ok(())
+}
+
+fn check_link_to_code(path: &Path) -> anyhow::Result<()> {
+    if !path.exists() {
+        bail!(msg_path_to_zksync_does_not_exist_err(
+            path.to_str().unwrap()
+        ));
+    }
+
+    if !path.join("Cargo.toml").exists() {
+        bail!(msg_directory_does_not_contain_cargo_toml_err(
+            path.to_str().unwrap()
+        ));
+    }
+
     Ok(())
 }
