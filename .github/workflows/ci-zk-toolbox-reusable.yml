@@ -73,7 +73,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
-
       - name: Start services
         run: |
           ci_localnet_up

@@ -1,4 +1,4 @@
-import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
+import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
