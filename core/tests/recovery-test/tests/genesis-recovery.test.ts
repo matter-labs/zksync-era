@@ -50,6 +50,8 @@ describe('genesis recovery', () => {
 
     let apiWeb3JsonRpcHttpUrl: string;
     let ethRpcUrl: string;
+    let externalNodeUrl: string;
+    let extNodeHealthUrl: string;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
@@ -61,14 +63,17 @@ describe('genesis recovery', () => {
 
             ethRpcUrl = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+            externalNodeUrl = 'http://127.0.0.1:3150';
+            extNodeHealthUrl = 'http://127.0.0.1:3171/health';
         } else {
             apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
             ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+            externalNodeUrl = 'http://127.0.0.1:3060';
+            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
         }
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
-        // TODO source from file config?
-        externalNode = new zksync.Provider('http://127.0.0.1:3060');
+        externalNode = new zksync.Provider(externalNodeUrl);
         await NodeProcess.stopAll('KILL');
     });
 
@@ -110,6 +115,8 @@ describe('genesis recovery', () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
             'genesis-recovery.log',
+            pathToHome,
+            fileConfig.loadFromFile,
             NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
         );
 
@@ -123,7 +130,7 @@ describe('genesis recovery', () => {
 
         while (!treeFetcherSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -190,13 +197,15 @@ describe('genesis recovery', () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
             externalNodeProcess.logs,
+            pathToHome,
+            fileConfig.loadFromFile,
             NodeComponents.WITH_TREE_FETCHER
         );
 
         let isNodeReady = false;
         while (!isNodeReady) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -217,7 +226,7 @@ describe('genesis recovery', () => {
 
         while (!treeSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
