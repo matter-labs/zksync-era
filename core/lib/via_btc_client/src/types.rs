@@ -24,6 +24,9 @@ pub enum BitcoinError {
     #[error("Transaction building error: {0}")]
     TransactionBuildingError(String),
 
+    #[error("Fee estimation error: {0}")]
+    FeeEstimationFailed(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }

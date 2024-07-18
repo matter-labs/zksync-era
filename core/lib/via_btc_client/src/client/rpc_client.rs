@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use bitcoin::{Address, Block, OutPoint, Transaction, Txid};
-use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc::{
+    bitcoincore_rpc_json::EstimateMode, json::EstimateSmartFeeResult, Auth, Client, RpcApi,
+};
 
 use crate::{traits::BitcoinRpc, types::BitcoinRpcResult};
 
@@ -79,50 +81,30 @@ impl BitcoinRpc for BitcoinRpcClient {
             .get_raw_transaction_info(txid, block_hash)
             .map_err(|e| e.into())
     }
+
+    async fn estimate_smart_fee(
+        &self,
+        conf_target: u16,
+        estimate_mode: Option<EstimateMode>,
+    ) -> BitcoinRpcResult<EstimateSmartFeeResult> {
+        self.client
+            .estimate_smart_fee(conf_target, estimate_mode)
+            .map_err(|e| e.into())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use bitcoin::Network;
     use tokio;
 
     use super::*;
-    use crate::{regtest::BitcoinRegtest, traits::BitcoinRpc};
-
-    struct TestContext {
-        _regtest: BitcoinRegtest,
-        client: BitcoinRpcClient,
-        test_address: Address,
-    }
-
-    impl TestContext {
-        async fn setup() -> Self {
-            let regtest = BitcoinRegtest::new().expect("Failed to create BitcoinRegtest");
-            regtest.run().expect("Failed to run Bitcoin regtest");
-
-            let url = regtest.get_url();
-            let client = BitcoinRpcClient::new(&url, "rpcuser", "rpcpassword")
-                .expect("Failed to create BitcoinRpcClient");
-
-            // some random address
-            let test_address = Address::from_str("bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080")
-                .unwrap()
-                .require_network(Network::Regtest)
-                .unwrap();
-
-            Self {
-                _regtest: regtest,
-                client,
-                test_address,
-            }
-        }
-    }
+    use crate::{regtest::TestContext, traits::BitcoinRpc};
 
     #[tokio::test]
     async fn test_get_balance() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let balance = context
             .client
             .get_balance(&context.test_address)
@@ -133,21 +115,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_block_count() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let block_count = context.client.get_block_count().await.unwrap();
         assert!(block_count > 100, "Block count should be greater than 100");
     }
 
     #[tokio::test]
     async fn test_get_block_size() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let block = context.client.get_block(1).await.unwrap();
         assert_eq!(block.total_size(), 248usize, "Block version should be 1");
     }
 
     #[tokio::test]
     async fn test_list_unspent() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let unspent = context
             .client
             .list_unspent(&context.test_address)
@@ -161,7 +143,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_raw_transaction() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let dummy_tx_hex = "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0502cd010101ffffffff0200f2052a01000000160014a8a01aa2b9c7f00bbd59aabfb047e8f3a181d7ed0000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000";
         let result = context.client.send_raw_transaction(dummy_tx_hex).await;
         assert!(result.is_err(), "Sending invalid transaction should fail");
@@ -169,7 +151,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction() {
-        let context = TestContext::setup().await;
+        let context = TestContext::setup(None).await;
         let dummy_txid =
             Txid::from_str("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b")
                 .unwrap();

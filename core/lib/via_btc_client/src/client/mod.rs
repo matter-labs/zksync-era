@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use bitcoin::{address::NetworkUnchecked, Address, Network, Txid};
+use bitcoincore_rpc::json::EstimateMode;
 
 use crate::{
     traits::{BitcoinOps, BitcoinRpc},
@@ -9,6 +10,8 @@ use crate::{
 mod rpc_client;
 #[allow(unused)]
 pub use rpc_client::BitcoinRpcClient;
+
+use crate::types::BitcoinError;
 
 #[allow(unused)]
 pub struct BitcoinClient {
@@ -86,5 +89,23 @@ impl BitcoinOps for BitcoinClient {
     async fn fetch_and_parse_block(&self, block_height: u128) -> BitcoinClientResult<&str> {
         let _block = self.rpc.get_block(block_height).await?;
         todo!()
+    }
+
+    async fn estimate_fee(&self, conf_target: u16) -> BitcoinClientResult<u64> {
+        let estimation = self
+            .rpc
+            .estimate_smart_fee(conf_target, Some(EstimateMode::Economical))
+            .await?;
+
+        match estimation.fee_rate {
+            Some(fee_rate) => Ok(fee_rate.to_sat()),
+            None => {
+                let err = match estimation.errors {
+                    Some(errors) => errors.join(", "),
+                    None => "Unknown error during fee estimation".to_string(),
+                };
+                Err(BitcoinError::FeeEstimationFailed(err))
+            }
+        }
     }
 }

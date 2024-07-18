@@ -1,8 +1,11 @@
 use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
 
+use bitcoin::{address::NetworkUnchecked, Address, Network};
 use bitcoincore_rpc::{Auth, Client};
 use rand::Rng;
 use tempfile::TempDir;
+
+use crate::client::BitcoinRpcClient;
 
 const COMPOSE_TEMPLATE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -10,7 +13,7 @@ const COMPOSE_TEMPLATE_PATH: &str = concat!(
 );
 
 #[allow(unused)]
-pub struct BitcoinRegtest {
+pub(crate) struct BitcoinRegtest {
     temp_dir: TempDir,
     compose_file: PathBuf,
     rpc_port: u16,
@@ -30,13 +33,13 @@ impl BitcoinRegtest {
         })
     }
 
-    pub fn generate_compose_file(&self) -> std::io::Result<()> {
+    fn generate_compose_file(&self) -> std::io::Result<()> {
         let template = fs::read_to_string(COMPOSE_TEMPLATE_PATH)?;
         let compose_content = template.replace("{RPC_PORT}", &self.rpc_port.to_string());
         fs::write(&self.compose_file, compose_content)
     }
 
-    pub fn run(&self) -> std::io::Result<()> {
+    fn run(&self) -> std::io::Result<()> {
         self.generate_compose_file()?;
 
         Command::new("docker")
@@ -56,7 +59,7 @@ impl BitcoinRegtest {
         Ok(())
     }
 
-    pub fn stop(&self) -> std::io::Result<()> {
+    fn stop(&self) -> std::io::Result<()> {
         Command::new("docker")
             .args(&[
                 "compose",
@@ -72,7 +75,7 @@ impl BitcoinRegtest {
         Ok(())
     }
 
-    pub fn get_url(&self) -> String {
+    fn get_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.rpc_port)
     }
 }
@@ -81,6 +84,37 @@ impl Drop for BitcoinRegtest {
     fn drop(&mut self) {
         if let Err(e) = self.stop() {
             eprintln!("Failed to stop Bitcoin regtest: {}", e);
+        }
+    }
+}
+
+pub(crate) struct TestContext {
+    pub(crate) _regtest: BitcoinRegtest,
+    pub(crate) client: BitcoinRpcClient,
+    pub(crate) test_address: Address,
+}
+
+impl TestContext {
+    pub(crate) async fn setup(address: Option<&str>) -> Self {
+        let regtest = BitcoinRegtest::new().expect("Failed to create BitcoinRegtest");
+        regtest.run().expect("Failed to run Bitcoin regtest");
+
+        let url = regtest.get_url();
+        let client = BitcoinRpcClient::new(&url, "rpcuser", "rpcpassword")
+            .expect("Failed to create BitcoinRpcClient");
+
+        // some random address
+        let test_address = address
+            .unwrap_or("bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080")
+            .parse::<Address<NetworkUnchecked>>()
+            .unwrap()
+            .require_network(Network::Regtest)
+            .unwrap();
+
+        Self {
+            _regtest: regtest,
+            client,
+            test_address,
         }
     }
 }

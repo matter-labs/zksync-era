@@ -22,6 +22,7 @@ pub trait BitcoinOps: Send + Sync {
     async fn check_tx_confirmation(&self, txid: &str) -> types::BitcoinClientResult<bool>;
     async fn fetch_block_height(&self) -> types::BitcoinClientResult<u128>;
     async fn fetch_and_parse_block(&self, block_height: u128) -> types::BitcoinClientResult<&str>;
+    async fn estimate_fee(&self, conf_target: u16) -> types::BitcoinClientResult<u64>;
 }
 
 #[allow(dead_code)]
@@ -42,6 +43,11 @@ pub trait BitcoinRpc: Send + Sync {
         txid: &Txid,
         block_hash: Option<&bitcoin::BlockHash>,
     ) -> types::BitcoinRpcResult<bitcoincore_rpc::json::GetRawTransactionResult>;
+    async fn estimate_smart_fee(
+        &self,
+        conf_target: u16,
+        estimate_mode: Option<bitcoincore_rpc::json::EstimateMode>,
+    ) -> types::BitcoinRpcResult<bitcoincore_rpc::json::EstimateSmartFeeResult>;
 }
 
 #[allow(dead_code)]
