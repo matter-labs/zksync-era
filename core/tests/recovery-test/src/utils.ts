@@ -35,29 +35,13 @@ export function runInBackground({
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
     }
+
     return background({
         command,
         stdio,
         cwd,
         env
     });
-}
-
-export function runServerInBackground({
-    components,
-    stdio,
-    cwd,
-    env,
-    useZkInception
-}: {
-    components?: string[];
-    stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-    useZkInception?: boolean;
-}): ChildProcessWithoutNullStreams {
-    let command = useZkInception ? 'zk_inception server' : 'zk server';
-    return runInBackground({ command, components, stdio, cwd, env });
 }
 
 export function runExternalNodeInBackground({
@@ -73,7 +57,17 @@ export function runExternalNodeInBackground({
     env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
 }): ChildProcessWithoutNullStreams {
-    let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
+    let command = '';
+    if (useZkInception) {
+        command = 'zk_inception external-node run';
+    } else {
+        command = 'zk external-node';
+
+        const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+        if (enableConsensus) {
+            command += ' --enable-consensus';
+        }
+    }
     return runInBackground({ command, components, stdio, cwd, env });
 }
 
