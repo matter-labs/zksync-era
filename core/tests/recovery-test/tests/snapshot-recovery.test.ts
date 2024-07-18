@@ -206,11 +206,11 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node database', async () => {
-        await dropNodeDatabase(externalNodeEnv);
+        await dropNodeDatabase(fileConfig.loadFromFile, externalNodeEnv);
     });
 
     step('drop external node storage', async () => {
-        await dropNodeStorage(externalNodeEnv);
+        await dropNodeStorage(fileConfig.loadFromFile, externalNodeEnv);
     });
 
     step('initialize external node', async () => {

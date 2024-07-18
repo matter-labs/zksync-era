@@ -83,12 +83,21 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeDatabase(env: { [key: string]: string }) {
-    await executeNodeCommand(env, 'zk db reset');
+export async function dropNodeDatabase(useZkSupervisor: boolean, env: { [key: string]: string }) {
+    if (useZkSupervisor) {
+        await executeNodeCommand(env, 'zk_supervisor database reset');
+    } else {
+        await executeNodeCommand(env, 'zk db reset');
+    }
 }
 
-export async function dropNodeStorage(env: { [key: string]: string }) {
-    await executeNodeCommand(env, 'zk clean --database');
+export async function dropNodeStorage(useZkSupervisor: boolean, env: { [key: string]: string }) {
+    if (useZkSupervisor) {
+        // TODO find the right command to run
+        // await executeNodeCommand(env, 'zk_supervisor clean');
+    } else {
+        await executeNodeCommand(env, 'zk clean --database');
+    }
 }
 
 async function executeNodeCommand(env: { [key: string]: string }, command: string) {
