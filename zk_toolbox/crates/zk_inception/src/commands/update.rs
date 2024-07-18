@@ -77,7 +77,7 @@ fn merge_yaml(
             }
         }
         (a, b) => {
-            if overwrite {
+            if overwrite && a != &b {
                 *a = b.clone();
                 diff.insert(current_key, b);
             }
