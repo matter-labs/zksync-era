@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin::{address::NetworkUnchecked, Address, Network, Txid};
+use bitcoin::{address::NetworkUnchecked, Address, Network, OutPoint, Txid};
 use bitcoincore_rpc::json::EstimateMode;
 
 use crate::{
@@ -20,16 +20,6 @@ pub struct BitcoinClient {
     sender_address: Address,
 }
 
-impl BitcoinClient {
-    pub fn new(rpc: Box<dyn BitcoinRpc>, network: Network, sender_address: Address) -> Self {
-        Self {
-            rpc,
-            network,
-            sender_address,
-        }
-    }
-}
-
 #[async_trait]
 impl BitcoinOps for BitcoinClient {
     async fn new(rpc_url: &str, network: Network, sender_address: &str) -> BitcoinClientResult<Self>
@@ -42,37 +32,36 @@ impl BitcoinOps for BitcoinClient {
             .parse::<Address<NetworkUnchecked>>()?
             .require_network(network)?;
 
-        Ok(Self::new(rpc, network, sender_address))
+        Ok(Self {
+            rpc,
+            network,
+            sender_address,
+        })
     }
 
-    async fn get_balance(&self, address: &str) -> BitcoinClientResult<u128> {
-        let address = address.parse::<Address<NetworkUnchecked>>()?;
-        // TODO: change assume_checked here
-        let balance = self.rpc.get_balance(&address.assume_checked()).await?;
+    async fn get_balance(&self, address: &Address) -> BitcoinClientResult<u128> {
+        let balance = self.rpc.get_balance(address).await?;
         Ok(balance as u128)
     }
 
     async fn broadcast_signed_transaction(
         &self,
         signed_transaction: &str,
-    ) -> BitcoinClientResult<String> {
+    ) -> BitcoinClientResult<Txid> {
         let txid = self.rpc.send_raw_transaction(signed_transaction).await?;
-        Ok(txid.to_string())
+        Ok(txid)
     }
 
-    async fn fetch_utxos(&self, address: &str) -> BitcoinClientResult<Vec<String>> {
-        let address = address.parse::<Address<NetworkUnchecked>>()?;
-        // TODO: change assume_checked here
-        let utxos = self.rpc.list_unspent(&address.assume_checked()).await?;
-        Ok(utxos.iter().map(|utxo| utxo.clone().to_string()).collect())
+    async fn fetch_utxos(&self, address: &Address) -> BitcoinClientResult<Vec<OutPoint>> {
+        let utxos = self.rpc.list_unspent(address).await?;
+        Ok(utxos)
     }
 
-    async fn check_tx_confirmation(&self, txid: &str) -> BitcoinClientResult<bool> {
-        let txid = Txid::from_raw_hash(txid.parse()?);
+    async fn check_tx_confirmation(&self, txid: &Txid) -> BitcoinClientResult<bool> {
         let latest_block_hash = self.rpc.get_best_block_hash().await?;
         let tx_info = self
             .rpc
-            .get_raw_transaction_info(&txid, Some(&latest_block_hash))
+            .get_raw_transaction_info(txid, Some(&latest_block_hash))
             .await?;
 
         match tx_info.confirmations {
@@ -86,7 +75,7 @@ impl BitcoinOps for BitcoinClient {
         Ok(height as u128)
     }
 
-    async fn fetch_and_parse_block(&self, block_height: u128) -> BitcoinClientResult<&str> {
+    async fn fetch_and_parse_block(&self, block_height: u128) -> BitcoinClientResult<String> {
         let _block = self.rpc.get_block(block_height).await?;
         todo!()
     }
@@ -107,5 +96,110 @@ impl BitcoinOps for BitcoinClient {
                 Err(BitcoinError::FeeEstimationFailed(err))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::Network;
+
+    use super::*;
+    use crate::{regtest::TestContext, traits::BitcoinOps};
+
+    #[tokio::test]
+    async fn test_new() {
+        let context = TestContext::setup(None).await;
+        let client = BitcoinClient::new(
+            &context._regtest.get_url(),
+            Network::Regtest,
+            &context.test_address.to_string(),
+        )
+        .await
+        .expect("Failed to create BitcoinClient");
+
+        assert_eq!(client.network, Network::Regtest);
+        assert_eq!(client.sender_address, context.test_address);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_get_balance() {
+        let context = TestContext::setup(None).await;
+        let client = BitcoinClient::new(
+            &context._regtest.get_url(),
+            Network::Regtest,
+            &context.test_address.to_string(),
+        )
+        .await
+        .expect("Failed to create BitcoinClient");
+
+        // random test address fails
+        let balance = client
+            .get_balance(&context.test_address)
+            .await
+            .expect("Failed to get balance");
+
+        assert!(balance > 0, "Balance should be greater than 0");
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_fetch_utxos() {
+        let context = TestContext::setup(None).await;
+        let client = BitcoinClient::new(
+            &context._regtest.get_url(),
+            Network::Regtest,
+            &context.test_address.to_string(),
+        )
+        .await
+        .expect("Failed to create BitcoinClient");
+
+        // random test address fails
+        let utxos = client
+            .fetch_utxos(&context.test_address)
+            .await
+            .expect("Failed to fetch UTXOs");
+
+        assert!(!utxos.is_empty(), "UTXOs should not be empty");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_block_height() {
+        let context = TestContext::setup(None).await;
+        let client = BitcoinClient::new(
+            &context._regtest.get_url(),
+            Network::Regtest,
+            &context.test_address.to_string(),
+        )
+        .await
+        .expect("Failed to create BitcoinClient");
+
+        let block_height = client
+            .fetch_block_height()
+            .await
+            .expect("Failed to fetch block height");
+
+        assert!(block_height > 0, "Block height should be greater than 0");
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_estimate_fee() {
+        let context = TestContext::setup(None).await;
+        let client = BitcoinClient::new(
+            &context._regtest.get_url(),
+            Network::Regtest,
+            &context.test_address.to_string(),
+        )
+        .await
+        .expect("Failed to create BitcoinClient");
+
+        // error: Insufficient data or no feerate found
+        let fee = client
+            .estimate_fee(6)
+            .await
+            .expect("Failed to estimate fee");
+
+        assert!(fee > 0, "Estimated fee should be greater than 0");
     }
 }

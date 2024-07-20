@@ -75,7 +75,7 @@ impl BitcoinRegtest {
         Ok(())
     }
 
-    fn get_url(&self) -> String {
+    pub(crate) fn get_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.rpc_port)
     }
 }
