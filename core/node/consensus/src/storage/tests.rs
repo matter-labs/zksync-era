@@ -51,11 +51,9 @@ async fn test_vm_reader() {
         let mut reader =
             super::vm_reader::VMReader::new(pool.clone(), tx_sender.clone(), registry_address);
 
-        let validators = reader.read_validator_committee(ctx, block_id).await;
+        let (validators, attesters) = reader.read_committees(ctx, block_id).await;
         assert_eq!(validators.len(), num_nodes);
-        let attesters = reader.read_attester_committee(ctx, block_id).await;
         assert_eq!(attesters.len(), num_nodes);
-
         for i in 0..nodes.len() {
             assert_eq!(
                 nodes[i][0].clone().into_address().unwrap(),
