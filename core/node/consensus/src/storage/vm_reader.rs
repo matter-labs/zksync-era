@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use anyhow::Context;
+use zksync_basic_types::{
+    ethabi::Bytes,
+    web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
+};
 use zksync_concurrency::ctx::Ctx;
 use zksync_contracts::load_contract;
 use zksync_node_api_server::{
@@ -15,6 +20,7 @@ use zksync_types::{
     transaction_request::CallOverrides,
     Nonce, U256,
 };
+use zksync_web3_decl::types::H160;
 
 use crate::storage::ConnectionPool;
 
@@ -40,7 +46,7 @@ impl VMReader {
         &self,
         ctx: &Ctx,
         block_id: BlockId,
-    ) -> (Vec<CommitteeValidator>, Vec<CommitteeAttester>) {
+    ) -> anyhow::Result<(Vec<CommitteeValidator>, Vec<CommitteeAttester>)> {
         let mut conn = self.pool.connection(ctx).await.unwrap().0;
         let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
             .await
@@ -49,33 +55,57 @@ impl VMReader {
             .await
             .unwrap();
 
-        let validator_committee = self.read_validator_committee(block_args).await;
-        let attester_committee = self.read_attester_committee(block_args).await;
+        let validator_committee = self
+            .read_validator_committee(block_args)
+            .await
+            .context("read_validator_committee()")?;
+        let attester_committee = self
+            .read_attester_committee(block_args)
+            .await
+            .context("read_attester_committee()")?;
 
-        (validator_committee, attester_committee)
+        Ok((validator_committee, attester_committee))
     }
 
-    pub async fn read_validator_committee(&self, block_args: BlockArgs) -> Vec<CommitteeValidator> {
+    pub async fn read_validator_committee(
+        &self,
+        block_args: BlockArgs,
+    ) -> anyhow::Result<Vec<CommitteeValidator>> {
         let mut committee = vec![];
-        let validator_committee_size = self.read_validator_committee_size(block_args).await;
+        let validator_committee_size = self
+            .read_validator_committee_size(block_args)
+            .await
+            .context("read_validator_committee_size()")?;
         for i in 0..validator_committee_size {
-            let committee_validator = self.read_committee_validator(block_args, i).await;
+            let committee_validator = self
+                .read_committee_validator(block_args, i)
+                .await
+                .context("read_committee_validator()")?;
             committee.push(committee_validator)
         }
-        committee
+        Ok(committee)
     }
 
-    pub async fn read_attester_committee(&self, block_args: BlockArgs) -> Vec<CommitteeAttester> {
+    pub async fn read_attester_committee(
+        &self,
+        block_args: BlockArgs,
+    ) -> anyhow::Result<Vec<CommitteeAttester>> {
         let mut committee = vec![];
-        let attester_committee_size = self.read_attester_committee_size(block_args).await;
+        let attester_committee_size = self
+            .read_attester_committee_size(block_args)
+            .await
+            .context("read_attester_committee_size()")?;
         for i in 0..attester_committee_size {
-            let committee_validator = self.read_committee_attester(block_args, i).await;
+            let committee_validator = self
+                .read_committee_attester(block_args, i)
+                .await
+                .context("read_committee_attester()")?;
             committee.push(committee_validator)
         }
-        committee
+        Ok(committee)
     }
 
-    async fn read_validator_committee_size(&self, block_args: BlockArgs) -> usize {
+    async fn read_validator_committee_size(&self, block_args: BlockArgs) -> anyhow::Result<usize> {
         let func = self
             .registry_contract
             .function("validatorCommitteeSize")
@@ -86,14 +116,13 @@ impl VMReader {
 
         let res = self.eth_call(block_args, tx).await;
 
-        func.decode_output(&res).unwrap()[0]
-            .clone()
-            .into_uint()
-            .unwrap()
-            .as_usize()
+        let tokens = func.decode_output(&res).context("decode_output()")?;
+        U256::from_tokens(tokens)
+            .context("U256::from_tokens()")
+            .map(|t| t.as_usize())
     }
 
-    async fn read_attester_committee_size(&self, block_args: BlockArgs) -> usize {
+    async fn read_attester_committee_size(&self, block_args: BlockArgs) -> anyhow::Result<usize> {
         let func = self
             .registry_contract
             .function("attesterCommitteeSize")
@@ -102,18 +131,17 @@ impl VMReader {
         let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
 
         let res = self.eth_call(block_args, tx).await;
-        func.decode_output(&res).unwrap()[0]
-            .clone()
-            .into_uint()
-            .unwrap()
-            .as_usize()
+        let tokens = func.decode_output(&res).context("decode_output()")?;
+        U256::from_tokens(tokens)
+            .context("U256::from_tokens()")
+            .map(|t| t.as_usize())
     }
 
     async fn read_committee_validator(
         &self,
         block_args: BlockArgs,
         idx: usize,
-    ) -> CommitteeValidator {
+    ) -> anyhow::Result<CommitteeValidator> {
         let func = self
             .registry_contract
             .function("validatorCommittee")
@@ -121,43 +149,35 @@ impl VMReader {
             .clone();
         let tx = self.gen_l2_call_tx(
             self.registry_address,
-            func.encode_input(&[Token::Uint(zksync_types::U256::from(idx))])
+            func.encode_input(&zksync_types::U256::from(idx).into_tokens())
                 .unwrap(),
         );
 
         let res = self.eth_call(block_args, tx).await;
-        let tokens = func.decode_output(&res).unwrap();
-        CommitteeValidator {
-            node_owner: tokens[0].clone().into_address().unwrap(),
-            weight: tokens[1].clone().into_uint().unwrap().as_usize(),
-            pub_key: tokens[2].clone().into_bytes().unwrap(),
-            pop: tokens[3].clone().into_bytes().unwrap(),
-        }
+        let tokens = func.decode_output(&res).context("decode_output()")?;
+        CommitteeValidator::from_tokens(tokens).context("CommitteeValidator::from_tokens()")
     }
 
     async fn read_committee_attester(
         &self,
         block_args: BlockArgs,
         idx: usize,
-    ) -> CommitteeAttester {
+    ) -> anyhow::Result<CommitteeAttester> {
         let func = self
             .registry_contract
             .function("attesterCommittee")
             .unwrap()
             .clone();
+
         let tx = self.gen_l2_call_tx(
             self.registry_address,
-            func.encode_input(&[Token::Uint(zksync_types::U256::from(idx))])
+            func.encode_input(&zksync_types::U256::from(idx).into_tokens())
                 .unwrap(),
         );
 
         let res = self.eth_call(block_args, tx).await;
-        let tokens = func.decode_output(&res).unwrap();
-        CommitteeAttester {
-            weight: tokens[0].clone().into_uint().unwrap().as_usize(),
-            node_owner: tokens[1].clone().into_address().unwrap(),
-            pub_key: tokens[2].clone().into_bytes().unwrap(),
-        }
+        let tokens = func.decode_output(&res).context("decode_output()")?;
+        CommitteeAttester::from_tokens(tokens).context("CommitteeAttester::from_tokens()")
     }
 
     async fn eth_call(&self, block_args: BlockArgs, tx: L2Tx) -> Vec<u8> {
@@ -197,9 +217,67 @@ pub struct CommitteeValidator {
     pub pop: Vec<u8>,
 }
 
+impl Detokenize for CommitteeValidator {
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
+        Ok(Self {
+            node_owner: H160::from_token(
+                tokens
+                    .get(0)
+                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
+                    .clone(),
+            )?,
+            weight: U256::from_token(
+                tokens
+                    .get(1)
+                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
+                    .clone(),
+            )?
+            .as_usize(),
+            pub_key: Bytes::from_token(
+                tokens
+                    .get(2)
+                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
+                    .clone(),
+            )?,
+            pop: Bytes::from_token(
+                tokens
+                    .get(3)
+                    .ok_or_else(|| Error::Other("tokens[3] missing".to_string()))?
+                    .clone(),
+            )?,
+        })
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct CommitteeAttester {
     pub weight: usize,
     pub node_owner: Address,
     pub pub_key: Vec<u8>,
+}
+
+impl Detokenize for CommitteeAttester {
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
+        Ok(Self {
+            weight: U256::from_token(
+                tokens
+                    .get(0)
+                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
+                    .clone(),
+            )?
+            .as_usize(),
+            node_owner: H160::from_token(
+                tokens
+                    .get(1)
+                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
+                    .clone(),
+            )?,
+            pub_key: Bytes::from_token(
+                tokens
+                    .get(2)
+                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
+                    .clone(),
+            )?,
+        })
+    }
 }

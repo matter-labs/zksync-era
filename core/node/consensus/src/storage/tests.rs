@@ -1,4 +1,5 @@
 use rand::Rng;
+use zksync_basic_types::web3::contract::Tokenize;
 use zksync_concurrency::{ctx, scope};
 use zksync_types::{
     api::{BlockId, BlockNumber},
@@ -25,15 +26,16 @@ async fn test_vm_reader() {
         let mut nodes: Vec<Vec<Token>> = Vec::new();
         let num_nodes = 5;
         for _ in 0..num_nodes {
-            let item = vec![
-                Token::Address(Address::random()),
-                Token::Uint(U256::from(rng.gen::<usize>())),
-                Token::Bytes((0..256).map(|_| rng.gen()).collect()),
-                Token::Bytes((0..256).map(|_| rng.gen()).collect()),
-                Token::Uint(U256::from(rng.gen::<usize>())),
-                Token::Bytes((0..256).map(|_| rng.gen()).collect()),
-            ];
-            nodes.push(item);
+            let node_entry = (
+                Address::random(),
+                U256::from(rng.gen::<usize>()),
+                (0..256).map(|_| rng.gen()).collect::<Vec<u8>>(),
+                (0..256).map(|_| rng.gen()).collect::<Vec<u8>>(),
+                U256::from(rng.gen::<usize>()),
+                (0..256).map(|_| rng.gen()).collect::<Vec<u8>>(),
+            )
+                .into_tokens();
+            nodes.push(node_entry);
         }
         let nodes_ref: Vec<&[Token]> = nodes.iter().map(|v| v.as_slice()).collect();
         let nodes_slice: &[&[Token]] = nodes_ref.as_slice();
@@ -51,7 +53,7 @@ async fn test_vm_reader() {
         let mut reader =
             super::vm_reader::VMReader::new(pool.clone(), tx_sender.clone(), registry_address);
 
-        let (validators, attesters) = reader.read_committees(ctx, block_id).await;
+        let (validators, attesters) = reader.read_committees(ctx, block_id).await.unwrap();
         assert_eq!(validators.len(), num_nodes);
         assert_eq!(attesters.len(), num_nodes);
         for i in 0..nodes.len() {
