@@ -6,7 +6,7 @@ use zksync_basic_types::{
     web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
 };
 use zksync_concurrency::ctx::Ctx;
-use zksync_contracts::load_contract;
+use zksync_contracts::{consensus_l2_contracts, load_contract};
 use zksync_node_api_server::{
     execution_sandbox::{BlockArgs, BlockStartInfo},
     tx_sender::TxSender,
@@ -33,7 +33,7 @@ pub struct VMReader {
 
 impl VMReader {
     pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: Address) -> Self {
-        let registry_contract = load_contract("contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json");
+        let registry_contract = consensus_l2_contracts::load_consensus_registry_contract();
         Self {
             pool,
             tx_sender,

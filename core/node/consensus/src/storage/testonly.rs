@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, ctx::Ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_contracts::{load_contract, read_bytecode, BaseSystemContracts};
+use zksync_contracts::{consensus_l2_contracts, load_contract, read_bytecode, BaseSystemContracts};
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
@@ -217,23 +217,26 @@ impl VMWriter {
         owner: Address,
         nodes: &[&[Token]],
     ) -> Address {
-        let registry_bytecode = read_bytecode("contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json");
-        let registry_contract = load_contract("contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json");
+        let registry_contract = consensus_l2_contracts::load_consensus_registry_contract_in_test();
 
         let mut txs: Vec<Transaction> = vec![];
         let deploy_tx = self.account.get_deploy_tx_with_factory_deps(
-            &registry_bytecode,
+            &registry_contract.bytecode,
             Some(&[Token::Address(owner)]),
             vec![],
             TxType::L2,
         );
         txs.push(deploy_tx.tx);
         for node in nodes {
-            let tx = self.gen_tx_add(&registry_contract, deploy_tx.address, node);
+            let tx = self.gen_tx_add(&registry_contract.contract, deploy_tx.address, node);
             txs.push(tx);
         }
-        txs.push(self.gen_tx_set_validator_committee(deploy_tx.address, &registry_contract));
-        txs.push(self.gen_tx_set_attester_committee(deploy_tx.address, &registry_contract));
+        txs.push(
+            self.gen_tx_set_validator_committee(deploy_tx.address, &registry_contract.contract),
+        );
+        txs.push(
+            self.gen_tx_set_attester_committee(deploy_tx.address, &registry_contract.contract),
+        );
 
         self.node.push_block(&txs).await;
         self.pool
