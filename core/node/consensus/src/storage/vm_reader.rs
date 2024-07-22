@@ -25,6 +25,7 @@ use zksync_web3_decl::types::H160;
 use crate::storage::ConnectionPool;
 
 /// A struct for reading data from consensus L2 contracts.
+#[derive(Debug)]
 pub struct VMReader {
     pool: ConnectionPool,
     tx_sender: TxSender,

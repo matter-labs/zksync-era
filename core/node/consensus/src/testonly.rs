@@ -54,6 +54,7 @@ use crate::{
 };
 
 /// Fake StateKeeper for tests.
+#[derive(Debug)]
 pub(super) struct StateKeeper {
     protocol_version: ProtocolVersionId,
     // Batch of the `last_block`.

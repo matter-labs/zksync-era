@@ -197,6 +197,7 @@ impl ConnectionPool {
 }
 
 /// A struct for writing to consensus L2 contracts.
+#[derive(Debug)]
 pub struct VMWriter {
     pool: ConnectionPool,
     node: StateKeeper,
