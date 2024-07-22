@@ -88,7 +88,7 @@ impl TryFrom<U256> for AccountTreeId {
 
 /// ChainId in the ZKsync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct L2ChainId(u64);
+pub struct L2ChainId(pub u64);
 
 impl<'de> Deserialize<'de> for L2ChainId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

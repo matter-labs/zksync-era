@@ -12,13 +12,14 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
 import { BigNumber, Overrides } from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import {
     EIP712_TX_TYPE,
     ETH_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
 } from 'zksync-ethers/build/utils';
+import { sleep } from 'utils';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;
@@ -236,8 +237,7 @@ describe('ETH token checks', () => {
         );
     });
 
-    // FIXME: restore
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (!isETHBasedChain) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;
@@ -257,7 +257,11 @@ describe('ETH token checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+        // await withdrawalTx.waitFinalize();
+
+        await sleep(25);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

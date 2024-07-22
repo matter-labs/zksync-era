@@ -3,6 +3,11 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
+use assert_matches::assert_matches;
+use multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
@@ -98,6 +103,22 @@ impl Tester {
 
     pub(super) fn set_config(&mut self, config: TestConfig) {
         self.config = config;
+    }
+
+    /// Extension of `create_batch_executor` that allows us to run some initial transactions to bootstrap the state.
+    pub(super) async fn create_batch_executor_with_init_transactions(
+        &mut self,
+        storage_type: StorageType,
+        transactions: &[Transaction],
+    ) -> BatchExecutorHandle {
+        let mut executor = self.create_batch_executor(storage_type).await;
+
+        for txn in transactions {
+            let res = executor.execute_tx(txn.clone()).await.unwrap();
+            assert_matches!(res, TxExecutionResult::Success { .. });
+        }
+
+        executor
     }
 
     /// Creates a batch executor instance with the specified storage type.
@@ -498,6 +519,7 @@ impl StorageSnapshot {
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
         transaction_count: u32,
+        transactions: &[Transaction],
     ) -> Self {
         let mut tester = Tester::new(connection_pool.clone());
         tester.genesis().await;
@@ -534,6 +556,30 @@ impl StorageSnapshot {
             max_virtual_blocks_to_create: 1,
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+
+        for transaction in transactions {
+            let tx_hash = transaction.hash(); // probably incorrect
+            let res = executor.execute_tx(transaction.clone()).await.unwrap();
+            if let TxExecutionResult::Success { tx_result, .. } = res {
+                let storage_logs = &tx_result.logs.storage_logs;
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+            } else {
+                panic!("Unexpected tx execution result: {res:?}");
+            };
+
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
+                l2_block_env.timestamp,
+                l2_block_env.prev_block_hash,
+            );
+            hasher.push_tx_hash(tx_hash);
+
+            l2_block_env.number += 1;
+            l2_block_env.timestamp += 1;
+            l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
+        }
 
         for _ in 0..transaction_count {
             let tx = alice.execute();

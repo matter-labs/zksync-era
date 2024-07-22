@@ -11,7 +11,10 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
+            utils::{
+                get_balance, initialize_message_root_storage, read_test_contract,
+                verify_required_storage,
+            },
         },
         utils::fee::get_batch_base_fee,
         HistoryEnabled,
@@ -27,6 +30,8 @@ fn test_default_aa_interaction() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();
+
+    initialize_message_root_storage(vm.storage);
 
     let counter = read_test_contract();
     let account = &mut vm.rich_accounts[0];

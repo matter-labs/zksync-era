@@ -8,6 +8,8 @@ database_prover_url = "postgres://postgres:notsecurepassword@postgres/prover_loc
 test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test"
 test_database_prover_url = "postgres://postgres:notsecurepassword@host:5433/prover_local_test"
 
+CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH = 120000
+
 # for loadtest
 l1_rpc_address = "http://reth:8545"
 

@@ -140,6 +140,9 @@ pub(crate) struct StorageL1Batch {
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,
 
+    pub aggregation_root: Option<Vec<u8>>,
+    pub local_root: Option<Vec<u8>>,
+
     pub used_contract_hashes: serde_json::Value,
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
@@ -254,6 +257,16 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                 &batch
                     .state_diff_hash
                     .ok_or(L1BatchMetadataError::Incomplete("state_diff_hash"))?,
+            ),
+            local_root: H256::from_slice(
+                &batch
+                    .local_root
+                    .ok_or(L1BatchMetadataError::Incomplete("local_root"))?,
+            ),
+            aggregation_root: H256::from_slice(
+                &batch
+                    .aggregation_root
+                    .ok_or(L1BatchMetadataError::Incomplete("aggregation_root"))?,
             ),
         })
     }

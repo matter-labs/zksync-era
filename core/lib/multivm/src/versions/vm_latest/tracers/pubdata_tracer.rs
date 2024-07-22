@@ -12,7 +12,7 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
+    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
@@ -163,7 +163,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         .into_iter()
         .filter(|log| log.rw_flag)
         .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
+        .filter(|log| log.address != L1_MESSENGER_ADDRESS || log.key == U256::from(4u32))
         .map(|log| StateDiffRecord {
             address: log.address,
             key: log.key,

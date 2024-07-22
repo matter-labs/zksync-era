@@ -7,6 +7,7 @@ use zksync_basic_types::{
     L1BatchNumber, H160, H2048, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_utils::u256_to_h256;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
@@ -191,6 +192,42 @@ pub struct L2ToL1LogProof {
     pub id: u32,
     /// The root of the tree.
     pub root: H256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LeafAggProof {
+    pub batch_leaf_proof: Vec<H256>,
+    pub batch_leaf_proof_mask: U256,
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: U256,
+    pub local_msg_root: H256,
+    pub sl_batch_number: U256,
+}
+
+impl LeafAggProof {
+    pub fn encode(self) -> (u32, Vec<H256>) {
+        let mut encoded_result = vec![];
+
+        let LeafAggProof {
+            batch_leaf_proof,
+            batch_leaf_proof_mask,
+            chain_id_leaf_proof_mask,
+            sl_batch_number,
+            ..
+        } = self;
+
+        let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
+
+        encoded_result.push(u256_to_h256(batch_leaf_proof_mask));
+        encoded_result.extend(batch_leaf_proof);
+
+        let sl_encoded_data =
+            sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
+        encoded_result.push(u256_to_h256(sl_encoded_data));
+
+        (batch_leaf_proof_len, encoded_result)
+    }
 }
 
 /// A struct with the two default bridge contracts.

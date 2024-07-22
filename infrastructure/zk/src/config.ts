@@ -9,6 +9,7 @@ import { ethers } from 'ethers';
 import { getTestAccounts } from './run';
 import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
+import { clean } from './clean';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -270,6 +271,8 @@ command
             .replace('CONTRACTS_ERA_CHAIN_ID="270"', 'CONTRACTS_ERA_CHAIN_ID="9"');
 
         const configFile = `etc/env/configs/${envName}.toml`;
+
+        clean(`etc/env/l2-inits/${envName}.init.env`);
 
         fs.writeFileSync(configFile, template);
 

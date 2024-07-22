@@ -5,7 +5,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
+            utils::{initialize_message_root_storage, read_test_contract},
         },
         types::internals::TransactionData,
         HistoryEnabled,
@@ -26,6 +26,7 @@ fn test_predetermined_refunded_gas() {
         .with_random_rich_accounts(1)
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
+    initialize_message_root_storage(vm.storage);
     let l1_batch = vm.vm.batch_env.clone();
 
     let counter = read_test_contract();
@@ -65,6 +66,7 @@ fn test_predetermined_refunded_gas() {
         .with_rich_accounts(vec![account.clone()])
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
+    initialize_message_root_storage(vm.storage);
 
     let tx: TransactionData = tx.into();
     // Overhead
@@ -119,6 +121,8 @@ fn test_predetermined_refunded_gas() {
         .with_rich_accounts(vec![account.clone()])
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
+
+    initialize_message_root_storage(vm.storage);
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm

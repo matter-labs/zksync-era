@@ -318,6 +318,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 l1_batches
@@ -902,9 +904,11 @@ impl BlocksDal<'_, '_> {
                 compressed_initial_writes = $8,
                 compressed_repeated_writes = $9,
                 state_diff_hash = $10,
+                aggregation_root = $11,
+                local_root = $12,
                 updated_at = NOW()
             WHERE
-                number = $11
+                number = $13
                 AND commitment IS NULL
             "#,
             commitment_artifacts.commitment_hash.commitment.as_bytes(),
@@ -923,6 +927,8 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_initial_writes,
             commitment_artifacts.compressed_repeated_writes,
             commitment_artifacts.state_diff_hash.as_bytes(),
+            commitment_artifacts.aggregation_root.as_bytes(),
+            commitment_artifacts.local_root.as_bytes(),
             i64::from(number.0),
         )
         .instrument("save_l1_batch_commitment_artifacts")
@@ -1022,6 +1028,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 l1_batches
@@ -1203,6 +1211,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 l1_batches
@@ -1284,6 +1294,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 (
@@ -1358,6 +1370,8 @@ impl BlocksDal<'_, '_> {
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
                         pubdata_input,
+                        aggregation_root,
+                        local_root,
                         state_diff_hash
                     FROM
                         l1_batches
@@ -1508,6 +1522,8 @@ impl BlocksDal<'_, '_> {
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
                     pubdata_input,
+                    aggregation_root,
+                    local_root,
                     state_diff_hash
                 FROM
                     l1_batches
@@ -1573,6 +1589,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 l1_batches
@@ -1652,6 +1670,8 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                aggregation_root,
+                local_root,
                 state_diff_hash
             FROM
                 l1_batches
