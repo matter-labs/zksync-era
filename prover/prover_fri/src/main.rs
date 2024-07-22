@@ -16,7 +16,10 @@ use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
+use zksync_prover_fri_utils::{
+    get_all_circuit_id_round_tuples_for,
+    region_fetcher::{RegionFetcher, Zone},
+};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
@@ -32,24 +35,20 @@ mod prover_job_processor;
 mod socket_listener;
 mod utils;
 
-async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
+async fn graceful_shutdown(zone: Zone, port: u16) -> anyhow::Result<impl Future<Output = ()>> {
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
-    let zone_url = &FriProverConfig::from_env()
-        .context("FriProverConfig::from_env()")?
-        .zone_read_url;
-    let zone = get_zone(zone_url).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.connection()
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
-            .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, zone)
+            .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, zone.to_string())
             .await
     })
 }
@@ -107,6 +106,13 @@ async fn main() -> anyhow::Result<()> {
     })
     .context("Error setting Ctrl+C handler")?;
 
+    let zone = RegionFetcher::new(
+        prover_config.cloud_type,
+        prover_config.zone_read_url.clone(),
+    )
+    .get_zone()
+    .await?;
+
     let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
     let prover_object_store_config = prover_config
         .prover_object_store
@@ -156,6 +162,7 @@ async fn main() -> anyhow::Result<()> {
 
     let prover_tasks = get_prover_tasks(
         prover_config,
+        zone.clone(),
         stop_receiver.clone(),
         object_store_factory,
         public_blob_store,
@@ -174,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {
             if cfg!(feature = "gpu") {
-                graceful_shutdown(port)
+                graceful_shutdown(zone, port)
                     .await
                     .context("failed to prepare graceful shutdown future")?
                     .await;
@@ -194,6 +201,7 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(not(feature = "gpu"))]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
+    _zone: Zone,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
@@ -228,6 +236,7 @@ async fn get_prover_tasks(
 #[cfg(feature = "gpu")]
 async fn get_prover_tasks(
     prover_config: FriProverConfig,
+    zone: Zone,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
@@ -246,9 +255,6 @@ async fn get_prover_tasks(
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
 
-    let zone = get_zone(&prover_config.zone_read_url)
-        .await
-        .context("get_zone()")?;
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
         host: local_ip,

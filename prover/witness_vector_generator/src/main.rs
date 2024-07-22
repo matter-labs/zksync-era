@@ -11,7 +11,7 @@ use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::ConnectionPool;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::RegionFetcher};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -95,9 +95,14 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
-    let fri_prover_config = general_config.prover_config.context("prover config")?;
-    let zone_url = &fri_prover_config.zone_read_url;
-    let zone = get_zone(zone_url).await.context("get_zone()")?;
+    let prover_config = general_config.prover_config.context("prover config")?;
+    let zone = RegionFetcher::new(
+        prover_config.cloud_type,
+        prover_config.zone_read_url.clone(),
+    )
+    .get_zone()
+    .await
+    .context("get_zone()")?;
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
@@ -108,8 +113,8 @@ async fn main() -> anyhow::Result<()> {
         zone.clone(),
         config,
         protocol_version,
-        fri_prover_config.max_attempts,
-        Some(fri_prover_config.setup_data_path.clone()),
+        prover_config.max_attempts,
+        Some(prover_config.setup_data_path.clone()),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

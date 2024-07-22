@@ -28,6 +28,7 @@ pub mod gpu_prover {
         },
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
+    use zksync_prover_fri_utils::region_fetcher::Zone;
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
@@ -64,7 +65,7 @@ pub mod gpu_prover {
         witness_vector_queue: SharedWitnessVectorQueue,
         prover_context: ProverContext,
         address: SocketAddress,
-        zone: String,
+        zone: Zone,
         protocol_version: ProtocolSemanticVersion,
     }
 
@@ -79,7 +80,7 @@ pub mod gpu_prover {
             circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
             witness_vector_queue: SharedWitnessVectorQueue,
             address: SocketAddress,
-            zone: String,
+            zone: Zone,
             protocol_version: ProtocolSemanticVersion,
         ) -> Self {
             Prover {
@@ -230,7 +231,7 @@ pub mod gpu_prover {
                             .fri_gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
-                                self.zone.clone(),
+                                self.zone.to_string(),
                             )
                             .await;
                     }
