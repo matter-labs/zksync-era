@@ -154,16 +154,13 @@ pub fn decode_genesis_upgrade_event(
     let factory_deps = next()
         .into_array()
         .context("factory_deps")
-        .unwrap()
-        // todo proper error
-        // .map_err(|e| ethabi::Error::Other(&e.to_sting().as_ref().into()))?
+        .map_err(|_| ethabi::Error::InvalidData)?
         .into_iter()
         .enumerate()
         .map(|(i, t)| t.into_bytes().context(i))
         .collect::<Result<Vec<Vec<u8>>, _>>()
         .context("factory_deps")
-        .unwrap();
-    // .map_err(|e| ethabi::Error::Other(e.to_string()))?;
+        .map_err(|_| ethabi::Error::InvalidData)?;
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));

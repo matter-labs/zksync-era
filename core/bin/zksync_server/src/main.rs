@@ -20,7 +20,7 @@ use zksync_config::{
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    delete_l1_txs_history, genesis_init, is_genesis_needed, setup_sigint_handler,
+    delete_l1_txs_history, genesis_init, is_genesis_needed,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
@@ -188,13 +188,13 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // FIXME
-    // if opt.clear_l1_txs_history {
-    //     println!("Clearing L1 txs history!");
-    //     delete_l1_txs_history(&database_secrets).await?;
-    //     println!("Complete!");
-    //     return Ok(());
-    // }
+    if opt.clear_l1_txs_history {
+        println!("Clearing L1 txs history!");
+        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
+        futures::executor::block_on(delete_l1_txs_history(&database_secrets))?;
+        println!("Complete!");
+        return Ok(());
+    }
 
     let components = if opt.rebuild_tree {
         vec![Component::Tree]
@@ -231,21 +231,18 @@ fn run_genesis_if_needed(
                 .await
                 .context("genesis_init")?;
 
-            if let Some(ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-                let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
-                let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
-                    .context("Ethereum client")?
-                    .for_network(genesis.l1_chain_id.into())
-                    .build();
-                zksync_node_genesis::save_set_chain_id_tx(
-                    &query_client,
-                    contracts_config.diamond_proxy_addr,
-                    // ecosystem_contracts.state_transition_proxy_addr,
-                    &database_secrets,
-                )
-                .await
-                .context("Failed to save SetChainId upgrade transaction")?;
-            }
+            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
+            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
+                .context("Ethereum client")?
+                .for_network(genesis.l1_chain_id.into())
+                .build();
+            zksync_node_genesis::save_set_chain_id_tx(
+                &query_client,
+                contracts_config.diamond_proxy_addr,
+                &database_secrets,
+            )
+            .await
+            .context("Failed to save SetChainId upgrade transaction")?;
         }
         Ok(())
     })
