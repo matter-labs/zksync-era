@@ -66,8 +66,8 @@ describe('genesis recovery', () => {
             externalNodeUrl = 'http://127.0.0.1:3150';
             extNodeHealthUrl = 'http://127.0.0.1:3171/health';
         } else {
-            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
             ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
             externalNodeUrl = 'http://127.0.0.1:3060';
             extNodeHealthUrl = 'http://127.0.0.1:3081/health';
         }
