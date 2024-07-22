@@ -292,6 +292,24 @@ impl proto::SetupLoadMode {
     }
 }
 
+impl proto::CloudType {
+    fn new(x: &configs::fri_prover::CloudType) -> Self {
+        use configs::fri_prover::CloudType as From;
+        match x {
+            From::GCP => Self::Gcp,
+            From::Local => Self::Local,
+        }
+    }
+
+    fn parse(&self) -> configs::fri_prover::CloudType {
+        use configs::fri_prover::CloudType as To;
+        match self {
+            Self::Gcp => To::GCP,
+            Self::Local => To::Local,
+        }
+    }
+}
+
 impl ProtoRepr for proto::Prover {
     type Type = configs::FriProverConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -338,6 +356,13 @@ impl ProtoRepr for proto::Prover {
                 .context("shall_save_to_public_bucket")?,
             public_object_store,
             prover_object_store,
+            cloud_type: self
+                .cloud_type
+                .map(proto::CloudType::try_from)
+                .transpose()
+                .context("cloud_type")?
+                .map(|x| x.parse())
+                .unwrap_or_default(),
         })
     }
 
@@ -356,6 +381,7 @@ impl ProtoRepr for proto::Prover {
             shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
             prover_object_store: this.prover_object_store.as_ref().map(ProtoRepr::build),
             public_object_store: this.public_object_store.as_ref().map(ProtoRepr::build),
+            cloud_type: Some(proto::CloudType::new(&this.cloud_type).into()),
         }
     }
 }

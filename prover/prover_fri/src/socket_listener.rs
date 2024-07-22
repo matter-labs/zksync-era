@@ -11,6 +11,7 @@ pub mod gpu_socket_listener {
     use zksync_object_store::bincode;
     use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
     use zksync_prover_fri_types::WitnessVectorArtifacts;
+    use zksync_prover_fri_utils::region_fetcher::Zone;
     use zksync_types::{
         protocol_version::ProtocolSemanticVersion,
         prover_dal::{GpuProverInstanceStatus, SocketAddress},
@@ -26,7 +27,7 @@ pub mod gpu_socket_listener {
         queue: SharedWitnessVectorQueue,
         pool: ConnectionPool<Prover>,
         specialized_prover_group_id: u8,
-        zone: String,
+        zone: Zone,
         protocol_version: ProtocolSemanticVersion,
     }
 
@@ -36,7 +37,7 @@ pub mod gpu_socket_listener {
             queue: SharedWitnessVectorQueue,
             pool: ConnectionPool<Prover>,
             specialized_prover_group_id: u8,
-            zone: String,
+            zone: Zone,
             protocol_version: ProtocolSemanticVersion,
         ) -> Self {
             Self {
@@ -68,7 +69,7 @@ pub mod gpu_socket_listener {
                 .insert_prover_instance(
                     self.address.clone(),
                     self.specialized_prover_group_id,
-                    self.zone.clone(),
+                    self.zone.to_string(),
                     self.protocol_version,
                 )
                 .await;
@@ -154,7 +155,7 @@ pub mod gpu_socket_listener {
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
-                .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
+                .update_prover_instance_status(self.address.clone(), status, self.zone.to_string())
                 .await;
             tracing::info!(
                 "Marked prover as {:?} after {:?}",

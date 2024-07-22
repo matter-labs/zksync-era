@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
     WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::{
-    fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
+    fetch_next_circuit, get_numeric_circuit_id, region_fetcher::Zone, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
@@ -30,7 +30,7 @@ pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-    zone: String,
+    zone: Zone,
     config: FriWitnessVectorGeneratorConfig,
     protocol_version: ProtocolSemanticVersion,
     max_attempts: u32,
@@ -43,7 +43,7 @@ impl WitnessVectorGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
-        zone: String,
+        zone: Zone,
         config: FriWitnessVectorGeneratorConfig,
         protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
@@ -167,7 +167,7 @@ impl JobProcessor for WitnessVectorGenerator {
                 .lock_available_prover(
                     self.config.max_prover_reservation_duration(),
                     self.config.specialized_group_id,
-                    self.zone.clone(),
+                    self.zone.to_string(),
                     self.protocol_version,
                 )
                 .await;
@@ -179,7 +179,8 @@ impl JobProcessor for WitnessVectorGenerator {
                     now.elapsed()
                 );
                 let result = send_assembly(job_id, &serialized, &address);
-                handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
+                handle_send_result(&result, job_id, &address, &self.pool, self.zone.to_string())
+                    .await;
 
                 if result.is_ok() {
                     METRICS.prover_waiting_time[&circuit_type].observe(now.elapsed());
