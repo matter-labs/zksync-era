@@ -91,12 +91,25 @@ fn main() -> anyhow::Result<()> {
     let tmp_config = load_env_config()?;
 
     let configs = match opt.config_path {
-        None => tmp_config.general(),
+        None => {
+            let mut configs = tmp_config.general();
+            configs.consensus_config =
+                config::read_consensus_config().context("read_consensus_config()")?;
+            configs
+        }
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                .context("failed decoding general YAML config")?
+            let mut configs =
+                decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                    .context("failed decoding general YAML config")?;
+            // Tallback to the consensus_config.yaml file.
+            // TODO: remove once we move the consensus config to general config on stage
+            if configs.consensus_config.is_none() {
+                configs.consensus_config =
+                    config::read_consensus_config().context("read_consensus_config()")?;
+            }
+            configs
         }
     };
 
@@ -153,8 +166,6 @@ fn main() -> anyhow::Result<()> {
             l1: L1Secrets::from_env().ok(),
         },
     };
-
-    let consensus = config::read_consensus_config().context("read_consensus_config()")?;
 
     let contracts_config = match opt.contracts_config_path {
         None => ContractsConfig::from_env().context("contracts_config")?,

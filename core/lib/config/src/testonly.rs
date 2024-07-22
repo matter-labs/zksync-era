@@ -235,24 +235,24 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
 }
 
 impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, g: &mut R) -> configs::ContractsConfig {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
         configs::ContractsConfig {
-            governance_addr: g.gen(),
-            verifier_addr: g.gen(),
-            default_upgrade_addr: g.gen(),
-            diamond_proxy_addr: g.gen(),
-            validator_timelock_addr: g.gen(),
-            l1_erc20_bridge_proxy_addr: g.gen(),
-            l2_erc20_bridge_addr: g.gen(),
-            l1_shared_bridge_proxy_addr: g.gen(),
-            l2_shared_bridge_addr: g.gen(),
-            l1_weth_bridge_proxy_addr: g.gen(),
-            l2_weth_bridge_addr: g.gen(),
-            l2_testnet_paymaster_addr: g.gen(),
-            l1_multicall3_addr: g.gen(),
-            base_token_addr: g.gen(),
-            chain_admin_addr: g.gen(),
-            ecosystem_contracts: self.sample(g),
+            governance_addr: rng.gen(),
+            verifier_addr: rng.gen(),
+            default_upgrade_addr: rng.gen(),
+            diamond_proxy_addr: rng.gen(),
+            validator_timelock_addr: rng.gen(),
+            l1_erc20_bridge_proxy_addr: rng.gen(),
+            l2_erc20_bridge_addr: rng.gen(),
+            l1_shared_bridge_proxy_addr: rng.gen(),
+            l2_shared_bridge_addr: rng.gen(),
+            l1_weth_bridge_proxy_addr: rng.gen(),
+            l2_weth_bridge_addr: rng.gen(),
+            l2_testnet_paymaster_addr: rng.gen(),
+            l1_multicall3_addr: rng.gen(),
+            base_token_addr: rng.gen(),
+            chain_admin_addr: rng.gen(),
+            ecosystem_contracts: self.sample(rng),
         }
     }
 }
@@ -884,6 +884,167 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
+        }
+    }
+}
+
+impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_dispatcher::DADispatcherConfig {
+        configs::da_dispatcher::DADispatcherConfig {
+            polling_interval_ms: self.sample(rng),
+            max_rows_to_dispatch: self.sample(rng),
+            max_retries: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::vm_runner::ProtectiveReadsWriterConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::vm_runner::ProtectiveReadsWriterConfig {
+        configs::vm_runner::ProtectiveReadsWriterConfig {
+            db_path: self.sample(rng),
+            window_size: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+        }
+    }
+}
+
+impl Distribution<configs::vm_runner::BasicWitnessInputProducerConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::vm_runner::BasicWitnessInputProducerConfig {
+        configs::vm_runner::BasicWitnessInputProducerConfig {
+            db_path: self.sample(rng),
+            window_size: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+        }
+    }
+}
+
+impl Distribution<configs::CommitmentGeneratorConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::CommitmentGeneratorConfig {
+        configs::CommitmentGeneratorConfig {
+            max_parallelism: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::snapshot_recovery::TreeRecoveryConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::snapshot_recovery::TreeRecoveryConfig {
+        configs::snapshot_recovery::TreeRecoveryConfig {
+            chunk_size: self.sample(rng),
+            parallel_persistence_buffer: self.sample_opt(|| rng.gen()),
+        }
+    }
+}
+
+impl Distribution<configs::snapshot_recovery::PostgresRecoveryConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::snapshot_recovery::PostgresRecoveryConfig {
+        configs::snapshot_recovery::PostgresRecoveryConfig {
+            max_concurrency: self.sample_opt(|| rng.gen()),
+        }
+    }
+}
+
+impl Distribution<configs::snapshot_recovery::SnapshotRecoveryConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::snapshot_recovery::SnapshotRecoveryConfig {
+        use configs::snapshot_recovery::{SnapshotRecoveryConfig, TreeRecoveryConfig};
+        let tree: TreeRecoveryConfig = self.sample(rng);
+        SnapshotRecoveryConfig {
+            enabled: self.sample(rng),
+            l1_batch: self.sample_opt(|| L1BatchNumber(rng.gen())),
+            drop_storage_key_preimages: (tree != TreeRecoveryConfig::default()) && self.sample(rng),
+            tree,
+            postgres: self.sample(rng),
+            object_store: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::pruning::PruningConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::pruning::PruningConfig {
+        configs::pruning::PruningConfig {
+            enabled: self.sample(rng),
+            chunk_size: self.sample(rng),
+            removal_delay_sec: self.sample_opt(|| rng.gen()),
+            data_retention_sec: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::base_token_adjuster::BaseTokenAdjusterConfig {
+        configs::base_token_adjuster::BaseTokenAdjusterConfig {
+            price_polling_interval_ms: self.sample(rng),
+            price_cache_update_interval_ms: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::external_price_api_client::ExternalPriceApiClientConfig {
+        configs::external_price_api_client::ExternalPriceApiClientConfig {
+            source: self.sample(rng),
+            base_url: self.sample(rng),
+            api_key: self.sample(rng),
+            client_timeout_ms: self.sample(rng),
+            forced_numerator: self.sample(rng),
+            forced_denominator: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::GeneralConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
+        configs::GeneralConfig {
+            postgres_config: self.sample(rng),
+            api_config: self.sample(rng),
+            contract_verifier: self.sample(rng),
+            circuit_breaker_config: self.sample(rng),
+            mempool_config: self.sample(rng),
+            operations_manager_config: self.sample(rng),
+            state_keeper_config: self.sample(rng),
+            house_keeper_config: self.sample(rng),
+            proof_compressor_config: self.sample(rng),
+            prover_config: self.sample(rng),
+            prover_gateway: self.sample(rng),
+            witness_vector_generator: self.sample(rng),
+            prover_group_config: self.sample(rng),
+            witness_generator: self.sample(rng),
+            prometheus_config: self.sample(rng),
+            proof_data_handler_config: self.sample(rng),
+            db_config: self.sample(rng),
+            eth: self.sample(rng),
+            snapshot_creator: self.sample(rng),
+            observability: self.sample(rng),
+            da_dispatcher_config: self.sample(rng),
+            protective_reads_writer_config: self.sample(rng),
+            basic_witness_input_producer_config: self.sample(rng),
+            commitment_generator: self.sample(rng),
+            snapshot_recovery: self.sample(rng),
+            pruning: self.sample(rng),
+            core_object_store: self.sample(rng),
+            base_token_adjuster: self.sample(rng),
+            external_price_api_client_config: self.sample(rng),
+            consensus_config: self.sample(rng),
         }
     }
 }
