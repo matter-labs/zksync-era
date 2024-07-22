@@ -43,35 +43,28 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,
-        merkle_paths_blob_url: &str,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        eip_4844_blobs: Eip4844Blobs,
     ) {
-        let blobs_raw = eip_4844_blobs.encode();
         sqlx::query!(
             r#"
             INSERT INTO
                 witness_inputs_fri (
                     l1_batch_number,
-                    merkle_tree_paths_blob_url,
                     witness_inputs_blob_url,
                     protocol_version,
-                    eip_4844_blobs,
                     status,
                     created_at,
                     updated_at,
                     protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6)
+                ($1, $2, $3, 'queued', NOW(), NOW(), $4)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
-            merkle_paths_blob_url,
             witness_inputs_blob_url,
             protocol_version.minor as i32,
-            blobs_raw,
             protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
