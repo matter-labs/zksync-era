@@ -142,7 +142,6 @@ describe('ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
     });
 
-    // FIXME: restore test
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
@@ -173,7 +172,6 @@ describe('ERC20 contract checks', () => {
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
-    // FIXME: restore test
     test('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {
             return;
