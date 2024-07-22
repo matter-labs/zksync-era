@@ -238,7 +238,7 @@ describe('ETH token checks', () => {
     });
 
     // FIXME
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (!isETHBasedChain) {
             // TODO(EVM-555): Currently this test is not working for non-eth based chains.
             return;
@@ -262,7 +262,7 @@ describe('ETH token checks', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
         // await withdrawalTx.waitFinalize();
 
-        await sleep(10);
+        await sleep(25);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
