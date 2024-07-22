@@ -143,7 +143,7 @@ describe('ERC20 contract checks', () => {
     });
 
     // FIXME: restore test
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -168,13 +168,13 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
-        await sleep(12000);
+        await sleep(25000);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
     // FIXME: restore test
-    test.skip('Should claim failed deposit', async () => {
+    test('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -203,7 +203,7 @@ describe('ERC20 contract checks', () => {
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
-        await sleep(12000);
+        await sleep(25000);
 
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
