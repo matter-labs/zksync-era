@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, ctx::Ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_contracts::{consensus_l2_contracts, load_contract, read_bytecode, BaseSystemContracts};
+use zksync_contracts::{consensus_l2_contracts, BaseSystemContracts};
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
@@ -14,7 +14,7 @@ use zksync_types::{
     ethabi::{Address, Contract, Token},
     protocol_version::ProtocolSemanticVersion,
     system_contracts::get_system_smart_contracts,
-    Execute, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, Transaction, U256,
+    Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 use super::ConnectionPool;
@@ -196,6 +196,7 @@ impl ConnectionPool {
     }
 }
 
+/// A struct for writing to consensus L2 contracts.
 pub struct VMWriter {
     pool: ConnectionPool,
     node: StateKeeper,
@@ -203,6 +204,7 @@ pub struct VMWriter {
 }
 
 impl VMWriter {
+    /// Constructs a new `VMWriter` instance.
     pub fn new(pool: ConnectionPool, node: StateKeeper, account: Account) -> Self {
         Self {
             pool,
@@ -211,6 +213,7 @@ impl VMWriter {
         }
     }
 
+    /// Deploys the consensus registry contract and adds nodes to it.
     pub async fn deploy_and_add_nodes(
         &mut self,
         ctx: &Ctx,

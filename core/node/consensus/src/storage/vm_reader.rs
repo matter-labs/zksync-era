@@ -6,7 +6,7 @@ use zksync_basic_types::{
     web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
 };
 use zksync_concurrency::ctx::Ctx;
-use zksync_contracts::{consensus_l2_contracts, load_contract};
+use zksync_contracts::consensus_l2_contracts;
 use zksync_node_api_server::{
     execution_sandbox::{BlockArgs, BlockStartInfo},
     tx_sender::TxSender,
@@ -14,7 +14,7 @@ use zksync_node_api_server::{
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::BlockId,
-    ethabi::{Address, Contract, Function, Token},
+    ethabi::{Address, Contract, Token},
     fee::Fee,
     l2::L2Tx,
     transaction_request::CallOverrides,
@@ -24,6 +24,7 @@ use zksync_web3_decl::types::H160;
 
 use crate::storage::ConnectionPool;
 
+/// A struct for reading data from consensus L2 contracts.
 pub struct VMReader {
     pool: ConnectionPool,
     tx_sender: TxSender,
@@ -32,6 +33,7 @@ pub struct VMReader {
 }
 
 impl VMReader {
+    /// Constructs a new `VMReader` instance.
     pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: Address) -> Self {
         let registry_contract = consensus_l2_contracts::load_consensus_registry_contract();
         Self {
@@ -42,6 +44,7 @@ impl VMReader {
         }
     }
 
+    /// Reads validator and attester committees from the registry contract.
     pub async fn read_committees(
         &self,
         ctx: &Ctx,
@@ -67,7 +70,7 @@ impl VMReader {
         Ok((validator_committee, attester_committee))
     }
 
-    pub async fn read_validator_committee(
+    async fn read_validator_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeValidator>> {
@@ -86,7 +89,7 @@ impl VMReader {
         Ok(committee)
     }
 
-    pub async fn read_attester_committee(
+    async fn read_attester_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeAttester>> {
