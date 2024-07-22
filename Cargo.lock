@@ -8881,6 +8881,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "zksync_basic_types",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",

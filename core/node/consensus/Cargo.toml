@@ -40,6 +40,7 @@ thiserror.workspace = true
 tracing.workspace = true
 zksync_contracts.workspace = true
 hex.workspace = true
+zksync_basic_types.workspace = true
 
 [dev-dependencies]
 zksync_node_genesis.workspace = true
