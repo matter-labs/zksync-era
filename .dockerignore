@@ -39,7 +39,7 @@ contracts/.git
 !etc/multivm_bootloaders
 !cargo
 !bellman-cuda
-!prover/vk_setup_data_generator_server_fri/data/
+!prover/crates/bin/vk_setup_data_generator_server_fri/data/
 !.github/release-please/manifest.json
 
 !etc/env/file_based
