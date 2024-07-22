@@ -47,6 +47,10 @@ impl VMReader {
     }
 
     /// Reads validator and attester committees from the registry contract.
+    /// It's implemented by dispatching multiple read transactions (a.k.a. `eth_call` requests),
+    /// each one carries an instantiation of a separate VM execution sandbox.
+    // TODO(moshababo|BFT-493): optimize this process to reuse a single execution sandbox
+    // across one or multiple read sessions.
     pub async fn read_committees(
         &self,
         ctx: &Ctx,
