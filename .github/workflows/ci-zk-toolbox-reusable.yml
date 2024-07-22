@@ -101,15 +101,18 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
+      - name: Init external node server
+        run: |
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
+          ci_run zk_inception external-node init --ignore-prerequisites
+          
       - name: Run recovery tests (from genesis)
         run: |
           ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
   
       - name: Run external node server
         run: |
-          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
-          ci_run zk_inception external-node init --ignore-prerequisites
           ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
           ci_run sleep 5
 
