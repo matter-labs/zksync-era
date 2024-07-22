@@ -60,7 +60,7 @@ export function runExternalNodeInBackground({
     if (useZkInception) {
         command = 'zk_inception external-node run';
     } else {
-        command = 'zk external-node';
+        command = 'zk external-node --';
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         if (enableConsensus) {
