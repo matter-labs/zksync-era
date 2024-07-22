@@ -191,7 +191,7 @@ fn compute_batch_fee_model_input_v2(
     let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
 
     let fair_l2_gas_price = {
-        // Firstly, we calculate which part of the overall overhead overhead each unit of L2 gas should cover.
+        // Firstly, we calculate which part of the overall overhead each unit of L2 gas should cover.
         let l1_batch_overhead_per_gas =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
 
@@ -206,7 +206,7 @@ fn compute_batch_fee_model_input_v2(
     };
 
     let fair_pubdata_price = {
-        // Firstly, we calculate which part of the overall overhead overhead each pubdata byte should cover.
+        // Firstly, we calculate which part of the overall overhead each pubdata byte should cover.
         let l1_batch_overhead_per_pubdata =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
 
