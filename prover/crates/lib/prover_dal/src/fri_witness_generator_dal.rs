@@ -1501,7 +1501,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             updated_at: row.updated_at,
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
-            is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by.clone(),
             number_of_basic_circuits: row.number_of_basic_circuits,
