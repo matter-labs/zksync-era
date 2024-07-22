@@ -132,17 +132,13 @@ impl CoinGeckoPriceResponse {
             .and_then(|price| price.get(currency))
     }
 }
+
+#[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
-    use zksync_config::configs::ExternalPriceApiClientConfig;
-    use zksync_types::Address;
-
-    use super::CoinGeckoPriceAPIClient;
+    use super::*;
 
     #[tokio::test]
-    // This is not a proper test, as it requires user input and prints information.
-    // It serves as a quick check to verify if the CoinGecko api_key is working correctly.
+    #[ignore = "This is not a proper test, as it requires user input and prints information.\nIt serves as a quick check to verify if the CoinGecko api_key is working correctly."]
     async fn test_coingecko_api() {
         let config = ExternalPriceApiClientConfig {
             source: "coingecko".to_string(),
