@@ -153,11 +153,15 @@ fn main() -> anyhow::Result<()> {
                     decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
                         .context("failed decoding secrets YAML config")?;
 
-                // Since secrets can be defined in two files, allow the convention of only specifying consensus secrets in one place.
-                if secrets.consensus.is_none() {
-                    secrets.consensus = consensus_secrets;
+                match (&secrets.consensus, &consensus_secrets) {
+                    (Some(cli), Some(env)) => {
+                        anyhow::ensure!(cli == env, "consensus secrets are defined both via CLI and envvar, and the two sources have different values");
+                    }
+                    (None, _) => {
+                        secrets.consensus = consensus_secrets;
+                    }
+                    (_, None) => {}
                 }
-
                 secrets
             }
             None => Secrets {
