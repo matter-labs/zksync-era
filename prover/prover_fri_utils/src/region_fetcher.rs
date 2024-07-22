@@ -1,3 +1,5 @@
+use std::net::ToSocketAddrs;
+
 use anyhow::Context;
 use regex::Regex;
 use reqwest::{
@@ -7,6 +9,12 @@ use reqwest::{
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 pub async fn get_zone(zone_url: &str) -> anyhow::Result<String> {
+    // Check if zone URL can be resolved. If not, we assume that we're running locally.
+    if zone_url.to_socket_addrs().is_err() {
+        tracing::error!("Unable to resolve zone URL, assuming local environment");
+        return Ok("local".to_string());
+    }
+
     let data = fetch_from_url(zone_url).await.context("fetch_from_url()")?;
     parse_zone(&data).context("parse_zone")
 }
