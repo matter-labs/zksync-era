@@ -42,7 +42,6 @@ use zksync_state_keeper::{
 };
 use zksync_test_account::Account;
 use zksync_types::{
-    ethabi::{Function, Token},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
 };

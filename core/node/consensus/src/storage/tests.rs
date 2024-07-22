@@ -50,7 +50,7 @@ async fn test_vm_reader() {
         )
         .await;
         let block_id = BlockId::Number(BlockNumber::Pending);
-        let mut reader =
+        let reader =
             super::vm_reader::VMReader::new(pool.clone(), tx_sender.clone(), registry_address);
 
         let (validators, attesters) = reader.read_committees(ctx, block_id).await.unwrap();

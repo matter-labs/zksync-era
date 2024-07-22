@@ -32,6 +32,7 @@ pub struct VMReader {
     registry_address: Address,
 }
 
+#[allow(dead_code)]
 impl VMReader {
     /// Constructs a new `VMReader` instance.
     pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: Address) -> Self {
@@ -213,6 +214,7 @@ impl VMReader {
 }
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct CommitteeValidator {
     pub node_owner: Address,
     pub weight: usize,
@@ -253,6 +255,7 @@ impl Detokenize for CommitteeValidator {
 }
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct CommitteeAttester {
     pub weight: usize,
     pub node_owner: Address,
