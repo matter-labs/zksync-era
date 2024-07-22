@@ -18,6 +18,8 @@ enum Method {
     BlockNumber,
     GetGasPrice,
     SendRawTx,
+    EstimateGas,
+    LineaEstimateGas,
     BaseFeeHistory,
     #[metrics(name = "get_pending_block_base_fee_per_gas")]
     PendingBlockBaseFee,

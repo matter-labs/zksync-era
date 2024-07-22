@@ -7949,7 +7949,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "jsonrpsee",
+ "reqwest",
  "rlp",
+ "serde",
  "thiserror",
  "tracing",
  "vise",

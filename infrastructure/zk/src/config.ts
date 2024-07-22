@@ -62,6 +62,22 @@ function loadConfigFolder(dirPath: string, stack: string[] = []) {
     return deepExtend({}, ...configs);
 }
 
+function loadEnvFile(path: string) {
+    const fileContents = fs.readFileSync(path);
+    const envConfig = new Map<string, string>();
+
+    const lines = fileContents.toString().split('\n');
+    for (const line of lines) {
+        if (line.trim() === '') {
+            continue;
+        }
+        const [key, value] = line.split('=');
+        envConfig.set(key, value);
+    }
+
+    return envConfig;
+}
+
 export function collectVariables(config: any, prefix: string = ''): Map<string, string> {
     let variables: Map<string, string> = new Map();
 
@@ -205,6 +221,30 @@ export function bumpChainId() {
     );
 }
 
+export function exportConfig(environment?: string) {
+    environment ??= process.env.ZKSYNC_ENV!;
+    let config = new Map<string, string>();
+    // Load the environment config
+    const envConfig = loadEnvFile(`etc/env/${environment}.env`);
+    for (const [key, value] of envConfig) {
+        config.set(key, value);
+    }
+    // Load initial config
+    const initialConfig = loadEnvFile('etc/env/.init.env');
+    for (const [key, value] of initialConfig) {
+        config.set(key, value);
+    }
+
+    let outputFileContents = '';
+    config.forEach((value: string, key: string) => {
+        outputFileContents += `${key}=${value}\n`;
+    });
+
+    const outputFileName = `etc/env/export_${environment}.env`;
+    fs.writeFileSync(outputFileName, outputFileContents);
+    console.log(`Configs of ${environment} exported to ${outputFileName}`);
+}
+
 export const command = new Command('config').description('config management');
 
 command.command('load [environment]').description('load the config for a certain environment').action(printAllConfigs);
@@ -218,3 +258,4 @@ command
         diff = diff ? diff : '0';
         pushConfig(environment, diff);
     });
+command.command('export [environment]').description('export the config for a certain environment').action(exportConfig);

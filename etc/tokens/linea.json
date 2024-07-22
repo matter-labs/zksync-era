@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Wrapped Ether",
+    "symbol": "WETH",
+    "decimals": 18,
+    "address": "0x72343e8e448Fa539A1F118f870A1De1132f2fcaD"
+  }
+]

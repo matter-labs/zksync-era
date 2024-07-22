@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                EXISTS (\n                    SELECT\n                        1\n                    FROM\n                        eth_txs\n                    WHERE\n                        tx_type = 'ExecuteBlocks'\n                        AND confirmed_eth_tx_history_id IS NULL\n                ) AS EXISTS\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a3e1f45480a7080108b5b545ee3c9f75acde8d750b4f06c6a58abc6be8df8c2e"
+}

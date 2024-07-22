@@ -177,6 +177,8 @@ async function setupArtifactsMode() {
         env.modify('PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
         env.modify('PUBLIC_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
+        env.modify('PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
+        env.modify('OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
     }
 }
 

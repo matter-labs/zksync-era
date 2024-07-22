@@ -45,6 +45,8 @@ message Sender {
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
   optional PubdataSendingMode pubdata_sending_mode = 18; // required
   reserved 19; reserved "proof_loading_mode";
+  optional bool enable_linea_estimate_gas = 20; // required; wei?
+  optional double gas_scale_factor = 21; // required;
 }
 
 message GasAdjuster {

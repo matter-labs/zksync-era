@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                EXISTS (\n                    SELECT\n                        1\n                    FROM\n                        blacklist\n                    WHERE\n                        address = $1\n                ) AS EXISTS\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b30fcec25ceba50fac23ce2f569bcda0da8e7a2dacf6ade4b2b059ccc699711f"
+}

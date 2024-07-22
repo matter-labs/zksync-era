@@ -369,6 +369,8 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             aggregate_tx_poll_period: self.sample(rng),
             max_txs_in_flight: self.sample(rng),
             proof_sending_mode: self.sample(rng),
+            enable_linea_estimate_gas: self.sample(rng),
+            gas_scale_factor: self.sample(rng),
             max_aggregated_tx_gas: self.sample(rng),
             max_eth_tx_data_size: self.sample(rng),
             max_aggregated_blocks_to_commit: self.sample(rng),

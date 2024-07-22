@@ -541,8 +541,8 @@ impl TxSender {
         }
 
         let intrinsic_consts = get_intrinsic_constants();
-        assert!(
-            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
+        assert_eq!(
+            intrinsic_consts.l2_tx_intrinsic_pubdata, 0,
             "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
         );
         let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
@@ -550,12 +550,33 @@ impl TxSender {
             return Err(SubmitTxError::IntrinsicGas);
         }
 
+        // Check if the initiator account of the tx exists in the black list
+        self.validate_account_exist_blacklist(tx).await?;
         // We still double-check the nonce manually
         // to make sure that only the correct nonce is submitted and the transaction's hashes never repeat
         self.validate_account_nonce(tx).await?;
         // Even though without enough balance the tx will not pass anyway
         // we check the user for enough balance explicitly here for better DevEx.
         self.validate_enough_balance(tx).await?;
+        Ok(())
+    }
+
+    async fn validate_account_exist_blacklist(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
+        let initiator_account = tx.initiator_account();
+        let mut storage = self.acquire_replica_connection().await?;
+        if storage
+            .storage_web3_dal()
+            .get_is_address_blacklisted(initiator_account.as_bytes())
+            .await
+            .with_context(|| {
+                format!("failed getting is_address_blacklisted {initiator_account:?}")
+            })?
+        {
+            return Err(SubmitTxError::ValidationFailed(
+                "Incorrect initiator".to_string(),
+            ));
+        }
+
         Ok(())
     }
 

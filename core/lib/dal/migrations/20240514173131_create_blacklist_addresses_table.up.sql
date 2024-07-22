@@ -1,0 +1,4 @@
+CREATE TABLE blacklist (
+    id SERIAL PRIMARY KEY,
+    address BYTEA NOT NULL UNIQUE
+);

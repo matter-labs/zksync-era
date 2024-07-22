@@ -1,6 +1,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     ethabi, web3,
@@ -16,6 +17,7 @@ pub use zksync_web3_decl::{
     jsonrpsee::core::ClientError,
 };
 
+use crate::clients::LineaEstimateGas;
 pub use crate::types::{
     encode_blob_tx_with_sidecar, CallFunctionArgs, ContractCall, ContractCallError,
     ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult, SigningError,
@@ -117,6 +119,12 @@ pub trait EthInterface: Sync + Send {
     /// Sends a transaction to the Ethereum network.
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> EnrichedClientResult<H256>;
 
+    /// Call a contract without changing the state of the blockchain to estimate gas usage.
+    async fn linea_estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<LineaEstimateGas>;
+
+    /// Call a contract without changing the state of the blockchain to estimate gas usage.
+    async fn estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<U256>;
+
     /// Fetches the transaction status for a specified transaction hash.
     ///
     /// Returns `Ok(None)` if the transaction is either not found or not executed yet.
@@ -198,6 +206,10 @@ pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt:
         address: Address,
         erc20_abi: &ethabi::Contract,
     ) -> Result<U256, ContractCallError>;
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<LineaEstimateGas>;
+
+    async fn estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<U256>;
 
     /// Signs the transaction and sends it to the Ethereum network.
     /// Expected to use credentials associated with `Self::sender_account()`.

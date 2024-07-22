@@ -1,4 +1,6 @@
+use crate::clients::LineaEstimateGas;
 use jsonrpsee::proc_macros::rpc;
+use zksync_types::transaction_request::CallRequest;
 use zksync_types::{web3, Address, H256, U256, U64};
 use zksync_web3_decl::client::{ForNetwork, L1};
 
@@ -65,4 +67,10 @@ pub(super) trait L1EthNamespace {
         &self,
         hash: H256,
     ) -> RpcResult<Option<web3::TransactionReceipt>>;
+
+    #[method(name = "linea_estimateGas")]
+    async fn linea_estimate_gas(&self, req: CallRequest) -> RpcResult<LineaEstimateGas>;
+
+    #[method(name = "estimateGas")]
+    async fn estimate_gas(&self, req: CallRequest) -> RpcResult<U256>;
 }

@@ -7,11 +7,13 @@ use std::{
 use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     ethabi,
-    web3::{self, contract::Tokenize, BlockId},
+    web3::{self, contract::Tokenize, BlockId, CallRequest},
     Address, L1ChainId, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
+use zksync_web3_decl::error::EnrichedClientResult;
 
+use crate::clients::LineaEstimateGas;
 use crate::{
     types::{ContractCallError, SignedCallResult, SigningError},
     BaseFees, BoundEthInterface, Options, RawTransactionBytes,
@@ -160,7 +162,7 @@ impl MockEthereumInner {
     /// Processes a transaction-like `eth_call` which is used in `EthInterface::failure_reason()`.
     fn transaction_call(
         &self,
-        request: &web3::CallRequest,
+        request: &CallRequest,
         block_id: BlockId,
     ) -> Option<Result<web3::Bytes, ClientError>> {
         if request.gas.is_none() || request.value.is_none() {
@@ -563,6 +565,20 @@ impl BoundEthInterface for MockEthereum {
         _contract_address: Address,
         _erc20_abi: &ethabi::Contract,
     ) -> Result<U256, ContractCallError> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn linea_estimate_gas(
+        &self,
+        _req: zksync_types::transaction_request::CallRequest,
+    ) -> EnrichedClientResult<LineaEstimateGas> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn estimate_gas(
+        &self,
+        _req: zksync_types::transaction_request::CallRequest,
+    ) -> EnrichedClientResult<U256> {
         unimplemented!("Not needed right now")
     }
 }

@@ -1,0 +1,40 @@
+# zkmoon: deploy on linea sepolia testnet
+[contracts]
+CREATE2_FACTORY_ADDR="0x30eBC88CbA430FEC2D65b11040f872166C33aB33"
+L1_MULTICALL3_ADDR="0x2B8b38524Dcf1a45052CE76cB23BB629590c3712"
+
+[api.web3_json_rpc]
+max_tx_size=1000000
+
+[chain.state_keeper]
+proof_sending_mode="SkipEveryProof"
+# tx number limit
+transaction_slots=2500
+miniblock_commit_deadline_ms=2000
+block_commit_deadline_ms=600000
+max_gas_per_batch=200000000
+# tx gas limit
+max_single_tx_gas=4000000
+close_block_at_gas_percentage=0.95
+reject_tx_at_gas_percentage=0.95
+# tx size limit: default 60000(59kb)
+close_block_at_eth_params_percentage=0.95
+reject_tx_at_eth_params_percentage=0.95
+# zkevm circuit limit
+close_block_at_geometry_percentage=0.95
+reject_tx_at_geometry_percentage=0.95
+# calculate fee
+max_pubdata_per_batch=100000
+minimal_l2_gas_price=10000000
+
+[eth_sender]
+[eth_sender.sender]
+# Priority fee to be used by GasAdjuster (in wei).
+default_priority_fee_per_gas=100_000_000
+max_aggregated_tx_gas=8000000
+max_eth_tx_data_size=59000
+tx_poll_period=60
+aggregate_tx_poll_period=60
+proof_loading_mode="FriProofFromGcs"
+# Max L2 blocks to execute in one L1 transaction
+max_aggregated_blocks_to_execute=1

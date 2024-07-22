@@ -30,6 +30,9 @@ aggregated_block_prove_deadline = 10
 aggregated_block_execute_deadline = 10
 
 timestamp_criteria_max_allowed_lag = 30
+enable_linea_estimate_gas = false
+# Recommended range is 1~1.2
+gas_scale_factor = 1
 
 # Based on geth implementation max size of transaction is 128kb.
 max_eth_tx_data_size = 120000

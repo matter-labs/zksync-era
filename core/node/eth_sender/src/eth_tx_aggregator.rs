@@ -3,6 +3,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
+use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -12,6 +13,7 @@ use zksync_l1_contract_interface::{
     Tokenizable, Tokenize,
 };
 use zksync_shared_metrics::BlockL1Stage;
+use zksync_types::web3::contract::Error;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchWithMetadata, SerializeCommitment},
@@ -377,12 +379,40 @@ impl EthTxAggregator {
             )
             .await
         {
-            let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
-                .await?;
-            Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+            if if let AggregatedOperation::Execute(ref op) = agg_op {
+                let is_synced = self.is_batches_synced(op).await?;
+                tracing::info!(
+                    "Queried Batches[{:?}] syncing status: {is_synced}",
+                    op.l1_batch_range()
+                );
+                is_synced
+            } else {
+                true
+            } {
+                let tx = self
+                    .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
+                    .await?;
+                Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+            } else {
+                tracing::info!("Waiting for batches synced......");
+            }
         }
         Ok(())
+    }
+
+    async fn is_batches_synced(&self, op: &ExecuteBatches) -> Result<bool, EthSenderError> {
+        let is_batches_synced = &*self.functions.is_batches_synced.name;
+
+        let params = op.into_tokens();
+        let res: bool = CallFunctionArgs::new(is_batches_synced, params)
+            .for_contract(
+                self.timelock_contract_address,
+                &self.functions.zksync_contract,
+            )
+            .call(self.eth_client.as_ref().as_ref())
+            .await
+            .map_err(|e| Error::InvalidOutputType(e.to_string()))?;
+        Ok(res)
     }
 
     async fn report_eth_tx_saving(

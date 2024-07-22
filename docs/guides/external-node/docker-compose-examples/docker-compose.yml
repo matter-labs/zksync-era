@@ -1,0 +1,96 @@
+version: '3.2'
+services:
+  prometheus:
+    image: prom/prometheus:v2.35.0
+    volumes:
+      - mainnet-prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    expose:
+      - 9090
+  grafana:
+    image: grafana/grafana:9.3.6
+    volumes:
+      - mainnet-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "127.0.0.1:3000:3000"
+  postgres:
+    image: "postgres:14"
+    command: >
+      postgres 
+      -c max_connections=200 
+      -c log_error_verbosity=terse 
+      -c shared_buffers=2GB 
+      -c effective_cache_size=4GB
+      -c maintenance_work_mem=1GB
+      -c checkpoint_completion_target=0.9
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c min_wal_size=4GB
+      -c max_wal_size=16GB
+      -c max_worker_processes=16
+      -c checkpoint_timeout=1800
+    expose:
+      - 5430
+    volumes:
+      - mainnet-postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=changeme
+      - PGPORT=5430
+  external-node:
+    image: "zklinkprotocol/nova-external-node:v1.1"
+    ports:
+      - "127.0.0.1:3060:3060"
+      - "127.0.0.1:3061:3061"
+      - "0.0.0.0:3081:3081"
+    volumes:
+      - mainnet-rocksdb:/db
+    expose:
+      - 3322
+    environment:
+      DATABASE_URL: "postgres://postgres:changeme@postgres:5430/zklink_ext_node"
+      DATABASE_POOL_SIZE: 10
+      EN_HTTP_PORT: 3060
+      EN_WS_PORT: 3061
+      EN_HEALTHCHECK_PORT: 3081
+      EN_PROMETHEUS_PORT: 3322
+      EN_ETH_CLIENT_URL: https://rpc.linea.build
+      EN_MAIN_NODE_URL: https://rpc.zklink.io
+      EN_L1_CHAIN_ID: 59144
+      EN_L2_CHAIN_ID: 810180
+      EN_API_NAMESPACES: "eth,web3,net,pubsub,zks,en,debug"
+      EN_STATE_CACHE_PATH: "./db/ext-node/state_keeper"
+      EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"
+      RUST_LOG: "zksync_core=debug,zksync_dal=info,zksync_eth_client=info,zksync_merkle_tree=info,zksync_storage=info,zksync_state=debug,zksync_types=info,vm=info,zksync_external_node=info,zksync_utils=debug,zksync_snapshots_applier=info"
+    command:
+      - --enable-snapshots-recovery
+
+volumes:
+  mainnet-postgres:
+    driver: local # Define the driver and options under the volume name
+    driver_opts:
+      type: none
+      device: /data/mainnet-postgres
+      o: bind
+  mainnet-rocksdb:
+    driver: local # Define the driver and options under the volume name
+    driver_opts:
+      type: none
+      device: /data/mainnet-rocksdb
+      o: bind
+  mainnet-prometheus-data:
+    driver: local # Define the driver and options under the volume name
+    driver_opts:
+      type: none
+      device: /data/mainnet-prometheus-data
+      o: bind
+  mainnet-grafana-data:
+    driver: local # Define the driver and options under the volume name
+    driver_opts:
+      type: none
+      device: /data/mainnet-grafana-data
+      o: bind

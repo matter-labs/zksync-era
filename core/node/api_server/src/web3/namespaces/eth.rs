@@ -18,6 +18,7 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+use crate::tx_sender::SubmitTxError;
 use crate::{
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
@@ -137,7 +138,7 @@ impl EthNamespace {
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let fee = self
+        let fee = match self
             .state
             .tx_sender
             .get_txs_fee_in_wei(
@@ -146,7 +147,12 @@ impl EthNamespace {
                 acceptable_overestimation as u64,
                 state_override,
             )
-            .await?;
+            .await?
+        {
+            Ok(fee) => fee,
+            Err(SubmitTxError::FromIsNotAnAccount) => return Ok(U256::zero()),
+            Err(err) => return Err(err.into()),
+        };
         Ok(fee.gas_limit)
     }
 

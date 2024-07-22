@@ -70,6 +70,8 @@ mod tests {
                     l1_batch_min_age_before_execute_seconds: Some(1000),
                     max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
+                    enable_linea_estimate_gas: false,
+                    gas_scale_factor: 1.1f64,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -126,6 +128,8 @@ mod tests {
             ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE="3000"
             ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE="4000"
             ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
+            ETH_SENDER_SENDER_ENABLE_LINEA_ESTIMATE_GAS="false"
+            ETH_SENDER_SENDER_GAS_SCALE_FACTOR="1.1"
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"

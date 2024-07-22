@@ -142,8 +142,9 @@ impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
     pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
         crate::client::rustls::set_rustls_backend_if_required();
-
-        let client = HttpClientBuilder::default().build(url.expose_str())?;
+        let client = HttpClientBuilder::default()
+            .request_timeout(Duration::from_secs(30))
+            .build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }
 }
@@ -156,6 +157,8 @@ impl<Net: Network> WsClient<Net> {
         crate::client::rustls::set_rustls_backend_if_required();
 
         let client = ws_client::WsClientBuilder::default()
+            .request_timeout(Duration::from_secs(30))
+            .connection_timeout(Duration::from_secs(30))
             .build(url.expose_str())
             .await?;
         Ok(ClientBuilder::new(Shared::new(client), url))

@@ -9,7 +9,8 @@ use zksync_eth_client::{
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::transaction_request::CallRequest;
+use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, L1ChainId, H256, U256};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
@@ -54,6 +55,7 @@ impl EthTxManager {
                 ethereum_gateway,
                 ethereum_gateway_blobs,
                 wait_confirmations: config.wait_confirmations,
+                gas_scale_factor: config.gas_scale_factor,
             }),
             config,
             fees_oracle: Box::new(fees_oracle),
@@ -111,15 +113,43 @@ impl EthTxManager {
             .unwrap();
         let has_blob_sidecar = tx.blob_sidecar.is_some();
 
-        let EthFees {
-            base_fee_per_gas,
-            priority_fee_per_gas,
-            blob_base_fee_per_gas,
-        } = self.fees_oracle.calculate_fees(
-            &previous_sent_tx,
-            has_blob_sidecar,
-            time_in_mempool,
-        )?;
+        const LINEA_TEST_CHAIN_ID: L1ChainId = L1ChainId(59141);
+        const LINEA_MAINNET_CHAIN_ID: L1ChainId = L1ChainId(59144);
+        let call_request = CallRequest::builder()
+            .from(self.l1_interface.ethereum_gateway().sender_account())
+            .to(tx.contract_address)
+            .data(tx.raw_tx.clone().into())
+            .build();
+        let current_gate_way_chain_id = self.l1_interface.ethereum_gateway().chain_id();
+        let (gas_limit, base_fee_per_gas, priority_fee_per_gas, blob_base_fee_per_gas) =
+            if (current_gate_way_chain_id == LINEA_TEST_CHAIN_ID
+                || current_gate_way_chain_id == LINEA_MAINNET_CHAIN_ID)
+                && self.config.enable_linea_estimate_gas
+            {
+                let fee = self.l1_interface.linea_estimate_gas(call_request).await?;
+                (
+                    fee.gas_limit,
+                    fee.base_fee_per_gas.as_u64(),
+                    fee.priority_fee_per_gas.as_u64(),
+                    None,
+                )
+            } else {
+                let EthFees {
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    blob_base_fee_per_gas,
+                } = self.fees_oracle.calculate_fees(
+                    &previous_sent_tx,
+                    has_blob_sidecar,
+                    time_in_mempool,
+                )?;
+                (
+                    self.config.max_aggregated_tx_gas.into(),
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    blob_base_fee_per_gas,
+                )
+            };
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
@@ -175,7 +205,7 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                self.config.max_aggregated_tx_gas.into(),
+                gas_limit,
             )
             .await;
 

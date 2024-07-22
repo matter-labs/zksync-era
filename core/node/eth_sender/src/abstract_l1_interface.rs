@@ -2,11 +2,13 @@ use std::fmt;
 
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
+use zksync_eth_client::clients::LineaEstimateGas;
 use zksync_eth_client::{
     clients::{DynClient, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
+use zksync_types::transaction_request::CallRequest;
 #[cfg(test)]
 use zksync_types::web3;
 use zksync_types::{
@@ -52,6 +54,14 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         tx_hash: H256,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError>;
 
+    async fn linea_estimate_gas(
+        &self,
+        req: CallRequest,
+    ) -> Result<LineaEstimateGas, EthSenderError>;
+
+    #[allow(dead_code)]
+    async fn estimate_gas(&self, req: CallRequest) -> Result<U256, EthSenderError>;
+
     async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256>;
 
     fn get_blobs_operator_account(&self) -> Option<Address>;
@@ -83,6 +93,7 @@ pub(super) struct RealL1Interface {
     pub ethereum_gateway: Box<dyn BoundEthInterface>,
     pub ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
     pub wait_confirmations: Option<u64>,
+    pub gas_scale_factor: f64,
 }
 
 impl RealL1Interface {
@@ -179,7 +190,9 @@ impl AbstractL1Interface for RealL1Interface {
                 tx.contract_address,
                 Options::with(|opt| {
                     // TODO Calculate gas for every operation SMA-1436
-                    opt.gas = Some(max_aggregated_tx_gas);
+                    opt.gas = Some(U256::from(
+                        (max_aggregated_tx_gas.as_u64() as f64 * self.gas_scale_factor) as u64,
+                    ));
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
@@ -246,5 +259,16 @@ impl AbstractL1Interface for RealL1Interface {
 
     fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface> {
         self.ethereum_gateway_blobs.as_deref()
+    }
+
+    async fn linea_estimate_gas(
+        &self,
+        req: CallRequest,
+    ) -> Result<LineaEstimateGas, EthSenderError> {
+        Ok(self.ethereum_gateway.linea_estimate_gas(req).await?)
+    }
+
+    async fn estimate_gas(&self, req: CallRequest) -> Result<U256, EthSenderError> {
+        Ok(self.ethereum_gateway.estimate_gas(req).await?)
     }
 }

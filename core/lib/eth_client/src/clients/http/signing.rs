@@ -3,12 +3,15 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
     ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
 };
 use zksync_web3_decl::client::{DynClient, L1};
+use zksync_web3_decl::error::EnrichedClientResult;
 
 use super::{Method, LATENCIES};
+use crate::clients::LineaEstimateGas;
 use crate::{
     types::{encode_blob_tx_with_sidecar, ContractCallError, SignedCallResult, SigningError},
     BoundEthInterface, CallFunctionArgs, EthInterface, Options, RawTransactionBytes,
@@ -25,9 +28,12 @@ impl PKSigningClient {
         l1_chain_id: L1ChainId,
         query_client: Box<DynClient<L1>>,
     ) -> Self {
+        // Gather required data from the config.
+        // It's done explicitly to simplify getting rid of this function later.
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
         tracing::info!("Operator address: {operator_address:?}");
+
         SigningClient::new(
             query_client,
             hyperchain_contract(),
@@ -206,6 +212,20 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
                 .await?;
         latency.observe();
         Ok(allowance)
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<LineaEstimateGas> {
+        let latency = LATENCIES.direct[&Method::LineaEstimateGas].start();
+        let res = self.query_client.linea_estimate_gas(req).await?;
+        latency.observe();
+        Ok(res)
+    }
+
+    async fn estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<U256> {
+        let latency = LATENCIES.direct[&Method::EstimateGas].start();
+        let res = self.query_client.estimate_gas(req).await?;
+        latency.observe();
+        Ok(res)
     }
 }
 

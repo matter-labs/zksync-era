@@ -777,6 +777,12 @@ pub struct BlockDetailsBase {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BatchAvailableOnChainData {
+    pub data: Bytes,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
     pub number: L2BlockNumber,
     pub l1_batch_number: L1BatchNumber,

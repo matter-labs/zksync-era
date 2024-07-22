@@ -376,7 +376,8 @@ export function buildDefaultUpgradeTx(
         l2UpgradeTx
     );
 
-    let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
+    let l1upgradeCalldata =
+        upgradeAddress === ethers.constants.AddressZero ? '0x' : prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
     let upgradeData = prepareTransparentUpgradeCalldataForNewGovernance(
         oldProtocolVersion,

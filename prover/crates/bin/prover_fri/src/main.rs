@@ -42,6 +42,10 @@ async fn graceful_shutdown(zone: Zone, port: u16) -> anyhow::Result<impl Future<
         .await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
+    let zone_url = &FriProverConfig::from_env()
+        .context("FriProverConfig::from_env()")?
+        .zone_read_url;
+    let zone = zone_url.to_string();
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.connection()
@@ -254,6 +258,18 @@ async fn get_prover_tasks(
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
+
+    let store_config = store_factory.get_config();
+
+    // let zone = if let Some(ObjectStoreMode::GCS) | Some(ObjectStoreMode::GCSWithCredentialFile) =
+    //     store_config.map(|config| config.mode) {
+    //     get_zone(&prover_config.zone_read_url)
+    //         .await
+    //         .context("get_zone()")?
+    // } else {
+    //     "file_backed".to_string()
+    // };
+    let zone = prover_config.zone_read_url.clone();
 
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {

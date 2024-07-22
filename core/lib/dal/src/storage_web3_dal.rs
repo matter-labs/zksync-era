@@ -116,6 +116,30 @@ impl StorageWeb3Dal<'_, '_> {
             .collect())
     }
 
+    pub async fn get_is_address_blacklisted(&mut self, address: &[u8]) -> DalResult<bool> {
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        blacklist
+                    WHERE
+                        address = $1
+                ) AS EXISTS
+            "#,
+            address
+        )
+        .instrument("is_address_blacklisted")
+        .report_latency()
+        .with_arg("address", &address)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(res.exists.unwrap_or(false))
+    }
+
     /// This method does not check if a block with this number exists in the database.
     /// It will return the current value if the block is in the future.
     pub async fn get_historical_value_unchecked(

@@ -1,8 +1,10 @@
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.0.0-devel-ubuntu22.04 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG CUDA_ARCH=89
+# Change CUDA_ARCH according to your GPU, for example, for RTX 3090 it should be 86
+# reference: https://developer.nvidia.com/cuda-gpus
+ARG CUDA_ARCH=86
 ENV CUDAARCHS=${CUDA_ARCH}
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
@@ -26,7 +28,7 @@ COPY . .
 
 RUN cd prover && cargo build --release --features "gpu" --bin zksync_prover_fri
 
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 

@@ -2,10 +2,12 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
+use zksync_types::transaction_request::CallRequest;
 use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
+use crate::clients::LineaEstimateGas;
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
     BaseFees, EthInterface, RawTransactionBytes,
@@ -351,6 +353,29 @@ where
         };
         latency.observe();
         Ok(block)
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<LineaEstimateGas> {
+        COUNTERS.call[&(Method::EstimateGas, self.component())].inc();
+        let latency = LATENCIES.direct[&Method::EstimateGas].start();
+        let res = self
+            .linea_estimate_gas(req.clone())
+            .rpc_context("get_logs")
+            .with_arg("filter", &req)
+            .await?;
+        latency.observe();
+        Ok(res)
+    }
+
+    async fn estimate_gas(&self, req: CallRequest) -> EnrichedClientResult<U256> {
+        let latency = LATENCIES.direct[&Method::EstimateGas].start();
+        let res = self
+            .estimate_gas(req.clone())
+            .rpc_context("get_logs")
+            .with_arg("filter", &req)
+            .await?;
+        latency.observe();
+        Ok(res)
     }
 }
 

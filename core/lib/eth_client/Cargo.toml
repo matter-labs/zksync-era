@@ -25,7 +25,9 @@ jsonrpsee = { workspace = true, features = [
     "macros",
 ] }
 tracing.workspace = true
+reqwest = "0.11.22"
 rlp.workspace = true
+serde = { version = "1.0.189", features = ["derive"] }
 
 [dev-dependencies]
 assert_matches.workspace = true

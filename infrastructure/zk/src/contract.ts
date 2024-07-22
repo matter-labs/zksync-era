@@ -16,6 +16,7 @@ export async function verifyL1Contracts(): Promise<void> {
         return;
     }
     await utils.spawn('yarn l1-contracts verify');
+    await utils.spawn('yarn l1-contracts verify-governance');
 }
 
 export function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
@@ -116,6 +117,7 @@ export async function deployL2ThroughL1({
     const l2DeploymentEnvVars = [
         'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
+        'CONTRACTS_L2_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',

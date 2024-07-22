@@ -29,6 +29,8 @@ impl EthConfig {
                 aggregate_tx_poll_period: 1,
                 max_txs_in_flight: 30,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
+                enable_linea_estimate_gas: false,
+                gas_scale_factor: 1f64,
                 max_aggregated_tx_gas: 4000000,
                 max_eth_tx_data_size: 6000000,
                 max_aggregated_blocks_to_commit: 10,
@@ -98,6 +100,8 @@ pub struct SenderConfig {
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
+    pub enable_linea_estimate_gas: bool,
+    pub gas_scale_factor: f64,
 
     pub max_aggregated_tx_gas: u32,
     pub max_eth_tx_data_size: usize,

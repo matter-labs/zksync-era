@@ -5,7 +5,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        state_override::StateOverride, BatchAvailableOnChainData, BlockDetails, BridgeAddresses, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
@@ -139,4 +139,10 @@ pub trait ZksNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> RpcResult<TransactionDetailedResult>;
+
+    #[method(name = "getL1BatchDA")]
+    async fn get_batch_available_on_chain_data(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<Option<BatchAvailableOnChainData>>;
 }

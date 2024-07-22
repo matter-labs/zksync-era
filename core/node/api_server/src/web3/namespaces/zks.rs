@@ -8,8 +8,8 @@ use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
+        BatchAvailableOnChainData, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -589,5 +589,31 @@ impl ZksNamespace {
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()
         })
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_batch_available_on_chain_data(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Option<BatchAvailableOnChainData>, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(l1_batch_number, &mut storage)
+            .await?;
+        let l1_batch = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .map_err(|err| err.generalize())?;
+
+        Ok(l1_batch.map(|batch| BatchAvailableOnChainData {
+            data: batch
+                .header
+                .pubdata_input
+                .clone()
+                .unwrap_or(batch.construct_pubdata())
+                .into(),
+        }))
     }
 }

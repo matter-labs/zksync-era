@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
+        state_override::StateOverride, ApiStorageLog, BatchAvailableOnChainData, BlockDetails, BridgeAddresses,
         L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
         TransactionDetails,
     },
@@ -222,6 +222,15 @@ impl ZksNamespaceServer for ZksNamespace {
                     })
                     .collect_vec(),
             })
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_batch_available_on_chain_data(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<Option<BatchAvailableOnChainData>> {
+        self.get_batch_available_on_chain_data(l1_batch_number)
+            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 }

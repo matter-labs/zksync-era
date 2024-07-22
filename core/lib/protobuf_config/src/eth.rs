@@ -84,6 +84,9 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofSendingMode::try_from(*x)?))
                 .context("proof_sending_mode")?
                 .parse(),
+            enable_linea_estimate_gas: *required(&self.enable_linea_estimate_gas)
+                .context("enable_linea_estimate_gas")?,
+            gas_scale_factor: *required(&self.gas_scale_factor).context("gas_scale_factor")?,
             max_aggregated_tx_gas: *required(&self.max_aggregated_tx_gas)
                 .context("max_aggregated_tx_gas")?,
             max_eth_tx_data_size: required(&self.max_eth_tx_data_size)
@@ -141,6 +144,8 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
+            enable_linea_estimate_gas: Some(this.enable_linea_estimate_gas),
+            gas_scale_factor: Some(this.gas_scale_factor),
         }
     }
 }
