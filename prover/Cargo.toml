@@ -1,17 +1,7 @@
 [workspace]
 members = [
-    # lib
-    "prover_fri_utils",
-    "prover_fri_types",
-    # binaries
-    "witness_generator",
-    "vk_setup_data_generator_server_fri",
-    "prover_fri",
-    "witness_vector_generator",
-    "prover_fri_gateway",
-    "proof_fri_compressor",
-    "prover_cli",
-    "prover_version",
+    "crates/bin/*",
+    "crates/lib/*",
 ]
 
 resolver = "2"
@@ -94,10 +84,10 @@ zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { path = "prover_dal" }
-zksync_prover_fri_types = { path = "prover_fri_types" }
-zksync_prover_fri_utils = { path = "prover_fri_utils" }
-vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
+zksync_prover_dal = { path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
+vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 
 # for `perf` profiling
 [profile.perf]

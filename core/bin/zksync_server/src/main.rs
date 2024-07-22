@@ -103,7 +103,7 @@ fn main() -> anyhow::Result<()> {
             let mut configs =
                 decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
                     .context("failed decoding general YAML config")?;
-            // Tallback to the consensus_config.yaml file.
+            // Fallback to the consensus_config.yaml file.
             // TODO: remove once we move the consensus config to general config on stage
             if configs.consensus_config.is_none() {
                 configs.consensus_config =
