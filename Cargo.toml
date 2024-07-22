@@ -79,7 +79,7 @@ members = [
     "core/tests/vm-benchmark/harness",
 
     # Parts of prover workspace that are needed for Core workspace
-    "prover/prover_dal"
+    "prover/crates/lib/prover_dal"
 ]
 resolver = "2"
 
@@ -222,7 +222,7 @@ zksync_protobuf_build = "=0.1.0-rc.2"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
-zksync_prover_dal = { version = "0.1.0", path = "prover/prover_dal" }
+zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
 zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
 zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
