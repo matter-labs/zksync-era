@@ -97,8 +97,6 @@ impl BitcoinRpc for BitcoinRpcClient {
 mod tests {
     use std::str::FromStr;
 
-    use tokio;
-
     use super::*;
     use crate::{regtest::TestContext, traits::BitcoinRpc};
 

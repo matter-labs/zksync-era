@@ -43,7 +43,7 @@ impl BitcoinRegtest {
         self.generate_compose_file()?;
 
         Command::new("docker")
-            .args(&[
+            .args([
                 "compose",
                 "-f",
                 self.compose_file.to_str().unwrap(),
@@ -61,7 +61,7 @@ impl BitcoinRegtest {
 
     fn stop(&self) -> std::io::Result<()> {
         Command::new("docker")
-            .args(&[
+            .args([
                 "compose",
                 "-f",
                 self.compose_file.to_str().unwrap(),

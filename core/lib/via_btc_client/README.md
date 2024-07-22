@@ -1,20 +1,20 @@
 # Via Network Bitcoin Client Library
 
-this library is responsible for the communication between the sequencer/verifier and the bitcoin network.
+This library is responsible for the communication between the sequencer/verifier and the bitcoin network.
 
-this library doesn't contain any logic for the sequencer/verifier, it only provides the communication tools with the
+This library doesn't contain any logic for the sequencer/verifier, it only provides the communication tools with the
 bitcoin network.
 
 **features:**
 
-- create different type of inscriptions transactions
-- sign inscriptions transactions
-- broadcast inscriptions transactions
-- check for inscriptions transactions confirmation
-- fetch and parse Bitcoin blocks
-- filter Inscriptions transactions from Bitcoin blocks
-- help verifier network participants to create unsigned transaction for withdrawal (UTXO selection)
-- provide helper functions for syncing sequencer/verifier node with the Bitcoin network
+- Create different type of inscriptions transactions
+- Sign inscriptions transactions
+- Broadcast inscriptions transactions
+- Check for inscriptions transactions confirmation
+- Fetch and parse Bitcoin blocks
+- Filter Inscriptions transactions from Bitcoin blocks
+- Help verifier network participants to create unsigned transaction for withdrawal (UTXO selection)
+- Provide helper functions for syncing sequencer/verifier node with the Bitcoin network
   (`indexer::get_inscription_messages`)
 
 ## Usage
