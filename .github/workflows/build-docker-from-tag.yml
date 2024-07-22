@@ -61,7 +61,7 @@ jobs:
 
   build-push-tee-prover-images:
     name: Build and push images
-    needs: [setup, changed_files]
+    needs: [setup]
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
