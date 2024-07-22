@@ -187,14 +187,7 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let node = MainNodeBuilder::new(
-        configs,
-        wallets,
-        genesis,
-        contracts_config,
-        secrets,
-        consensus,
-    );
+    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets);
 
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
