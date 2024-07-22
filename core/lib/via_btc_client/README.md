@@ -1,20 +1,20 @@
 # Via Network Bitcoin Client Library
 
-this library is responsible for the communication between the sequencer/verifier and the bitcoin network.
+This library is responsible for the communication between the sequencer/verifier and the bitcoin network.
 
-this library doesn't contain any logic for the sequencer/verifier, it only provides the communication tools with the
+This library doesn't contain any logic for the sequencer/verifier, it only provides the communication tools with the
 bitcoin network.
 
 **features:**
 
-- create different type of inscriptions transactions
-- sign inscriptions transactions
-- broadcast inscriptions transactions
-- check for inscriptions transactions confirmation
-- fetch and parse Bitcoin blocks
-- filter Inscriptions transactions from Bitcoin blocks
-- help verifier network participants to create unsigned transaction for withdrawal (UTXO selection)
-- provide helper functions for syncing sequencer/verifier node with the Bitcoin network
+- Create different type of inscriptions transactions
+- Sign inscriptions transactions
+- Broadcast inscriptions transactions
+- Check for inscriptions transactions confirmation
+- Fetch and parse Bitcoin blocks
+- Filter Inscriptions transactions from Bitcoin blocks
+- Help verifier network participants to create unsigned transaction for withdrawal (UTXO selection)
+- Provide helper functions for syncing sequencer/verifier node with the Bitcoin network
   (`indexer::get_inscription_messages`)
 
 ## Usage
@@ -55,18 +55,18 @@ let inscription_messages : Vec<via_btc_client::InscriptionMessage> = indexer.get
 
 ## Inscription Transaction Flow 
 ```
-  1. unlock all available UTXOs for the source address
-  2. create inscription output with using Taproot approach (stack data): 
+  1. Unlock all available UTXOs for the source address
+  2. Create inscription output with using Taproot approach (stack data): 
       - **PUBKEY** 
       - OP_CHECKSIG 
       - OP_FALSE OP_IF 
       - **INSCRIPTION DATA** 
       - OP_ENDIF
-  3. create a P2WPKH change output to send the remaining funds back to the source address
-  4. create a transaction with the inputs and outputs
-  5. sign the transaction with the private key
-  6. broadcast the transaction to the network
+  3. Create a P2WPKH change output to send the remaining funds back to the source address
+  4. Create a transaction with the inputs and outputs
+  5. Sign the transaction with the private key
+  6. Broadcast the transaction to the network
 
-  ps. unlock all available UTXO and send the remaining funds back to the source address helps us
+  PS. Unlock all available UTXO and send the remaining funds back to the source address helps us
       to avoid solving utxo selection problem and we call it the UTXO aggregation approach.
 ```

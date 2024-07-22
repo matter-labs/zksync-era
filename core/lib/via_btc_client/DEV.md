@@ -1,6 +1,6 @@
-this library contains multiple modules that provide different functionalities for the sequencer/verifier node.
+This library contains multiple modules that provide different functionalities for the sequencer/verifier node.
 
-## Modules:
+## Modules
 
 1. **client**: provides communication tools with the Bitcoin network. (broadcast, get block, get transaction
    confirmation, etc.)
@@ -10,7 +10,7 @@ this library contains multiple modules that provide different functionalities fo
 4. **transaction_builder**: provides tools for creating unsigned transaction for withdrawal (UTXO selection).
 5. **signer**: provides tools for signing transactions.
 
-## responsibilities of shared files:
+## Responsibilities of shared files
 
 - **traits.rs**:
   - contains traits.
@@ -41,31 +41,31 @@ this library contains multiple modules that provide different functionalities fo
 
 ## Usage
 
-check [readme.md](./readme.md) for usage examples.
+Check [README.md](./README.md) for usage examples.
 
 ## Testing
 
-unit tests should be implemented for each module in their own file.
+Unit tests should be implemented for each module in their own file.
 
-for checking the integration and seeing the result of the whole system, we can use the `tests` directory. this directory
+For checking the integration and seeing the result of the whole system, we can use the `tests` directory. This directory
 is binary and we can import the library and use it in the main function to see the result of the functions.
 
-for running the example, use the following command:
+For running the example, use the following command:
 
 `cargo run --bin via_btc_test`
 
 ## Development
 
-before starting implementation of every module, we should define or modify the module's trait in the `traits.rs` file.
-and also define or modify the types that are shared between modules in the `types.rs` file.
+Before starting implementation of every module, we should define or modify the module's trait in the `traits.rs` file.
+And also define or modify the types that are shared between modules in the `types.rs` file.
 
-it's possible that these two file contain trait or type that they are not accurate or needed, don't hesitate to modify
+It's possible that these two file contain trait or type that they are not accurate or needed, don't hesitate to modify
 or remove them.
 
-write unit tests for each module in their own file.
+Write unit tests for each module in their own file.
 
-write integration tests in the `examples` directory.
+Write integration tests in the `examples` directory.
 
 **Note:**
 
-- only make methods public that are needed by external users.
+- Only make methods public that are needed by external users.

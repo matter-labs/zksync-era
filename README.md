@@ -1,4 +1,4 @@
-# Fork Code Conventions !!IMPORTANT!!
+# Fork Code Conventions !!IMPORTANT
 
 The original repository of this fork is still in Alpha, so many breaking changes are expected. With that in mind, we've
 developed a strategy to minimize synchronization conflicts as much as possible, employing the following heuristics:
