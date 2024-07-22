@@ -17,6 +17,8 @@ use zksync_config::{
     },
     ObjectStoreConfig,
 };
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles as roles;
 use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, read_yaml_repr};
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
@@ -1124,6 +1126,18 @@ impl ExperimentalENConfig {
                 .map(|a| a.max_parallelism),
         })
     }
+}
+
+pub fn generate_consensus_secrets() {
+    let validator_key = roles::validator::SecretKey::generate();
+    let attester_key = roles::attester::SecretKey::generate();
+    let node_key = roles::node::SecretKey::generate();
+    println!("# {}", validator_key.public().encode());
+    println!("- validator_key: '{}'", validator_key.encode());
+    println!("# {}", attester_key.public().encode());
+    println!("- attester_key: '{}'", attester_key.encode());
+    println!("# {}", node_key.public().encode());
+    println!("- node_key: '{}'", node_key.encode());
 }
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {

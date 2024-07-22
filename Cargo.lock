@@ -8646,6 +8646,7 @@ dependencies = [
  "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consistency_checker",
  "zksync_contracts",

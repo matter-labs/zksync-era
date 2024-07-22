@@ -54,7 +54,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    config::ExternalNodeConfig,
+    config::{generate_consensus_secrets, ExternalNodeConfig},
     init::{ensure_storage_initialized, SnapshotRecoveryConfig},
 };
 
@@ -695,10 +695,20 @@ async fn shutdown_components(
     Ok(())
 }
 
+#[derive(Debug, Clone, clap::Subcommand)]
+enum Command {
+    /// Generates consensus secret keys to use in the secrets file.
+    /// Prints the keys to the stdout, you need to copy the relevant keys into your secrets file.
+    GenerateSecrets,
+}
+
 /// External node for ZKsync Era.
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
     /// do not use unless you know what you're doing.
     #[arg(long)]
@@ -720,7 +730,14 @@ struct Cli {
     /// Path to the yaml with external node specific configuration. If set, it will be used instead of env vars.
     #[arg(long, requires = "config_path", requires = "secrets_path")]
     external_node_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with consensus.
+    /// Path to the yaml with consensus config. If set, it will be used instead of env vars.
+    #[arg(
+        long,
+        requires = "config_path",
+        requires = "secrets_path",
+        requires = "external_node_config_path",
+        requires = "enable_consensus"
+    )]
     consensus_path: Option<std::path::PathBuf>,
 }
 
@@ -778,9 +795,19 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
+    if let Some(cmd) = &opt.command {
+        match cmd {
+            Command::GenerateSecrets => generate_consensus_secrets(),
+        }
+        return Ok(());
+    }
+
     let mut config = if let Some(config_path) = opt.config_path.clone() {
         let secrets_path = opt.secrets_path.clone().unwrap();
         let external_node_config_path = opt.external_node_config_path.clone().unwrap();
+        if opt.enable_consensus {
+            anyhow::ensure!(opt.consensus_path.is_some());
+        }
         ExternalNodeConfig::from_files(
             config_path,
             external_node_config_path,
