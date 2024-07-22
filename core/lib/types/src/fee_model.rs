@@ -203,6 +203,13 @@ pub struct FeeModelConfigV2 {
     pub max_pubdata_per_batch: u64,
 }
 
+impl FeeModelConfigV2 {
+    /// The maximum acceptable L2 gas price. Currently, this is required by the bootloader.
+    pub fn maximum_l2_gas_price(&self) -> u64 {
+        10_000_000_000_000 // 10k gwei
+    }
+}
+
 impl Default for FeeModelConfig {
     /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.

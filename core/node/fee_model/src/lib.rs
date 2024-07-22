@@ -202,7 +202,13 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
 
         // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
-        minimal_l2_gas_price + gas_overhead_wei
+        let calculated_price = minimal_l2_gas_price + gas_overhead_wei;
+
+        if calculated_price < config.maximum_l2_gas_price() {
+            calculated_price
+        } else {
+            config.maximum_l2_gas_price()
+        }
     };
 
     let fair_pubdata_price = {
