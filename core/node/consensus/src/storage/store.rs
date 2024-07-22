@@ -3,13 +3,15 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage as storage;
+use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::consensus_dal::{self, Payload};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
-use super::PayloadQueue;
+use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
 
 fn to_fetched_block(
@@ -51,20 +53,27 @@ fn to_fetched_block(
 #[derive(Clone, Debug)]
 pub(crate) struct Store {
     pub(super) pool: ConnectionPool,
-    payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
-    /// L2 block QCs received over gossip
-    certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
+    /// Action queue to fetch/store L2 block payloads
+    block_payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
+    /// L2 block QCs received from consensus
+    block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
+    /// L1 batch QCs received from consensus
+    batch_certificates: ctx::channel::UnboundedSender<attester::BatchQC>,
     /// Range of L2 blocks for which we have a QC persisted.
-    persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    /// Range of L1 batches we have persisted.
+    batches_persisted: sync::watch::Receiver<storage::BatchStoreState>,
 }
 
-struct PersistedState(sync::watch::Sender<storage::BlockStoreState>);
+struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
 
 /// Background task of the `Store`.
 pub struct StoreRunner {
     pool: ConnectionPool,
-    persisted: PersistedState,
-    certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
+    blocks_persisted: PersistedBlockState,
+    batches_persisted: sync::watch::Sender<storage::BatchStoreState>,
+    block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
+    batch_certificates: ctx::channel::UnboundedReceiver<attester::BatchQC>,
 }
 
 impl Store {
@@ -73,32 +82,50 @@ impl Store {
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
     ) -> ctx::Result<(Store, StoreRunner)> {
-        let persisted = pool
-            .connection(ctx)
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+
+        // Initial state of persisted blocks
+        let blocks_persisted = conn
+            .block_certificates_range(ctx)
             .await
-            .wrap("connection()")?
-            .certificates_range(ctx)
-            .await
-            .wrap("certificates_range()")?;
-        let persisted = sync::watch::channel(persisted).0;
-        let (certs_send, certs_recv) = ctx::channel::unbounded();
+            .wrap("block_certificates_range()")?;
+
+        // Initial state of persisted batches
+        let batches_persisted = conn.batches_range(ctx).await.wrap("batches_range()")?;
+
+        drop(conn);
+
+        let blocks_persisted = sync::watch::channel(blocks_persisted).0;
+        let batches_persisted = sync::watch::channel(batches_persisted).0;
+        let (block_certs_send, block_certs_recv) = ctx::channel::unbounded();
+        let (batch_certs_send, batch_certs_recv) = ctx::channel::unbounded();
+
         Ok((
             Store {
                 pool: pool.clone(),
-                certificates: certs_send,
-                payloads: Arc::new(sync::Mutex::new(payload_queue)),
-                persisted: persisted.subscribe(),
+                block_certificates: block_certs_send,
+                batch_certificates: batch_certs_send,
+                block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
+                blocks_persisted: blocks_persisted.subscribe(),
+                batches_persisted: batches_persisted.subscribe(),
             },
             StoreRunner {
                 pool,
-                persisted: PersistedState(persisted),
-                certificates: certs_recv,
+                blocks_persisted: PersistedBlockState(blocks_persisted),
+                batches_persisted,
+                block_certificates: block_certs_recv,
+                batch_certificates: batch_certs_recv,
             },
         ))
     }
+
+    /// Get a fresh connection from the pool.
+    async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
+        self.pool.connection(ctx).await.wrap("connection")
+    }
 }
 
-impl PersistedState {
+impl PersistedBlockState {
     /// Updates `persisted` to new.
     /// Ends of the range can only be moved forward.
     /// If `persisted.first` is moved forward, it means that blocks have been pruned.
@@ -136,47 +163,120 @@ impl PersistedState {
 }
 
 impl StoreRunner {
-    pub async fn run(mut self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+    pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let StoreRunner {
+            pool,
+            blocks_persisted,
+            batches_persisted,
+            mut block_certificates,
+            mut batch_certificates,
+        } = self;
+
         let res = scope::run!(ctx, |ctx, s| async {
             s.spawn::<()>(async {
-                // Loop updating `persisted` whenever blocks get pruned.
+                // Loop updating `blocks_persisted` whenever blocks get pruned.
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 loop {
-                    let range = self
-                        .pool
+                    let range = pool
                         .connection(ctx)
+                        .await?
+                        .block_certificates_range(ctx)
                         .await
-                        .wrap("connection")?
-                        .certificates_range(ctx)
-                        .await
-                        .wrap("certificates_range()")?;
-                    self.persisted.update(range);
+                        .wrap("block_certificates_range()")?;
+                    blocks_persisted.update(range);
                     ctx.sleep(POLL_INTERVAL).await?;
                 }
             });
 
-            // Loop inserting certs to storage.
+            // NOTE: Running this update loop will trigger the gossip of `SyncBatches` which is currently
+            // pointless as there is no proof and we have to ignore them. We can disable it, but bear in
+            // mind that any node which gossips the availability will cause pushes and pulls in the consensus.
+            s.spawn::<()>(async {
+                // Loop updating `batches_persisted` whenever a new L1 batch is available in the database.
+                // We have to do this because the L1 batch is produced as L2 blocks are executed,
+                // which can happen on a different machine or in a different process, so we can't rely on some
+                // DAL method updating this memory construct. However I'm not sure that `BatchStoreState`
+                // really has to contain the full blown last batch, or whether it could have for example
+                // just the number of it. We can't just use the `attester::BatchQC`, which would make it
+                // analogous to the `BlockStoreState`, because the `SyncBatch` mechanism is for catching
+                // up with L1 batches from peers _without_ the QC, based on L1 inclusion proofs instead.
+                // Nevertheless since the `SyncBatch` contains all transactions for all L2 blocks,
+                // we can try to make it less frequent by querying just the last batch number first.
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+                let mut next_batch_number = { batches_persisted.borrow().next() };
+                loop {
+                    let mut conn = pool.connection(ctx).await?;
+                    if let Some(last_batch_number) = conn
+                        .get_last_batch_number(ctx)
+                        .await
+                        .wrap("last_batch_number()")?
+                    {
+                        if last_batch_number >= next_batch_number {
+                            let range = conn.batches_range(ctx).await.wrap("batches_range()")?;
+                            next_batch_number = last_batch_number.next();
+                            batches_persisted.send_replace(range);
+                        }
+                    }
+                    ctx.sleep(POLL_INTERVAL).await?;
+                }
+            });
+
+            s.spawn::<()>(async {
+                // Loop inserting batch certificates into storage
+                const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+                loop {
+                    let cert = batch_certificates.recv(ctx).await?;
+
+                    loop {
+                        use consensus_dal::InsertCertificateError as E;
+                        // Try to insert the cert.
+                        let res = pool
+                            .connection(ctx)
+                            .await?
+                            .insert_batch_certificate(ctx, &cert)
+                            .await;
+
+                        match res {
+                            Ok(()) => {
+                                break;
+                            }
+                            Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                                // The L1 batch isn't available yet.
+                                // We can wait until it's produced/received, or we could modify gossip
+                                // so that we don't even accept votes until we have the corresponding batch.
+                                ctx.sleep(POLL_INTERVAL).await?;
+                            }
+                            Err(InsertCertificateError::Inner(err)) => {
+                                return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                            }
+                            Err(InsertCertificateError::Canceled(err)) => {
+                                return Err(ctx::Error::Canceled(err))
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Loop inserting block certs to storage.
             const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
-                let cert = self.certificates.recv(ctx).await?;
+                let cert = block_certificates.recv(ctx).await?;
                 // Wait for the block to be persisted, so that we can attach a cert to it.
                 // We may exit this loop without persisting the certificate in case the
                 // corresponding block has been pruned in the meantime.
-                while self.persisted.should_be_persisted(&cert) {
+                while blocks_persisted.should_be_persisted(&cert) {
                     use consensus_dal::InsertCertificateError as E;
                     // Try to insert the cert.
-                    let res = self
-                        .pool
+                    let res = pool
                         .connection(ctx)
-                        .await
-                        .wrap("connection")?
-                        .insert_certificate(ctx, &cert)
+                        .await?
+                        .insert_block_certificate(ctx, &cert)
                         .await;
                     match res {
                         Ok(()) => {
                             // Insertion succeeded: update persisted state
                             // and wait for the next cert.
-                            self.persisted.advance(cert);
+                            blocks_persisted.advance(cert);
                             break;
                         }
                         Err(InsertCertificateError::Inner(E::MissingPayload)) => {
@@ -195,6 +295,7 @@ impl StoreRunner {
             }
         })
         .await;
+
         match res {
             Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
@@ -206,17 +307,15 @@ impl StoreRunner {
 impl storage::PersistentBlockStore for Store {
     async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         Ok(self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection")?
+            .conn(ctx)
+            .await?
             .genesis(ctx)
             .await?
             .context("not found")?)
     }
 
     fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {
-        self.persisted.clone()
+        self.blocks_persisted.clone()
     }
 
     async fn block(
@@ -225,10 +324,8 @@ impl storage::PersistentBlockStore for Store {
         number: validator::BlockNumber,
     ) -> ctx::Result<validator::FinalBlock> {
         Ok(self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection")?
+            .conn(ctx)
+            .await?
             .block(ctx, number)
             .await?
             .context("not found")?)
@@ -247,14 +344,14 @@ impl storage::PersistentBlockStore for Store {
         ctx: &ctx::Ctx,
         block: validator::FinalBlock,
     ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
             payloads
                 .send(to_fetched_block(block.number(), &block.payload).context("to_fetched_block")?)
                 .await
                 .context("payload_queue.send()")?;
         }
-        self.certificates.send(block.justification);
+        self.block_certificates.send(block.justification);
         Ok(())
     }
 }
@@ -262,20 +359,16 @@ impl storage::PersistentBlockStore for Store {
 #[async_trait::async_trait]
 impl storage::ReplicaStore for Store {
     async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        self.pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        self.conn(ctx)
+            .await?
             .replica_state(ctx)
             .await
             .wrap("replica_state()")
     }
 
     async fn set_state(&self, ctx: &ctx::Ctx, state: &storage::ReplicaState) -> ctx::Result<()> {
-        self.pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        self.conn(ctx)
+            .await?
             .set_replica_state(ctx, state)
             .await
             .wrap("set_replica_state()")
@@ -321,7 +414,7 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.payloads).await?.into_async();
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
             let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
             let n = block.number;
@@ -346,36 +439,152 @@ impl PayloadManager for Store {
     }
 }
 
-// Dummy implementation
 #[async_trait::async_trait]
 impl storage::PersistentBatchStore for Store {
-    async fn last_batch(&self) -> attester::BatchNumber {
-        unimplemented!()
+    /// Range of batches persisted in storage.
+    fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
+        self.batches_persisted.clone()
     }
-    async fn last_batch_qc(&self) -> attester::BatchQC {
-        unimplemented!()
+
+    /// Get the earliest L1 batch number which has to be (re)signed by a node.
+    ///
+    /// Ideally we would make this decision by looking up the last batch submitted to L1,
+    /// and so it might require a quorum of attesters to sign a certificate for it.
+    async fn earliest_batch_number_to_sign(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        // This is the rough roadmap of how this logic will evolve:
+        // 1. Make best effort at gossiping and collecting votes; the `BatchVotes` in consensus only considers the last vote per attesters.
+        //    Still, we can re-sign more than the last batch, anticipating step 2.
+        // 2. Change `BatchVotes` to handle multiple pending batch numbers, anticipating that batch intervals might decrease dramatically.
+        // 3. Ask the Main Node what is the earliest batch number that it still expects votes for (ie. what is the last submission + 1).
+        // 4. Look at L1 to figure out what is the last submssion, and sign after that.
+
+        // Originally this method returned all unsigned batch numbers by doing a DAL query, but we decided it shoudl be okay and cheap
+        // to resend signatures for already signed batches, and we don't have to worry about skipping them. Because of that, we also
+        // didn't think it makes sense to query the database for the earliest unsigned batch *after* the submission, because we might
+        // as well just re-sign everything. Until we have a way to argue about the "last submission" we just re-sign the last 10 to
+        // try to produce as many QCs as the voting register allows, within reason.
+
+        let Some(last_batch_number) = self.last_batch(ctx).await? else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            last_batch_number.0.saturating_sub(10),
+        )))
     }
-    async fn get_batch(&self, _number: attester::BatchNumber) -> Option<attester::SyncBatch> {
-        None
+
+    /// Get the highest L1 batch number from storage.
+    async fn last_batch(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
+        self.conn(ctx)
+            .await?
+            .get_last_batch_number(ctx)
+            .await
+            .wrap("get_last_batch_number")
     }
-    async fn get_batch_qc(&self, _number: attester::BatchNumber) -> Option<attester::BatchQC> {
-        None
+
+    /// Get the L1 batch QC from storage with the highest number.
+    ///
+    /// This might have gaps before it. Until there is a way to catch up with missing
+    /// certificates by fetching from the main node, returning the last inserted one
+    /// is the best we can do.
+    async fn last_batch_qc(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
+        let Some(number) = self
+            .conn(ctx)
+            .await?
+            .get_last_batch_certificate_number(ctx)
+            .await
+            .wrap("get_last_batch_certificate_number")?
+        else {
+            return Ok(None);
+        };
+
+        self.get_batch_qc(ctx, number).await
     }
-    async fn store_qc(&self, _qc: attester::BatchQC) {
-        unimplemented!()
+
+    /// Returns the batch with the given number.
+    async fn get_batch(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::SyncBatch>> {
+        self.conn(ctx)
+            .await?
+            .get_batch(ctx, number)
+            .await
+            .wrap("get_batch")
     }
-    fn persisted(&self) -> sync::watch::Receiver<storage::BatchStoreState> {
-        sync::watch::channel(storage::BatchStoreState {
-            first: attester::BatchNumber(0),
-            last: None,
-        })
-        .1
+
+    /// Returns the [attester::Batch] with the given number, which is the `message` that
+    /// appears in [attester::BatchQC], and represents the content that needs to be signed
+    /// by the attesters.
+    async fn get_batch_to_sign(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::Batch>> {
+        let Some(batch) = self
+            .conn(ctx)
+            .await?
+            .batch(
+                ctx,
+                L1BatchNumber(u32::try_from(number.0).context("number")?),
+            )
+            .await
+            .wrap("batch")?
+        else {
+            return Ok(None);
+        };
+
+        let info = StoredBatchInfo::from(&batch);
+        let hash = Keccak256::from_bytes(info.hash().0);
+
+        Ok(Some(attester::Batch {
+            number,
+            hash: attester::BatchHash(hash),
+        }))
     }
+
+    /// Returns the QC of the batch with the given number.
+    async fn get_batch_qc(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        self.conn(ctx)
+            .await?
+            .batch_certificate(ctx, number)
+            .await
+            .wrap("batch_certificate")
+    }
+
+    /// Store the given QC in the storage.
+    ///
+    /// Storing a QC is allowed even if it creates a gap in the L1 batch history.
+    /// If we need the last batch QC that still needs to be signed then the queries need to look for gaps.
+    async fn store_qc(&self, _ctx: &ctx::Ctx, qc: attester::BatchQC) -> ctx::Result<()> {
+        // Storing asynchronously because we might get the QC before the L1 batch itself.
+        self.batch_certificates.send(qc);
+        Ok(())
+    }
+
+    /// Queue the batch to be persisted in storage.
+    ///
+    /// The caller [BatchStore] ensures that this is only called when the batch is the next expected one.
     async fn queue_next_batch(
         &self,
         _ctx: &ctx::Ctx,
         _batch: attester::SyncBatch,
     ) -> ctx::Result<()> {
-        Err(anyhow::format_err!("unimplemented").into())
+        // Currently the gossiping of `SyncBatch` and the `BatchStoreState` is unconditionally started by the `Network::run_stream` in consensus,
+        // and as long as any node reports new batches available by updating the `PersistentBatchStore::persisted` here, the other nodes
+        // will start pulling the corresponding batches, which will end up being passed to this method.
+        // If we return an error here or panic, it will stop the whole consensus task tree due to the way scopes work, so instead just return immediately.
+        // In the future we have to validate the proof agains the L1 state root hash, which IIUC we can't do just yet.
+
+        // Err(anyhow::format_err!("unimplemented: queue_next_batch should not be called until we have the stateless L1 batch story completed.").into())
+
+        Ok(())
     }
 }

@@ -54,7 +54,7 @@ impl ConnectionPool {
     }
 
     /// Waits for the `number` L2 block to have a certificate.
-    pub async fn wait_for_certificate(
+    pub async fn wait_for_block_certificate(
         &self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
@@ -64,9 +64,9 @@ impl ConnectionPool {
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .certificate(ctx, number)
+            .block_certificate(ctx, number)
             .await
-            .wrap("certificate()")?
+            .wrap("block_certificate()")?
             .is_none()
         {
             ctx.sleep(POLL_INTERVAL).await?;
@@ -125,15 +125,15 @@ impl ConnectionPool {
     }
 
     /// Waits for `want_last` block to have certificate then fetches all L2 blocks with certificates.
-    pub async fn wait_for_certificates(
+    pub async fn wait_for_block_certificates(
         &self,
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
-        self.wait_for_certificate(ctx, want_last).await?;
+        self.wait_for_block_certificate(ctx, want_last).await?;
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
         let range = conn
-            .certificates_range(ctx)
+            .block_certificates_range(ctx)
             .await
             .wrap("certificates_range()")?;
         assert_eq!(want_last.next(), range.next());
@@ -147,12 +147,12 @@ impl ConnectionPool {
     }
 
     /// Same as `wait_for_certificates`, but additionally verifies all the blocks against genesis.
-    pub async fn wait_for_certificates_and_verify(
+    pub async fn wait_for_block_certificates_and_verify(
         &self,
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
-        let blocks = self.wait_for_certificates(ctx, want_last).await?;
+        let blocks = self.wait_for_block_certificates(ctx, want_last).await?;
         let genesis = self
             .connection(ctx)
             .await

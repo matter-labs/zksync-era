@@ -32,6 +32,15 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
+        let attester = config::attester_key(&secrets)
+            .context("attester_key")?
+            .map(|key| executor::Attester { key });
+
+        tracing::debug!(
+            is_attester = attester.is_some(),
+            "external node attester mode"
+        );
+
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
@@ -39,18 +48,23 @@ impl EN {
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
+
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
+
             let mut payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
+
             drop(conn);
 
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.first_block))
-                .await?;
+                .await
+                .wrap("fetch_blocks()")?;
+
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
             s.spawn_bg::<()>(async {
@@ -69,15 +83,17 @@ impl EN {
             });
 
             // Run consensus component.
+            // External nodes have a payload queue which they use to fetch data from the main node.
             let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
                 .await
                 .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            // Dummy batch store - we don't gossip batches yet, but we need one anyway.
+
             let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BatchStore::new()")?;
@@ -87,7 +103,6 @@ impl EN {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
                 batch_store,
-                attester: None,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
@@ -95,8 +110,10 @@ impl EN {
                         replica_store: Box::new(store.clone()),
                         payload_manager: Box::new(store.clone()),
                     }),
+                attester,
             };
             executor.run(ctx).await?;
+
             Ok(())
         })
         .await;

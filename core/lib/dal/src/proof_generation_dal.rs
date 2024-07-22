@@ -155,26 +155,60 @@ impl ProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn save_merkle_paths_artifacts_metadata(
+        &mut self,
+        batch_number: L1BatchNumber,
+        proof_gen_data_blob_url: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                proof_gen_data_blob_url = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
+            proof_gen_data_blob_url,
+            batch_number
+        );
+        let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
+            .with_arg("proof_gen_data_blob_url", &proof_gen_data_blob_url)
+            .with_arg("l1_batch_number", &batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot save proof_gen_data_blob_url for a batch number {} that does not exist",
+                batch_number
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
     /// The caller should ensure that `l1_batch_number` exists in the database.
     pub async fn insert_proof_generation_details(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        proof_gen_data_blob_url: &str,
     ) -> DalResult<()> {
         let result = sqlx::query!(
             r#"
             INSERT INTO
-                proof_generation_details (l1_batch_number, status, proof_gen_data_blob_url, created_at, updated_at)
+                proof_generation_details (l1_batch_number, status, created_at, updated_at)
             VALUES
-                ($1, 'unpicked', $2, NOW(), NOW())
+                ($1, 'unpicked', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-             i64::from(l1_batch_number.0),
-            proof_gen_data_blob_url,
+            i64::from(l1_batch_number.0),
         )
         .instrument("insert_proof_generation_details")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .with_arg("proof_gen_data_blob_url", &proof_gen_data_blob_url)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -303,7 +337,7 @@ mod tests {
         assert_eq!(unpicked_l1_batch, None);
 
         conn.proof_generation_dal()
-            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .insert_proof_generation_details(L1BatchNumber(1))
             .await
             .unwrap();
 
@@ -316,11 +350,15 @@ mod tests {
 
         // Calling the method multiple times should work fine.
         conn.proof_generation_dal()
-            .insert_proof_generation_details(L1BatchNumber(1), "generation_data")
+            .insert_proof_generation_details(L1BatchNumber(1))
             .await
             .unwrap();
         conn.proof_generation_dal()
             .save_vm_runner_artifacts_metadata(L1BatchNumber(1), "vm_run")
+            .await
+            .unwrap();
+        conn.proof_generation_dal()
+            .save_merkle_paths_artifacts_metadata(L1BatchNumber(1), "data")
             .await
             .unwrap();
         conn.blocks_dal()

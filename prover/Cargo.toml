@@ -3,7 +3,6 @@ members = [
     # lib
     "prover_fri_utils",
     "prover_fri_types",
-    "prover_dal",
     # binaries
     "witness_generator",
     "vk_setup_data_generator_server_fri",
@@ -13,7 +12,6 @@ members = [
     "proof_fri_compressor",
     "prover_cli",
     "prover_version",
-    "config",
 ]
 
 resolver = "2"
@@ -65,16 +63,16 @@ tokio = "1"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3" }
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "a5bb80c9ce7168663114ee30e794d6dc32159ee4" }
+vise = "0.1.0"
 
 # Proving dependencies
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.5.0" }
+circuit_definitions = "=0.150.1"
+circuit_sequencer_api = "=0.150.1"
+zkevm_test_harness = "=0.150.1"
 
 # GPU proving dependencies
-wrapper_prover = { package = "wrapper-prover", git = "https://github.com/matter-labs/era-heavy-ops-service.git", rev = "3d33e06" }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.5.0" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.0-gpu-wrapper.0" }
+shivini = "=0.150.1"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -94,10 +92,8 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
-zksync_prover_config = { path = "config" }
 zksync_prover_dal = { path = "prover_dal" }
 zksync_prover_fri_types = { path = "prover_fri_types" }
 zksync_prover_fri_utils = { path = "prover_fri_utils" }

@@ -1,3 +1,4 @@
+#![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
 use std::{env, time::Duration};
@@ -5,9 +6,9 @@ use std::{env, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_config::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;

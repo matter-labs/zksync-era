@@ -123,7 +123,7 @@ impl ObservabilityENConfig {
             if let Some(prometheus) = general_config.prometheus_config.as_ref() {
                 (
                     Some(prometheus.listener_port),
-                    Some(prometheus.pushgateway_url.clone()),
+                    prometheus.pushgateway_url.clone(),
                     prometheus.push_interval_ms.unwrap_or_default(),
                 )
             } else {

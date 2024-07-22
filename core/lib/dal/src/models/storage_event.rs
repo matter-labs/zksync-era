@@ -20,6 +20,7 @@ pub struct StorageWeb3Log {
     pub tx_index_in_block: i32,
     pub event_index_in_block: i32,
     pub event_index_in_tx: i32,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageWeb3Log> for api::Log {
@@ -47,6 +48,7 @@ impl From<StorageWeb3Log> for api::Log {
             transaction_log_index: Some(U256::from(log.event_index_in_tx as u32)),
             log_type: None,
             removed: Some(false),
+            block_timestamp: log.block_timestamp.map(|t| (t as u64).into()),
         }
     }
 }

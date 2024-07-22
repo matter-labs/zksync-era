@@ -1,5 +1,6 @@
 [package]
 name = "zksync_da_client"
+description = "ZKsync DA client definition"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

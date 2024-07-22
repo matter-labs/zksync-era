@@ -17,9 +17,7 @@ use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode}
 use zksync_consistency_checker::ConsistencyChecker;
 use zksync_core_leftovers::setup_sigint_handler;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core};
-use zksync_db_connection::{
-    connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
-};
+use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_metadata_calculator::{
     api_server::{TreeApiClient, TreeApiHttpClient},
@@ -105,7 +103,6 @@ async fn build_state_keeper(
         Box::new(main_node_client.for_component("external_io")),
         chain_id,
     )
-    .await
     .context("Failed initializing I/O for external node state keeper")?;
 
     Ok(ZkSyncStateKeeper::new(
@@ -725,10 +722,6 @@ struct Cli {
     external_node_config_path: Option<std::path::PathBuf>,
     /// Path to the yaml with consensus.
     consensus_path: Option<std::path::PathBuf>,
-
-    /// Run the node using the node framework.
-    #[arg(long)]
-    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
@@ -825,8 +818,11 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed fetching remote part of node config from main node")?;
 
+    // Can be used to force the old approach to the external node.
+    let force_old_approach = std::env::var("EXTERNAL_NODE_OLD_APPROACH").is_ok();
+
     // If the node framework is used, run the node.
-    if opt.use_node_framework {
+    if !force_old_approach {
         // We run the node from a different thread, since the current thread is in tokio context.
         std::thread::spawn(move || {
             let node =
@@ -840,6 +836,8 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    tracing::info!("Running the external node in the old approach");
+
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
@@ -848,7 +846,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     RUST_METRICS.initialize();
-    EN_METRICS.observe_config(&config);
+    EN_METRICS.observe_config(
+        config.required.l1_chain_id,
+        config.required.l2_chain_id,
+        config.postgres.max_connections,
+    );
 
     let singleton_pool_builder = ConnectionPool::singleton(config.postgres.database_url());
     let connection_pool = ConnectionPool::<Core>::builder(
@@ -910,9 +912,6 @@ async fn run_node(
     ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
-    )))?;
-    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
-        connection_pool.clone(),
     )))?;
 
     // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
@@ -976,7 +975,10 @@ async fn run_node(
                     .snapshots_recovery_drop_storage_key_preimages,
                 object_store_config: config.optional.snapshots_recovery_object_store.clone(),
             });
+    // Note: while stop receiver is passed there, it won't be respected, since we wait this task
+    // to complete. Will be fixed after migration to the node framework.
     ensure_storage_initialized(
+        stop_receiver.clone(),
         connection_pool.clone(),
         main_node_client.clone(),
         &app_health,

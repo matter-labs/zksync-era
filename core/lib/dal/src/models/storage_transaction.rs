@@ -296,7 +296,7 @@ impl From<StorageTransaction> for Transaction {
         let hash = H256::from_slice(&tx.hash);
         let execute = serde_json::from_value::<Execute>(tx.data.clone())
             .unwrap_or_else(|_| panic!("invalid json in database for tx {:?}", hash));
-        let received_timestamp_ms = tx.received_at.timestamp_millis() as u64;
+        let received_timestamp_ms = tx.received_at.and_utc().timestamp_millis() as u64;
         match tx.tx_format {
             Some(t) if t == i32::from(PRIORITY_OPERATION_L2_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
@@ -337,6 +337,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {

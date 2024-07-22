@@ -55,7 +55,7 @@ installation as a pre-requisite, alongside these machine specs:
 2. Run the server. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler,vm_runner_bwip
    ```
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
@@ -176,8 +176,8 @@ There is an option to run compressors with the GPU, which will significantly imp
 2. Install and compile `era-bellman-cuda` library
 
    ```console
-   git clone https://github.com/matter-labs/bellman-cuda.git --branch dev bellman-cuda
-   cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release
+   git clone https://github.com/matter-labs/era-bellman-cuda
+   cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
    cmake --build bellman-cuda/build/
    ```
 
@@ -202,7 +202,7 @@ There is an option to run compressors with the GPU, which will significantly imp
 6. Run the compressor using:
 
    ```console
-   zk f cargo run ---features "gpu" --release --bin zksync_proof_fri_compressor
+   zk f cargo run --features "gpu" --release --bin zksync_proof_fri_compressor
    ```
 
 ## Checking the status of the prover

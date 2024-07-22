@@ -7,6 +7,7 @@ use crate::traits::FileConfig;
 pub struct RegisterChainOutput {
     pub diamond_proxy_addr: Address,
     pub governance_addr: Address,
+    pub chain_admin_addr: Address,
 }
 
 impl FileConfig for RegisterChainOutput {}

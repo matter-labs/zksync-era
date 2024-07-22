@@ -3,7 +3,6 @@ use std::{str::FromStr, sync::Mutex};
 use anyhow::Context as _;
 use hex::ToHex;
 use once_cell::sync::Lazy;
-use structopt::lazy_static::lazy_static;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_vks_and_params_commitment, compute_node_vk_commitment,
 };
@@ -23,14 +22,6 @@ use crate::{
 };
 
 static KEYSTORE: Lazy<Mutex<Option<Keystore>>> = Lazy::new(|| Mutex::new(None));
-
-lazy_static! {
-    // TODO: do not initialize a static const with data read in runtime.
-    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| {
-        let keystore = KEYSTORE.lock().unwrap().clone().unwrap_or_default();
-        circuit_commitments(&keystore).unwrap()
-    });
-}
 
 fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments(keystore).context("generate_commitments()")?;
@@ -108,8 +99,12 @@ pub fn get_cached_commitments(setup_data_path: Option<String>) -> L1VerifierConf
         let mut keystore_lock = KEYSTORE.lock().unwrap();
         *keystore_lock = Some(keystore);
     }
-    tracing::info!("Using cached commitments {:?}", **COMMITMENTS);
-    **COMMITMENTS
+
+    let keystore = KEYSTORE.lock().unwrap().clone().unwrap_or_default();
+    let commitments = circuit_commitments(&keystore).unwrap();
+
+    tracing::info!("Using cached commitments {:?}", commitments);
+    commitments
 }
 
 #[test]

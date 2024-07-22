@@ -148,13 +148,26 @@ describe('web3 API compatibility tests', () => {
         await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
 
+    test('Should check the syncing status', async () => {
+        // We can't know whether the node is synced (in EN case), so we just check the validity of the response.
+        const response = await alice.provider.send('eth_syncing', []);
+        // Sync status is either `false` or an object with the following fields.
+        if (response !== false) {
+            const expectedObject = {
+                currentBlock: expect.stringMatching(HEX_VALUE_REGEX),
+                highestBlock: expect.stringMatching(HEX_VALUE_REGEX),
+                startingBlock: expect.stringMatching(HEX_VALUE_REGEX)
+            };
+            expect(response).toMatchObject(expectedObject);
+        }
+    });
+
     // @ts-ignore
     test.each([
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
         ['eth_protocolVersion', [], 'zks/1'],
-        ['eth_syncing', [], false],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],
@@ -742,6 +755,32 @@ describe('web3 API compatibility tests', () => {
         });
         expect(logs).toHaveLength(1);
         expect(logs[0].transactionHash).toEqual(tx.hash);
+    });
+
+    test('Should check getLogs returns block_timestamp', async () => {
+        // We're sending a transfer from the wallet, so we'll use a new account to make event unique.
+        let uniqueRecipient = testMaster.newEmptyAccount().address;
+        const tx = await alice.transfer({
+            to: uniqueRecipient,
+            amount: 1,
+            token: l2Token
+        });
+        const receipt = await tx.wait();
+        const response = await alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: ethers.toBeHex(receipt.blockNumber),
+                toBlock: ethers.toBeHex(receipt.blockNumber),
+                address: l2Token,
+                topics: [
+                    '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+                    ethers.zeroPadValue(alice.address, 32),
+                    ethers.zeroPadValue(uniqueRecipient, 32)
+                ]
+            }
+        ]);
+        expect(response).toHaveLength(1);
+        // TODO: switch to provider.getLogs once blockTimestamp is added to zksync ethers.js
+        expect(response[0].blockTimestamp).toBeDefined();
     });
 
     test('Should check getLogs endpoint works properly with block tags', async () => {
