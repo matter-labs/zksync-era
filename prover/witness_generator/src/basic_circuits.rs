@@ -362,7 +362,7 @@ async fn save_recursion_queue(
     (circuit_id, blob_url, basic_circuit_count)
 }
 
-async fn generate_witness(
+pub async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     input: WitnessInputData,

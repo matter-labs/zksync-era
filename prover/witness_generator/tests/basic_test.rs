@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+
 use std::time::Instant;
 
 use serde::Serialize;
@@ -10,9 +12,9 @@ use zksync_types::{
     L1BatchNumber,
 };
 use zksync_witness_generator::{
+    basic_circuits::generate_witness,
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
-    node_aggregation,
-    node_aggregation::NodeAggregationWitnessGenerator,
+    node_aggregation::{self, NodeAggregationWitnessGenerator},
     utils::AggregationWrapper,
 };
 
@@ -105,4 +107,27 @@ async fn test_node_witness_gen() {
     let artifacts = NodeAggregationWitnessGenerator::process_job_sync(job, Instant::now());
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
     compare_serialized(&expected_aggregation, &aggregations);
+}
+
+#[ignore = "For manual running only"]
+#[tokio::test]
+async fn test_basic_witness_gen() {
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/bwg/".to_owned(),
+        },
+        max_retries: 5,
+        local_mirror_path: None,
+    };
+    let object_store = ObjectStoreFactory::new(object_store_config)
+        .create_store()
+        .await
+        .unwrap();
+
+    let block_number = L1BatchNumber(10783);
+
+    let input = object_store.get(block_number).await.unwrap();
+
+    let (_circuit_urls, _queue_urls, _scheduler_witness, _aux_output_witness) =
+        generate_witness(block_number, &*object_store, input).await;
 }
