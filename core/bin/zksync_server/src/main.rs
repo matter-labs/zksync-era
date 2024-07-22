@@ -140,18 +140,32 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let secrets: Secrets = match opt.secrets_path {
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
-                .context("failed decoding secrets YAML config")?
+    let secrets: Secrets = {
+        let consensus_secrets =
+            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
+
+        match opt.secrets_path {
+            Some(path) => {
+                let yaml =
+                    std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+
+                let mut secrets =
+                    decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
+                        .context("failed decoding secrets YAML config")?;
+
+                // Since secrets can be defined in two files, allow the convention of only specifying consensus secrets in one place.
+                if secrets.consensus.is_none() {
+                    secrets.consensus = consensus_secrets;
+                }
+
+                secrets
+            }
+            None => Secrets {
+                consensus: consensus_secrets,
+                database: DatabaseSecrets::from_env().ok(),
+                l1: L1Secrets::from_env().ok(),
+            },
         }
-        None => Secrets {
-            consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
-            database: DatabaseSecrets::from_env().ok(),
-            l1: L1Secrets::from_env().ok(),
-        },
     };
 
     let consensus = config::read_consensus_config().context("read_consensus_config()")?;
