@@ -24,15 +24,9 @@ bitcoin network.
 ```rust
 use via_btc_client;
 
-let client = via_btc_client::Client::new(
-    BTC_RPC_URL
-);
-
-let bitcoin_signer = via_btc_client::BitcoinSigner::new(
-    BTC_PRIVATE_KEY,
-);
-
 let bitcoin_inscriber = via_btc_client::BitcoinInscriber::new(
+    BTC_RPC_URL
+    BTC_PRIVATE_KEY,
     inscription_config,
     client,
     bitcoin_signer
@@ -50,14 +44,29 @@ let is_confirmed = bitcoin_inscriber.is_tx_confirmed(txid);
 ```rust
 use via_btc_client;
 
-let client = via_btc_client::Client::new(
-    BTC_RPC_URL
-);
-
 let indexer = via_btc_client::Indexer::new(
+    BTC_RPC_URL,
     client
 );
 
 let block_number = BLOCK_NUMBER;
 let inscription_messages : Vec<via_btc_client::InscriptionMessage> = indexer.get_specific_block_inscription_messages(block_number);
+```
+
+## Inscription Transaction Flow 
+```
+  1. unlock all available UTXOs for the source address
+  2. create inscription output with using Taproot approach (stack data): 
+      - **PUBKEY** 
+      - OP_CHECKSIG 
+      - OP_FALSE OP_IF 
+      - **INSCRIPTION DATA** 
+      - OP_ENDIF
+  3. create a P2WPKH change output to send the remaining funds back to the source address
+  4. create a transaction with the inputs and outputs
+  5. sign the transaction with the private key
+  6. broadcast the transaction to the network
+
+  ps. unlock all available UTXO and send the remaining funds back to the source address helps us
+      to avoid solving utxo selection problem and we call it the UTXO aggregation approach.
 ```
