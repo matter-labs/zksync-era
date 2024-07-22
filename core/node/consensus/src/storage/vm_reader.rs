@@ -5,7 +5,7 @@ use zksync_basic_types::{
     ethabi::Bytes,
     web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
 };
-use zksync_concurrency::ctx::Ctx;
+use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
 use zksync_contracts::consensus_l2_contracts;
 use zksync_node_api_server::{
     execution_sandbox::{BlockArgs, BlockStartInfo},
@@ -56,7 +56,7 @@ impl VMReader {
         ctx: &Ctx,
         block_id: BlockId,
     ) -> anyhow::Result<(Vec<CommitteeValidator>, Vec<CommitteeAttester>)> {
-        let mut conn = self.pool.connection(ctx).await.unwrap().0;
+        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
         let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
             .await
             .unwrap();
