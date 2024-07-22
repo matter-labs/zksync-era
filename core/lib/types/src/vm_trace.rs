@@ -290,6 +290,27 @@ impl Call {
             calls,
         }
     }
+
+    /// Direct call to the bootloader.
+    /// This is the call that is done by VM itself, when it tells bootloader
+    /// to execute the next transaction.
+    /// We often add it at the bottom of the call stack (as this is the 'root' call).
+    pub fn new_bootloader() -> Self {
+        Self {
+            r#type: CallType::Call(FarCallOpcode::Normal),
+            from: Address::zero(),
+            to: BOOTLOADER_ADDRESS,
+            parent_gas: u32::MAX as u64,
+            gas: u32::MAX as u64,
+            gas_used: 0,
+            value: 0.into(),
+            input: vec![],
+            output: vec![],
+            error: None,
+            revert_reason: None,
+            calls: vec![],
+        }
+    }
 }
 
 impl PartialEq for Call {

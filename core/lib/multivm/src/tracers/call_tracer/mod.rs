@@ -38,8 +38,14 @@ impl Drop for CallTracer {
 
 impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
+        // At the bottom of the stack, is our 'bootloader' frame that we call directly.
+        let bootloader_frame = FarcallAndNearCallCount {
+            farcall: Call::new_bootloader(),
+            near_calls_after: 0,
+            stack_depth_on_prefix: 0,
+        };
         Self {
-            stack: vec![],
+            stack: vec![bootloader_frame],
             result,
             max_stack_depth: 0,
             max_near_calls: 0,
