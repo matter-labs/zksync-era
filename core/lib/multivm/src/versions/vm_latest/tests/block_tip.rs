@@ -22,8 +22,9 @@ use crate::{
             BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
             MAX_VM_PUBDATA_PER_BATCH,
         },
-        tests::tester::{
-            default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder,
+        tests::{
+            tester::{default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder},
+            utils::initialize_message_root_storage,
         },
         tracers::PubdataTracer,
         HistoryEnabled, L1BatchEnv, TracerDispatcher,
@@ -143,6 +144,8 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .with_random_rich_accounts(1)
         .with_l1_batch_env(batch_env)
         .build();
+
+    initialize_message_root_storage(vm.storage);
 
     let bytecodes = test_data
         .bytecodes

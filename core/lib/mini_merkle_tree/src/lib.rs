@@ -13,8 +13,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use once_cell::sync::OnceCell;
-
 #[cfg(test)]
 mod tests;
 
@@ -326,18 +324,36 @@ enum Side {
 pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Returns the hash of an empty subtree with the given depth.
     /// Implementations are encouraged to cache the returned values.
-    fn empty_subtree_hash(&self, depth: usize) -> H256;
+    fn empty_subtree_hash(&self, depth: usize) -> H256 {
+        // static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
+        // EMPTY_TREE_HASHES.get_or_init(||
+
+        compute_empty_tree_hashes(self.empty_leaf_hash())[depth] //)[depth]
+    }
+
+    /// Returns an empty hash
+    fn empty_leaf_hash(&self) -> H256;
 }
 
 impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
-    fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_HASHES.get_or_init(|| compute_empty_tree_hashes(self.hash_bytes(&[0; 88])))[depth]
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 88])
     }
 }
 
-/// Given the leaf hash, computes successive hashes of empty subtrees up to the maximum depth.
-pub fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
+impl HashEmptySubtree<[u8; 96]> for KeccakHasher {
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 96])
+    }
+}
+
+// impl HashEmptySubtree<H256> for KeccakHasher {
+//     fn empty_leaf_hash(&self) -> H256 {
+//         self.hash_bytes(&self.0)
+//     }
+// }
+
+fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(KeccakHasher.compress(hash, hash))
     })

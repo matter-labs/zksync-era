@@ -9,7 +9,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{get_empty_storage, VmTesterBuilder},
-            utils::get_balance,
+            utils::{get_balance, initialize_message_root_storage},
         },
         HistoryEnabled,
     },
@@ -69,6 +69,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
             (recipeint_bytecode, recipient_address, false),
         ])
         .build();
+    initialize_message_root_storage(vm.storage);
 
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
@@ -164,6 +165,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
             ),
         ])
         .build();
+    initialize_message_root_storage(vm.storage);
 
     // First transaction, the job of which is to warm up the slots for balance of the recipient as well as its storage variable.
     let account = &mut vm.rich_accounts[0];

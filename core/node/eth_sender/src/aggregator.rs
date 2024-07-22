@@ -190,35 +190,39 @@ impl Aggregator {
         let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
         let mut priority_ops_proofs = vec![];
         for batch in l1_batches.iter() {
-            let first_priority_op_id = match storage
+            let first_priority_op_id_option = match storage
                 .blocks_dal()
                 .get_batch_first_priority_op_id(batch.header.number)
                 .await
                 .unwrap()
             {
                 // Batch has no priority ops, no proofs to send
-                None => return Default::default(),
+                None => None,
                 // We haven't started to use the priority tree in the contracts yet
-                Some(id) if id < priority_tree_start_index => return Default::default(),
-                Some(id) => id,
+                Some(id) if id < priority_tree_start_index => None,
+                Some(id) => Some(id),
             };
 
             let count = batch.header.l1_tx_count as usize;
-            self.priority_merkle_tree.trim_start(
-                first_priority_op_id // global index
-                    - priority_tree_start_index // first index when tree is activated
-                    - self.priority_merkle_tree.start_index(), // first index in the tree
-            );
-            let (_, left, right) = self
-                .priority_merkle_tree
-                .merkle_root_and_paths_for_range(0..count);
-            let hashes = self.priority_merkle_tree.hashes_prefix(count);
-            priority_ops_proofs.push(PriorityOpsMerkleProof {
-                // TODO: are zero hashes fine or should we pack it?
-                left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
-                right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
-                hashes,
-            });
+            if let Some(first_priority_op_id) = first_priority_op_id_option {
+                self.priority_merkle_tree.trim_start(
+                    first_priority_op_id // global index
+                        - priority_tree_start_index // first index when tree is activated
+                        - self.priority_merkle_tree.start_index(), // first index in the tree
+                );
+                let (_, left, right) = self
+                    .priority_merkle_tree
+                    .merkle_root_and_paths_for_range(0..count);
+                let hashes = self.priority_merkle_tree.hashes_prefix(count);
+                priority_ops_proofs.push(PriorityOpsMerkleProof {
+                    // TODO: are zero hashes fine or should we pack it?
+                    left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
+                    right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
+                    hashes,
+                });
+            } else {
+                priority_ops_proofs.push(Default::default());
+            }
         }
 
         Some(ExecuteBatches {

@@ -12,6 +12,7 @@ use ethabi::Token;
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::Tokenize};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_crypto::hasher::Hasher;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
@@ -93,6 +94,9 @@ pub struct L1BatchMetadata {
     /// commitment to the transactions in the batch.
     pub bootloader_initial_content_commitment: Option<H256>,
     pub state_diffs_compressed: Vec<u8>,
+
+    pub aggregation_root: H256,
+    pub local_root: H256,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -311,6 +315,8 @@ pub enum L1BatchAuxiliaryOutput {
         aux_commitments: AuxCommitments,
         blob_linear_hashes: Vec<H256>,
         blob_commitments: Vec<H256>,
+        aggregated_root: H256,
+        local_root: H256,
     },
 }
 
@@ -361,16 +367,20 @@ impl L1BatchAuxiliaryOutput {
                 aux_commitments,
                 blob_commitments,
                 blob_linear_hashes,
+                aggregated_root,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
-                let l2_l1_logs_merkle_root = MiniMerkleTree::new(
+                let local_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
                     Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
+
+                let l2_l1_logs_merkle_root = zksync_crypto::hasher::keccak::KeccakHasher
+                    .compress(&local_root, &aggregated_root);
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
@@ -426,8 +436,27 @@ impl L1BatchAuxiliaryOutput {
                     aux_commitments,
                     blob_linear_hashes,
                     blob_commitments,
+                    local_root,
+                    aggregated_root,
                 }
             }
+        }
+    }
+
+    pub fn get_local_root(&self) -> H256 {
+        match self {
+            // FIXME for pre boojum this is incorrect
+            Self::PreBoojum { .. } => H256::zero(),
+            Self::PostBoojum { local_root, .. } => *local_root,
+        }
+    }
+
+    pub fn get_aggregated_root(&self) -> H256 {
+        match self {
+            Self::PreBoojum { .. } => H256::zero(),
+            Self::PostBoojum {
+                aggregated_root, ..
+            } => *aggregated_root,
         }
     }
 
@@ -667,6 +696,8 @@ impl L1BatchCommitment {
             state_diff_hash,
             compressed_initial_writes,
             compressed_repeated_writes,
+            local_root: self.auxiliary_output.get_local_root(),
+            aggregation_root: self.auxiliary_output.get_aggregated_root(),
         }
     }
 }
@@ -705,6 +736,7 @@ pub enum CommitmentInput {
         blob_commitments: Vec<H256>,
         // FIXME: figure out whether it will work for the old server
         blob_linear_hashes: Vec<H256>,
+        aggregated_root: H256,
     },
 }
 
@@ -755,6 +787,7 @@ impl CommitmentInput {
 
                     vec![H256::zero(); num_blobs]
                 },
+                aggregated_root: H256::zero(),
             }
         }
     }
@@ -764,6 +797,8 @@ impl CommitmentInput {
 pub struct L1BatchCommitmentArtifacts {
     pub commitment_hash: L1BatchCommitmentHash,
     pub l2_l1_merkle_root: H256,
+    pub aggregation_root: H256,
+    pub local_root: H256,
     pub compressed_state_diffs: Option<Vec<u8>>,
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,

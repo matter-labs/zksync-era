@@ -2,11 +2,10 @@
 
 use std::convert::TryFrom;
 
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
 use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
-use zksync_mini_merkle_tree::{compute_empty_tree_hashes, HashEmptySubtree};
+use zksync_mini_merkle_tree::HashEmptySubtree;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
 };
@@ -214,9 +213,8 @@ pub struct L1Tx {
 }
 
 impl HashEmptySubtree<L1Tx> for KeccakHasher {
-    fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_HASHES.get_or_init(|| compute_empty_tree_hashes(self.hash_bytes(&[])))[depth]
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[])
     }
 }
 

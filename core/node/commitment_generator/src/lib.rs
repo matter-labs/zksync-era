@@ -18,9 +18,9 @@ use zksync_types::{
     event::convert_vm_events_to_log_queries,
     web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    L1BatchNumber, ProtocolVersionId, StorageKey, H256,
+    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L2_MESSAGE_ROOT_ADDRESS,
 };
-use zksync_utils::h256_to_u256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
@@ -195,7 +195,6 @@ impl CommitmentGenerator {
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&touched_hashed_keys)
             .await?;
-        drop(connection);
 
         let mut input = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
@@ -287,6 +286,66 @@ impl CommitmentGenerator {
                 )
             };
 
+            let right_block = connection
+                .blocks_dal()
+                .get_l2_block_range_of_l1_batch(l1_batch_number)
+                .await?
+                .expect("No range for batch")
+                .1;
+
+            let message_root_addr = L2_MESSAGE_ROOT_ADDRESS;
+
+            println!("message_root_addr = {:#?}", message_root_addr);
+
+            const FULL_TREE_SLOT: usize = 4;
+            const NODES_SLOT: usize = 6;
+
+            let agg_tree_height_slot = StorageKey::new(
+                AccountTreeId::new(message_root_addr),
+                u256_to_h256(FULL_TREE_SLOT.into()),
+            );
+
+            let agg_tree_height = connection
+                .storage_web3_dal()
+                .get_historical_value_unchecked(&agg_tree_height_slot, right_block)
+                .await?;
+            let agg_tree_height = h256_to_u256(agg_tree_height);
+
+            println!("Agg tree height: {}", agg_tree_height);
+
+            let nodes_slot_position_enoded = u256_to_h256(U256::from(NODES_SLOT));
+
+            println!(
+                "nodes_slot_position_enoded: {:#?}",
+                nodes_slot_position_enoded
+            );
+            let nodes_slot_position_enoded = H256(keccak256(&nodes_slot_position_enoded.0));
+            println!(
+                "nodes_slot_position_enoded2: {:#?}",
+                nodes_slot_position_enoded
+            );
+
+            let nodes_slot_position_enoded =
+                u256_to_h256(h256_to_u256(nodes_slot_position_enoded) + agg_tree_height);
+            println!(
+                "nodes_slot_position_enoded3: {:#?}",
+                nodes_slot_position_enoded
+            );
+
+            let root_slot_offset = H256(keccak256(&nodes_slot_position_enoded.0));
+            println!("root_slot_offset: {:#?}", nodes_slot_position_enoded);
+
+            let root_slot =
+                StorageKey::new(AccountTreeId::new(message_root_addr), root_slot_offset);
+            let aggregated_root = connection
+                .storage_web3_dal()
+                .get_historical_value_unchecked(&root_slot, right_block)
+                .await?;
+
+            println!("aggregated_root: {:#?}", aggregated_root);
+
+            // let root_slot_offset = H256(keccak256(&nodes_slot_position_enoded.0));
+
             CommitmentInput::PostBoojum {
                 common,
                 system_logs: header.system_logs,
@@ -294,6 +353,7 @@ impl CommitmentGenerator {
                 aux_commitments,
                 blob_commitments,
                 blob_linear_hashes,
+                aggregated_root,
             }
         };
 

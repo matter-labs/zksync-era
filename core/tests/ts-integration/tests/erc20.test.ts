@@ -11,6 +11,7 @@ import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { sleep } from 'zksync-ethers/build/utils';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -141,8 +142,7 @@ describe('ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
     });
 
-    // FIXME: restore test
-    test.skip('Can perform a withdrawal', async () => {
+    test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -155,7 +155,9 @@ describe('ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: tokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+        // await withdrawalTx.waitFinalize();
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -165,11 +167,12 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
+        await sleep(25000);
+
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
-    // FIXME: restore test
-    test.skip('Should claim failed deposit', async () => {
+    test('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -197,6 +200,9 @@ describe('ERC20 contract checks', () => {
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+
+        await sleep(25000);
+
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);

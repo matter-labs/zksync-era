@@ -1,7 +1,10 @@
 use crate::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
     vm_latest::{
-        tests::tester::{TxType, VmTesterBuilder},
+        tests::{
+            tester::{TxType, VmTesterBuilder},
+            utils::initialize_message_root_storage,
+        },
         HistoryDisabled,
     },
 };
@@ -38,6 +41,8 @@ fn simple_execute() {
         .with_deployer()
         .with_random_rich_accounts(1)
         .build();
+
+    initialize_message_root_storage(vm_tester.storage.clone());
 
     vm_tester.deploy_test_contract();
 

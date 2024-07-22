@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -5,7 +7,8 @@ use zksync_contracts::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256,
+    L2_MESSAGE_ROOT_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -130,4 +133,43 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
     load_contract(
         "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
     )
+}
+
+pub(crate) fn initialize_message_root_storage(storage: StoragePtr<InMemoryStorageView>) {
+    let account = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
+    let mut storage_ptr = storage.as_ref().borrow_mut();
+    let initialized_slots = [
+        (
+            "8e94fed44239eb2314ab7a406345e6c5a8f0ccedf3b600de3d004e672c33abf4",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "0000000000000000000000000000000000000000000000000000000000000007",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "a66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688",
+            "46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21",
+        ),
+        (
+            "0000000000000000000000000000000000000000000000000000000000000006",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "f652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "b868bdfa8727775661e4ccf117824a175a33f8703d728c04488fbfffcafda9f9",
+            "46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21",
+        ),
+    ];
+
+    initialized_slots.iter().for_each(|(k, v)| {
+        let key = H256::from_str(k).unwrap();
+        let value = H256::from_str(v).unwrap();
+
+        let storage_key = StorageKey::new(account, key);
+        storage_ptr.set_value(storage_key, value);
+    });
 }
