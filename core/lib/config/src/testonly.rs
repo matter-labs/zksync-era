@@ -438,6 +438,16 @@ impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
     }
 }
 
+impl Distribution<configs::fri_prover::CloudType> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudType {
+        type T = configs::fri_prover::CloudType;
+        match rng.gen_range(0..1) {
+            0 => T::GCP,
+            _ => T::Local,
+        }
+    }
+}
+
 impl Distribution<configs::FriProverConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProverConfig {
         configs::FriProverConfig {
@@ -454,6 +464,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             availability_check_interval_in_secs: self.sample(rng),
             prover_object_store: self.sample(rng),
             public_object_store: self.sample(rng),
+            cloud_type: self.sample(rng),
         }
     }
 }

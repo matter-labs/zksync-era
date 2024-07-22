@@ -41,5 +41,6 @@ serde = { workspace = true, features = ["derive"] }
 wrapper_prover = { workspace = true, optional = true }
 
 [features]
+default = []
 gpu = ["wrapper_prover"]
 

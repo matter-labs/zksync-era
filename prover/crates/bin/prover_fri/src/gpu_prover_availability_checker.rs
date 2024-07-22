@@ -4,6 +4,7 @@ pub mod availability_checker {
 
     use tokio::sync::Notify;
     use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+    use zksync_prover_fri_utils::region_fetcher::Zone;
     use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::metrics::{KillingReason, METRICS};
@@ -12,7 +13,7 @@ pub mod availability_checker {
     /// If the prover instance is not found in the database or marked as dead, the availability checker will shut down the prover.
     pub struct AvailabilityChecker {
         address: SocketAddress,
-        zone: String,
+        zone: Zone,
         polling_interval: Duration,
         pool: ConnectionPool<Prover>,
     }
@@ -20,7 +21,7 @@ pub mod availability_checker {
     impl AvailabilityChecker {
         pub fn new(
             address: SocketAddress,
-            zone: String,
+            zone: Zone,
             polling_interval_secs: u32,
             pool: ConnectionPool<Prover>,
         ) -> Self {
@@ -46,7 +47,7 @@ pub mod availability_checker {
                     .await
                     .unwrap()
                     .fri_gpu_prover_queue_dal()
-                    .get_prover_instance_status(self.address.clone(), self.zone.clone())
+                    .get_prover_instance_status(self.address.clone(), self.zone.to_string())
                     .await;
 
                 // If the prover instance is not found in the database or marked as dead, we should shut down the prover

@@ -2,22 +2,22 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use reqwest::Client;
+use proof_gen_data_fetcher::ProofGenDataFetcher;
+use proof_submitter::ProofSubmitter;
 use tokio::sync::{oneshot, watch};
+use traits::PeriodicApi as _;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
-
-mod api_data_fetcher;
+mod client;
 mod metrics;
 mod proof_gen_data_fetcher;
 mod proof_submitter;
+mod traits;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -65,20 +65,16 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
-    let proof_submitter = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await?,
-        pool: pool.clone(),
-        api_url: format!("{}{SUBMIT_PROOF_PATH}", config.api_url),
-        poll_duration: config.api_poll_duration(),
-        client: Client::new(),
-    };
-    let proof_gen_data_fetcher = PeriodicApiStruct {
-        blob_store: store_factory.create_store().await?,
+    let proof_submitter = ProofSubmitter::new(
+        store_factory.create_store().await?,
+        config.api_url.clone(),
+        pool.clone(),
+    );
+    let proof_gen_data_fetcher = ProofGenDataFetcher::new(
+        store_factory.create_store().await?,
+        config.api_url.clone(),
         pool,
-        api_url: format!("{}{PROOF_GENERATION_DATA_PATH}", config.api_url),
-        poll_duration: config.api_poll_duration(),
-        client: Client::new(),
-    };
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -98,10 +94,8 @@ async fn main() -> anyhow::Result<()> {
             PrometheusExporterConfig::pull(config.prometheus_listener_port)
                 .run(stop_receiver.clone()),
         ),
-        tokio::spawn(
-            proof_gen_data_fetcher.run::<ProofGenerationDataRequest>(stop_receiver.clone()),
-        ),
-        tokio::spawn(proof_submitter.run::<SubmitProofRequest>(stop_receiver)),
+        tokio::spawn(proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone())),
+        tokio::spawn(proof_submitter.run(config.api_poll_duration(), stop_receiver)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks);
