@@ -379,7 +379,7 @@ impl L1BatchAuxiliaryOutput {
                 )
                 .merkle_root();
 
-                let l2_l1_logs_merkle_root = zksync_crypto::hasher::keccak::KeccakHasher::default()
+                let l2_l1_logs_merkle_root = zksync_crypto::hasher::keccak::KeccakHasher
                     .compress(&local_root, &aggregated_root);
 
                 let common_output = L1BatchAuxiliaryCommonOutput {

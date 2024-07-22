@@ -207,10 +207,9 @@ impl LeafAggProof {
         let LeafAggProof {
             batch_leaf_proof,
             batch_leaf_proof_mask,
-            chain_id_leaf_proof,
             chain_id_leaf_proof_mask,
-            local_msg_root,
             sl_batch_number,
+            ..
         } = self;
 
         let batch_leaf_proof_len = batch_leaf_proof.len() as u32;

@@ -18,8 +18,7 @@ use zksync_types::{
     event::convert_vm_events_to_log_queries,
     web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L1_MESSENGER_ADDRESS,
-    L2_MESSAGE_ROOT_ADDRESS,
+    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L2_MESSAGE_ROOT_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -294,16 +293,9 @@ impl CommitmentGenerator {
                 .expect("No range for batch")
                 .1;
 
-            let message_root_key = StorageKey::new(
-                AccountTreeId::new(L1_MESSENGER_ADDRESS),
-                u256_to_h256(4.into()),
-            );
-
             let message_root_addr = L2_MESSAGE_ROOT_ADDRESS;
 
             println!("message_root_addr = {:#?}", message_root_addr);
-
-            let mut aggregated_root = H256::zero();
 
             const FULL_TREE_SLOT: usize = 4;
             const NODES_SLOT: usize = 6;
@@ -345,7 +337,7 @@ impl CommitmentGenerator {
 
             let root_slot =
                 StorageKey::new(AccountTreeId::new(message_root_addr), root_slot_offset);
-            aggregated_root = connection
+            let aggregated_root = connection
                 .storage_web3_dal()
                 .get_historical_value_unchecked(&root_slot, right_block)
                 .await?;

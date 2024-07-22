@@ -138,7 +138,7 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
 pub(crate) fn initialize_message_root_storage(storage: StoragePtr<InMemoryStorageView>) {
     let account = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
     let mut storage_ptr = storage.as_ref().borrow_mut();
-    let initialized_slots = vec![
+    let initialized_slots = [
         (
             "8e94fed44239eb2314ab7a406345e6c5a8f0ccedf3b600de3d004e672c33abf4",
             "0000000000000000000000000000000000000000000000000000000000000001",
