@@ -15,7 +15,7 @@ pub fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     shell.change_dir(ecosystem_config.link_to_code.join(REVERT_TESTS_PATH));
 
     logger::info(MSG_REVERT_TEST_RUN_INFO);
-    install_and_build_dependencies(shell, &args, &ecosystem_config)?;
+    install_and_build_dependencies(shell, &ecosystem_config)?;
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_REVERT_TEST_RUN_SUCCESS);
 
@@ -24,22 +24,12 @@ pub fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
 
 fn install_and_build_dependencies(
     shell: &Shell,
-    args: &RevertArgs,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
     let spinner = Spinner::new(MSG_REVERT_TEST_INSTALLING_DEPENDENCIES);
     Cmd::new(cmd!(shell, "yarn install")).run()?;
     Cmd::new(cmd!(shell, "yarn utils build")).run()?;
-
-    // Build external node if necessary
-    if args.external_node {
-        Cmd::new(cmd!(
-            shell,
-            "cargo build --release --bin zksync_external_node"
-        ))
-        .run()?;
-    }
 
     spinner.finish();
     Ok(())
