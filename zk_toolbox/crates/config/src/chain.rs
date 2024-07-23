@@ -6,17 +6,13 @@ use std::{
 use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, ChainId, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
-use zksync_config::configs::GeneralConfig as ZkSyncGeneralConfig;
-use zksync_protobuf_config::encode_yaml_repr;
 
 use crate::{
-    consts::{
-        CONFIG_NAME, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, L1_CONTRACTS_FOUNDRY,
-        SECRETS_FILE, WALLETS_FILE,
-    },
+    consts::{CONFIG_NAME, GENERAL_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE},
     create_localhost_wallets,
     traits::{
-        FileConfig, FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath,
+        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
+        SaveConfigWithBasePath, ZkToolboxConfig,
     },
     ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
@@ -73,11 +69,11 @@ impl ChainConfig {
     }
 
     pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
-        GenesisConfig::read(self.get_shell(), self.configs.join(GENESIS_FILE))
+        GenesisConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        GeneralConfig::read(self.get_shell(), self.configs.join(GENERAL_FILE))
+        GeneralConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
@@ -93,11 +89,11 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
-        ContractsConfig::read(self.get_shell(), self.configs.join(CONTRACTS_FILE))
+        ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
-        SecretsConfig::read(self.get_shell(), self.configs.join(SECRETS_FILE))
+        SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn path_to_general_config(&self) -> PathBuf {
@@ -108,13 +104,8 @@ impl ChainConfig {
         self.configs.join(SECRETS_FILE)
     }
 
-    pub fn save_general_config(&self, general_config: &ZkSyncGeneralConfig) -> anyhow::Result<()> {
-        let path = self.configs.join(GENERAL_FILE);
-        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
-            general_config,
-        )?;
-        self.get_shell().write_file(path, bytes)?;
-        Ok(())
+    pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {
+        general_config.save_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn path_to_foundry(&self) -> PathBuf {
@@ -151,4 +142,4 @@ impl FileConfigWithDefaultName for ChainConfigInternal {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl FileConfig for ChainConfigInternal {}
+impl ZkToolboxConfig for ChainConfigInternal {}

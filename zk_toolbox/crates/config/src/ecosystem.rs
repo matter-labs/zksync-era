@@ -17,7 +17,7 @@ use crate::{
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    traits::{FileConfig, FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -90,9 +90,9 @@ impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl FileConfig for EcosystemConfigInternal {}
+impl ZkToolboxConfig for EcosystemConfigInternal {}
 
-impl FileConfig for EcosystemConfig {}
+impl ZkToolboxConfig for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {

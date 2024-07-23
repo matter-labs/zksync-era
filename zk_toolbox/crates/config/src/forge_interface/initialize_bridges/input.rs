@@ -2,9 +2,9 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use types::ChainId;
 
-use crate::{traits::FileConfig, ChainConfig};
+use crate::{traits::ZkToolboxConfig, ChainConfig};
 
-impl FileConfig for InitializeBridgeInput {}
+impl ZkToolboxConfig for InitializeBridgeInput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeInput {

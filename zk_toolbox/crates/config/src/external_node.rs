@@ -5,7 +5,7 @@ use types::{ChainId, L1BatchCommitmentMode};
 
 use crate::{
     consts::EN_CONFIG_FILE,
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -25,4 +25,4 @@ impl FileConfigWithDefaultName for ENConfig {
     const FILE_NAME: &'static str = EN_CONFIG_FILE;
 }
 
-impl FileConfig for ENConfig {}
+impl ZkToolboxConfig for ENConfig {}

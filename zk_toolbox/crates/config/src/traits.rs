@@ -7,7 +7,8 @@ use common::files::{
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
 
-pub trait FileConfig {}
+// Configs that we use only inside zk toolbox, we don't have protobuf implementation for them.
+pub trait ZkToolboxConfig {}
 
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
@@ -17,7 +18,7 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-impl<T: Serialize + FileConfig> SaveConfig for T {
+impl<T: Serialize + ZkToolboxConfig> SaveConfig for T {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, &self, "")
     }
@@ -47,7 +48,7 @@ pub trait ReadConfig: Sized {
 
 impl<T> ReadConfig for T
 where
-    T: DeserializeOwned + Clone + FileConfig,
+    T: DeserializeOwned + Clone + ZkToolboxConfig,
 {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
