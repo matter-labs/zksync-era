@@ -156,7 +156,8 @@ First, download the required `solc`, `zksolc`, `vyper` and `zkvyper` binaries wi
 zk_inception contract-verifier init
 ```
 
-Select the minimum version of each compiler, and the tool will download any missing binaries. These binaries are necessary to compile contracts, as each contract may require a different compiler version.
+Select the minimum version of each compiler, and the tool will download any missing binaries. These binaries are
+necessary to compile contracts, as each contract may require a different compiler version.
 
 Then, run the contract verifier with:
 
