@@ -1,4 +1,21 @@
 use thiserror::Error;
+use bitcoin::Network;
+
+pub enum BitcoinNetwork {
+    Mainnet,
+    Testnet,
+    Regtest,
+}
+
+impl From<BitcoinNetwork> for Network {
+    fn from(network: BitcoinNetwork) -> Self {
+        match network {
+            BitcoinNetwork::Mainnet => Network::Bitcoin,
+            BitcoinNetwork::Testnet => Network::Testnet,
+            BitcoinNetwork::Regtest => Network::Regtest,
+        }
+    }
+}
 
 #[allow(unused)]
 #[derive(Debug, Error)]
@@ -26,6 +43,9 @@ pub enum BitcoinError {
 
     #[error("Fee estimation error: {0}")]
     FeeEstimationFailed(String),
+
+    #[error("Invalid network: {0}")]
+    InvalidNetwork(String),
 
     #[error("Other error: {0}")]
     Other(String),

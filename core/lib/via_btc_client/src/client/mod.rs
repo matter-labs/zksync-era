@@ -22,12 +22,18 @@ pub struct BitcoinClient {
 
 #[async_trait]
 impl BitcoinOps for BitcoinClient {
-    async fn new(rpc_url: &str, network: Network, sender_address: &str) -> BitcoinClientResult<Self>
+    async fn new(rpc_url: &str, network: &str, sender_address: &str) -> BitcoinClientResult<Self>
     where
         Self: Sized,
     {
         // TODO: change rpc_user & rpc_password here, move it to args
         let rpc = Box::new(BitcoinRpcClient::new(rpc_url, "rpcuser", "rpcpassword")?);
+        let network = match network.to_lowercase().as_str() {
+            "mainnet" => Network::Bitcoin,
+            "testnet" => Network::Testnet,
+            "regtest" => Network::Regtest,
+            _ => return Err(BitcoinError::InvalidNetwork(network.to_string())),
+        };
         let sender_address = sender_address
             .parse::<Address<NetworkUnchecked>>()?
             .require_network(network)?;
@@ -111,7 +117,7 @@ mod tests {
         let context = TestContext::setup(None).await;
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
-            Network::Regtest,
+            "regtest",
             &context.test_address.to_string(),
         )
         .await
@@ -127,7 +133,7 @@ mod tests {
         let context = TestContext::setup(None).await;
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
-            Network::Regtest,
+            "regtest",
             &context.test_address.to_string(),
         )
         .await
@@ -148,7 +154,7 @@ mod tests {
         let context = TestContext::setup(None).await;
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
-            Network::Regtest,
+            "regtest",
             &context.test_address.to_string(),
         )
         .await
@@ -168,7 +174,7 @@ mod tests {
         let context = TestContext::setup(None).await;
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
-            Network::Regtest,
+            "regtest",
             &context.test_address.to_string(),
         )
         .await
@@ -188,7 +194,7 @@ mod tests {
         let context = TestContext::setup(None).await;
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
-            Network::Regtest,
+            "regtest",
             &context.test_address.to_string(),
         )
         .await

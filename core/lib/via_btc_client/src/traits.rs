@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin::{Address, Block, Network, OutPoint, Transaction, Txid};
+use bitcoin::{Address, Block, OutPoint, Transaction, Txid};
 
 use crate::types;
 
@@ -8,7 +8,7 @@ use crate::types;
 pub trait BitcoinOps: Send + Sync {
     async fn new(
         rpc_url: &str,
-        network: Network,
+        network: &str,
         sender_address: &str,
     ) -> types::BitcoinClientResult<Self>
     where
