@@ -26,14 +26,6 @@ static KEYSTORE: Lazy<Mutex<Option<Keystore>>> = Lazy::new(|| Mutex::new(None));
 fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments(keystore).context("generate_commitments()")?;
     Ok(L1VerifierConfig {
-        params: VerifierParams {
-            recursion_node_level_vk_hash: H256::from_str(&commitments.node)
-                .context("invalid node commitment")?,
-            recursion_leaf_level_vk_hash: H256::from_str(&commitments.leaf)
-                .context("invalid leaf commitment")?,
-            // The base layer commitment is not used in the FRI prover verification.
-            recursion_circuits_set_vks_hash: H256::zero(),
-        },
         // Instead of loading the FRI scheduler verification key here,
         // we load the SNARK-wrapper verification key.
         // This is due to the fact that these keys are used only for picking the
@@ -105,13 +97,4 @@ pub fn get_cached_commitments(setup_data_path: Option<String>) -> L1VerifierConf
 
     tracing::info!("Using cached commitments {:?}", commitments);
     commitments
-}
-
-#[test]
-fn test_get_cached_commitments() {
-    let commitments = get_cached_commitments(None);
-    assert_eq!(
-        H256::zero(),
-        commitments.params.recursion_circuits_set_vks_hash
-    )
 }

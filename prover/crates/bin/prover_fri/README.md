@@ -142,7 +142,7 @@ Machine specs:
 4. Run the sequencer/operator. In the root of the repository:
 
    ```console
-   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler
+   zk server --components=api,eth,tree,state_keeper,housekeeper,commitment_generator,proof_data_handler,vm_runner_bwip
    ```
 
    to produce blocks to be proven

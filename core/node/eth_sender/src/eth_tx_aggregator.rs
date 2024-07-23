@@ -347,7 +347,7 @@ impl EthTxAggregator {
     ) -> Result<(), EthSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
-            verifier_params,
+            verifier_params: _,
             verifier_address,
             protocol_version_id,
         } = self.get_multicall_data().await.map_err(|err| {
@@ -364,7 +364,6 @@ impl EthTxAggregator {
                 err
             })?;
         let l1_verifier_config = L1VerifierConfig {
-            params: verifier_params,
             recursion_scheduler_level_vk_hash,
         };
         if let Some(agg_op) = self

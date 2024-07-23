@@ -4,7 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     protocol_upgrade::{self, ProtocolUpgradeTx},
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VersionPatch},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VersionPatch},
     H256,
 };
 
@@ -14,9 +14,6 @@ pub struct StorageProtocolVersion {
     pub patch: i32,
     pub timestamp: i64,
     pub recursion_scheduler_level_vk_hash: Vec<u8>,
-    pub recursion_node_level_vk_hash: Vec<u8>,
-    pub recursion_leaf_level_vk_hash: Vec<u8>,
-    pub recursion_circuits_set_vks_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
 }
@@ -32,17 +29,6 @@ pub(crate) fn protocol_version_from_storage(
         },
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {
-            params: VerifierParams {
-                recursion_node_level_vk_hash: H256::from_slice(
-                    &storage_version.recursion_node_level_vk_hash,
-                ),
-                recursion_leaf_level_vk_hash: H256::from_slice(
-                    &storage_version.recursion_leaf_level_vk_hash,
-                ),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &storage_version.recursion_circuits_set_vks_hash,
-                ),
-            },
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &storage_version.recursion_scheduler_level_vk_hash,
             ),

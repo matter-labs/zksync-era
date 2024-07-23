@@ -89,7 +89,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .await?;
 
     let node_l1_verifier_config = L1VerifierConfig {
-        params: node_verifier_params,
         recursion_scheduler_level_vk_hash: node_verification_key_hash,
     };
 
@@ -163,22 +162,5 @@ fn pretty_print_l1_verifier_config(
         "Verifier key",
         node_l1_verifier_config.recursion_scheduler_level_vk_hash,
         db_l1_verifier_config.recursion_scheduler_level_vk_hash,
-    );
-    print_hash_comparison(
-        "Verification node",
-        node_l1_verifier_config.params.recursion_node_level_vk_hash,
-        db_l1_verifier_config.params.recursion_node_level_vk_hash,
-    );
-    print_hash_comparison(
-        "Verification leaf",
-        node_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-        db_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-    );
-    print_hash_comparison(
-        "Verification circuits",
-        node_l1_verifier_config
-            .params
-            .recursion_circuits_set_vks_hash,
-        db_l1_verifier_config.params.recursion_circuits_set_vks_hash,
     );
 }
