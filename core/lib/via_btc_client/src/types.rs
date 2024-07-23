@@ -47,6 +47,9 @@ pub enum BitcoinError {
     #[error("Invalid network: {0}")]
     InvalidNetwork(String),
 
+    #[error("Invalid output point: {0}")]
+    InvalidOutpoint(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }

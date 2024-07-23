@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin::{address::NetworkUnchecked, Address, Network, OutPoint, Txid};
+use bitcoin::{address::NetworkUnchecked, Address, Network, TxOut, Txid};
 use bitcoincore_rpc::json::EstimateMode;
 
 use crate::{
@@ -58,9 +58,18 @@ impl BitcoinOps for BitcoinClient {
         Ok(txid)
     }
 
-    async fn fetch_utxos(&self, address: &Address) -> BitcoinClientResult<Vec<OutPoint>> {
-        let utxos = self.rpc.list_unspent(address).await?;
-        Ok(utxos)
+    async fn fetch_utxos(&self, address: &Address) -> BitcoinClientResult<Vec<TxOut>> {
+        let outpoints = self.rpc.list_unspent(address).await?;
+
+        let mut txouts = Vec::new();
+        for outpoint in outpoints {
+            let tx = self.rpc.get_transaction(&outpoint.txid).await?;
+            let txout = tx.output.get(outpoint.vout as usize)
+                .ok_or(BitcoinError::InvalidOutpoint(outpoint.to_string()))?;
+            txouts.push(txout.clone());
+        }
+
+        Ok(txouts)
     }
 
     async fn check_tx_confirmation(&self, txid: &Txid) -> BitcoinClientResult<bool> {
