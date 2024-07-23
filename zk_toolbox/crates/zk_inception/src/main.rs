@@ -1,4 +1,5 @@
 use clap::{command, Parser, Subcommand};
+use commands::contract_verifier::ContractVerifierCommands;
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -47,8 +48,11 @@ pub enum InceptionSubcommands {
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
-    #[command(subcommand, alias = "up")]
+    #[command(alias = "up")]
     Containers,
+    /// Run contract verifier
+    #[command(subcommand)]
+    ContractVerifier(ContractVerifierCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -102,6 +106,9 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
         InceptionSubcommands::ExternalNode(args) => {
             commands::external_node::run(shell, args).await?
+        }
+        InceptionSubcommands::ContractVerifier(args) => {
+            commands::contract_verifier::run(shell, args).await?
         }
     }
     Ok(())

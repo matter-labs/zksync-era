@@ -64,7 +64,7 @@ COPY package.json /
 
 # Copy DAL - needed to setup database schemas.
 COPY core/lib/dal core/lib/dal
-COPY prover/prover_dal prover/prover_dal
+COPY prover/crates/lib/prover_dal prover/crates/lib/prover_dal
 
 RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 

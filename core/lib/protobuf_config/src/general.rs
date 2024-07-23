@@ -56,6 +56,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .context("snapshot_recovery")?,
             external_price_api_client_config: read_optional_repr(&self.external_price_api_client)
                 .context("external_price_api_client")?,
+            consensus_config: read_optional_repr(&self.consensus).context("consensus")?,
         })
     }
 
@@ -105,6 +106,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .external_price_api_client_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            consensus: this.consensus_config.as_ref().map(ProtoRepr::build),
         }
     }
 }

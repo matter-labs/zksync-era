@@ -17,8 +17,6 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-// impl<T> ReadConfig for T where T: FileConfig + Clone {}
-
 impl<T: Serialize + FileConfig> SaveConfig for T {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, &self, "")

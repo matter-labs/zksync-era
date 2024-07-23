@@ -13,7 +13,7 @@ use once_cell::sync::OnceCell;
 mod tests;
 
 use zksync_basic_types::H256;
-use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 
 /// Maximum supported depth of the tree. 32 corresponds to `2^32` elements in the tree, which
 /// we unlikely to ever hit.

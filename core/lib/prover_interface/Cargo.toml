@@ -1,6 +1,7 @@
 [package]
 name = "zksync_prover_interface"
-version = "0.1.0"
+description = "Interfaces for interaction with ZKsync prover subsystem"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

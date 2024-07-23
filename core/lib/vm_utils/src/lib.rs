@@ -8,14 +8,14 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{PostgresStorage, StorageOverrides, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 use crate::storage::L1BatchParamsProvider;
 
 pub type VmAndStorage<'a> = (
-    VmInstance<StorageView<PostgresStorage<'a>>, HistoryEnabled>,
-    StoragePtr<StorageView<PostgresStorage<'a>>>,
+    VmInstance<StorageView<StorageOverrides<PostgresStorage<'a>>>, HistoryEnabled>,
+    StoragePtr<StorageView<StorageOverrides<PostgresStorage<'a>>>>,
 );
 
 pub fn create_vm(
@@ -24,8 +24,9 @@ pub fn create_vm(
     mut connection: Connection<'_, Core>,
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<VmAndStorage> {
-    let l1_batch_params_provider = rt_handle
-        .block_on(L1BatchParamsProvider::new(&mut connection))
+    let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+    rt_handle
+        .block_on(l1_batch_params_provider.initialize(&mut connection))
         .context("failed initializing L1 batch params provider")?;
     let first_l2_block_in_batch = rt_handle
         .block_on(
@@ -51,7 +52,8 @@ pub fn create_vm(
     let storage_l2_block_number = first_l2_block_in_batch.number() - 1;
     let pg_storage =
         PostgresStorage::new(rt_handle.clone(), connection, storage_l2_block_number, true);
-    let storage_view = StorageView::new(pg_storage).to_rc_ptr();
+    let storage_overrides = StorageOverrides::new(pg_storage);
+    let storage_view = StorageView::new(storage_overrides).to_rc_ptr();
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
     Ok((vm, storage_view))

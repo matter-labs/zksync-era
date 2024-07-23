@@ -1,6 +1,7 @@
 [package]
 name = "zksync_proof_data_handler"
-version = "0.1.0"
+description = "ZKsync proof data handler API"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

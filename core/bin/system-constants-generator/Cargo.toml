@@ -1,5 +1,6 @@
 [package]
 name = "system-constants-generator"
+description = "Tool for generating JSON files with the system constants for L1/L2 contracts"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
@@ -7,7 +8,6 @@ homepage.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "Tool for generating JSON files with the system constants for L1/L2 contracts"
 publish = false
 
 [dependencies]

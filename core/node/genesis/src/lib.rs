@@ -151,6 +151,7 @@ impl GenesisParams {
     }
 }
 
+#[derive(Debug)]
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,

@@ -25,6 +25,7 @@ async fn run_server(
         "Starting healthcheck server with checks {app_health_check:?} on {bind_address}"
     );
 
+    app_health_check.expose_metrics();
     let app = Router::new()
         .route("/health", get(check_health))
         .with_state(app_health_check);
