@@ -1,0 +1,6 @@
+{
+  "genesisUpgrade": "0xc7e2CCe185d9A55F654280DdDbaEaBfA7b9a0C96",
+  "genesisBatchHash": "0xabdb766b18a479a5c783a4b80e12686bc8ea3cc2d8a3050491b701d72370ebb5",
+  "genesisIndexRepeatedStorageChanges": "54",
+  "genesisBatchCommitment": "0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd"
+}

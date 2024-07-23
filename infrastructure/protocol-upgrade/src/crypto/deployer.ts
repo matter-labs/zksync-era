@@ -1,6 +1,7 @@
 import { spawn } from 'utils';
 
 export async function deployVerifier(
+    testnetVerifier: boolean,
     l1Rpc: string,
     privateKey: string,
     create2Address: string,
@@ -11,6 +12,9 @@ export async function deployVerifier(
     const cwd = process.cwd();
     process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
     let argsString = '';
+    if (testnetVerifier) {
+        argsString += ` --testnet-verifier `;
+    }
     if (l1Rpc) {
         argsString += ` --l1rpc ${l1Rpc}`;
     }
