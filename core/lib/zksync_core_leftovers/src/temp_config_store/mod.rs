@@ -111,6 +111,7 @@ impl TempConfigStore {
             snapshot_recovery: self.snapshot_recovery.clone(),
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
+            consensus_config: None,
         }
     }
 

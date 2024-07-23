@@ -10,7 +10,7 @@ export async function reset(opts: DbOpts) {
 
 export enum DalPath {
     CoreDal = 'core/lib/dal',
-    ProverDal = 'prover/prover_dal'
+    ProverDal = 'prover/crates/lib/prover_dal'
 }
 
 export interface DbOpts {
