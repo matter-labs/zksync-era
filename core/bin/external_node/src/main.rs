@@ -806,7 +806,10 @@ async fn main() -> anyhow::Result<()> {
         let secrets_path = opt.secrets_path.clone().unwrap();
         let external_node_config_path = opt.external_node_config_path.clone().unwrap();
         if opt.enable_consensus {
-            anyhow::ensure!(opt.consensus_path.is_some());
+            anyhow::ensure!(
+                opt.consensus_path.is_some(),
+                "if --config-path and --enable-consensus are specified, then --consensus-path should be used to specify the location of the consensus config"
+            );
         }
         ExternalNodeConfig::from_files(
             config_path,

@@ -1128,16 +1128,19 @@ impl ExperimentalENConfig {
     }
 }
 
+/// Generates all possible consensus secrets (from system entropy)
+/// and prints them to stdout.
+/// They should be copied over to the secrets.yaml/consensus_secrets.yaml file.
 pub fn generate_consensus_secrets() {
     let validator_key = roles::validator::SecretKey::generate();
     let attester_key = roles::attester::SecretKey::generate();
     let node_key = roles::node::SecretKey::generate();
     println!("# {}", validator_key.public().encode());
-    println!("- validator_key: '{}'", validator_key.encode());
+    println!("- validator_key: {}", validator_key.encode());
     println!("# {}", attester_key.public().encode());
-    println!("- attester_key: '{}'", attester_key.encode());
+    println!("- attester_key: {}", attester_key.encode());
     println!("# {}", node_key.public().encode());
-    println!("- node_key: '{}'", node_key.encode());
+    println!("- node_key: {}", node_key.encode());
 }
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets>> {
