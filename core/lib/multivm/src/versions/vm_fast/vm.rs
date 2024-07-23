@@ -183,8 +183,8 @@ impl<S: ReadStorage> Vm<S> {
 
                     assert!(fp.offset == 0);
 
-                    let return_data =
-                        self.inner.state.heaps[fp.memory_page].read_range(fp.start, fp.length);
+                    let return_data = self.inner.state.heaps[fp.memory_page]
+                        .read_range_big_endian(fp.start..fp.start + fp.length);
 
                     last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
