@@ -1,1 +1,1 @@
-PLI__DB_URL=postgres://postgres:notsecurepassword@localhost/prover_local
+PLI__DB_URL=postgres://postgres:notsecurepassword@localhost:5433/test-7287266019133553547

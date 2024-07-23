@@ -5,7 +5,7 @@ use zksync_prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
 use zksync_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::AggregationRound,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     prover_dal::{
         ProofCompressionJobStatus, ProverJobStatus, ProverJobStatusInProgress,
@@ -183,13 +183,7 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_witness_generator_dal()
-        .save_witness_inputs(
-            batch_number,
-            "",
-            "",
-            ProtocolSemanticVersion::default(),
-            Eip4844Blobs::decode(&[0; 144]).unwrap(),
-        )
+        .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
         .await;
     connection
         .fri_witness_generator_dal()
