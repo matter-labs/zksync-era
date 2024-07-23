@@ -17,6 +17,8 @@ zk_evm_1_4_0.workspace = true
 zk_evm_1_3_3.workspace = true
 zk_evm_1_3_1.workspace = true
 vm2.workspace = true
+# era_vm = {path = "../../../../era_vm"}
+era_vm = {git = "https://github.com/lambdaclass/era_vm.git", branch = "era_integration", features=["zksync-era"]}
 
 circuit_sequencer_api_1_3_3.workspace = true
 circuit_sequencer_api_1_4_0.workspace = true
