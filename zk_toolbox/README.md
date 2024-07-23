@@ -119,6 +119,8 @@ Make sure you have installed the following requirements:
 - [nvcc (CUDA toolkit)](https://developer.nvidia.com/cuda-downloads)
 - [nvidia-smi (CUDA GPU driver)](https://developer.nvidia.com/cuda-downloads)
 
+Checkout [prover docs](https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri) for more info.
+
 #### Running the prover
 
 To run the prover, follow these steps:
