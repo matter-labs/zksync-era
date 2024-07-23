@@ -149,7 +149,7 @@ jobs:
 
   create_manifest:
     name: Create release manifest
-    runs-on: matterlabs-ci-runner
+    runs-on: matterlabs-default-infra-runners
     needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:

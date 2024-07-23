@@ -178,7 +178,7 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
-    runs-on: matterlabs-ci-runner
+    runs-on: matterlabs-default-infra-runners
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:

@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   changed_files:
-    runs-on: [matterlabs-default-infra-runners]
+    runs-on: ubuntu-latest
     name: Test changed-files
     outputs:
       core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}

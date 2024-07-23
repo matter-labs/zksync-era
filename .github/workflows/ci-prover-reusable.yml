@@ -4,7 +4,7 @@ on:
 
 jobs:
   lint:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-default-infra-runners]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 
@@ -35,7 +35,7 @@ jobs:
         run: ci_run bash -c "cd prover && cargo fmt --check"
 
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-default-infra-runners]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 
