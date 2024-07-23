@@ -1,4 +1,4 @@
 [submodule "contracts"]
 path = contracts
 url = https://github.com/zkLinkProtocol/era-contracts.git
-branch = zklink_testnet
+branch = new-zklink
