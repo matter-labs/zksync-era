@@ -4,13 +4,13 @@ use std::{
 };
 
 use anyhow::bail;
-use common::{git, logger, spinner::Spinner};
+use common::{cmd::Cmd, git, logger, spinner::Spinner, Prompt, PromptConfirm};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
     ZKSYNC_ERA_GIT_REPO,
 };
-use xshell::Shell;
+use xshell::{cmd, Shell};
 
 use crate::{
     commands::{
@@ -24,9 +24,10 @@ use crate::{
     messages::{
         msg_created_ecosystem, msg_directory_does_not_contain_cargo_toml_err,
         msg_path_to_zksync_does_not_exist_err, MSG_CLONING_ERA_REPO_SPINNER,
-        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
+        MSG_CONFIRM_STILL_USE_FOLDER, MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
         MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
-        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
+        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_LINK_TO_CODE_PROMPT, MSG_NOT_MAIN_REPO_OR_FORK_ERR,
+        MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -65,8 +66,14 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
         spinner.finish();
         link_to_code
     } else {
-        let path = PathBuf::from_str(&args.link_to_code)?;
-        check_link_to_code(&path)?;
+        let mut path = PathBuf::from_str(&args.link_to_code)?;
+        if let Err(err) = check_link_to_code(shell, &path) {
+            logger::warn(err);
+            if !PromptConfirm::new(MSG_CONFIRM_STILL_USE_FOLDER).ask() {
+                path = pick_new_link_to_code(shell)?;
+            }
+        }
+
         git::submodule_update(shell, path.clone())?;
         path
     };
@@ -120,7 +127,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check_link_to_code(path: &Path) -> anyhow::Result<()> {
+fn check_link_to_code(shell: &Shell, path: &Path) -> anyhow::Result<()> {
     if !path.exists() {
         bail!(msg_path_to_zksync_does_not_exist_err(
             path.to_str().unwrap()
@@ -133,5 +140,32 @@ fn check_link_to_code(path: &Path) -> anyhow::Result<()> {
         ));
     }
 
+    let _guard = shell.push_dir(path);
+    let out = String::from_utf8(
+        Cmd::new(cmd!(shell, "git remote -v"))
+            .run_with_output()?
+            .stdout,
+    )?;
+
+    if !out.contains("matter-labs/zksync-era") {
+        bail!(MSG_NOT_MAIN_REPO_OR_FORK_ERR);
+    }
+
     Ok(())
+}
+
+fn pick_new_link_to_code(shell: &Shell) -> anyhow::Result<PathBuf> {
+    let link_to_code: String = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
+    let path = PathBuf::from_str(&link_to_code)?;
+    match check_link_to_code(shell, &path) {
+        Ok(_) => Ok(path.to_path_buf()),
+        Err(err) => {
+            logger::warn(err);
+            if !PromptConfirm::new(MSG_CONFIRM_STILL_USE_FOLDER).ask() {
+                pick_new_link_to_code(shell)
+            } else {
+                Ok(path.to_path_buf())
+            }
+        }
+    }
 }
