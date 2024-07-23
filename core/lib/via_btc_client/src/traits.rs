@@ -1,15 +1,12 @@
 use async_trait::async_trait;
-use bitcoin::{Address, Block, OutPoint, Transaction, Txid, TxOut};
+use bitcoin::{Address, Block, OutPoint, Transaction, TxOut, Txid};
 
 use crate::types;
 
 #[allow(dead_code)]
 #[async_trait]
 pub trait BitcoinOps: Send + Sync {
-    async fn new(
-        rpc_url: &str,
-        network: &str,
-    ) -> types::BitcoinClientResult<Self>
+    async fn new(rpc_url: &str, network: &str) -> types::BitcoinClientResult<Self>
     where
         Self: Sized;
     async fn get_balance(&self, address: &Address) -> types::BitcoinClientResult<u128>;

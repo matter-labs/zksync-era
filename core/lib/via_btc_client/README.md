@@ -53,14 +53,15 @@ let block_number = BLOCK_NUMBER;
 let inscription_messages : Vec<via_btc_client::InscriptionMessage> = indexer.get_specific_block_inscription_messages(block_number);
 ```
 
-## Inscription Transaction Flow 
+## Inscription Transaction Flow
+
 ```
   1. Unlock all available UTXOs for the source address
-  2. Create inscription output with using Taproot approach (stack data): 
-      - **PUBKEY** 
-      - OP_CHECKSIG 
-      - OP_FALSE OP_IF 
-      - **INSCRIPTION DATA** 
+  2. Create inscription output with using Taproot approach (stack data):
+      - **PUBKEY**
+      - OP_CHECKSIG
+      - OP_FALSE OP_IF
+      - **INSCRIPTION DATA**
       - OP_ENDIF
   3. Create a P2WPKH change output to send the remaining funds back to the source address
   4. Create a transaction with the inputs and outputs

@@ -1,5 +1,5 @@
-use thiserror::Error;
 use bitcoin::Network;
+use thiserror::Error;
 
 pub enum BitcoinNetwork {
     Mainnet,

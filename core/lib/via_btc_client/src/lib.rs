@@ -1,10 +1,12 @@
 mod traits;
 mod types;
 
-mod client;
+pub mod client;
 mod indexer;
 mod inscriber;
-#[cfg(test)]
-pub(crate) mod regtest;
+#[cfg(any(test, feature = "test_utils"))]
+pub mod regtest;
 mod signer;
 mod transaction_builder;
+
+pub use traits::BitcoinOps;

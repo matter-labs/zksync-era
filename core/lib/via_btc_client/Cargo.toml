@@ -19,6 +19,7 @@ zksync_types.workspace = true
 zksync_config.workspace = true
 
 thiserror.workspace = true
+tempfile.workspace = true
 async-trait.workspace = true
 jsonrpsee = { workspace = true, features = [
     "client",
@@ -27,8 +28,16 @@ jsonrpsee = { workspace = true, features = [
 tokio.workspace = true
 bitcoin = "0.32.2"
 bitcoincore-rpc = "0.19.0"
+rand.workspace = true
 
 
 [dev-dependencies]
-rand = "0.8"
-tempfile = "3.3"
+anyhow.workspace = true
+
+[features]
+test_utils = []
+
+[[example]]
+name = "bitcoin_client_example"
+path = "examples/bitcoin_client_example.rs"
+required-features = ["test_utils"]
