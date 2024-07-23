@@ -12,7 +12,7 @@ use zksync_types::{
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, StorageKey, StorageValue, H256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 /// A storage view that allows to override some of the storage values.
 #[derive(Debug)]
@@ -52,12 +52,11 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
                 self.overridden_slots.insert(nonce_key, new_full_nonce);
             }
 
-            // FIXME: will panic if the code is not aligned
             if let Some(code) = &overrides.code {
                 let code_key = get_code_key(account);
-                let code_hash = hash_bytecode(&code.0);
+                let code_hash = code.hash();
                 self.overridden_slots.insert(code_key, code_hash);
-                self.store_factory_dep(code_hash, code.0.clone());
+                self.store_factory_dep(code_hash, code.clone().into_bytes());
             }
 
             match &overrides.state {
@@ -121,7 +120,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
 #[cfg(test)]
 mod tests {
     use zksync_state::InMemoryStorage;
-    use zksync_types::{api::state_override::OverrideAccount, web3::Bytes, Address};
+    use zksync_types::{
+        api::state_override::{Bytecode, OverrideAccount},
+        Address,
+    };
 
     use super::*;
 
@@ -145,7 +147,7 @@ mod tests {
             (
                 Address::repeat_byte(3),
                 OverrideAccount {
-                    code: Some(Bytes((0..32).collect())),
+                    code: Some(Bytecode::new((0..32).collect()).unwrap()),
                     ..OverrideAccount::default()
                 },
             ),
