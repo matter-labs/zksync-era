@@ -19,11 +19,12 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 
 ### Generating secrets
 
-Each participant node of the gossipnet has to have an identity (a public/secret key pair). When running your node for the
-first time, generate the secrets by running:
+Each participant node of the gossipnet has to have an identity (a public/secret key pair). When running your node for
+the first time, generate the secrets by running:
 
 ```
 cargo run -p zksync_external_node -- generate-secrets > consensus_secrets.yaml
+chmod 600 consensus_secrets.yaml
 ```
 
 > [!NOTE]
