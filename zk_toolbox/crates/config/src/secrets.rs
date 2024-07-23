@@ -1,53 +1,54 @@
+use std::{path::Path, str::FromStr};
+
+use anyhow::Context;
 use common::db::DatabaseConfig;
-use serde::{Deserialize, Serialize};
-use url::Url;
+use xshell::Shell;
+use zksync_basic_types::url::SensitiveUrl;
+pub use zksync_config::configs::Secrets as SecretsConfig;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::SECRETS_FILE,
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseSecrets {
-    pub server_url: Url,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prover_url: Option<Url>,
-    #[serde(flatten)]
-    pub other: serde_json::Value,
+pub fn set_databases(
+    secrets: &mut SecretsConfig,
+    server_db_config: &DatabaseConfig,
+    prover_db_config: &DatabaseConfig,
+) -> anyhow::Result<()> {
+    let database = secrets
+        .database
+        .as_mut()
+        .context("Databases must be presented")?;
+    database.server_url = Some(SensitiveUrl::from(server_db_config.full_url()));
+    database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
+    Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct L1Secret {
-    pub l1_rpc_url: String,
-    #[serde(flatten)]
-    pub other: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SecretsConfig {
-    pub database: DatabaseSecrets,
-    pub l1: L1Secret,
-    #[serde(flatten)]
-    pub other: serde_json::Value,
-}
-
-impl SecretsConfig {
-    pub fn set_databases(
-        &mut self,
-        server_db_config: &DatabaseConfig,
-        prover_db_config: &DatabaseConfig,
-    ) {
-        self.database.server_url = server_db_config.full_url();
-        self.database.prover_url = Some(prover_db_config.full_url());
-    }
-
-    pub fn set_l1_rpc_url(&mut self, l1_rpc_url: String) {
-        self.l1.l1_rpc_url = l1_rpc_url;
-    }
+pub fn set_l1_rpc_url(secrets: &mut SecretsConfig, l1_rpc_url: String) -> anyhow::Result<()> {
+    secrets
+        .l1
+        .as_mut()
+        .context("L1 Secrets must be presented")?
+        .l1_rpc_url = SensitiveUrl::from_str(&l1_rpc_url)?;
+    Ok(())
 }
 
 impl FileConfigWithDefaultName for SecretsConfig {
     const FILE_NAME: &'static str = SECRETS_FILE;
 }
 
-impl FileConfig for SecretsConfig {}
+impl SaveConfig for SecretsConfig {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&self)?;
+        Ok(shell.write_file(path, bytes)?)
+    }
+}
+
+impl ReadConfig for SecretsConfig {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = shell.current_dir().join(path);
+        decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path, false)
+    }
+}

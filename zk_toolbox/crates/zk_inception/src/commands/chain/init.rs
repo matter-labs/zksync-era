@@ -11,6 +11,7 @@ use config::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
+    set_l1_rpc_url,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
@@ -74,7 +75,7 @@ pub async fn init(
     )
     .await?;
     let mut secrets = chain_config.get_secrets_config()?;
-    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
+    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);

@@ -67,7 +67,7 @@ pub async fn initialize_bridges(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(secrets.l1.l1_rpc_url.clone())
+        .with_rpc_url(secrets.l1.unwrap().l1_rpc_url.expose_str().to_string())
         .with_broadcast();
 
     forge = fill_forge_private_key(

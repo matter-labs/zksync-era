@@ -25,9 +25,13 @@ impl<T: Serialize + FileConfig> SaveConfig for T {
     }
 }
 
-impl<T> ReadConfigWithBasePath for T where
-    T: FileConfigWithDefaultName + DeserializeOwned + Clone + ReadConfig
+impl<T> ReadConfigWithBasePath for T
+where
+    T: FileConfigWithDefaultName + Clone + ReadConfig,
 {
+    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
+    }
 }
 
 impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + SaveConfig {}
@@ -39,7 +43,7 @@ impl<T> SaveConfigWithCommentAndBasePath for T where
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfig: Clone {
+pub trait ReadConfig: Sized {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self>;
 }
 
@@ -64,10 +68,8 @@ where
 
 /// Reads a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName {
-    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
-    }
+pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName + Clone {
+    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self>;
 }
 
 /// Saves a config file to a given path, correctly parsing file extension.

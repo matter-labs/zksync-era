@@ -36,7 +36,16 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
             .clone()
             .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?,
     )?;
-    let db_config = DatabaseConfig::from_url(secrets.database.server_url)?;
+    let db_config = DatabaseConfig::from_url(
+        secrets
+            .database
+            .as_ref()
+            .context("")?
+            .server_url
+            .as_ref()
+            .context("")?
+            .expose_url(),
+    )?;
     drop_db_if_exists(&db_config)
         .await
         .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;

@@ -9,7 +9,7 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    set_rocks_db_config,
+    set_databases, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
     WalletsConfig,
@@ -71,7 +71,7 @@ pub async fn genesis(
     general.save_with_base_path(shell, &config.configs)?;
 
     let mut secrets = config.get_secrets_config()?;
-    secrets.set_databases(&args.server_db, &args.prover_db);
+    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
     secrets.save_with_base_path(shell, &config.configs)?;
 
     logger::note(

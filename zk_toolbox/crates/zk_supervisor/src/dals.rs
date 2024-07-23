@@ -48,8 +48,12 @@ pub fn get_prover_dal(shell: &Shell) -> anyhow::Result<Dal> {
         path: PROVER_DAL_PATH.to_string(),
         url: secrets
             .database
-            .prover_url
+            .as_ref()
             .context(MSG_PROVER_URL_MUST_BE_PRESENTED)?
+            .prover_url
+            .as_ref()
+            .context(MSG_PROVER_URL_MUST_BE_PRESENTED)?
+            .expose_url()
             .clone(),
     })
 }
@@ -59,7 +63,16 @@ pub fn get_core_dal(shell: &Shell) -> anyhow::Result<Dal> {
 
     Ok(Dal {
         path: CORE_DAL_PATH.to_string(),
-        url: secrets.database.server_url.clone(),
+        url: secrets
+            .database
+            .as_ref()
+            .context("DATABASE not found")?
+            .server_url
+            .as_ref()
+            .context("DATABASE not found")?
+            .clone()
+            .expose_url()
+            .clone(),
     })
 }
 

@@ -1,13 +1,15 @@
-use std::path::Path;
+use std::{path::Path, str::FromStr};
 
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
-    update_ports, ChainConfig, DatabaseSecrets, EcosystemConfig, L1Secret, SecretsConfig,
+    update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use types::ChainId;
 use xshell::Shell;
+use zksync_basic_types::url::SensitiveUrl;
+use zksync_config::configs::{DatabaseSecrets, L1Secrets};
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
@@ -68,16 +70,23 @@ fn prepare_configs(
             .next_empty_ports_config(),
     )?;
     let secrets = SecretsConfig {
-        database: DatabaseSecrets {
-            server_url: args.db.full_url(),
+        // database: DatabaseSecrets {
+        //     server_url: args.db.full_url(),
+        //     prover_url: None,
+        //     other: Default::default(),
+        // },
+        // l1: L1Secrets {
+        //     l1_rpc_url:  args.l1_rpc_url.clone(),
+        // },
+        consensus: None,
+        database: Some(DatabaseSecrets {
+            server_url: Some(args.db.full_url().into()),
             prover_url: None,
-            other: Default::default(),
-        },
-        l1: L1Secret {
-            l1_rpc_url: args.l1_rpc_url.clone(),
-            other: Default::default(),
-        },
-        other: Default::default(),
+            server_replica_url: None,
+        }),
+        l1: Some(L1Secrets {
+            l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
+        }),
     };
     secrets.save_with_base_path(shell, en_configs_path)?;
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;

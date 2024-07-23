@@ -6302,6 +6302,7 @@ dependencies = [
  "types",
  "url",
  "xshell",
+ "zksync_basic_types",
  "zksync_config",
 ]
 
