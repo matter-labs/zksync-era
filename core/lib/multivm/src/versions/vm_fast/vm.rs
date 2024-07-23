@@ -511,15 +511,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         let pubdata_before = self.inner.world_diff.pubdata.0;
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
-        if matches!(execution_mode, VmExecutionMode::OneTx) {
-            if matches!(result, ExecutionResult::Halt { .. }) {
-                // Only `Halt`ed executions need a rollback; `Revert`s are correctly handled by the bootloader
-                // so the bootloader / system contract state should be persisted.
-                self.rollback_to_the_latest_snapshot();
-            } else {
-                self.pop_snapshot_no_rollback();
-            }
-        }
 
         let events = merge_events(
             self.inner.world_diff.events_after(&start),
@@ -532,37 +523,49 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             .collect();
         let pubdata_after = self.inner.world_diff.pubdata.0;
 
+        let logs = VmExecutionLogs {
+            storage_logs: self
+                .inner
+                .world_diff
+                .get_storage_changes_after(&start)
+                .map(|((address, key), change)| StorageLogWithPreviousValue {
+                    log: StorageLog {
+                        key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                        value: u256_to_h256(change.after),
+                        kind: if change.is_initial {
+                            StorageLogKind::InitialWrite
+                        } else {
+                            StorageLogKind::RepeatedWrite
+                        },
+                    },
+                    previous_value: u256_to_h256(change.before.unwrap_or_default()),
+                })
+                .collect(),
+            events,
+            user_l2_to_l1_logs,
+            system_l2_to_l1_logs: self
+                .inner
+                .world_diff
+                .l2_to_l1_logs_after(&start)
+                .iter()
+                .map(|x| x.glue_into())
+                .collect(),
+            total_log_queries_count: 0, // This field is unused
+        };
+
+        if matches!(execution_mode, VmExecutionMode::OneTx) {
+            if matches!(result, ExecutionResult::Halt { .. }) {
+                // Only `Halt`ed executions need a rollback; `Revert`s are correctly handled by the bootloader
+                // so the bootloader / system contract state should be persisted.
+                self.rollback_to_the_latest_snapshot();
+            } else {
+                self.pop_snapshot_no_rollback();
+            }
+        }
+
         VmExecutionResultAndLogs {
             result,
-            logs: VmExecutionLogs {
-                storage_logs: self
-                    .inner
-                    .world_diff
-                    .get_storage_changes_after(&start)
-                    .map(|((address, key), change)| StorageLogWithPreviousValue {
-                        log: StorageLog {
-                            key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                            value: u256_to_h256(change.after),
-                            kind: if change.is_initial {
-                                StorageLogKind::InitialWrite
-                            } else {
-                                StorageLogKind::RepeatedWrite
-                            },
-                        },
-                        previous_value: u256_to_h256(change.before.unwrap_or_default()),
-                    })
-                    .collect(),
-                events,
-                user_l2_to_l1_logs,
-                system_l2_to_l1_logs: self
-                    .inner
-                    .world_diff
-                    .l2_to_l1_logs_after(&start)
-                    .iter()
-                    .map(|x| x.glue_into())
-                    .collect(),
-                total_log_queries_count: 0, // This field is unused
-            },
+            logs,
             statistics: VmExecutionStatistics {
                 contracts_used: 0,         // TODO
                 cycles_used: 0,            // TODO

@@ -23,11 +23,16 @@ impl VmTester {
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
             &address,
         );
-        h256_to_u256(self.vm.world.storage.read_value(&key))
+        self.vm
+            .inner
+            .world_diff
+            .get_storage_state()
+            .get(&(L2_BASE_TOKEN_ADDRESS, h256_to_u256(*key.key())))
+            .cloned()
+            .unwrap_or(h256_to_u256(self.vm.world.storage.read_value(&key)))
     }
 }
 
-#[ignore] // FIXME: fails on `assert_eq!(vm.get_eth_balance(beneficiary.address), U256::from(888000088))`
 #[tokio::test]
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
 /// and EIP712 transactions.
@@ -134,7 +139,8 @@ async fn test_require_eip712() {
         Default::default(),
     );
 
-    let transaction_request: TransactionRequest = tx_712.into();
+    let mut transaction_request: TransactionRequest = tx_712.into();
+    transaction_request.chain_id = Some(chain_id.into());
 
     let domain = Eip712Domain::new(L2ChainId::from(chain_id));
     let signature = private_account
