@@ -5,9 +5,7 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::ProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
 
 #[derive(Debug, Clone)]
@@ -255,7 +253,6 @@ pub struct ProverJobFriInfo {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub depth: u32,
     pub is_node_final_proof: bool,
     pub proof_blob_url: Option<String>,
@@ -271,7 +268,6 @@ pub trait Stallable {
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
-    pub merkle_tree_paths_blob_url: Option<String>,
     pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
@@ -280,10 +276,8 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
-    pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
 impl Stallable for BasicWitnessGeneratorJobInfo {
@@ -309,7 +303,6 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub number_of_basic_circuits: Option<i32>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
