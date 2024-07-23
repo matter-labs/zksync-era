@@ -117,6 +117,10 @@ impl BenchmarkingVm {
 }
 
 pub fn get_deploy_tx(code: &[u8]) -> Transaction {
+    get_deploy_tx_with_gas_limit(code, 30_000_000)
+}
+
+pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32) -> Transaction {
     let params = [
         Token::FixedBytes(vec![0u8; 32]),
         Token::FixedBytes(hash_bytecode(code).0.to_vec()),
@@ -133,7 +137,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         calldata,
         Nonce(0),
         Fee {
-            gas_limit: U256::from(30000000u32),
+            gas_limit: U256::from(gas_limit),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
