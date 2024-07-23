@@ -11,72 +11,30 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
-use crate::{OverrideStorage, ReadStorage};
+use crate::ReadStorage;
 
 /// A storage view that allows to override some of the storage values.
 #[derive(Debug)]
-pub struct StorageOverrides<S> {
+pub struct StorageWithOverrides<S> {
     storage_handle: S,
     overridden_slots: HashMap<StorageKey, H256>,
     overridden_factory_deps: HashMap<H256, Vec<u8>>,
     overridden_accounts: HashSet<AccountTreeId>,
 }
 
-impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
+impl<S: ReadStorage> StorageWithOverrides<S> {
     /// Creates a new storage view based on the underlying storage.
-    pub fn new(storage: S) -> Self {
-        Self {
+    pub fn new(storage: S, state_override: &StateOverride) -> Self {
+        let mut this = Self {
             storage_handle: storage,
             overridden_slots: HashMap::new(),
             overridden_factory_deps: HashMap::new(),
             overridden_accounts: HashSet::new(),
-        }
+        };
+        this.apply_state_override(state_override);
+        this
     }
 
-    fn store_factory_dep(&mut self, hash: H256, code: Vec<u8>) {
-        self.overridden_factory_deps.insert(hash, code);
-    }
-
-    fn override_account_state_diff(
-        &mut self,
-        account: AccountTreeId,
-        state_diff: &HashMap<H256, H256>,
-    ) {
-        let account_slots = state_diff
-            .iter()
-            .map(|(&slot, &value)| (StorageKey::new(account, slot), value));
-        self.overridden_slots.extend(account_slots);
-    }
-}
-
-impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
-    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        if let Some(value) = self.overridden_slots.get(key) {
-            return *value;
-        }
-        if self.overridden_accounts.contains(key.account()) {
-            return H256::zero();
-        }
-        self.storage_handle.read_value(key)
-    }
-
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.storage_handle.is_write_initial(key)
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.overridden_factory_deps
-            .get(&hash)
-            .cloned()
-            .or_else(|| self.storage_handle.load_factory_dep(hash))
-    }
-
-    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.storage_handle.get_enumeration_index(key)
-    }
-}
-
-impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
     fn apply_state_override(&mut self, state_override: &StateOverride) {
         for (account, overrides) in state_override.iter() {
             if let Some(balance) = overrides.balance {
@@ -114,6 +72,48 @@ impl<S: ReadStorage + fmt::Debug> OverrideStorage for StorageOverrides<S> {
                 None => { /* do nothing */ }
             }
         }
+    }
+
+    fn store_factory_dep(&mut self, hash: H256, code: Vec<u8>) {
+        self.overridden_factory_deps.insert(hash, code);
+    }
+
+    fn override_account_state_diff(
+        &mut self,
+        account: AccountTreeId,
+        state_diff: &HashMap<H256, H256>,
+    ) {
+        let account_slots = state_diff
+            .iter()
+            .map(|(&slot, &value)| (StorageKey::new(account, slot), value));
+        self.overridden_slots.extend(account_slots);
+    }
+}
+
+impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        if let Some(value) = self.overridden_slots.get(key) {
+            return *value;
+        }
+        if self.overridden_accounts.contains(key.account()) {
+            return H256::zero();
+        }
+        self.storage_handle.read_value(key)
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        self.storage_handle.is_write_initial(key)
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        self.overridden_factory_deps
+            .get(&hash)
+            .cloned()
+            .or_else(|| self.storage_handle.load_factory_dep(hash))
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.storage_handle.get_enumeration_index(key)
     }
 }
 
@@ -178,8 +178,7 @@ mod tests {
         storage.set_value(retained_key, H256::repeat_byte(0xfe));
         let erased_key = StorageKey::new(AccountTreeId::new(Address::repeat_byte(5)), H256::zero());
         storage.set_value(erased_key, H256::repeat_byte(1));
-        let mut storage = StorageOverrides::new(storage);
-        storage.apply_state_override(&overrides);
+        let mut storage = StorageWithOverrides::new(storage, &overrides);
 
         let balance = storage.read_value(&storage_key_for_eth_balance(&Address::repeat_byte(1)));
         assert_eq!(balance, H256::from_low_u64_be(1));
