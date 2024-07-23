@@ -1099,9 +1099,9 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21ac98cee014780619ca5fe43984e605b17bcad9308b15cebd2fec549a2d8c92"
+checksum = "d4b69893ec5a2112430adaf8e29b52ea9ec4ef2d6663879f7cc279b4479a8880"
 dependencies = [
  "derivative",
  "serde",
@@ -1166,12 +1166,12 @@ dependencies = [
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29bf447d83547c14e728239e7e3287e2f47b4891675315c7c69d9ee3ce56b0a8"
+checksum = "121470724079938b8f878e8a95f757d814624795c9a5ca69dd9dd782035fbe39"
 dependencies = [
  "bellman_ce",
- "circuit_encodings 0.150.1",
+ "circuit_encodings 0.150.2-rc.1",
  "derivative",
  "rayon",
  "serde",
@@ -8081,7 +8081,7 @@ dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.0",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "futures 0.3.28",
  "itertools 0.10.5",
  "num_cpus",
@@ -8729,9 +8729,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5af1838466ae06e56064fafa8b4563c3bde44b44839de0b6197c293e03d133fc"
+checksum = "4672556b6bc06da9dcd38a607e139b8eb3083edfaabcd12981e8a62051ee1f81"
 dependencies = [
  "boojum",
  "derivative",
@@ -8853,7 +8853,7 @@ dependencies = [
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.0",
  "circuit_sequencer_api 0.142.0",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -9292,7 +9292,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "serde",
  "serde_json",
  "serde_with",
