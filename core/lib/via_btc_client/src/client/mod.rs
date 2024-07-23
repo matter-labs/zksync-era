@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin::{address::NetworkUnchecked, Address, Network, TxOut, Txid};
+use bitcoin::{Address, Network, TxOut, Txid};
 use bitcoincore_rpc::json::EstimateMode;
 
 use crate::{
@@ -17,12 +17,11 @@ use crate::types::BitcoinError;
 pub struct BitcoinClient {
     rpc: Box<dyn BitcoinRpc>,
     network: Network,
-    sender_address: Address,
 }
 
 #[async_trait]
 impl BitcoinOps for BitcoinClient {
-    async fn new(rpc_url: &str, network: &str, sender_address: &str) -> BitcoinClientResult<Self>
+    async fn new(rpc_url: &str, network: &str) -> BitcoinClientResult<Self>
     where
         Self: Sized,
     {
@@ -34,14 +33,10 @@ impl BitcoinOps for BitcoinClient {
             "regtest" => Network::Regtest,
             _ => return Err(BitcoinError::InvalidNetwork(network.to_string())),
         };
-        let sender_address = sender_address
-            .parse::<Address<NetworkUnchecked>>()?
-            .require_network(network)?;
 
         Ok(Self {
             rpc,
             network,
-            sender_address,
         })
     }
 
@@ -127,13 +122,11 @@ mod tests {
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
             "regtest",
-            &context.test_address.to_string(),
         )
         .await
         .expect("Failed to create BitcoinClient");
 
         assert_eq!(client.network, Network::Regtest);
-        assert_eq!(client.sender_address, context.test_address);
     }
 
     #[ignore]
@@ -143,7 +136,6 @@ mod tests {
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
             "regtest",
-            &context.test_address.to_string(),
         )
         .await
         .expect("Failed to create BitcoinClient");
@@ -164,7 +156,6 @@ mod tests {
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
             "regtest",
-            &context.test_address.to_string(),
         )
         .await
         .expect("Failed to create BitcoinClient");
@@ -184,7 +175,6 @@ mod tests {
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
             "regtest",
-            &context.test_address.to_string(),
         )
         .await
         .expect("Failed to create BitcoinClient");
@@ -204,7 +194,6 @@ mod tests {
         let client = BitcoinClient::new(
             &context._regtest.get_url(),
             "regtest",
-            &context.test_address.to_string(),
         )
         .await
         .expect("Failed to create BitcoinClient");

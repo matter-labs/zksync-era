@@ -9,7 +9,6 @@ pub trait BitcoinOps: Send + Sync {
     async fn new(
         rpc_url: &str,
         network: &str,
-        sender_address: &str,
     ) -> types::BitcoinClientResult<Self>
     where
         Self: Sized;
