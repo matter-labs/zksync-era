@@ -7,7 +7,7 @@ will eventually be used instead of ZKsync API for synchronizing data.
 On the gossipnet, the data integrity will be protected by the BFT (byzantine fault tolerant) consensus algorithm
 (currently data is signed just by the main node though).
 
-## Enabling gossipnet on your node.
+## Enabling gossipnet on your node
 
 > [!NOTE]
 >
@@ -60,7 +60,7 @@ for more details):
   the nodes maintained by Matterlabs, but you can add more if you know any. Note that the list contains both the network
   address AND the public key of the node - this prevents spoofing attacks.
 
-### Setting environment variables:
+### Setting environment variables
 
 Uncomment (or add) the following lines in your `.env` config:
 
