@@ -49,17 +49,25 @@ services:
     environment:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
+  generate-secrets:
+    image: "matterlabs/external-node:2.0-v24.6.0"
+    entrypoint: ["sh","/configs/gen.sh","/configs/consensus_secrets.yaml"]
+    volumes:
+      - ./configs:/configs/ 
   external-node:
     image: "matterlabs/external-node:2.0-v24.6.0"
     depends_on:
       postgres:
         condition: service_healthy
+      generate-secrets:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:3060:3060"
       - "127.0.0.1:3061:3061"
       - "127.0.0.1:3081:3081"
     volumes:
       - mainnet-rocksdb:/db
+      - ./configs:/configs/ 
     expose:
       - 3322
     environment:
@@ -82,6 +90,9 @@ services:
       EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-mainnet-external-node-snapshots"
       EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
       RUST_LOG: "warn,zksync=info,zksync_core::metadata_calculator=debug,zksync_state=debug,zksync_utils=debug,zksync_web3_decl::client=error"
+
+      EN_CONSENSUS_CONFIG_PATH: "/configs/mainnet_consensus_config.yaml"
+      EN_CONSENSUS_SECRETS_PATH: "/configs/consensus_secrets.yaml"
 
 volumes:
   mainnet-postgres: {}
