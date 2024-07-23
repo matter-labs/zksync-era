@@ -109,6 +109,17 @@ You can specify the chain you are running by providing `--chain <chain_name>` ar
 
 ### Prover
 
+#### Requirements
+
+Make sure you have installed the following requirements:
+* [gcloud](https://cloud.google.com/sdk/docs/install)
+* [wget](https://www.gnu.org/software/wget/)
+* [cmake](https://cmake.org/download/)
+* [nvcc (CUDA toolkit)](https://developer.nvidia.com/cuda-downloads)
+* [nvidia-smi (CUDA GPU driver)](https://developer.nvidia.com/cuda-downloads)
+
+#### Running the prover
+
 To run the prover, follow these steps:
 
 First, initialize the prover:
