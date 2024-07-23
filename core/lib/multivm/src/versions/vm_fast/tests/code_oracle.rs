@@ -1,6 +1,8 @@
 use ethabi::Token;
-use zksync_types::{get_known_code_key, web3::keccak256, Address, Execute, U256};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_types::{
+    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, H256, U256,
+};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
@@ -91,6 +93,16 @@ fn test_code_oracle() {
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 }
 
+fn find_code_oracle_cost_log(
+    precompiles_contract_address: Address,
+    logs: &[StorageLogWithPreviousValue],
+) -> &StorageLogWithPreviousValue {
+    let log = logs.iter().find(|log| {
+        *log.log.key.address() == precompiles_contract_address && *log.log.key.key() == H256::zero()
+    });
+    log.expect("no code oracle cost log")
+}
+
 #[test]
 fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
@@ -146,4 +158,81 @@ fn test_code_oracle_big_bytecode() {
     vm.vm.push_transaction(tx1);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
+}
+
+#[test]
+fn refunds_in_code_oracle() {
+    let precompiles_contract_address = Address::random();
+    let precompile_contract_bytecode = read_precompiles_contract();
+
+    let normal_zkevm_bytecode = read_test_contract();
+    let normal_zkevm_bytecode_hash = hash_bytecode(&normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_keccak_hash = keccak256(&normal_zkevm_bytecode);
+    let mut storage = get_empty_storage();
+    storage.set_value(
+        get_known_code_key(&normal_zkevm_bytecode_hash),
+        u256_to_h256(U256::one()),
+    );
+
+    let precompile_contract = load_precompiles_contract();
+    let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
+
+    // Execute code oracle twice with identical VM state that only differs in that the queried bytecode
+    // is already decommitted the second time. The second call must consume less gas (`decommit` doesn't charge additional gas
+    // for already decommitted codes).
+    let mut oracle_costs = vec![];
+    for decommit in [false, true] {
+        let mut vm = VmTesterBuilder::new()
+            .with_execution_mode(TxExecutionMode::VerifyExecute)
+            .with_random_rich_accounts(1)
+            .with_custom_contracts(vec![(
+                precompile_contract_bytecode.clone(),
+                precompiles_contract_address,
+                false,
+            )])
+            .with_storage(storage.clone())
+            .build();
+
+        vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
+
+        let account = &mut vm.rich_accounts[0];
+        if decommit {
+            let (_, is_fresh) = vm
+                .vm
+                .inner
+                .world_diff
+                .decommit_opcode(&mut vm.vm.world, h256_to_u256(normal_zkevm_bytecode_hash));
+            assert!(is_fresh);
+        }
+
+        let tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: precompiles_contract_address,
+                calldata: call_code_oracle_function
+                    .encode_input(&[
+                        Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
+                        Token::FixedBytes(normal_zkevm_bytecode_keccak_hash.to_vec()),
+                    ])
+                    .unwrap(),
+                value: U256::zero(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+
+        vm.vm.push_transaction(tx);
+        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        assert!(!result.result.is_failed(), "Transaction wasn't successful");
+        let log =
+            find_code_oracle_cost_log(precompiles_contract_address, &result.logs.storage_logs);
+        oracle_costs.push(log.log.value);
+    }
+
+    // The refund is equal to `gasCost` parameter passed to the `decommit` opcode, which is defined as `4 * contract_length_in_words`
+    // in `CodeOracle.yul`.
+    let code_oracle_refund = h256_to_u256(oracle_costs[0]) - h256_to_u256(oracle_costs[1]);
+    assert_eq!(
+        code_oracle_refund,
+        (4 * (normal_zkevm_bytecode.len() / 32)).into()
+    );
 }
