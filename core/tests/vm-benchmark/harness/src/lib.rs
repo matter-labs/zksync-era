@@ -2,15 +2,15 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface,
+        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
+    vm_fast::Vm,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
-use zksync_state::{InMemoryStorage, StorageView};
+use zksync_state::InMemoryStorage;
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::{encode, Token},
@@ -62,7 +62,7 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
-pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
+pub struct BenchmarkingVm(Vm<&'static InMemoryStorage>);
 
 impl BenchmarkingVm {
     #[allow(clippy::new_without_default)]
@@ -96,7 +96,7 @@ impl BenchmarkingVm {
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
-            Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
+            &*STORAGE,
         ))
     }
 
@@ -110,12 +110,7 @@ impl BenchmarkingVm {
 
         let count = Rc::new(RefCell::new(0));
 
-        self.0.inspect(
-            TracerDispatcher::new(vec![Box::new(
-                instruction_counter::InstructionCounter::new(count.clone()),
-            )]),
-            VmExecutionMode::OneTx,
-        );
+        self.0.inspect((), VmExecutionMode::OneTx);
 
         count.take()
     }

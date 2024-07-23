@@ -427,7 +427,7 @@ impl<S: ReadStorage> Vm<S> {
 // We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
 // it maintains its own storage cache and a write buffer.
 impl<S: ReadStorage> Vm<S> {
-    pub(crate) fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
