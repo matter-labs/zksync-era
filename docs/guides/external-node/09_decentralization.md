@@ -1,6 +1,6 @@
 # Decentralization
 
-In the default setup the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matterlabs. To reduce
+In the default setup the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
 the reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which
 will eventually be used instead of ZKsync API for synchronizing data.
 
