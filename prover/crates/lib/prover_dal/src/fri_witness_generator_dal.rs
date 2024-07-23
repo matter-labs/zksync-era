@@ -4,7 +4,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::{types::chrono::NaiveDateTime, Row};
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         BasicWitnessGeneratorJobInfo, JobCountStatistics, LeafAggregationJobMetadata,
@@ -43,35 +43,28 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,
-        merkle_paths_blob_url: &str,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        eip_4844_blobs: Eip4844Blobs,
     ) {
-        let blobs_raw = eip_4844_blobs.encode();
         sqlx::query!(
             r#"
             INSERT INTO
                 witness_inputs_fri (
                     l1_batch_number,
-                    merkle_tree_paths_blob_url,
                     witness_inputs_blob_url,
                     protocol_version,
-                    eip_4844_blobs,
                     status,
                     created_at,
                     updated_at,
                     protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6)
+                ($1, $2, $3, 'queued', NOW(), NOW(), $4)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
-            merkle_paths_blob_url,
             witness_inputs_blob_url,
             protocol_version.minor as i32,
-            blobs_raw,
             protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
@@ -1464,7 +1457,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
             l1_batch_number,
-            merkle_tree_paths_blob_url: row.merkle_tree_paths_blob_url,
             witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,
             status: row.status.parse::<WitnessJobStatus>().unwrap(),
@@ -1473,15 +1465,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             updated_at: row.updated_at,
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
-            is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by,
-            eip_4844_blobs: row
-                .eip_4844_blobs
-                .as_deref()
-                .map(Eip4844Blobs::decode)
-                .transpose()
-                .unwrap(),
         })
     }
 
@@ -1516,7 +1501,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             updated_at: row.updated_at,
             processing_started_at: row.processing_started_at,
             time_taken: row.time_taken,
-            is_blob_cleaned: row.is_blob_cleaned,
             protocol_version: row.protocol_version,
             picked_by: row.picked_by.clone(),
             number_of_basic_circuits: row.number_of_basic_circuits,

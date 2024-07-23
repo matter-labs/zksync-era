@@ -669,7 +669,6 @@ impl FriProverDal<'_, '_> {
             created_at: row.created_at,
             updated_at: row.updated_at,
             time_taken: row.time_taken,
-            is_blob_cleaned: row.is_blob_cleaned,
             depth: row.depth as u32,
             is_node_final_proof: row.is_node_final_proof,
             proof_blob_url: row.proof_blob_url.clone(),
