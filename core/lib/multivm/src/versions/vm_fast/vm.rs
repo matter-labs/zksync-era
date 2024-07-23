@@ -83,7 +83,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.world_diff.pubdata.0 as u32;
+        let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
             let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
@@ -145,7 +145,7 @@ impl<S: ReadStorage> Vm<S> {
                             .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
                             .as_u64();
 
-                        let pubdata_published = self.inner.world_diff.pubdata.0 as u32;
+                        let pubdata_published = self.inner.world_diff.pubdata() as u32;
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -419,8 +419,8 @@ impl<S: ReadStorage> Vm<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = &U256> + '_ {
-        self.inner.world_diff.get_decommitted_hashes().keys()
+    pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
+        self.inner.world_diff.decommitted_hashes()
     }
 }
 
@@ -508,7 +508,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
 
         let start = self.inner.world_diff.snapshot();
-        let pubdata_before = self.inner.world_diff.pubdata.0;
+        let pubdata_before = self.inner.world_diff.pubdata();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
         if matches!(execution_mode, VmExecutionMode::OneTx) {
@@ -530,7 +530,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             .map(Into::into)
             .map(UserL2ToL1Log)
             .collect();
-        let pubdata_after = self.inner.world_diff.pubdata.0;
+        let pubdata_after = self.inner.world_diff.pubdata();
 
         VmExecutionResultAndLogs {
             result,
