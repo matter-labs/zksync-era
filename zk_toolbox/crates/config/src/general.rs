@@ -1,27 +1,22 @@
-use std::path::PathBuf;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
 use url::Url;
+use xshell::Shell;
 pub use zksync_config::configs::GeneralConfig;
+use zksync_protobuf_config::encode_yaml_repr;
 
-use crate::{consts::GENERAL_FILE, traits::FileConfigWithDefaultName};
+use crate::{
+    consts::GENERAL_FILE,
+    traits::{FileConfigWithDefaultName, SaveConfig},
+};
 
 pub struct RocksDbs {
     pub state_keeper: PathBuf,
     pub merkle_tree: PathBuf,
 }
 
-// #[derive(Debug, Deserialize, Serialize, Clone)]
-// pub struct GeneralConfig {
-//     pub db: RocksDBConfig,
-//     pub eth: EthConfig,
-//     pub api: ApiConfig,
-//     #[serde(flatten)]
-//     pub other: serde_json::Value,
-// }
-
-// impl GeneralConfig {
 pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
     config
         .db_config
@@ -99,5 +94,13 @@ impl PortsConfig {
             merkle_tree_port: self.merkle_tree_port + 100,
             prometheus_listener_port: self.prometheus_listener_port + 100,
         }
+    }
+}
+
+impl SaveConfig for GeneralConfig {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let bytes =
+            encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&self)?;
+        Ok(shell.write_file(path, bytes)?)
     }
 }

@@ -112,17 +112,7 @@ impl ChainConfig {
         self.configs.join(SECRETS_FILE)
     }
 
-    pub fn get_zksync_general_config(&self) -> anyhow::Result<ZkSyncGeneralConfig> {
-        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
-            &self.configs.join(GENERAL_FILE),
-            false,
-        )
-    }
-
-    pub fn save_zksync_general_config(
-        &self,
-        general_config: &ZkSyncGeneralConfig,
-    ) -> anyhow::Result<()> {
+    pub fn save_general_config(&self, general_config: &ZkSyncGeneralConfig) -> anyhow::Result<()> {
         let path = self.configs.join(GENERAL_FILE);
         let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
             general_config,

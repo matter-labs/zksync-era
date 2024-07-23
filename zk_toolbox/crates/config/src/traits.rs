@@ -6,7 +6,6 @@ use common::files::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
-use zksync_protobuf::repr::ProtoRepr;
 
 pub trait FileConfig {}
 
@@ -22,13 +21,15 @@ impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
 
 // impl<T> ReadConfig for T where T: FileConfig + Clone {}
 
-impl<T> SaveConfig for T where T: FileConfig + Serialize {}
-
-impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
+impl<T: Serialize + FileConfig> SaveConfig for T {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        save_with_comment(shell, path, &self, "")
+    }
+}
 
 impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + DeserializeOwned + Clone {}
 
-impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize + Sized {}
 
 impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultName + Serialize {}
 
@@ -86,10 +87,8 @@ pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName {
 
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait SaveConfig: Serialize + Sized {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        save_with_comment(shell, path, self, "")
-    }
+pub trait SaveConfig {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()>;
 }
 
 /// Saves a config file from a base path, correctly parsing file extension.
@@ -106,7 +105,16 @@ pub trait SaveConfigWithBasePath: SaveConfig + FileConfigWithDefaultName {
 
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
-pub trait SaveConfigWithComment: Serialize + Sized {
+pub trait SaveConfigWithComment: Sized {
+    fn save_with_comment(
+        &self,
+        shell: &Shell,
+        path: impl AsRef<Path>,
+        comment: &str,
+    ) -> anyhow::Result<()>;
+}
+
+impl<T: Sized + Serialize> SaveConfigWithComment for T {
     fn save_with_comment(
         &self,
         shell: &Shell,

@@ -3,8 +3,8 @@ use std::path::Path;
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig, traits::SaveConfigWithBasePath, ChainConfig, DatabaseSecrets,
-    EcosystemConfig, L1Secret, SecretsConfig,
+    external_node::ENConfig, ports_config, traits::SaveConfigWithBasePath, update_ports,
+    ChainConfig, DatabaseSecrets, EcosystemConfig, L1Secret, SecretsConfig,
 };
 use xshell::Shell;
 
@@ -51,11 +51,22 @@ fn prepare_configs(
         l1_batch_commit_data_generator_mode: genesis
             .l1_batch_commit_data_generator_mode
             .unwrap_or_default(),
-        main_node_url: general.api.web3_json_rpc.http_url.clone(),
+        main_node_url: general
+            .api_config
+            .context("api_config")?
+            .web3_json_rpc
+            .http_url
+            .clone(),
         main_node_rate_limit_rps: None,
     };
     let mut general_en = general.clone();
-    general_en.update_ports(&general.ports_config().next_empty_ports_config())?;
+
+    update_ports(
+        &mut general_en,
+        &ports_config(&general)
+            .context("da")?
+            .next_empty_ports_config(),
+    )?;
     let secrets = SecretsConfig {
         database: DatabaseSecrets {
             server_url: args.db.full_url(),
