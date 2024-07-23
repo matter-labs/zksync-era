@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode};
 
 use crate::{consts::EN_CONFIG_FILE, traits::FileConfigWithDefaultName};
+use crate::traits::FileConfig;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ENConfig {
@@ -21,3 +22,5 @@ pub struct ENConfig {
 impl FileConfigWithDefaultName for ENConfig {
     const FILE_NAME: &'static str = EN_CONFIG_FILE;
 }
+
+impl FileConfig for ENConfig {}

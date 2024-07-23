@@ -6,6 +6,7 @@ use thiserror::Error;
 use types::{ChainId, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 
+use crate::traits::FileConfig;
 use crate::{
     consts::{
         CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
@@ -94,6 +95,8 @@ impl<'de> Deserialize<'de> for EcosystemConfig {
 impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
+
+impl FileConfig for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {

@@ -96,3 +96,5 @@ pub struct DeployErc20Output {
 impl FileConfigWithDefaultName for DeployErc20Output {
     const FILE_NAME: &'static str = ERC20_CONFIGS_FILE;
 }
+
+impl FileConfig for DeployErc20Output {}

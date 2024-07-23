@@ -89,6 +89,8 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
+impl FileConfig for ContractsConfig {}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,

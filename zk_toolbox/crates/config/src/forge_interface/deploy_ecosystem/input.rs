@@ -61,6 +61,8 @@ impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
+impl FileConfig for InitialDeploymentConfig {}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
     pub tokens: Vec<Erc20DeploymentTokensConfig>,
@@ -69,6 +71,8 @@ pub struct Erc20DeploymentConfig {
 impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
+
+impl FileConfig for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {

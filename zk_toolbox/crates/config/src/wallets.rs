@@ -61,3 +61,5 @@ pub(crate) struct EthMnemonicConfig {
 }
 
 impl FileConfig for EthMnemonicConfig {}
+
+impl FileConfig for WalletsConfig {}

@@ -2,6 +2,7 @@ use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use types::{ChainId, L1BatchCommitDataGeneratorMode, ProtocolSemanticVersion};
 
+use crate::traits::FileConfig;
 use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -32,3 +33,5 @@ impl GenesisConfig {
 impl FileConfigWithDefaultName for GenesisConfig {
     const FILE_NAME: &'static str = GENESIS_FILE;
 }
+
+impl FileConfig for GenesisConfig {}

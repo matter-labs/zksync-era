@@ -2,6 +2,7 @@ use common::db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::traits::FileConfig;
 use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,3 +47,5 @@ impl SecretsConfig {
 impl FileConfigWithDefaultName for SecretsConfig {
     const FILE_NAME: &'static str = SECRETS_FILE;
 }
+
+impl FileConfig for SecretsConfig {}

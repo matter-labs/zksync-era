@@ -60,9 +60,9 @@ pub async fn genesis(
     set_rocks_db_config(&mut general, rocks_db)?;
     if config.prover_version != ProverMode::NoProofs {
         general
-            .eth
+            .eth.as_mut()
             .context("eth")?
-            .sender
+            .sender.as_mut()
             .context("sender")?
             .proof_sending_mode = ProofSendingMode::OnlyRealProofs;
     }
@@ -90,7 +90,7 @@ pub async fn genesis(
         config.link_to_code.clone(),
         args.dont_drop,
     )
-    .await?;
+        .await?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
@@ -123,7 +123,7 @@ async fn initialize_databases(
         path_to_server_migration,
         &server_db_config.full_url(),
     )
-    .await?;
+        .await?;
 
     if global_config().verbose {
         logger::debug(MSG_INITIALIZING_PROVER_DATABASE)
@@ -140,7 +140,7 @@ async fn initialize_databases(
         path_to_prover_migration,
         &prover_db_config.full_url(),
     )
-    .await?;
+        .await?;
 
     Ok(())
 }

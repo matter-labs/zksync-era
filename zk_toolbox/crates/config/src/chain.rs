@@ -20,6 +20,7 @@ use crate::{
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
+use crate::traits::FileConfig;
 
 /// Chain configuration file. This file is created in the chain
 /// directory before network initialization.
@@ -154,3 +155,5 @@ impl ChainConfig {
 impl FileConfigWithDefaultName for ChainConfigInternal {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
+
+impl FileConfig for ChainConfigInternal {}
