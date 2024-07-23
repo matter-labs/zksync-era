@@ -10,7 +10,7 @@ use crate::Address;
 pub struct StateOverride(HashMap<Address, OverrideAccount>);
 
 /// Account override for `eth_estimateGas`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverrideAccount {
     pub balance: Option<U256>,

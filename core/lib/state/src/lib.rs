@@ -94,6 +94,7 @@ pub trait WriteStorage: ReadStorage {
 pub type StoragePtr<S> = Rc<RefCell<S>>;
 
 /// Functionality to override the storage state.
+// FIXME: remove
 pub trait OverrideStorage {
     /// Apply state override to the storage.
     fn apply_state_override(&mut self, overrides: &StateOverride);
