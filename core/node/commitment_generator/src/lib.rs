@@ -307,7 +307,7 @@ impl CommitmentGenerator {
 
             let agg_tree_height = connection
                 .storage_web3_dal()
-                .get_historical_value_unchecked(&agg_tree_height_slot, right_block)
+                .get_historical_value_unchecked(agg_tree_height_slot.hashed_key(), right_block)
                 .await?;
             let agg_tree_height = h256_to_u256(agg_tree_height);
 
@@ -339,7 +339,7 @@ impl CommitmentGenerator {
                 StorageKey::new(AccountTreeId::new(message_root_addr), root_slot_offset);
             let aggregated_root = connection
                 .storage_web3_dal()
-                .get_historical_value_unchecked(&root_slot, right_block)
+                .get_historical_value_unchecked(root_slot.hashed_key(), right_block)
                 .await?;
 
             println!("aggregated_root: {:#?}", aggregated_root);

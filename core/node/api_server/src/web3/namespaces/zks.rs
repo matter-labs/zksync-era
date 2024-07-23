@@ -1,7 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use multivm::interface::VmExecutionResultAndLogs;
 use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;

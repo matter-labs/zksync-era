@@ -4,10 +4,6 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use assert_matches::assert_matches;
-use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
-    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
@@ -563,7 +559,7 @@ impl StorageSnapshot {
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
                 storage_writes_deduplicator
-                    .apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
             } else {
                 panic!("Unexpected tx execution result: {res:?}");
             };
