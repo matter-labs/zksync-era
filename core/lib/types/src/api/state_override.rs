@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use zksync_basic_types::{web3::Bytes, H256, U256};
@@ -9,6 +9,23 @@ use crate::Address;
 /// Collection of overridden accounts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StateOverride(HashMap<Address, OverrideAccount>);
+
+impl StateOverride {
+    /// Wraps the provided account overrides.
+    pub fn new(state: HashMap<Address, OverrideAccount>) -> Self {
+        Self(state)
+    }
+
+    /// Gets overrides for the specified account.
+    pub fn get(&self, address: &Address) -> Option<&OverrideAccount> {
+        self.0.get(address)
+    }
+
+    /// Iterates over all account overrides.
+    pub fn iter(&self) -> impl Iterator<Item = (&Address, &OverrideAccount)> + '_ {
+        self.0.iter()
+    }
+}
 
 /// Serialized bytecode representation.
 #[derive(Debug, Clone, PartialEq)]
@@ -86,25 +103,6 @@ where
         _ => Err(de::Error::custom(
             "Both 'state' and 'stateDiff' cannot be set simultaneously",
         )),
-    }
-}
-
-impl StateOverride {
-    pub fn new(state: HashMap<Address, OverrideAccount>) -> Self {
-        Self(state)
-    }
-
-    pub fn get(&self, address: &Address) -> Option<&OverrideAccount> {
-        self.0.get(address)
-    }
-}
-
-// FIXME: remove
-impl Deref for StateOverride {
-    type Target = HashMap<Address, OverrideAccount>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
