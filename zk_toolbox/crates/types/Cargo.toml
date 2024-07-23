@@ -15,5 +15,5 @@ clap.workspace = true
 ethers.workspace = true
 serde.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 thiserror.workspace = true
+zksync_basic_types.workspace = true

@@ -17,7 +17,7 @@ use crate::{
     SnapshotsCreatorConfig,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GeneralConfig {
     pub postgres_config: Option<PostgresConfig>,
     pub api_config: Option<ApiConfig>,

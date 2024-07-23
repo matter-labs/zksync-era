@@ -2,8 +2,10 @@ use common::db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::traits::FileConfig;
-use crate::{consts::SECRETS_FILE, traits::FileConfigWithDefaultName};
+use crate::{
+    consts::SECRETS_FILE,
+    traits::{FileConfig, FileConfigWithDefaultName},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSecrets {

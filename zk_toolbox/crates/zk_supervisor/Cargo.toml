@@ -17,7 +17,6 @@ common.workspace = true
 config.workspace = true
 human-panic.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 tokio.workspace = true
 url.workspace = true
 xshell.workspace = true

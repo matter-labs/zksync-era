@@ -1,17 +1,19 @@
 use std::num::NonZeroUsize;
 
 use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitDataGeneratorMode};
+use types::{ChainId, L1BatchCommitmentMode};
 
-use crate::{consts::EN_CONFIG_FILE, traits::FileConfigWithDefaultName};
-use crate::traits::FileConfig;
+use crate::{
+    consts::EN_CONFIG_FILE,
+    traits::{FileConfig, FileConfigWithDefaultName},
+};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ENConfig {
     // Genesis
     pub l2_chain_id: ChainId,
     pub l1_chain_id: u32,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 
     // Main node configuration
     pub main_node_url: String,

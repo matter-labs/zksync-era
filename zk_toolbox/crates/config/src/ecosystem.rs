@@ -6,7 +6,6 @@ use thiserror::Error;
 use types::{ChainId, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 
-use crate::traits::FileConfig;
 use crate::{
     consts::{
         CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
@@ -15,7 +14,7 @@ use crate::{
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    traits::{FileConfig, FileConfigWithDefaultName, ReadConfig, SaveConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 

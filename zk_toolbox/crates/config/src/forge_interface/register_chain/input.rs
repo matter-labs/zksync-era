@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitDataGeneratorMode};
+use types::{ChainId, L1BatchCommitmentMode};
 
 use crate::{traits::FileConfig, ChainConfig, ContractsConfig};
 
@@ -14,6 +14,7 @@ struct Bridgehub {
 struct StateTransition {
     state_transition_proxy_addr: Address,
 }
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct DeployedAddresses {
     state_transition: StateTransition,
@@ -70,7 +71,7 @@ impl RegisterChainL1Config {
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
             },
             chain: ChainL1Config {
-                chain_chain_id: genesis_config.l2_chain_id,
+                chain_chain_id: ChainId(genesis_config.l2_chain_id.as_u64() as u32),
                 base_token_gas_price_multiplier_nominator: chain_config.base_token.nominator,
                 base_token_gas_price_multiplier_denominator: chain_config.base_token.denominator,
                 base_token_addr: chain_config.base_token.address,
@@ -80,7 +81,7 @@ impl RegisterChainL1Config {
                 // TODO verify
                 bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
                 validium_mode: chain_config.l1_batch_commit_data_generator_mode
-                    == L1BatchCommitDataGeneratorMode::Validium,
+                    == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
             },

@@ -642,7 +642,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sqlx",
- "strum_macros 0.26.4",
+ "strum",
  "thiserror",
  "tokio",
  "toml",
@@ -668,12 +668,12 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
- "strum 0.26.3",
- "strum_macros 0.26.4",
+ "strum",
  "thiserror",
  "types",
  "url",
  "xshell",
+ "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
  "zksync_protobuf_config",
@@ -1389,7 +1389,7 @@ dependencies = [
  "rlp",
  "serde",
  "serde_json",
- "strum 0.26.3",
+ "strum",
  "syn 2.0.72",
  "tempfile",
  "thiserror",
@@ -4959,33 +4959,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.24.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
-dependencies = [
- "strum_macros 0.24.3",
-]
-
-[[package]]
-name = "strum"
 version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
- "strum_macros 0.26.4",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.24.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e385be0d24f186b4ce2f9982191e7101bb737312ad61c1f2f984f34bcf85d59"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 1.0.109",
+ "strum_macros",
 ]
 
 [[package]]
@@ -5595,9 +5573,9 @@ dependencies = [
  "clap",
  "ethers",
  "serde",
- "strum 0.26.3",
- "strum_macros 0.26.4",
+ "strum",
  "thiserror",
+ "zksync_basic_types",
 ]
 
 [[package]]
@@ -6317,8 +6295,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "slugify-rs",
- "strum 0.26.3",
- "strum_macros 0.26.4",
+ "strum",
  "thiserror",
  "tokio",
  "toml",
@@ -6338,8 +6315,7 @@ dependencies = [
  "config",
  "human-panic",
  "serde",
- "strum 0.26.3",
- "strum_macros 0.26.4",
+ "strum",
  "tokio",
  "url",
  "xshell",
@@ -6372,7 +6348,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "strum 0.24.1",
+ "strum",
  "thiserror",
  "tiny-keccak",
  "url",
@@ -6558,7 +6534,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "strum 0.24.1",
+ "strum",
  "thiserror",
  "tracing",
  "zksync_basic_types",

@@ -12,7 +12,7 @@ use ethers::{
     utils::{hex, hex::ToHex},
 };
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 use xshell::{cmd, Shell};
 
 use crate::{

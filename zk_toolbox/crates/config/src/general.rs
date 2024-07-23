@@ -4,11 +4,11 @@ use anyhow::Context;
 use url::Url;
 use xshell::Shell;
 pub use zksync_config::configs::GeneralConfig;
-use zksync_protobuf_config::encode_yaml_repr;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::GENERAL_FILE,
-    traits::{FileConfigWithDefaultName, SaveConfig},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
 };
 
 pub struct RocksDbs {
@@ -101,5 +101,12 @@ impl SaveConfig for GeneralConfig {
         let bytes =
             encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&self)?;
         Ok(shell.write_file(path, bytes)?)
+    }
+}
+
+impl ReadConfig for GeneralConfig {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = shell.current_dir().join(path);
+        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
     }
 }

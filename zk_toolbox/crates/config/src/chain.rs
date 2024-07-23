@@ -4,12 +4,10 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
-use types::{
-    BaseToken, ChainId, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation,
-};
+use types::{BaseToken, ChainId, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_config::configs::GeneralConfig as ZkSyncGeneralConfig;
-use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
+use zksync_protobuf_config::encode_yaml_repr;
 
 use crate::{
     consts::{
@@ -17,10 +15,11 @@ use crate::{
         SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{
+        FileConfig, FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath,
+    },
     ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
-use crate::traits::FileConfig;
 
 /// Chain configuration file. This file is created in the chain
 /// directory before network initialization.
@@ -35,7 +34,7 @@ pub struct ChainConfigInternal {
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
     pub external_node_config_path: Option<PathBuf>,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
 }
@@ -53,7 +52,7 @@ pub struct ChainConfig {
     pub rocks_db_path: PathBuf,
     pub configs: PathBuf,
     pub external_node_config_path: Option<PathBuf>,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
@@ -78,11 +77,7 @@ impl ChainConfig {
     }
 
     pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
-            &self.configs.join(GENERAL_FILE),
-            false,
-        )
-        // GeneralConfig::read(self.get_shell(), self.configs.join(GENERAL_FILE))
+        GeneralConfig::read(self.get_shell(), self.configs.join(GENERAL_FILE))
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {

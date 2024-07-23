@@ -25,17 +25,17 @@ impl<T: Serialize + FileConfig> SaveConfig for T {
     }
 }
 
-impl<T> ReadConfigWithBasePath for T
-where
-    T: FileConfigWithDefaultName + DeserializeOwned + Clone + FileConfig,
-{}
+impl<T> ReadConfigWithBasePath for T where
+    T: FileConfigWithDefaultName + DeserializeOwned + Clone + ReadConfig
+{
+}
 
 impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + SaveConfig {}
 
-impl<T> SaveConfigWithCommentAndBasePath for T
-where
-    T: FileConfigWithDefaultName + Serialize + FileConfig,
-{}
+impl<T> SaveConfigWithCommentAndBasePath for T where
+    T: FileConfigWithDefaultName + Serialize + SaveConfig
+{
+}
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
@@ -61,25 +61,6 @@ where
         }
     }
 }
-
-// impl<T> ReadConfig for T
-// where
-//     T: ProtoRepr + Clone + FileConfig,
-// {
-//     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
-//         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
-//
-//         match path.as_ref().extension().and_then(|ext| ext.to_str()) {
-//             Some("yaml") | Some("yml") => read_yaml_file(shell, &path).with_context(error_context),
-//             Some("toml") => read_toml_file(shell, &path).with_context(error_context),
-//             Some("json") => read_json_file(shell, &path).with_context(error_context),
-//             _ => bail!(format!(
-//                 "Unsupported file extension for config file {:?}.",
-//                 path.as_ref()
-//             )),
-//         }
-//     }
-// }
 
 /// Reads a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
@@ -143,7 +124,7 @@ impl<T: Sized + Serialize> SaveConfigWithComment for T {
 /// Saves a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
 pub trait SaveConfigWithCommentAndBasePath:
-SaveConfigWithComment + FileConfigWithDefaultName + FileConfig
+    SaveConfigWithComment + FileConfigWithDefaultName + SaveConfig
 {
     fn save_with_comment_and_base_path(
         &self,

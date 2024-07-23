@@ -12,7 +12,7 @@ use config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
 
@@ -59,7 +59,7 @@ pub async fn init(
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
-    genesis_config.update_from_chain_config(chain_config);
+    update_from_chain_config(&mut genesis_config, chain_config);
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Copy ecosystem contracts
