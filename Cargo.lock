@@ -689,15 +689,16 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
+source = "git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing#e97e94fe632cccd208e095b6fa3e682805b481fa"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.8.4",
+ "crossbeam 0.7.3",
  "crypto-bigint 0.5.5",
- "cs_derive 0.1.0",
+ "cs_derive 0.1.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "derivative",
  "ethereum-types",
  "firestorm",
@@ -1041,6 +1042,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
  "derivative",
  "serde",
@@ -1102,6 +1104,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
  "bellman_ce",
  "circuit_encodings 0.1.50",
@@ -1563,6 +1566,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
+source = "git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing#e97e94fe632cccd208e095b6fa3e682805b481fa"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.85",
@@ -3289,8 +3293,9 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
- "boojum 0.2.0",
+ "boojum 0.2.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "derivative",
  "hex",
  "once_cell",
@@ -7839,6 +7844,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zk_evm.git?branch=feature/ec-and-modexp-precompiles#b118fcb4b1a9df9ebc3422d357cf1246f3b0ab9b"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7876,6 +7882,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zk_evm_abstractions.git?branch=feature/ec-and-modexp-precompiles#2d2b0c987977188dda9f67f9f2282f2f266f3d6d"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -7929,10 +7936,11 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zkevm_circuits?branch=feature/bn254-circuits#fb17ae13c6fd298e959cb98f315119153823b604"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.2.0",
+ "boojum 0.2.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum.git?branch=main)",
  "derivative",
  "hex",
@@ -7989,6 +7997,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zkevm_opcode_defs.git?branch=feature/ec-and-modexp-precompiles#470619fbc6b6cfff541e5d87975052a574f2c19d"
 dependencies = [
  "bitflags 2.5.0",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",

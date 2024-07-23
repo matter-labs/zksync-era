@@ -736,6 +736,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
+source = "git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing#e97e94fe632cccd208e095b6fa3e682805b481fa"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -744,7 +745,7 @@ dependencies = [
  "convert_case",
  "crossbeam 0.7.3",
  "crypto-bigint 0.5.5",
- "cs_derive 0.1.0",
+ "cs_derive 0.1.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "derivative",
  "ethereum-types",
  "firestorm",
@@ -1096,11 +1097,12 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 1.5.0",
- "zkevm_circuits 1.5.0",
+ "zk_evm 1.5.0 (git+https://github.com/distributed-lab/era-zk_evm.git?branch=feature/ec-and-modexp-precompiles)",
+ "zkevm_circuits 1.5.0 (git+https://github.com/distributed-lab/era-zkevm_circuits?branch=feature/bn254-circuits)",
 ]
 
 [[package]]
@@ -1168,9 +1170,10 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
- "circuit_encodings 0.1.50",
+ "circuit_encodings 0.1.50 (git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles)",
  "derivative",
  "rayon",
  "serde",
@@ -1628,6 +1631,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
+source = "git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing#e97e94fe632cccd208e095b6fa3e682805b481fa"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.85",
@@ -3504,8 +3508,9 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.50"
+source = "git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles#774ab8c0fbafdf12a37541a9b5c737db9852df51"
 dependencies = [
- "boojum 0.2.0",
+ "boojum 0.2.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "derivative",
  "hex",
  "once_cell",
@@ -3513,7 +3518,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "zkevm_circuits 1.5.0",
+ "zkevm_circuits 1.5.0 (git+https://github.com/distributed-lab/era-zkevm_circuits?branch=feature/bn254-circuits)",
 ]
 
 [[package]]
@@ -3942,7 +3947,7 @@ dependencies = [
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
  "circuit_sequencer_api 0.1.42",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles)",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -3954,7 +3959,7 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zk_evm 1.5.0",
+ "zk_evm 1.5.0 (git+https://github.com/distributed-lab/era-zk_evm.git?branch=feature/ec-and-modexp-precompiles)",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",
@@ -8157,6 +8162,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zk_evm.git?branch=feature/ec-and-modexp-precompiles#b118fcb4b1a9df9ebc3422d357cf1246f3b0ab9b"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8164,7 +8170,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 1.5.0",
+ "zk_evm_abstractions 1.5.0 (git+https://github.com/distributed-lab/era-zk_evm_abstractions.git?branch=feature/ec-and-modexp-precompiles)",
 ]
 
 [[package]]
@@ -8208,12 +8214,13 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zk_evm_abstractions.git?branch=feature/ec-and-modexp-precompiles#2d2b0c987977188dda9f67f9f2282f2f266f3d6d"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 1.5.0",
+ "zkevm_opcode_defs 1.5.0 (git+https://github.com/distributed-lab/era-zkevm_opcode_defs.git?branch=feature/ec-and-modexp-precompiles)",
 ]
 
 [[package]]
@@ -8332,10 +8339,11 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zkevm_circuits?branch=feature/bn254-circuits#fb17ae13c6fd298e959cb98f315119153823b604"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.2.0",
+ "boojum 0.2.0 (git+https://github.com/distributed-lab/era-boojum?branch=feature/bn254-ec-pairing)",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
@@ -8347,7 +8355,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 1.5.0",
+ "zkevm_opcode_defs 1.5.0 (git+https://github.com/distributed-lab/era-zkevm_opcode_defs.git?branch=feature/ec-and-modexp-precompiles)",
 ]
 
 [[package]]
@@ -8411,6 +8419,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
+source = "git+https://github.com/distributed-lab/era-zkevm_opcode_defs.git?branch=feature/ec-and-modexp-precompiles#470619fbc6b6cfff541e5d87975052a574f2c19d"
 dependencies = [
  "bitflags 2.5.0",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8560,7 +8569,7 @@ dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles)",
  "futures 0.3.30",
  "itertools 0.10.5",
  "multivm",
@@ -8571,7 +8580,7 @@ dependencies = [
  "vise",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.1",
- "zk_evm 1.5.0",
+ "zk_evm 1.5.0 (git+https://github.com/distributed-lab/era-zk_evm.git?branch=feature/ec-and-modexp-precompiles)",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -9055,7 +9064,7 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
- "kzg 0.1.50",
+ "kzg 0.1.50 (git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles)",
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
@@ -9497,7 +9506,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api 0.1.50",
+ "circuit_sequencer_api 0.1.50 (git+https://github.com/distributed-lab/era-zkevm_test_harness.git?branch=feature/ec-and-modexp-precompiles)",
  "serde",
  "serde_with",
  "strum",
