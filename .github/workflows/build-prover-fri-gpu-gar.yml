@@ -44,10 +44,9 @@ jobs:
         with:
           context: docker/prover-gpu-fri-gar
           build-args: |
-            PROVER_IMAGE=${{ inputs.image_tag_suffix }}
+            PROVER_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           push: true
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
       - name: Login to Asia GAR
@@ -56,9 +55,6 @@ jobs:
 
       - name: Build and push to Asia GAR
         run: |
-          docker buildx imagetools create \
-            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
@@ -69,9 +65,6 @@ jobs:
 
       - name: Build and push to Europe GAR
         run: |
-          docker buildx imagetools create \
-            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
