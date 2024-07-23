@@ -1,5 +1,24 @@
 # Changelog
 
+## [24.10.0](https://github.com/matter-labs/zksync-era/compare/core-v24.9.0...core-v24.10.0) (2024-07-22)
+
+
+### Features
+
+* Add blob size metrics ([#2411](https://github.com/matter-labs/zksync-era/issues/2411)) ([41c535a](https://github.com/matter-labs/zksync-era/commit/41c535af2bcc72000116277d5dd9e04b5c0b2372))
+* **en:** Switch EN to use node framework ([#2427](https://github.com/matter-labs/zksync-era/issues/2427)) ([0cee530](https://github.com/matter-labs/zksync-era/commit/0cee530b2f2e8304b7e20a093a32abe116463b57))
+* **eth-sender:** add early return in sending new transactions to not spam logs with errors ([#2425](https://github.com/matter-labs/zksync-era/issues/2425)) ([192f2a3](https://github.com/matter-labs/zksync-era/commit/192f2a374d83eaecb52f198fdcfa615262378530))
+* **eth-watch:** Integrate decentralized upgrades ([#2401](https://github.com/matter-labs/zksync-era/issues/2401)) ([5a48e10](https://github.com/matter-labs/zksync-era/commit/5a48e1026260024c6ae2b4d1100ee9b798a83e8d))
+* L1 batch signing (BFT-474) ([#2414](https://github.com/matter-labs/zksync-era/issues/2414)) ([ab699db](https://github.com/matter-labs/zksync-era/commit/ab699dbe8cffa8bd291d6054579061b47fd4aa0e))
+* **prover:** Make it possible to run prover out of GCP ([#2448](https://github.com/matter-labs/zksync-era/issues/2448)) ([c9da549](https://github.com/matter-labs/zksync-era/commit/c9da5497e2aa9d85f204ab7b74fefcfe941793ff))
+* **zk_toolbox:** Small adjustment for zk toolbox ([#2424](https://github.com/matter-labs/zksync-era/issues/2424)) ([ce43c42](https://github.com/matter-labs/zksync-era/commit/ce43c422fddccfe88c07ee22a2b8726dd0bd5f61))
+
+
+### Bug Fixes
+
+* **eth-sender:** add bump of min 10% when resending txs to avoid "replacement transaction underpriced" ([#2422](https://github.com/matter-labs/zksync-era/issues/2422)) ([a7bcf5d](https://github.com/matter-labs/zksync-era/commit/a7bcf5d7f75eb45384312d7c97f25a50a91e7a31))
+* Set attesters in Connection::adjust_genesis (BFT-489) ([#2429](https://github.com/matter-labs/zksync-era/issues/2429)) ([ca4cb3c](https://github.com/matter-labs/zksync-era/commit/ca4cb3cba04757dc1760397c667a838931cd2d11))
+
 ## [24.9.0](https://github.com/matter-labs/zksync-era/compare/core-v24.8.0...core-v24.9.0) (2024-07-10)
 
 
