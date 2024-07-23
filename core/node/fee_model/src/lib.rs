@@ -265,9 +265,11 @@ mod tests {
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
-    const GIANT_L1_GAS_PRICE: u64 = 100_000_000_000_000;
+    const GWEI: u64 = 1_000_000_000;
+    const GIANT_L1_GAS_PRICE: u64 = 1_000 * GWEI;
+    const GIANT_L1_PUB_DATA_PRICE: u64 = 100_000_000 * GWEI;
 
-    // As a small small L2 gas price we'll use the value of 1 wei.
+    // As a small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
 
     #[test]
@@ -289,7 +291,7 @@ mod tests {
         let params = FeeParamsV2::new(
             config,
             GIANT_L1_GAS_PRICE,
-            GIANT_L1_GAS_PRICE,
+            GIANT_L1_PUB_DATA_PRICE,
             BaseTokenConversionRatio::default(),
         );
 
@@ -297,8 +299,8 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 3.0, 3.0);
 
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE * 3);
-        assert_eq!(input.fair_l2_gas_price, 130_000_000_000_000);
-        assert_eq!(input.fair_pubdata_price, 15_300_000_000_000_000);
+        assert_eq!(input.fair_l2_gas_price, 1_300_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 300_150_000_000_000_000);
     }
 
     #[test]
@@ -342,7 +344,7 @@ mod tests {
         let params = FeeParamsV2::new(
             config,
             GIANT_L1_GAS_PRICE,
-            GIANT_L1_GAS_PRICE,
+            GIANT_L1_PUB_DATA_PRICE,
             BaseTokenConversionRatio::default(),
         );
 
@@ -351,14 +353,14 @@ mod tests {
         // The fair L2 gas price is identical to the minimal one.
         assert_eq!(input.fair_l2_gas_price, 100_000_000_000);
         // The fair pubdata price is the minimal one plus the overhead.
-        assert_eq!(input.fair_pubdata_price, 800_000_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 100_007_000_000_000_000);
     }
 
     #[test]
     fn test_compute_baxtch_fee_model_input_v2_only_compute_overhead() {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
-            minimal_l2_gas_price: 100_000_000_000,
+            minimal_l2_gas_price: 1_000_000_000,
             compute_overhead_part: 1.0,
             pubdata_overhead_part: 0.0,
             batch_overhead_l1_gas: 700_000,
@@ -376,7 +378,7 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one, plus the overhead
-        assert_eq!(input.fair_l2_gas_price, 240_000_000_000);
+        assert_eq!(input.fair_l2_gas_price, 2_400_000_000);
         // The fair pubdata price is equal to the original one.
         assert_eq!(input.fair_pubdata_price, GIANT_L1_GAS_PRICE);
     }
@@ -497,6 +499,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_gas_price_over_limit_due_to_l1_gas() {
+        // In this test we check the gas price limit works as expected
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 100 * GWEI,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let l1_gas_price = 1_000_000_000 * GWEI;
+        let params = FeeParamsV2::new(
+            config,
+            l1_gas_price,
+            GIANT_L1_PUB_DATA_PRICE,
+            BaseTokenConversionRatio::default(),
+        );
+
+        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        assert_eq!(input.l1_gas_price, l1_gas_price);
+        // The fair L2 gas price is identical to the maximum
+        assert_eq!(input.fair_l2_gas_price, config.maximum_l2_gas_price());
+    }
+
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_gas_price_over_limit_due_to_conversion_rate() {
+        // In this test we check the gas price limit works as expected
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: GWEI,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let params = FeeParamsV2::new(
+            config,
+            GWEI,
+            2 * GWEI,
+            BaseTokenConversionRatio {
+                numerator: NonZeroU64::new(3_000_000).unwrap(),
+                denominator: NonZeroU64::new(1).unwrap(),
+            },
+        );
+
+        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        assert_eq!(input.l1_gas_price, 3_000_000 * GWEI);
+        // The fair L2 gas price is identical to the maximum
+        assert_eq!(input.fair_l2_gas_price, config.maximum_l2_gas_price());
+    }
+
     #[tokio::test]
     async fn test_get_fee_model_params() {
         struct TestCase {
@@ -550,7 +606,7 @@ mod tests {
                 expected_l1_pubdata_price: 3000,
             },
             TestCase {
-                name: "Large conversion - 1 ETH = 1_000 BaseToken",
+                name: "Large conversion - 1 ETH = 1_000_000 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
                     numerator: NonZeroU64::new(1_000_000).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
