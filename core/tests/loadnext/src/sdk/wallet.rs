@@ -96,7 +96,7 @@ where
             };
             let bytes = self
                 .provider
-                .call(req, Some(BlockIdVariant::BlockNumber(block_number)))
+                .call(req, Some(BlockIdVariant::BlockNumber(block_number)), None)
                 .await?;
             if bytes.0.len() == 32 {
                 U256::from_big_endian(&bytes.0)
