@@ -230,8 +230,8 @@ function createInitialCutHash(environment) {
     facetCuts = facetCuts.filter((cut) => cut.action === 0);
 
     // FIXME: potentially provide it in CLI
-    const diamondInit = process.env.CONTRACTS_DIAMOND_INIT_ADDR;
-    const blobVersionedHashRetriever = process.env.CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR;
+    const diamondInit = '0x27A7F18106281fE53d371958E8bC3f833694D24a';
+    const blobVersionedHashRetriever = '0x273bdccdd979510adf4fb801d92f64b243c01fe2';
 
     let l2BootloaderBytecodeHash = ethers.constants.HashZero;
     let l2DefaultAccountBytecodeHash = ethers.constants.HashZero;
