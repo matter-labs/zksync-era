@@ -2,7 +2,10 @@
 
 ## TL;DR
 
-If you run on 'clean' Debian on GCP:
+This is a shorter version of setup guide to make it easier subsequent initializations. If it's the first time you're
+initializing the workspace, it's recommended that you read the whole guide below, as it provides more context and tips.
+
+If you run on 'clean' Ubuntu on GCP:
 
 ```bash
 # Rust
@@ -10,9 +13,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 # All necessary stuff
-sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
-# Docker
-sudo usermod -aG docker YOUR_USER
+sudo apt-get update && sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
+# Install docker
+sudo apt install apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+sudo apt install docker-ce
+sudo usermod -aG docker ${USER}
 
 ## You might need to re-connect (due to usermod change).
 
@@ -21,6 +28,8 @@ nvm install 20
 npm install -g yarn
 yarn set version 1.22.19
 
+# For running unit tests
+cargo install cargo-nextest
 # SQL tools
 cargo install sqlx-cli --version 0.7.4
 # Stop default postgres (as we'll use the docker one)
@@ -31,13 +40,20 @@ sudo systemctl start docker
 # Foundry
 curl -L https://foundry.paradigm.xyz | bash
 foundryup --branch master
+
+# Clone the repo to the desired location
+git clone git@github.com:matter-labs/zksync-era.git
+cd zksync-era
+git submodule update --init --recursive
 ```
+
+Don't forget to [add env variables](#Environment) and look at [tips](#tips).
 
 ## Supported operating systems
 
 ZKsync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
-If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
+If you're using Windows, then make sure to use WSL 2.
 
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
 accessing NTFS partitions from within WSL is very slow.
@@ -90,38 +106,9 @@ If logging out does not resolve the issue, restarting the computer should.
 
 ## `Node` & `Yarn`
 
-1. Install `Node` (requires version `v18.18.0`). Since our team attempts to always use the latest LTS version of
-   `Node.js`, we suggest you to install [nvm](https://github.com/nvm-sh/nvm). It will allow you to update `Node.js`
-   version easily in the future (by running `nvm use v18.18.0` in the root of the repository)
-2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
-   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/). Check if `yarn` is
-   installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the case that your
-   package manager installed the wrong package.Make sure to thoroughly follow the instructions above on the official
-   website. It contains a lot of troubleshooting guides in it.
-
-## `Axel`
-
-Install `axel` for downloading keys:
-
-On mac:
-
-```bash
-brew install axel
-```
-
-On debian-based linux:
-
-```bash
-sudo apt-get install axel
-```
-
-Check the version of `axel` with the following command:
-
-```
-axel --version
-```
-
-Make sure the version is higher than `2.17.10`.
+1. Install `Node` (requires version `v20`). The recommended way is via [nvm](https://github.com/nvm-sh/nvm).
+2. Install `yarn`. Can be done via `npm install -g yarn`. Make sure to get version 1.22.19 - you can change the version
+   by running `yarn set version 1.22.19`.
 
 ## `clang`
 
@@ -221,32 +208,8 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install --locked sqlx-cli --version 0.7.3
+cargo install --locked sqlx-cli --version 0.7.4
 ```
-
-## Solidity compiler `solc`
-
-Install the latest solidity compiler.
-
-On mac:
-
-```bash
-brew install solidity
-```
-
-On debian-based linux:
-
-```bash
-sudo add-apt-repository ppa:ethereum/ethereum
-sudo apt-get update
-sudo apt-get install solc
-```
-
-Alternatively, download a [precompiled version](https://github.com/ethereum/solc-bin) and add it to your PATH.
-
-## Python
-
-Most environments will have this preinstalled but if not, install Python.
 
 ## Easier method using `nix`
 
@@ -274,10 +237,9 @@ Edit the lines below and add them to your shell profile file (e.g. `~/.bash_prof
 export ZKSYNC_HOME=/path/to/zksync
 
 export PATH=$ZKSYNC_HOME/bin:$PATH
-
-# If you're like me, uncomment:
-# cd $ZKSYNC_HOME
 ```
+
+## Tips
 
 ### Tip: `mold`
 
