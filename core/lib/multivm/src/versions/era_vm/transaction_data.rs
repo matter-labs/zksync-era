@@ -6,7 +6,7 @@ use zksync_types::{
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
-    web3::{keccak256, Bytes},
+    web3::Bytes,
     Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
@@ -91,7 +91,7 @@ impl From<Transaction> for TransactionData {
                     ],
                     data: execute_tx.execute.calldata,
                     signature: common_data.signature,
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
@@ -121,7 +121,7 @@ impl From<Transaction> for TransactionData {
                     data: execute_tx.execute.calldata,
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
@@ -151,7 +151,7 @@ impl From<Transaction> for TransactionData {
                     data: execute_tx.execute.calldata,
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
@@ -225,15 +225,18 @@ impl TransactionData {
         }
 
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
-        let transaction_request: TransactionRequest = l2_tx.into();
+        let mut transaction_request: TransactionRequest = l2_tx.into();
+        transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
-            .get_tx_hash(chain_id)
+            .get_tx_hash()
             .expect("Could not recover L2 transaction hash")
     }
 
     fn canonical_l1_tx_hash(&self) -> Result<H256, TxHashCalculationError> {
+        use zksync_types::web3::keccak256;
+
         if !is_l1_tx_type(self.tx_type) {
             return Err(TxHashCalculationError::CannotCalculateL1HashForL2Tx);
         }
@@ -275,12 +278,11 @@ impl TryInto<L2Tx> for TransactionData {
                 paymaster_input: self.paymaster_input,
             },
         };
-        let factory_deps = (!self.factory_deps.is_empty()).then_some(self.factory_deps);
         let execute = Execute {
             contract_address: self.to,
             value: self.value,
             calldata: self.data,
-            factory_deps,
+            factory_deps: self.factory_deps,
         };
 
         Ok(L2Tx {
