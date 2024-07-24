@@ -46,7 +46,7 @@ fn prepare_configs(
     args: PrepareConfigFinal,
 ) -> anyhow::Result<()> {
     let genesis = config.get_genesis_config()?;
-    let mut general = config.get_general_config()?;
+    let general = config.get_general_config()?;
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
@@ -82,8 +82,7 @@ fn prepare_configs(
     };
     secrets.save_with_base_path(shell, en_configs_path)?;
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
-    set_rocks_db_config(&mut general, dirs)?;
-
+    set_rocks_db_config(&mut general_en, dirs)?;
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
 
