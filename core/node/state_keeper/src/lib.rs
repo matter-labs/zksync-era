@@ -6,6 +6,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::{ConnectionPool, Core};
+pub use zksync_multivm::FastVmMode;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 

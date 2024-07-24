@@ -29,6 +29,7 @@ use zksync_node_api_server::{
 };
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
+use zksync_state_keeper::FastVmMode;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
     L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
@@ -1039,6 +1040,8 @@ pub(crate) struct ExperimentalENConfig {
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
+    /// Fast VM mode to use in the state keeper.
+    pub state_keeper_fast_vm_mode: Option<FastVmMode>,
 
     // Snapshot recovery
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.
@@ -1082,6 +1085,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
+            state_keeper_fast_vm_mode: None,
             snapshots_recovery_l1_batch: None,
             snapshots_recovery_drop_storage_key_preimages: false,
             snapshots_recovery_tree_chunk_size: Self::default_snapshots_recovery_tree_chunk_size(),
@@ -1106,6 +1110,7 @@ impl ExperimentalENConfig {
                 general_config.db_config,
                 experimental.state_keeper_db_max_open_files
             ),
+            state_keeper_fast_vm_mode: None, // FIXME
             snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
             snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
                 general_config.snapshot_recovery,

@@ -1,4 +1,5 @@
-use zksync_state::{ReadStorage, StoragePtr, StorageView};
+use serde::{Deserialize, Serialize};
+use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -13,7 +14,17 @@ use crate::{
     versions::shadow::ShadowVm,
 };
 
-pub type FastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
+pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
+
+/// Mode in which to run the new fast VM implementation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FastVmMode {
+    /// Run only the new VM.
+    Isolated,
+    /// Run both the new and old VM and compare their outputs for each transaction execution.
+    Shadow,
+}
 
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -26,7 +37,8 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
-    VmFast(FastVm<S, H>),
+    VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
+    ShadowedVmFast(ShadowedFastVm<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -42,6 +54,7 @@ macro_rules! dispatch_vm {
             VmInstance::Vm1_4_2(vm) => vm.$function($($params)*),
             VmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
             VmInstance::VmFast(vm) => vm.$function($($params)*),
+            VmInstance::ShadowedVmFast(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -137,8 +150,7 @@ impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S,
     ) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
-        //Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
-        Self::new_fast_with_specific_version(batch_env, system_env, storage_view, vm_version)
+        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 }
 
@@ -247,18 +259,26 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         }
     }
 
-    fn new_fast_with_specific_version(
+    /// Creates a VM that may use the fast VM depending on the protocol version in `system_env` and `mode`.
+    pub fn maybe_fast(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        vm_version: VmVersion,
+        mode: Option<FastVmMode>,
     ) -> Self {
+        let vm_version = system_env.version.into();
         match vm_version {
-            VmVersion::Vm1_5_0IncreasedBootloaderMemory => VmInstance::VmFast(
-                //crate::vm_fast::Vm::new(l1_batch_env, system_env, storage_view),
-                FastVm::new(l1_batch_env, system_env, storage_view),
-            ),
-            _ => unimplemented!("version not supported by fast VM"),
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => match mode {
+                Some(FastVmMode::Isolated) => {
+                    let storage = ImmutableStorageView::new(storage_view);
+                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+                }
+                Some(FastVmMode::Shadow) => {
+                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
+                }
+                None => Self::new(l1_batch_env, system_env, storage_view),
+            },
+            _ => Self::new(l1_batch_env, system_env, storage_view),
         }
     }
 }
