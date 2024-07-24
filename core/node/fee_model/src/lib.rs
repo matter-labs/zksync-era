@@ -207,6 +207,11 @@ fn compute_batch_fee_model_input_v2(
         if calculated_price < config.maximum_l2_gas_price() {
             calculated_price
         } else {
+            tracing::warn!(
+                "Fair l2 gas price {} exceeds maximum. Limiting to {}",
+                calculated_price,
+                config.maximum_l2_gas_price()
+            );
             config.maximum_l2_gas_price()
         }
     };
