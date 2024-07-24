@@ -54,12 +54,6 @@ impl BootloaderL2Block {
         self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash)
     }
 
-    pub(crate) fn interim_version(&self) -> BootloaderL2Block {
-        let mut interim = self.clone();
-        interim.max_virtual_blocks_to_create = 0;
-        interim
-    }
-
     pub(crate) fn make_snapshot(&self) -> L2BlockSnapshot {
         L2BlockSnapshot {
             txs_rolling_hash: self.txs_rolling_hash,
