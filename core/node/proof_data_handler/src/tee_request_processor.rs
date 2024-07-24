@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{tee_proof_generation_dal::TeeProof, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::{
     api::{
@@ -117,5 +117,24 @@ impl TeeRequestProcessor {
             .map_err(RequestProcessorError::Dal)?;
 
         Ok(Json(RegisterTeeAttestationResponse::Success))
+    }
+
+    pub(crate) async fn get_proof(
+        &self,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<Json<TeeProof>, RequestProcessorError> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .map_err(RequestProcessorError::Dal)?;
+        let mut dal = connection.tee_proof_generation_dal();
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        let tee_proof = dal
+            .get_proof(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::Dal)?;
+
+        Ok(Json(tee_proof.unwrap()))
     }
 }

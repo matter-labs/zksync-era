@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
@@ -14,6 +15,19 @@ use crate::Core;
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeeProof {
+    // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
+    pub signature: Option<Vec<u8>>,
+    // pubkey used for signature verification; each key pair is attested by the TEE attestation
+    // stored in the db
+    pub pubkey: Option<Vec<u8>>,
+    // data that was signed
+    pub proof: Option<Vec<u8>>,
+    // type of TEE used for attestation
+    pub tee_type: Option<TeeType>,
 }
 
 #[derive(Debug, EnumString, Display)]
@@ -201,5 +215,35 @@ impl TeeProofGenerationDal<'_, '_> {
         }
 
         Ok(())
+    }
+
+    pub async fn get_proof(&mut self, block_number: L1BatchNumber) -> DalResult<Option<TeeProof>> {
+        let result: Option<TeeProof> = sqlx::query!(
+            r#"
+            SELECT
+                signature,
+                pubkey,
+                proof,
+                tee_type
+            FROM
+                tee_proof_generation_details
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| TeeProof {
+            signature: row.signature,
+            pubkey: row.pubkey,
+            proof: row.proof,
+            tee_type: row
+                .tee_type
+                .map(|tt| tt.parse::<TeeType>().expect("Invalid TEE type")),
+        });
+
+        Ok(result)
     }
 }

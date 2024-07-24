@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                signature,\n                pubkey,\n                proof,\n                tee_type\n            FROM\n                tee_proof_generation_details\n            WHERE\n                l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signature",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "pubkey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "proof",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "tee_type",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "ef6f778df3f5dbe5014c786c081a6f325a6ef0da152c51234b177a78227e2320"
+}

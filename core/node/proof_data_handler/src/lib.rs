@@ -1,7 +1,11 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
-use axum::{extract::Path, routing::post, Json, Router};
+use axum::{
+    extract::Path,
+    routing::{get, post},
+    Json, Router,
+};
 use request_processor::RequestProcessor;
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
@@ -91,6 +95,7 @@ fn create_proof_processing_router(
             TeeRequestProcessor::new(blob_store, connection_pool, config.clone());
         let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
         let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
+        let get_tee_proof_processor = get_tee_proof_gen_processor.clone();
 
         router = router.route(
             "/tee/proof_inputs",
@@ -121,6 +126,15 @@ fn create_proof_processing_router(
                         .await
                 },
             ),
+        )
+        .route("tee/get_proof/:l1_batch_number",
+            get(
+                move |l1_batch_number: Path<u32>| async move {
+                    get_tee_proof_processor
+                        .get_proof(l1_batch_number)
+                        .await
+                },
+            )
         );
     }
 
