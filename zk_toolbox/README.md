@@ -145,7 +145,8 @@ zk_inception prover run
 You can specify the prover component to run by providing `--component <component>` argument. Possible components are:
 `gateway, witness-generator, witness-vector-generator, prover, compressor`
 
-If you are running `witness-generator` you can specify the round by providing `--round <round>` argument. Possible rounds are: `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`
+If you are running `witness-generator` you can specify the round by providing `--round <round>` argument. Possible
+rounds are: `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`
 
 ### Contract verifier
 
