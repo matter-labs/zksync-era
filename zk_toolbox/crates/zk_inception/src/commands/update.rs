@@ -6,17 +6,23 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use config::EcosystemConfig;
+use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     consts::GENERAL_FILE,
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_SHOW_DIFF,
-        MSG_UPDATING_GENERAL_CONFIG, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
-        MSG_ZKSYNC_UPDATED,
+        msg_updating_chain, MSG_CHAIN_NOT_FOUND_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER,
+        MSG_SHOW_DIFF, MSG_UPDATING_GENERAL_CONFIG, MSG_UPDATING_SUBMODULES_SPINNER,
+        MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
     },
 };
+
+#[derive(Default)]
+struct ConfigDiff {
+    pub value_diff: serde_yaml::Mapping,
+    pub added_fields: serde_yaml::Mapping,
+}
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
@@ -30,73 +36,65 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     submodule_update(shell, link_to_code.clone())?;
     spinner.finish();
 
-    logger::info(MSG_UPDATING_GENERAL_CONFIG);
     let updated_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
-    let updated_config = serde_yaml::from_reader(std::fs::File::open(updated_config_path)?)?;
+    let general_config = serde_yaml::from_reader(std::fs::File::open(updated_config_path)?)?;
 
-    let current_config_path = ecosystem
-        .load_chain(Some(ecosystem.default_chain.clone()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?
-        .path_to_general_config();
-    let mut current_config =
-        serde_yaml::from_reader(std::fs::File::open(current_config_path.clone())?)?;
-
-    let mut diff = serde_yaml::Mapping::new();
-
-    merge_yaml(
-        &mut current_config,
-        updated_config,
-        "".into(),
-        &mut diff,
-        false,
-    )?;
-
-    save_updated_config(current_config, &current_config_path, diff)?;
+    for chain in ecosystem.list_of_chains() {
+        logger::info(msg_updating_chain(&chain));
+        let chain = ecosystem
+            .load_chain(Some(chain))
+            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+        update_chain(&chain, &general_config)?;
+    }
 
     logger::outro(MSG_ZKSYNC_UPDATED);
 
     Ok(())
 }
 
-fn merge_yaml(
+fn merge_yaml_internal(
     a: &mut serde_yaml::Value,
     b: serde_yaml::Value,
     current_key: serde_yaml::Value,
-    diff: &mut serde_yaml::Mapping,
-    overwrite: bool,
+    diff: &mut ConfigDiff,
 ) -> anyhow::Result<()> {
     match (a, b) {
         (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
             for (key, value) in b {
                 if a.contains_key(&key) {
-                    merge_yaml(a.get_mut(&key).unwrap(), value, key, diff, overwrite)?;
+                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, key, diff)?;
                 } else {
                     a.insert(key.clone(), value.clone());
-                    diff.insert(key, value);
+                    diff.added_fields.insert(key, value);
                 }
             }
         }
         (a, b) => {
-            if overwrite && a != &b {
-                *a = b.clone();
-                diff.insert(current_key, b);
+            if a != &b {
+                diff.value_diff.insert(current_key, b);
             }
         }
     }
     Ok(())
 }
 
+fn merge_yaml(a: &mut serde_yaml::Value, b: serde_yaml::Value) -> anyhow::Result<ConfigDiff> {
+    let mut diff = ConfigDiff::default();
+    merge_yaml_internal(a, b, "".into(), &mut diff)?;
+    Ok(diff)
+}
+
 fn save_updated_config(
     config: serde_yaml::Value,
     path: &Path,
-    diff: serde_yaml::Mapping,
+    diff: ConfigDiff,
 ) -> anyhow::Result<()> {
-    if diff.is_empty() {
+    if diff.added_fields.is_empty() {
         return Ok(());
     }
 
     logger::info(MSG_SHOW_DIFF);
-    for (key, value) in diff {
+    for (key, value) in diff.added_fields {
         let key = key.as_str().unwrap();
         logger::info(format!("{}: {:?}", key, value));
     }
@@ -104,5 +102,15 @@ fn save_updated_config(
     let general_config = serde_yaml::to_string(&config)?;
     std::fs::write(path, general_config)?;
 
+    Ok(())
+}
+
+fn update_chain(chain: &ChainConfig, general_config: &serde_yaml::Value) -> anyhow::Result<()> {
+    logger::info(MSG_UPDATING_GENERAL_CONFIG);
+    let current_general_config_path = chain.path_to_general_config();
+    let mut current_general_config =
+        serde_yaml::from_reader(std::fs::File::open(current_general_config_path.clone())?)?;
+    let diff = merge_yaml(&mut current_general_config, general_config.clone())?;
+    save_updated_config(current_general_config, &current_general_config_path, diff)?;
     Ok(())
 }

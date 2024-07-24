@@ -319,3 +319,7 @@ pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era rep
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
 pub(super) const MSG_UPDATING_GENERAL_CONFIG: &str = "Updating general config";
 pub(super) const MSG_SHOW_DIFF: &str = "Added the following values:";
+
+pub(super) fn msg_updating_chain(chain: &str) -> String {
+    format!("Updating chain: {}", chain)
+}
