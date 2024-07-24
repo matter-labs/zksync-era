@@ -7,7 +7,7 @@ use xshell::Shell;
 use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_PROVER_URL_MUST_BE_PRESENTED};
 
 const CORE_DAL_PATH: &str = "core/lib/dal";
-const PROVER_DAL_PATH: &str = "prover/prover_dal";
+const PROVER_DAL_PATH: &str = "prover/crates/lib/prover_dal";
 
 #[derive(Debug, Clone)]
 pub struct SelectedDals {

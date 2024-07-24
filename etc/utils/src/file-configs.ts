@@ -16,7 +16,14 @@ export function shouldLoadConfigFromFile() {
     }
 }
 
-export const configNames = ['contracts.yaml', 'general.yaml', 'genesis.yaml', 'secrets.yaml', 'wallets.yaml'] as const;
+export const configNames = [
+    'contracts.yaml',
+    'general.yaml',
+    'genesis.yaml',
+    'secrets.yaml',
+    'wallets.yaml',
+    'external_node.yaml'
+] as const;
 
 export type ConfigName = (typeof configNames)[number];
 
@@ -113,4 +120,13 @@ export function getConfigsFolderPath({
     configsFolderSuffix?: string;
 }) {
     return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
+}
+
+export function replaceAggregatedBlockExecuteDeadline(pathToHome: string, fileConfig: any, value: number) {
+    const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+    const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
+    const regex = /aggregated_block_execute_deadline:\s*\d+/g;
+    const newGeneralConfig = generalConfig.replace(regex, `aggregated_block_execute_deadline: ${value}`);
+
+    fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }

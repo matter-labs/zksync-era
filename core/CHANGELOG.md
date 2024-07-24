@@ -1,5 +1,16 @@
 # Changelog
 
+## [24.11.0](https://github.com/matter-labs/zksync-era/compare/core-v24.10.0...core-v24.11.0) (2024-07-23)
+
+
+### Features
+
+* add revert tests (external node) to zk_toolbox ([#2408](https://github.com/matter-labs/zksync-era/issues/2408)) ([3fbbee1](https://github.com/matter-labs/zksync-era/commit/3fbbee10be99e8c5a696bfd50d81230141bccbf4))
+* add state override for gas estimates ([#1358](https://github.com/matter-labs/zksync-era/issues/1358)) ([761bda1](https://github.com/matter-labs/zksync-era/commit/761bda19844fb3935f8a57c47df39010f88ef9dc))
+* added consensus_config to general config ([#2462](https://github.com/matter-labs/zksync-era/issues/2462)) ([c5650a4](https://github.com/matter-labs/zksync-era/commit/c5650a4f1747f59d7a2d4e1986a91ae3fa7d75b0))
+* added key generation command to EN ([#2461](https://github.com/matter-labs/zksync-era/issues/2461)) ([9861415](https://github.com/matter-labs/zksync-era/commit/986141562646c4d96dca205593e48e4d8df46fba))
+* remove leftovers after BWIP ([#2456](https://github.com/matter-labs/zksync-era/issues/2456)) ([990676c](https://github.com/matter-labs/zksync-era/commit/990676c5f84afd2ff8cd337f495c82e8d1f305a4))
+
 ## [24.10.0](https://github.com/matter-labs/zksync-era/compare/core-v24.9.0...core-v24.10.0) (2024-07-22)
 
 

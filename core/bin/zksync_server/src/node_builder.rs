@@ -3,10 +3,7 @@
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{
-        consensus::ConsensusConfig, eth_sender::PubdataSendingMode, wallets::Wallets,
-        GeneralConfig, Secrets,
-    },
+    configs::{eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig, Secrets},
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
@@ -86,7 +83,6 @@ pub struct MainNodeBuilder {
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
     secrets: Secrets,
-    consensus_config: Option<ConsensusConfig>,
 }
 
 impl MainNodeBuilder {
@@ -96,7 +92,6 @@ impl MainNodeBuilder {
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
         secrets: Secrets,
-        consensus_config: Option<ConsensusConfig>,
     ) -> Self {
         Self {
             node: ZkStackServiceBuilder::new(),
@@ -105,7 +100,6 @@ impl MainNodeBuilder {
             genesis_config,
             contracts_config,
             secrets,
-            consensus_config,
         }
     }
 
@@ -456,6 +450,7 @@ impl MainNodeBuilder {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(MainNodeConsensusLayer {
             config: self
+                .configs
                 .consensus_config
                 .clone()
                 .context("Consensus config has to be provided")?,

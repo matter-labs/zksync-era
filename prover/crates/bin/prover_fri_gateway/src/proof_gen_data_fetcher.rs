@@ -32,10 +32,6 @@ impl ProofGenDataFetcher {
 impl ProofGenDataFetcher {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let store = &*self.0.blob_store;
-        let merkle_paths = store
-            .put(data.l1_batch_number, &data.witness_input_data.merkle_paths)
-            .await
-            .expect("Failed to save proof generation data to GCS");
         let witness_inputs = store
             .put(data.l1_batch_number, &data.witness_input_data)
             .await
@@ -49,13 +45,7 @@ impl ProofGenDataFetcher {
 
         connection
             .fri_witness_generator_dal()
-            .save_witness_inputs(
-                data.l1_batch_number,
-                &merkle_paths,
-                &witness_inputs,
-                data.protocol_version,
-                data.witness_input_data.eip_4844_blobs,
-            )
+            .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
             .await;
     }
 }

@@ -1,17 +1,7 @@
 [workspace]
 members = [
-    # lib
-    "prover_fri_utils",
-    "prover_fri_types",
-    # binaries
-    "witness_generator",
-    "vk_setup_data_generator_server_fri",
-    "prover_fri",
-    "witness_vector_generator",
-    "prover_fri_gateway",
-    "proof_fri_compressor",
-    "prover_cli",
-    "prover_version",
+    "crates/bin/*",
+    "crates/lib/*",
 ]
 
 resolver = "2"
@@ -66,13 +56,13 @@ tracing-subscriber = { version = "0.3" }
 vise = "0.1.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.1"
-circuit_sequencer_api = "=0.150.1"
-zkevm_test_harness = "=0.150.1"
+circuit_definitions = "=0.150.2-rc.1"
+circuit_sequencer_api = "=0.150.2-rc.1"
+zkevm_test_harness = "=0.150.2-rc.1"
 
 # GPU proving dependencies
 wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.0-gpu-wrapper.0" }
-shivini = "=0.150.1"
+shivini = "=0.150.2-rc.1"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -94,10 +84,10 @@ zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { path = "prover_dal" }
-zksync_prover_fri_types = { path = "prover_fri_types" }
-zksync_prover_fri_utils = { path = "prover_fri_utils" }
-vk_setup_data_generator_server_fri = { path = "vk_setup_data_generator_server_fri" }
+zksync_prover_dal = { path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
+vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 
 # for `perf` profiling
 [profile.perf]
