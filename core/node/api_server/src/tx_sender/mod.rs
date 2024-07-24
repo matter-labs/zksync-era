@@ -797,7 +797,7 @@ impl TxSender {
                 .and_then(|overrides| overrides.get(&tx.initiator_account()))
                 .and_then(|account| account.balance)
             {
-                Some(balance) => balance.to_owned(),
+                Some(balance) => balance,
                 None => self.get_balance(&tx.initiator_account()).await?,
             };
 
@@ -805,7 +805,7 @@ impl TxSender {
                 tracing::info!(
                     "fee estimation failed on validation step.
                     account: {} does not have enough funds for for transferring tx.value: {}.",
-                    &tx.initiator_account(),
+                    tx.initiator_account(),
                     tx.execute.value
                 );
                 return Err(SubmitTxError::InsufficientFundsForTransfer);
