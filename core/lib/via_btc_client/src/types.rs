@@ -50,6 +50,9 @@ pub enum BitcoinError {
     #[error("Invalid output point: {0}")]
     InvalidOutpoint(String),
 
+    #[error("Invalid private key: {0}")]
+    InvalidPrivateKey(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }
