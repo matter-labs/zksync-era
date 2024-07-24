@@ -87,16 +87,17 @@ async fn main() -> anyhow::Result<()> {
     let _guard = builder.build();
     tracing::info!("Starting snapshots creator");
 
-    let object_store_config = general_config
-        .core_object_store
+    let creator_config = general_config
+        .snapshot_creator
+        .context("snapshot creator config")?;
+
+    let object_store_config = creator_config
+        .clone()
+        .object_store
         .context("snapshot creator object storage config")?;
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;
-
-    let creator_config = general_config
-        .snapshot_creator
-        .context("SnapshotsCreatorConfig::from_env")?;
 
     let replica_pool = ConnectionPool::<Core>::builder(
         database_secrets.replica_url()?,
