@@ -408,7 +408,8 @@ impl ApiServer {
             let n = EnNamespace::new(rpc_state.clone())
                 .await
                 .context("EnNamespace:::new()")?;
-            rpc.merge(n.into_rpc()).context("cannot merge en namespace")?;
+            rpc.merge(n.into_rpc())
+                .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
             rpc.merge(SnapshotsNamespace::new(rpc_state.clone()).into_rpc())

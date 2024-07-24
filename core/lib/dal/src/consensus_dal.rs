@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use bigdecimal::Zero;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -378,9 +377,7 @@ impl ConsensusDal<'_, '_> {
     ) -> Result<(), InsertCertificateError> {
         use InsertCertificateError as E;
         let header = &cert.message.proposal;
-        let mut txn = self.storage.start_transaction().await?;
-        let want_payload = txn
-            .consensus_dal()
+        let want_payload = self
             .block_payload(cert.message.proposal.number)
             .await?
             .ok_or(E::MissingPayload)?;
@@ -399,9 +396,8 @@ impl ConsensusDal<'_, '_> {
         )
         .instrument("insert_block_certificate")
         .report_latency()
-        .execute(&mut txn)
+        .execute(self.storage)
         .await?;
-        txn.commit().await.context("commit")?;
         Ok(())
     }
 
@@ -410,32 +406,23 @@ impl ConsensusDal<'_, '_> {
     /// Insertion is allowed even if it creates gaps in the L1 batch history.
     ///
     /// This method assumes that all payload validation has been carried out by the caller.
-    pub async fn insert_batch_certificate(
-        &mut self,
-        cert: &attester::BatchQC,
-    ) -> Result<(), InsertCertificateError> {
-        let l1_batch_number = cert.message.number.0 as i64;
-
-        let res = sqlx::query!(
+    /// Verification cannot be performed internally, due to circular dependency on
+    /// `zksync_l1_contract_interface`.
+    pub async fn insert_batch_certificate(&mut self, cert: &attester::BatchQC) -> DalResult<()> {
+        sqlx::query!(
             r#"
             INSERT INTO
                 l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
             VALUES
                 ($1, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number,
+            cert.message.number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
         .execute(self.storage)
         .await?;
-
-        if res.rows_affected().is_zero() {
-            tracing::debug!(l1_batch_number, "duplicate batch certificate");
-        }
-
         Ok(())
     }
 
@@ -443,7 +430,7 @@ impl ConsensusDal<'_, '_> {
     /// depending on the order in which votes have been collected over gossip by consensus.
     pub async fn get_last_batch_certificate_number(
         &mut self,
-    ) -> DalResult<Option<attester::BatchNumber>> {
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -457,9 +444,10 @@ impl ConsensusDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row
-            .number
-            .map(|number| attester::BatchNumber(number.into())))
+        let Some(n) = row.number else { return Ok(None) };
+        Ok(Some(attester::BatchNumber(
+            n.try_into().context("overflow")?,
+        )))
     }
 }
 
