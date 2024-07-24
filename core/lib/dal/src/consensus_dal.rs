@@ -459,7 +459,7 @@ impl ConsensusDal<'_, '_> {
 
         Ok(row
             .number
-            .map(|number| attester::BatchNumber(number as u64)))
+            .map(|number| attester::BatchNumber(number.into())))
     }
 }
 

@@ -5,6 +5,7 @@ use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
     L2BlockNumber,
 };
+use zksync_consensus_roles::attester;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -14,16 +15,37 @@ use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 #[derive(Debug)]
 pub(crate) struct EnNamespace {
     state: RpcState,
+    /// First batch to commit to L1 simulated by the main node.
+    /// This is temporary and used only for testing L1 batch signing by consensus attesters.
+    first_batch_to_commit: L1BatchNumber,
+}
+
+fn to_l1_batch_number(n :attester::BatchNumber) -> anyhow::Result<L1BatchNumber> {
+    Ok(L1BatchNumber(n.0.try_into().context("L1BatchNumber overflow")?))
 }
 
 impl EnNamespace {
-    pub fn new(state: RpcState) -> Self {
-        Self { state }
+    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
+        let first_batch_to_commit = async {
+            let mut conn = state.acquire_connection().await.context("connection()")?;
+            // Try to continue from where we left.
+            if let Some(last) = conn.consensus_dal().get_last_batch_certificate_number().await.context("get_last_batch_certificate_number()")? {
+                return to_l1_batch_number(last+1);
+            }
+            // Otherwise start with the next sealed L1 batch.
+            if let Some(sealed) = conn.blocks_dal().get_sealed_l1_batch_number().await.context("get_sealed_l1_batch_number()")? {
+                return Ok(sealed+1);
+            }
+            // Otherwise start from the first non-pruned batch. 
+            let info = conn.pruning_dal().get_pruning_info().await.context("get_pruning_info()")?;
+            Ok(info.last_soft_pruned_l1_batch.map(|n|n+1).unwrap_or(L1BatchNumber(0)))
+        }.await?;
+        Ok(Self { state, first_batch_to_commit })
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let Some(genesis) = storage
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(genesis) = conn
             .consensus_dal()
             .genesis()
             .await
@@ -36,9 +58,23 @@ impl EnNamespace {
         )))
     }
 
+    #[tracing::instrument(skip(self))]
+    pub async fn simulated_l1_status_impl(&self) -> Result<en::SimulatedL1Status, Web3Error> {
+        let mut conn = self.state.acquire_connection().await?;
+        let next_batch_to_commit = match conn.consensus_dal().get_last_batch_certificate_number().await
+            .map_err(DalError::generalize)?
+        {
+            Some(n) => to_l1_batch_number(n)?,
+            None => self.first_batch_to_commit,
+        };
+        Ok(en::SimulatedL1Status {
+            next_batch_to_commit,
+        })
+    }
+
     pub(crate) fn current_method(&self) -> &MethodTracer {
         &self.state.current_method
-    }
+    } 
 
     pub async fn sync_l2_block_impl(
         &self,

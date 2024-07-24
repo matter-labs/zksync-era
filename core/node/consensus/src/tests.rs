@@ -11,6 +11,7 @@ use zksync_consensus_roles::{
 };
 use zksync_consensus_storage::BlockStore;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_node_sync::{MainNodeClient};
 
 use crate::{
     mn::run_main_node,
@@ -660,6 +661,37 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
     .await
     .unwrap();
 }
+
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[tokio::test]
+async fn test_simulated_l1_status_api(from_snapshot :bool, version: ProtocolVersionId) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    //let rng = &mut ctx.rng();
+
+    scope::run!(ctx, |ctx, s| async {
+        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
+        
+        // API server needs at least 1 L1 batch to start.
+        validator.seal_batch().await;
+        let conn = validator.connect(ctx).await?;
+
+        // If the main node has no L1 batch certificates,
+        // the first one to sign should be `last_sealed_batch + 1`.
+        let status = conn.fetch_simulated_l1_status().await?;
+        assert_eq!(status.next_batch_to_commit, validator.last_sealed_batch()+1);
+       
+        // TODO: sign some batch then check again
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+
 
 /// Tests that generated L1 batch witnesses can be verified successfully.
 /// TODO: add tests for verification failures.

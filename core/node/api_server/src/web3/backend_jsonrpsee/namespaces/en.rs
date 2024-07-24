@@ -25,6 +25,12 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    async fn simulated_l1_status(&self) -> RpcResult<en::SimulatedL1Status> {
+        self.simulated_l1_status_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
     async fn sync_tokens(&self, block_number: Option<L2BlockNumber>) -> RpcResult<Vec<TokenInfo>> {
         self.sync_tokens_impl(block_number)
             .await
