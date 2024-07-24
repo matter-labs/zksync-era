@@ -105,12 +105,12 @@ fn save_updated_config(
     Ok(())
 }
 
-fn update_chain(chain: &ChainConfig, general_config: &serde_yaml::Value) -> anyhow::Result<()> {
+fn update_chain(chain: &ChainConfig, general: &serde_yaml::Value) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_GENERAL_CONFIG);
     let current_general_config_path = chain.path_to_general_config();
     let mut current_general_config =
         serde_yaml::from_reader(std::fs::File::open(current_general_config_path.clone())?)?;
-    let diff = merge_yaml(&mut current_general_config, general_config.clone())?;
+    let diff = merge_yaml(&mut current_general_config, general.clone())?;
     save_updated_config(current_general_config, &current_general_config_path, diff)?;
     Ok(())
 }
