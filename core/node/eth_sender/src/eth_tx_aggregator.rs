@@ -34,6 +34,7 @@ use crate::{
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MulticallData {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub verifier_params: VerifierParams,
