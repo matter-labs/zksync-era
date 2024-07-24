@@ -26,6 +26,10 @@ harness = false
 name = "iai"
 harness = false
 
+[[bench]]
+name = "fill_bootloader"
+harness = false
+
 [[bin]]
 name = "iai_results_to_prometheus"
 path = "src/iai_results_to_prometheus.rs"
