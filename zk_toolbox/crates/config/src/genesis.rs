@@ -23,7 +23,7 @@ impl FileConfigWithDefaultName for GenesisConfig {
 
 impl SaveConfig for GenesisConfig {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&self)?;
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(self)?;
         Ok(shell.write_file(path, bytes)?)
     }
 }

@@ -99,7 +99,7 @@ impl PortsConfig {
 impl SaveConfig for GeneralConfig {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let bytes =
-            encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&self)?;
+            encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(self)?;
         Ok(shell.write_file(path, bytes)?)
     }
 }

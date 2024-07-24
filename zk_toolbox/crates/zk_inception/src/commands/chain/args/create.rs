@@ -29,9 +29,9 @@ enum L1BatchCommitmentModeInternal {
     Validium,
 }
 
-impl Into<L1BatchCommitmentMode> for L1BatchCommitmentModeInternal {
-    fn into(self) -> L1BatchCommitmentMode {
-        match self {
+impl From<L1BatchCommitmentModeInternal> for L1BatchCommitmentMode {
+    fn from(val: L1BatchCommitmentModeInternal) -> Self {
+        match val {
             L1BatchCommitmentModeInternal::Rollup => L1BatchCommitmentMode::Rollup,
             L1BatchCommitmentModeInternal::Validium => L1BatchCommitmentMode::Validium,
         }

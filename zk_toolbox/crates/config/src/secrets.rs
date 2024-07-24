@@ -41,7 +41,7 @@ impl FileConfigWithDefaultName for SecretsConfig {
 
 impl SaveConfig for SecretsConfig {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&self)?;
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(self)?;
         Ok(shell.write_file(path, bytes)?)
     }
 }
