@@ -13,12 +13,11 @@ use xshell::{cmd, Shell};
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     messages::{
-        msg_directory_does_not_contain_cargo_toml_err, msg_path_to_zksync_does_not_exist_err,
-        MSG_CONFIRM_STILL_USE_FOLDER, MSG_ECOSYSTEM_NAME_PROMPT, MSG_L1_NETWORK_HELP,
-        MSG_L1_NETWORK_PROMPT, MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT,
-        MSG_LINK_TO_CODE_SELECTION_CLONE, MSG_LINK_TO_CODE_SELECTION_PATH,
-        MSG_NOT_MAIN_REPO_OR_FORK_ERR, MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP,
-        MSG_START_CONTAINERS_PROMPT,
+        msg_path_to_zksync_does_not_exist_err, MSG_CONFIRM_STILL_USE_FOLDER,
+        MSG_ECOSYSTEM_NAME_PROMPT, MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT,
+        MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT, MSG_LINK_TO_CODE_SELECTION_CLONE,
+        MSG_LINK_TO_CODE_SELECTION_PATH, MSG_NOT_MAIN_REPO_OR_FORK_ERR,
+        MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP, MSG_START_CONTAINERS_PROMPT,
     },
 };
 
@@ -123,12 +122,6 @@ fn check_link_to_code(shell: &Shell, path: &str) -> anyhow::Result<()> {
     let path = Path::new(path);
     if !path.exists() {
         bail!(msg_path_to_zksync_does_not_exist_err(
-            path.to_str().unwrap()
-        ));
-    }
-
-    if !path.join("Cargo.toml").exists() {
-        bail!(msg_directory_does_not_contain_cargo_toml_err(
             path.to_str().unwrap()
         ));
     }

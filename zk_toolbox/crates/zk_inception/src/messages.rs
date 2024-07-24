@@ -37,15 +37,11 @@ pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem con
 pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_NOT_MAIN_REPO_OR_FORK_ERR: &str =
-    "Oh no, seems it's not a main repo or a fork";
+    "It's not a zkSync Era main repository or fork";
 pub(super) const MSG_CONFIRM_STILL_USE_FOLDER: &str = "Do you still want to use this folder?";
 
 pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
-    format!("Path to ZkSync-era repo does not exist: {path:?}")
-}
-
-pub(super) fn msg_directory_does_not_contain_cargo_toml_err(path: &str) -> String {
-    format!("Directory does not contain Cargo.toml: {path:?}")
+    format!("Path to zkSync Era repo does not exist: {path:?}")
 }
 
 /// Ecosystem and chain init related messages
