@@ -67,12 +67,7 @@ pub(super) fn apply_tx_to_memory(
             .zip(bootloader_tx.encoded.clone()),
     );
 
-    let bootloader_l2_block = if start_new_l2_block {
-        bootloader_l2_block.clone()
-    } else {
-        bootloader_l2_block.interim_version()
-    };
-    apply_l2_block(memory, &bootloader_l2_block, tx_index);
+    apply_l2_block_inner(memory, bootloader_l2_block, tx_index, start_new_l2_block);
 
     // Note, +1 is moving for pointer
     let compressed_bytecodes_offset = COMPRESSED_BYTECODES_OFFSET + 1 + compressed_bytecodes_size;
@@ -94,6 +89,15 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
 ) {
+    apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true)
+}
+
+fn apply_l2_block_inner(
+    memory: &mut BootloaderMemory,
+    bootloader_l2_block: &BootloaderL2Block,
+    txs_index: usize,
+    start_new_l2_block: bool,
+) {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
     // for this transaction needs to be written is:
@@ -110,7 +114,12 @@ pub(crate) fn apply_l2_block(
         ),
         (
             block_position + 3,
-            bootloader_l2_block.max_virtual_blocks_to_create.into(),
+            if start_new_l2_block {
+                bootloader_l2_block.max_virtual_blocks_to_create
+            } else {
+                0
+            }
+            .into(),
         ),
     ])
 }
