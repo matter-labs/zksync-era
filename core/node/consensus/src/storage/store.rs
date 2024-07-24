@@ -466,7 +466,7 @@ impl storage::PersistentBatchStore for Store {
 
         // The latest decision is not to store batches with gaps between in the database *of the main node*.
         // Once we have an API to serve to external nodes the earliest number the main node wants them to sign,
-        // we can get rid of this method: on the main node we can sign from what `last_batc_qc` returns, and
+        // we can get rid of this method: on the main node we can sign from what `last_batch_qc` returns, and
         // while external nodes we can go from whatever the API returned.
 
         const NUM_BATCHES_TO_SIGN: u64 = 10;
