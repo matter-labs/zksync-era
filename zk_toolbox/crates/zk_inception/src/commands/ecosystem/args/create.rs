@@ -120,7 +120,7 @@ impl std::fmt::Display for LinkToCodeSelection {
 
 fn check_link_to_code(shell: &Shell, path: &str) -> anyhow::Result<()> {
     let path = Path::new(path);
-    if !path.exists() {
+    if !shell.path_exists(path) {
         bail!(msg_path_to_zksync_does_not_exist_err(
             path.to_str().unwrap()
         ));
