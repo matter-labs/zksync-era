@@ -205,6 +205,7 @@ pub struct FeeModelConfigV2 {
 
 impl FeeModelConfigV2 {
     /// The maximum acceptable L2 gas price. Currently, this is required by the bootloader.
+    /// TODO remove when no longer required by bootloader
     pub fn maximum_l2_gas_price(&self) -> u64 {
         10_000_000_000_000 // 10k gwei
     }

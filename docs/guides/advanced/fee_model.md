@@ -171,7 +171,7 @@ proportional to the part of the batch you are using.
 | gas_limit         | `<= max_allowed_l2_tx_gas_limit`       | The limit (4G gas) is set in the `StateKeeper` config; it's the limit for the entire L1 batch.                       |
 | gas_limit         | `<= MAX_GAS_PER_TRANSACTION`           | This limit (80M) is set in bootloader.                                                                               |
 | gas_limit         | `> l2_tx_intrinsic_gas`                | This limit (around 14k gas) is hardcoded to ensure that the transaction has enough gas to start.                     |
-| max_fee_per_gas   | `>= fair_l2_gas_price`                 | Fair L2 gas price (0.25 Gwei) is set in the `StateKeeper` config                                                     |
+| max_fee_per_gas   | `>= fair_l2_gas_price`                 | Fair L2 gas price (0.1 Gwei on Era) is set in the `StateKeeper` config                                               |
 |                   | `<=validation_computational_gas_limit` | There is an additional, stricter limit (300k gas) on the amount of gas that a transaction can use during validation. |
 
 ### Why do we have two limits: 80M and 4G
