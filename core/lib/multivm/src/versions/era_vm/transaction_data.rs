@@ -1,11 +1,13 @@
 use std::convert::TryInto;
 
 use zksync_types::{
-    ethabi::{encode, Address, Token}, 
-    fee::{encoding_len, Fee}, 
-    l1::is_l1_tx_type, 
-    l2::{L2Tx, TransactionType}, 
-    transaction_request::{PaymasterParams, TransactionRequest}, web3::{keccak256, Bytes}, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256
+    ethabi::{encode, Address, Token},
+    fee::{encoding_len, Fee},
+    l1::is_l1_tx_type,
+    l2::{L2Tx, TransactionType},
+    transaction_request::{PaymasterParams, TransactionRequest},
+    web3::{keccak256, Bytes},
+    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 

@@ -1,17 +1,28 @@
-use std::{cell::RefCell, collections::HashMap, io::Read, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc};
 
-use era_vm::{state::VMStateBuilder, store::{InMemory, Storage, StorageError, StorageKey as EraStorageKey}, LambdaVm, VMState};
-use crate::era_vm::{transaction_data::TransactionData, bytecode::compress_bytecodes};
+use era_vm::{
+    state::VMStateBuilder,
+    store::{InMemory, Storage, StorageError, StorageKey as EraStorageKey},
+    LambdaVm, VMState,
+};
 use zksync_contracts::SystemContractCode;
-use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
-use zksync_types::{l1::is_l1_tx_type, AccountTreeId, Address, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, U256};
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_types::{
+    l1::is_l1_tx_type, AccountTreeId, Address, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160,
+    U256,
+};
 use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
 
+use super::{initial_bootloader_memory::bootloader_initial_memory, snapshot::VmSnapshot};
 use crate::{
-    interface::{VmInterface, VmInterfaceHistoryEnabled}, vm_latest::{BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs, BootloaderState}
+    era_vm::{bytecode::compress_bytecodes, transaction_data::TransactionData},
+    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    vm_latest::{
+        BootloaderMemory, BootloaderState, CurrentExecutionState, ExecutionResult, HistoryEnabled,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs,
+    },
 };
-
-use super::initial_bootloader_memory::bootloader_initial_memory;
 
 pub struct Vm<S: ReadStorage> {
     pub(crate) inner: LambdaVm,
@@ -36,29 +47,53 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     type TracerDispatcher = ();
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let bootloader_code = system_env.base_system_smart_contracts.bootloader.code;
-        let vm_state = VMState::new(bootloader_code, Vec::new(), BOOTLOADER_ADDRESS, H160::zero(), 0_u128);
+        let bootloader_code = system_env
+            .clone()
+            .base_system_smart_contracts
+            .bootloader
+            .code;
+        let vm_state = VMState::new(
+            bootloader_code.to_owned(),
+            Vec::new(),
+            BOOTLOADER_ADDRESS,
+            H160::zero(),
+            0_u128,
+        );
         let mut pre_contract_storage = HashMap::new();
-        pre_contract_storage.insert(h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash), system_env.base_system_smart_contracts.default_aa.code);
+        pre_contract_storage.insert(
+            h256_to_u256(
+                system_env
+                    .clone()
+                    .base_system_smart_contracts
+                    .default_aa
+                    .hash,
+            ),
+            system_env
+                .clone()
+                .base_system_smart_contracts
+                .default_aa
+                .code,
+        );
 
-        let world_storage = World::new(storage, pre_contract_storage);
+        let world_storage = World::new(storage.clone(), pre_contract_storage);
         let vm = LambdaVm::new(vm_state, Box::new(world_storage));
         Self {
             inner: vm,
             suspended_at: 0,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            gas_for_account_validation: system_env
+                .clone()
+                .default_validation_computational_gas_limit,
             last_tx_result: None,
             bootloader_state: BootloaderState::new(
-                system_env.execution_mode,
+                system_env.execution_mode.clone(),
                 bootloader_initial_memory(&batch_env),
-                batch_env.first_l2_block
+                batch_env.first_l2_block,
             ),
             storage,
             batch_env,
             system_env,
             snapshots: Vec::new(),
         }
-        
     }
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -164,14 +199,14 @@ impl<S: ReadStorage> World<S> {
         let contract_storage = HashMap::new();
         Self {
             contract_storage,
-            storage
+            storage,
         }
     }
 
     pub fn new(storage: StoragePtr<S>, contract_storage: HashMap<U256, Vec<U256>>) -> Self {
         Self {
             storage,
-            contract_storage
+            contract_storage,
         }
     }
 }
@@ -187,22 +222,19 @@ impl<S: ReadStorage> era_vm::store::Storage for World<S> {
     }
 
     fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
-        Ok(Some(self.storage
-        .borrow_mut()
-        .read_value(&StorageKey::new(
-            AccountTreeId::new(key.address),
-            u256_to_h256(key.key),
+        Ok(Some(
+            self.storage
+                .borrow_mut()
+                .read_value(&StorageKey::new(
+                    AccountTreeId::new(key.address),
+                    u256_to_h256(key.key),
+                ))
+                .as_bytes()
+                .into(),
         ))
-        .as_bytes()
-        .into()))
     }
 
     fn storage_write(&mut self, key: EraStorageKey, value: U256) -> Result<(), StorageError> {
         todo!()
-        // self.storage.borrow_mut().set_value(
-        //     StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key)),
-        //     value.as_bytes().into(),
-        // );
-        // Ok(())
     }
 }
