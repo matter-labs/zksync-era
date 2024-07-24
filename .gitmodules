@@ -1,4 +1,4 @@
 [submodule "contracts"]
-path = contracts
-url = https://github.com/distributed-lab/era-contracts
+	path = contracts
+	url = https://github.com/distributed-lab/era-contracts
 	branch = dl-precompiles-2
