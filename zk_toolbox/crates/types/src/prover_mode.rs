@@ -8,5 +8,4 @@ use strum::EnumIter;
 pub enum ProverMode {
     NoProofs,
     Gpu,
-    Cpu,
 }

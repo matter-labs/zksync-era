@@ -4,8 +4,9 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, Serializer};
-use types::{BaseToken, ChainId, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{CONFIG_NAME, GENERAL_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE},
@@ -25,7 +26,7 @@ pub struct ChainConfigInternal {
     // needs for local setups only
     pub id: u32,
     pub name: String,
-    pub chain_id: ChainId,
+    pub chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
@@ -41,7 +42,7 @@ pub struct ChainConfigInternal {
 pub struct ChainConfig {
     pub id: u32,
     pub name: String,
-    pub chain_id: ChainId,
+    pub chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,

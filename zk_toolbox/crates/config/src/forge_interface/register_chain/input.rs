@@ -1,7 +1,8 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitmentMode};
+use types::L1BatchCommitmentMode;
+use zksync_basic_types::L2ChainId;
 
 use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
@@ -37,7 +38,7 @@ pub struct RegisterChainL1Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainL1Config {
-    pub chain_chain_id: ChainId,
+    pub chain_chain_id: L2ChainId,
     pub base_token_addr: Address,
     pub bridgehub_create_new_chain_salt: u64,
     pub validium_mode: bool,
@@ -71,7 +72,7 @@ impl RegisterChainL1Config {
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
             },
             chain: ChainL1Config {
-                chain_chain_id: ChainId(genesis_config.l2_chain_id.as_u64() as u32),
+                chain_chain_id: genesis_config.l2_chain_id,
                 base_token_gas_price_multiplier_nominator: chain_config.base_token.nominator,
                 base_token_gas_price_multiplier_denominator: chain_config.base_token.denominator,
                 base_token_addr: chain_config.base_token.address,

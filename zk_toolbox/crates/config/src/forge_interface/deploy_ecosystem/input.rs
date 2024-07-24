@@ -6,7 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::ChainId;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
@@ -115,7 +115,7 @@ pub struct Erc20DeploymentTokensConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1Config {
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
     pub contracts: ContractsDeployL1Config,
@@ -129,7 +129,7 @@ impl DeployL1Config {
         genesis_config: &GenesisConfig,
         wallets_config: &WalletsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
-        era_chain_id: ChainId,
+        era_chain_id: L2ChainId,
         testnet_verifier: bool,
     ) -> Self {
         Self {

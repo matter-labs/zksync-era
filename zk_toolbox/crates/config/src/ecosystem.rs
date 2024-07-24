@@ -6,8 +6,9 @@ use std::{
 use common::logger;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
-use types::{ChainId, L1Network, ProverMode, WalletCreation};
+use types::{L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
@@ -32,7 +33,7 @@ struct EcosystemConfigInternal {
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
 }
@@ -48,7 +49,7 @@ pub struct EcosystemConfig {
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
@@ -249,8 +250,8 @@ pub enum EcosystemConfigFromFileError {
     InvalidConfig { source: anyhow::Error },
 }
 
-pub fn get_default_era_chain_id() -> ChainId {
-    ERA_CHAIN_ID
+pub fn get_default_era_chain_id() -> L2ChainId {
+    L2ChainId::from(ERA_CHAIN_ID)
 }
 
 // Find file in all parents repository and return necessary path or an empty error if nothing has been found

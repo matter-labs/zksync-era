@@ -6,7 +6,6 @@ use config::{
     external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
-use types::ChainId;
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{DatabaseSecrets, L1Secrets};
@@ -49,16 +48,17 @@ fn prepare_configs(
     let genesis = config.get_genesis_config()?;
     let mut general = config.get_general_config()?;
     let en_config = ENConfig {
-        l2_chain_id: ChainId(genesis.l2_chain_id.as_u64() as u32),
-        l1_chain_id: genesis.l1_chain_id.0 as u32,
+        l2_chain_id: genesis.l2_chain_id,
+        l1_chain_id: genesis.l1_chain_id,
         l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
-        main_node_url: general
-            .api_config
-            .as_ref()
-            .context("api_config")?
-            .web3_json_rpc
-            .http_url
-            .clone(),
+        main_node_url: SensitiveUrl::from_str(
+            &general
+                .api_config
+                .as_ref()
+                .context("api_config")?
+                .web3_json_rpc
+                .http_url,
+        )?,
         main_node_rate_limit_rps: None,
     };
     let mut general_en = general.clone();
