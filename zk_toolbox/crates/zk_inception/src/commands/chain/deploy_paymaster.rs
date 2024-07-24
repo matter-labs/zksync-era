@@ -14,9 +14,10 @@ use config::{
 };
 use xshell::Shell;
 
-use crate::messages::MSG_L1_SECRETS_MUST_BE_PRESENTED;
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
+    messages::{
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED,
+    },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 

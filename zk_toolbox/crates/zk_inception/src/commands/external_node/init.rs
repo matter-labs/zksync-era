@@ -7,12 +7,12 @@ use common::{
 use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
 use xshell::Shell;
 
-use crate::messages::MSG_DATABASE_MUST_BE_PRESENTED;
 use crate::{
     consts::SERVER_MIGRATIONS,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DATABASE_MUST_BE_PRESENTED,
+        MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
