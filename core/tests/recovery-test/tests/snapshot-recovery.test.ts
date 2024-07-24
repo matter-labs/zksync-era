@@ -152,7 +152,10 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
+        await executeCommandWithLogs(
+            fileConfig.loadFromFile ? 'zk_supervisor snapshot create' : 'zk run snapshots-creator',
+            'snapshot-creator.log'
+        );
     });
 
     step('validate snapshot', async () => {
