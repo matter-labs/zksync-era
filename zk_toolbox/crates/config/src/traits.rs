@@ -125,7 +125,7 @@ impl<T: Sized + Serialize> SaveConfigWithComment for T {
 /// Saves a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
 pub trait SaveConfigWithCommentAndBasePath:
-    SaveConfigWithComment + FileConfigWithDefaultName + SaveConfig
+    SaveConfigWithComment + FileConfigWithDefaultName
 {
     fn save_with_comment_and_base_path(
         &self,

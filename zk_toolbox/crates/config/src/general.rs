@@ -20,12 +20,12 @@ pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> a
     config
         .db_config
         .as_mut()
-        .context("Db config")?
+        .context("DB config is not presented")?
         .state_keeper_db_path = rocks_dbs.state_keeper.to_str().unwrap().to_string();
     config
         .db_config
         .as_mut()
-        .context("Db config")?
+        .context("DB config is not presented")?
         .merkle_tree
         .path = rocks_dbs.merkle_tree.to_str().unwrap().to_string();
     Ok(())

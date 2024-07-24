@@ -157,6 +157,7 @@ impl DeployL1Config {
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
                     .diamond_init_pubdata_pricing_mode,
+                // These values are not optional in genesis config with file based configuration
                 genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
                 genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
                 genesis_root: genesis_config.genesis_root_hash.unwrap(),
