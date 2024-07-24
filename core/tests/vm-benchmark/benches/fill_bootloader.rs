@@ -17,7 +17,6 @@ fn main() {
     let mut vm = BenchmarkingVm::new();
     for _ in 0..1000 {
         vm.run_transaction(black_box(&tx));
-        dbg!("tx");
     }
 
     println!("{:?}", start.elapsed());
