@@ -70,14 +70,6 @@ fn prepare_configs(
             .next_empty_ports_config(),
     )?;
     let secrets = SecretsConfig {
-        // database: DatabaseSecrets {
-        //     server_url: args.db.full_url(),
-        //     prover_url: None,
-        //     other: Default::default(),
-        // },
-        // l1: L1Secrets {
-        //     l1_rpc_url:  args.l1_rpc_url.clone(),
-        // },
         consensus: None,
         database: Some(DatabaseSecrets {
             server_url: Some(args.db.full_url().into()),
