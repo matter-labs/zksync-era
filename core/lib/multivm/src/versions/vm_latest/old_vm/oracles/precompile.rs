@@ -4,7 +4,8 @@ use zk_evm_1_5_0::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
     zk_evm_abstractions::precompiles::{
-        ecrecover, keccak256, secp256r1_verify, sha256, PrecompileAddress,
+        ecadd, ecmul, ecpairing, ecrecover, keccak256, modexp, secp256r1_verify, sha256,
+        PrecompileAddress,
     },
 };
 
@@ -106,6 +107,27 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
                         memory,
                     )
                     .0
+                }
+                PrecompileAddress::EcAdd => {
+                    // pure function call, non-revertable
+                    ecadd::ecadd_function::<M, false>(monotonic_cycle_counter, query, memory).0
+                }
+                PrecompileAddress::EcMul => {
+                    // pure function call, non-revertable
+                    ecmul::ecmul_function::<M, false>(monotonic_cycle_counter, query, memory).0
+                }
+                PrecompileAddress::EcPairing => {
+                    // pure function call, non-revertable
+                    ecpairing::ecpairing_function::<M, false>(
+                        monotonic_cycle_counter,
+                        query,
+                        memory,
+                    )
+                    .0
+                }
+                PrecompileAddress::Modexp => {
+                    // pure function call, non-revertable
+                    modexp::modexp_function::<M, false>(monotonic_cycle_counter, query, memory).0
                 }
             };
 

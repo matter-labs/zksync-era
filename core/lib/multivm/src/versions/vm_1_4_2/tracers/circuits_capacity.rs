@@ -63,6 +63,10 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
             / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
+        ecadd: 0.0,
+        ecmul: 0.0,
+        ecpairing: 0.0,
+        modexp: 0.0,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
         secp256k1_verify: 0.0,
         transient_storage_checker: 0.0,

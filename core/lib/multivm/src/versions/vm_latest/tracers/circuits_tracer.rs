@@ -254,6 +254,18 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
                 PrecompileAddress::Secp256r1Verify => {
                     self.statistics.secp256k1_verify_cycles += *cycles as u32;
                 }
+                PrecompileAddress::EcAdd => {
+                    self.statistics.ecadd_cycles += *cycles as u32;
+                }
+                PrecompileAddress::EcMul => {
+                    self.statistics.ecmul_cycles += *cycles as u32;
+                }
+                PrecompileAddress::EcPairing => {
+                    self.statistics.ecpairing_cycles += *cycles as u32;
+                }
+                PrecompileAddress::Modexp => {
+                    self.statistics.modexp_cycles += *cycles as u32;
+                }
             };
         }
         self.last_precompile_inner_entry_checked = Some(inner.len());

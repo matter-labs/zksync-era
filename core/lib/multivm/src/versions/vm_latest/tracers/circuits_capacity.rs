@@ -74,6 +74,11 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
             / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
         ecrecover: cycles.ecrecover_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
+        ecadd: cycles.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
+        ecmul: cycles.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
+        ecpairing: cycles.ecpairing_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
+        modexp: cycles.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
         secp256k1_verify: cycles.secp256k1_verify_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
