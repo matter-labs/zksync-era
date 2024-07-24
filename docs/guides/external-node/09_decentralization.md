@@ -17,11 +17,10 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 > current implementation it may take a couple of hours and gets faster the more nodes you add to the
 > `gossip_static_outbound` list (see below). We are working to remove this inconvenience.
 
-
 > [!NOTE]
 >
-> The minimal supported server version for this is [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
-
+> The minimal supported server version for this is
+> [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
 
 ### Generating secrets
 
