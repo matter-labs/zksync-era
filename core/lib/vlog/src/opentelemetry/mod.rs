@@ -9,8 +9,76 @@ use opentelemetry::{
     KeyValue,
 };
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_semantic_conventions::resource::SERVICE_NAME;
+use opentelemetry_semantic_conventions::resource::{
+    K8S_NAMESPACE_NAME, K8S_POD_NAME, SERVICE_NAME,
+};
 use tracing_subscriber::{registry::LookupSpan, EnvFilter, Layer};
+
+/// Information about the service.
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct ServiceDescriptor {
+    /// Name of the k8s pod.
+    pub k8s_pod_name: Option<String>,
+    /// Name of the k8s namespace.
+    pub k8s_namespace_name: Option<String>,
+    /// Name of the service.
+    pub service_name: Option<String>,
+}
+
+impl ServiceDescriptor {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_k8s_pod_name(mut self, k8s_pod_name: Option<String>) -> Self {
+        self.k8s_pod_name = k8s_pod_name;
+        self
+    }
+
+    pub fn with_k8s_namespace_name(mut self, k8s_namespace_name: Option<String>) -> Self {
+        self.k8s_namespace_name = k8s_namespace_name;
+        self
+    }
+
+    pub fn with_service_name(mut self, service_name: Option<String>) -> Self {
+        self.service_name = service_name;
+        self
+    }
+
+    /// Tries to fill empty fields from environment variables.
+    ///
+    /// The following environment variables are used:
+    /// - `POD_NAME`
+    /// - `POD_NAMESPACE`
+    /// - `SERVICE_NAME`
+    pub fn fill_from_env(mut self) -> Self {
+        if self.k8s_pod_name.is_none() {
+            self.k8s_pod_name = std::env::var("POD_NAME").ok();
+        }
+        if self.k8s_namespace_name.is_none() {
+            self.k8s_namespace_name = std::env::var("POD_NAMESPACE").ok();
+        }
+        if self.service_name.is_none() {
+            self.service_name = std::env::var("SERVICE_NAME").ok();
+        }
+        self
+    }
+
+    fn into_otlp_resource(self) -> Resource {
+        let mut resource = vec![];
+        if let Some(pod_name) = self.k8s_pod_name {
+            resource.push(KeyValue::new(K8S_POD_NAME, pod_name));
+        }
+        if let Some(pod_namespace) = self.k8s_namespace_name {
+            resource.push(KeyValue::new(K8S_NAMESPACE_NAME, pod_namespace));
+        }
+        if let Some(service_name) = self.service_name {
+            resource.push(KeyValue::new(SERVICE_NAME, service_name));
+        }
+        Resource::new(resource)
+    }
+}
 
 #[derive(Debug)]
 pub struct OpenTelemetry {
@@ -18,8 +86,8 @@ pub struct OpenTelemetry {
     pub opentelemetry_level: OpenTelemetryLevel,
     /// Opentelemetry HTTP collector endpoint.
     pub otlp_endpoint: String,
-    /// Service name to use
-    pub service_name: Option<String>,
+    /// Information about service
+    pub service: Option<ServiceDescriptor>,
 }
 
 impl OpenTelemetry {
@@ -30,8 +98,13 @@ impl OpenTelemetry {
         Ok(Self {
             opentelemetry_level: opentelemetry_level.parse()?,
             otlp_endpoint,
-            service_name: None,
+            service: None,
         })
+    }
+
+    pub fn with_service_descriptor(mut self, service: ServiceDescriptor) -> Self {
+        self.service = Some(service);
+        self
     }
 
     pub(super) fn into_layer<S>(self) -> impl Layer<S>
@@ -50,10 +123,11 @@ impl OpenTelemetry {
             .add_directive("otel::tracing=trace".parse().unwrap())
             .add_directive("otel=debug".parse().unwrap());
 
-        let mut resource = vec![];
-        if let Some(service_name) = self.service_name {
-            resource.push(KeyValue::new(SERVICE_NAME, service_name));
-        }
+        let resource = self
+            .service
+            .unwrap_or_default()
+            .fill_from_env()
+            .into_otlp_resource();
 
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
@@ -66,7 +140,7 @@ impl OpenTelemetry {
                 trace::config()
                     .with_sampler(Sampler::AlwaysOn)
                     .with_id_generator(RandomIdGenerator::default())
-                    .with_resource(Resource::new(resource)),
+                    .with_resource(resource),
             )
             .install_batch(::opentelemetry::runtime::Tokio)
             .unwrap();

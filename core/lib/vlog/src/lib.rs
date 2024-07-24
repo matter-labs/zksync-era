@@ -58,7 +58,12 @@ impl ObservabilityBuilder {
         let logs = self.logs.unwrap_or_default();
         logs.install_panic_hook();
 
+        // For now we use logs filter as a global filter for subscriber.
+        // Later we may want to enforce each layer to have its own filter.
+        let global_filter = logs.build_filter();
+
         tracing_subscriber::registry()
+            .with(global_filter)
             .with(logs.into_layer())
             .with(self.opentelemetry_layer.map(|layer| layer.into_layer()))
             .init();

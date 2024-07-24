@@ -1,8 +1,7 @@
 use std::{backtrace::Backtrace, panic::PanicInfo, str::FromStr};
 
-use tracing_subscriber::{fmt, registry::LookupSpan, EnvFilter, Layer};
-
 use serde::Deserialize;
+use tracing_subscriber::{fmt, registry::LookupSpan, EnvFilter, Layer};
 
 mod layer;
 
@@ -72,7 +71,7 @@ impl Logs {
     /// Otherwise, the value will be parsed from the environment variable `RUST_LOG`.
     ///
     /// [1]: https://docs.rs/tracing-subscriber/0.3.18/tracing_subscriber/filter/targets/struct.Targets.html#filtering-with-targets
-    fn build_filter(&self) -> EnvFilter {
+    pub(super) fn build_filter(&self) -> EnvFilter {
         let mut directives = if self.disable_default_logs {
             "".to_string()
         } else {
