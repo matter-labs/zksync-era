@@ -15,7 +15,6 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::PrometheusConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -95,7 +94,6 @@ async fn main() -> anyhow::Result<()> {
     let object_store_config = creator_config
         .clone()
         .object_store
-        .or_else(|| Some(SnapshotsObjectStoreConfig::from_env().ok()?.0))
         .context("snapshot creator object storage config")?;
 
     let blob_store = ObjectStoreFactory::new(object_store_config)
