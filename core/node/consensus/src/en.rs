@@ -129,6 +129,10 @@ impl EN {
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
     ) -> anyhow::Result<()> {
+        tracing::warn!("\
+            WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
+            Please follow this instruction to switch to p2p synchronization: \
+            https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/09_decentralization.md");
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));

@@ -381,7 +381,7 @@ async fn generate_witness(
         input.vm_run_data.protocol_version,
     );
 
-    let mut tree = PrecalculatedMerklePathsProvider::new(
+    let tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths,
         input.previous_batch_metadata.root_hash.0,
     );
@@ -428,7 +428,7 @@ async fn generate_witness(
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
             storage_oracle,
-            &mut tree,
+            tree,
             path,
             input.eip_4844_blobs.blobs(),
             |circuit| {
