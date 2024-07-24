@@ -122,6 +122,8 @@ pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
 
 /// Chain genesis related messages
+pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
+pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";

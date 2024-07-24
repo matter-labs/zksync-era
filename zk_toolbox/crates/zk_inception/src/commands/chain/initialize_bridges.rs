@@ -21,6 +21,7 @@ use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
+use crate::messages::MSG_L1_SECRETS_MUST_BE_PRESENTED;
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -38,7 +39,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &mut contracts,
         args,
     )
-    .await?;
+        .await?;
     contracts.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
@@ -67,7 +68,7 @@ pub async fn initialize_bridges(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(secrets.l1.unwrap().l1_rpc_url.expose_str().to_string())
+        .with_rpc_url(secrets.l1.context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?.l1_rpc_url.expose_str().to_string())
         .with_broadcast();
 
     forge = fill_forge_private_key(

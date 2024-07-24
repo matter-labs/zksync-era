@@ -37,9 +37,7 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
-
-pub(super) const MSG_PROVER_URL_MUST_BE_PRESENTED: &str = "Prover url must be presented";
-
+pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_CORE_HELP: &str = "Core database";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP: &str =
@@ -96,6 +94,7 @@ pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus
 pub(super) const MSG_REVERT_TEST_INSTALLING_DEPENDENCIES: &str =
     "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
+
 pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
     let base = "Running integration tests";
     if external_node {

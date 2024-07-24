@@ -7,6 +7,7 @@ use common::{
 use config::{traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig};
 use xshell::Shell;
 
+use crate::messages::MSG_DATABASE_MUST_BE_PRESENTED;
 use crate::{
     consts::SERVER_MIGRATIONS,
     messages::{
@@ -40,10 +41,8 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         secrets
             .database
             .as_ref()
-            .context("")?
-            .server_url
-            .as_ref()
-            .context("")?
+            .context(MSG_DATABASE_MUST_BE_PRESENTED)?
+            .master_url()?
             .expose_url(),
     )?;
     drop_db_if_exists(&db_config)
