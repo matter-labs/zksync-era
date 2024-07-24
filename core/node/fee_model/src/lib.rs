@@ -228,7 +228,18 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
 
         // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
-        l1_pubdata_price + pubdata_overhead_wei
+        let calculated_price = l1_pubdata_price + pubdata_overhead_wei;
+
+        if calculated_price < config.maximum_pubdata_price() {
+            calculated_price
+        } else {
+            tracing::warn!(
+                "Fair pubdata price {} exceeds maximum. Limitting to {}",
+                calculated_price,
+                config.maximum_pubdata_price()
+            );
+            config.maximum_pubdata_price()
+        }
     };
 
     PubdataIndependentBatchFeeModelInput {
@@ -272,7 +283,7 @@ mod tests {
     // use it for the L1 pubdata price.
     const GWEI: u64 = 1_000_000_000;
     const GIANT_L1_GAS_PRICE: u64 = 1_000 * GWEI;
-    const GIANT_L1_PUB_DATA_PRICE: u64 = 100_000_000 * GWEI;
+    const GIANT_L1_PUB_DATA_PRICE: u64 = 100_000 * GWEI;
 
     // As a small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
@@ -305,7 +316,7 @@ mod tests {
 
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE * 3);
         assert_eq!(input.fair_l2_gas_price, 1_300_000_000_000);
-        assert_eq!(input.fair_pubdata_price, 300_150_000_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 450_000_000_000_000);
     }
 
     #[test]
@@ -358,7 +369,7 @@ mod tests {
         // The fair L2 gas price is identical to the minimal one.
         assert_eq!(input.fair_l2_gas_price, 100_000_000_000);
         // The fair pubdata price is the minimal one plus the overhead.
-        assert_eq!(input.fair_pubdata_price, 100_007_000_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 107_000_000_000_000);
     }
 
     #[test]

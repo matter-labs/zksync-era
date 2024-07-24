@@ -209,6 +209,12 @@ impl FeeModelConfigV2 {
     pub fn maximum_l2_gas_price(&self) -> u64 {
         10_000_000_000_000 // 10k gwei
     }
+
+    /// The maximum acceptable pubdata. Currently, this is required by the bootloader.
+    /// TODO remove when no longer required by bootloader
+    pub fn maximum_pubdata_price(&self) -> u64 {
+        1_000_000_000_000_000 // 1M gwei
+    }
 }
 
 impl Default for FeeModelConfig {
