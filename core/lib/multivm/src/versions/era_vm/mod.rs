@@ -1,4 +1,5 @@
-pub mod vm;
-mod initial_bootloader_memory;
-mod transaction_data;
 mod bytecode;
+mod initial_bootloader_memory;
+mod snapshot;
+mod transaction_data;
+pub mod vm;
