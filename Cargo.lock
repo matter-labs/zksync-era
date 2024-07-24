@@ -1099,9 +1099,9 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21ac98cee014780619ca5fe43984e605b17bcad9308b15cebd2fec549a2d8c92"
+checksum = "d4b69893ec5a2112430adaf8e29b52ea9ec4ef2d6663879f7cc279b4479a8880"
 dependencies = [
  "derivative",
  "serde",
@@ -1166,12 +1166,12 @@ dependencies = [
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29bf447d83547c14e728239e7e3287e2f47b4891675315c7c69d9ee3ce56b0a8"
+checksum = "121470724079938b8f878e8a95f757d814624795c9a5ca69dd9dd782035fbe39"
 dependencies = [
  "bellman_ce",
- "circuit_encodings 0.150.1",
+ "circuit_encodings 0.150.2-rc.1",
  "derivative",
  "rayon",
  "serde",
@@ -4105,9 +4105,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssl"
-version = "0.10.57"
+version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bac25ee399abb46215765b1cb35bc0212377e58a061560d8b29b024fd0430e7c"
+checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
 dependencies = [
  "bitflags 2.6.0",
  "cfg-if 1.0.0",
@@ -4137,9 +4137,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.93"
+version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db4d56a4c0478783083cfafcc42493dd4a981d41669da64b4572a2a089b51b1d"
+checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
 dependencies = [
  "cc",
  "libc",
@@ -6030,10 +6030,12 @@ dependencies = [
  "anyhow",
  "futures 0.3.28",
  "rand 0.8.5",
+ "structopt",
  "tokio",
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
@@ -8081,7 +8083,7 @@ dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.0",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "futures 0.3.28",
  "itertools 0.10.5",
  "num_cpus",
@@ -8624,7 +8626,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.9.0"
+version = "24.11.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8646,6 +8648,7 @@ dependencies = [
  "zksync_commitment_generator",
  "zksync_concurrency",
  "zksync_config",
+ "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consistency_checker",
  "zksync_contracts",
@@ -8729,9 +8732,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.150.1"
+version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5af1838466ae06e56064fafa8b4563c3bde44b44839de0b6197c293e03d133fc"
+checksum = "4672556b6bc06da9dcd38a607e139b8eb3083edfaabcd12981e8a62051ee1f81"
 dependencies = [
  "boojum",
  "derivative",
@@ -8853,7 +8856,7 @@ dependencies = [
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.0",
  "circuit_sequencer_api 0.142.0",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -9292,7 +9295,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.150.1",
+ "circuit_sequencer_api 0.150.2-rc.1",
  "serde",
  "serde_json",
  "serde_with",
