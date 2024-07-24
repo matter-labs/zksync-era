@@ -43,10 +43,7 @@ fn test_get_used_contracts() {
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
     assert_eq!(
-        vm.vm
-            .get_decommitted_hashes()
-            .cloned()
-            .collect::<HashSet<U256>>(),
+        vm.vm.get_decommitted_hashes().collect::<HashSet<U256>>(),
         known_bytecodes_without_aa_code(&vm.vm)
     );
 
