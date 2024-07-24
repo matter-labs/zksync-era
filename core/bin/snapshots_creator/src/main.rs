@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
 
     let object_store_config = general_config
         .core_object_store
-        .context("ubject store config")?;
+        .context("object store config")?;
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;
