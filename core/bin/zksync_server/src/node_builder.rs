@@ -556,8 +556,14 @@ impl MainNodeBuilder {
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
-        self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
+        let wallets = self.wallets.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self.node.add_layer(BaseTokenRatioPersisterLayer::new(
+            config,
+            contracts_config,
+            wallets,
+            l1_chain_id,
+        ));
 
         Ok(self)
     }

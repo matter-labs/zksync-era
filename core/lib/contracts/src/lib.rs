@@ -48,8 +48,17 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
 const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+
+// IChainAdmin doesn't have multicall in it
+const CHAIN_ADMIN_IMPLEMENTATION_CONTRACT_FILE: (&str, &str) =
+    ("governance", "ChainAdmin.sol/ChainAdmin.json");
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+const ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/chain-interfaces",
+    "IAdmin.sol/IAdmin.json",
+);
+
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
@@ -133,6 +142,10 @@ pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
 }
 
+pub fn chain_admin_implementation_contract() -> Contract {
+    load_contract_for_both_compilers(CHAIN_ADMIN_IMPLEMENTATION_CONTRACT_FILE)
+}
+
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -151,6 +164,10 @@ pub fn multicall_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+}
+
+pub fn admin_contract() -> Contract {
+    load_contract_for_both_compilers(ADMIN_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]

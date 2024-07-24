@@ -1,6 +1,9 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use serde::Deserialize;
+use zksync_basic_types::H256;
+use zksync_crypto_primitives::K256PrivateKey;
 
 /// By default, the ratio persister will run every 30 seconds.
 pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
@@ -43,5 +46,18 @@ impl BaseTokenAdjusterConfig {
 
     pub fn price_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.price_cache_update_interval_ms)
+    }
+
+    #[deprecated]
+    pub fn private_key(&self) -> anyhow::Result<Option<K256PrivateKey>> {
+        std::env::var("BASE_TOKEN_ADJUSTER_PRIVATE_KEY")
+            .ok()
+            .map(|pk| {
+                let private_key_bytes: H256 =
+                    pk.parse().context("failed parsing private key bytes")?;
+                K256PrivateKey::from_bytes(private_key_bytes)
+                    .context("private key bytes are invalid")
+            })
+            .transpose()
     }
 }

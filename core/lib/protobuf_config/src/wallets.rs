@@ -1,9 +1,10 @@
 use anyhow::Context;
 use zksync_config::configs::{
     self,
-    wallets::{AddressWallet, EthSender, StateKeeper, Wallet},
+    wallets::{AddressWallet, BaseTokenAdjuster, EthSender, StateKeeper, Wallet},
 };
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::{Address, K256PrivateKey};
 
 use crate::{parse_h160, parse_h256, proto::wallets as proto};
 
@@ -53,34 +54,41 @@ impl ProtoRepr for proto::Wallets {
             None
         };
 
+        let base_token_adjuster = if let Some(governor) = &self.governor {
+            let wallet = Wallet::from_private_key_bytes(
+                parse_h256(required(&governor.private_key).context("governor")?)?,
+                governor.address.as_ref().and_then(|a| parse_h160(a).ok()),
+            )?;
+            Some(BaseTokenAdjuster { wallet })
+        } else {
+            None
+        };
+
         Ok(Self::Type {
             eth_sender,
             state_keeper,
+            base_token_adjuster,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
+        let create_pk_wallet = |addr: Address, pk: &K256PrivateKey| -> proto::PrivateKeyWallet {
+            proto::PrivateKeyWallet {
+                address: Some(format!("{:?}", addr)),
+                private_key: Some(hex::encode(pk.expose_secret().secret_bytes())),
+            }
+        };
+
         let (operator, blob_operator) = if let Some(eth_sender) = &this.eth_sender {
             let blob = eth_sender
                 .blob_operator
                 .as_ref()
-                .map(|blob| proto::PrivateKeyWallet {
-                    address: Some(format!("{:?}", blob.address())),
-                    private_key: Some(hex::encode(
-                        blob.private_key().expose_secret().secret_bytes(),
-                    )),
-                });
+                .map(|blob| create_pk_wallet(blob.address(), blob.private_key()));
             (
-                Some(proto::PrivateKeyWallet {
-                    address: Some(format!("{:?}", eth_sender.operator.address())),
-                    private_key: Some(hex::encode(
-                        eth_sender
-                            .operator
-                            .private_key()
-                            .expose_secret()
-                            .secret_bytes(),
-                    )),
-                }),
+                Some(create_pk_wallet(
+                    eth_sender.operator.address(),
+                    eth_sender.operator.private_key(),
+                )),
                 blob,
             )
         } else {
@@ -93,10 +101,21 @@ impl ProtoRepr for proto::Wallets {
             .map(|state_keeper| proto::AddressWallet {
                 address: Some(format!("{:?}", state_keeper.fee_account.address())),
             });
+
+        let governor = if let Some(base_token_adjuster) = &this.base_token_adjuster {
+            Some(create_pk_wallet(
+                base_token_adjuster.wallet.address(),
+                base_token_adjuster.wallet.private_key(),
+            ))
+        } else {
+            None
+        };
+
         Self {
             blob_operator,
             operator,
             fee_account,
+            governor,
         }
     }
 }
