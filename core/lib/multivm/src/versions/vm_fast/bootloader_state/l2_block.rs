@@ -11,7 +11,7 @@ use crate::{
 
 const EMPTY_TXS_ROLLING_HASH: H256 = H256::zero();
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct BootloaderL2Block {
     pub(crate) number: u32,
     pub(crate) timestamp: u64,
