@@ -156,6 +156,14 @@ Machine specs:
 
 6. Run 4 witness generators to generate witness for each round:
 
+   ```console
+   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
+   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=recursion_tip
+   API_PROMETHEUS_LISTENER_PORT=3120 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
+   ```
+
 7. Run prover to perform actual proving:
 
    ```console
