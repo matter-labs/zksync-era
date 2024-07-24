@@ -13,7 +13,7 @@ publish = false
 
 [dependencies]
 vise.workspace = true
-zksync_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_dal.workspace = true
 zksync_env_config.workspace = true
 zksync_types.workspace = true

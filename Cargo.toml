@@ -180,6 +180,7 @@ tower-http = "0.5.2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.21.0"
+time = "0.3.36" # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 fraction = "0.15.3"

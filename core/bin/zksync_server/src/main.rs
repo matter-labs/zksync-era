@@ -117,31 +117,7 @@ fn main() -> anyhow::Result<()> {
         .observability
         .clone()
         .context("observability config")?;
-
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(log_directives) = observability_config.log_directives {
-        builder = builder.with_log_directives(log_directives);
-    }
-
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
+    let _observability_guard = observability_config.install()?;
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),

@@ -7758,6 +7758,7 @@ dependencies = [
  "zksync_concurrency",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+ "zksync_vlog",
 ]
 
 [[package]]
@@ -8123,6 +8124,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "zkevm_test_harness 0.150.2-rc.1",
  "zksync-wrapper-prover",
+ "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
@@ -8435,6 +8437,8 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "thiserror",
+ "time",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
