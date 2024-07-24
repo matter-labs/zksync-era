@@ -115,11 +115,10 @@ fn apply_l2_block_inner(
         (
             block_position + 3,
             if start_new_l2_block {
-                bootloader_l2_block.max_virtual_blocks_to_create
+                bootloader_l2_block.max_virtual_blocks_to_create.into()
             } else {
-                0
-            }
-            .into(),
+                U256::zero()
+            },
         ),
     ])
 }
