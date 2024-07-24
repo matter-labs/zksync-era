@@ -44,7 +44,7 @@ jobs:
         with:
           context: docker/prover-gpu-fri-gar
           build-args: |
-            PROVER_IMAGE=${{ inputs.image_tag_suffix }}
+            PROVER_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           push: true
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
