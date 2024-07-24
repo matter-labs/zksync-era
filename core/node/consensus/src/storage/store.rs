@@ -446,10 +446,7 @@ impl storage::PersistentBatchStore for Store {
         self.batches_persisted.clone()
     }
 
-    /// Get the earliest L1 batch number which has to be (re)signed by a node.
-    ///
-    /// Ideally we would make this decision by looking up the last batch submitted to L1,
-    /// and so it might require a quorum of attesters to sign a certificate for it.
+    /// Get the earliest L1 batch number which has to be signed by attesters.
     async fn earliest_batch_number_to_sign(
         &self,
         ctx: &ctx::Ctx,
@@ -457,31 +454,36 @@ impl storage::PersistentBatchStore for Store {
         // This is the rough roadmap of how this logic will evolve:
         // 1. Make best effort at gossiping and collecting votes; the `BatchVotes` in consensus only considers the last vote per attesters.
         //    Still, we can re-sign more than the last batch, anticipating step 2.
-        // 2. Change `BatchVotes` to handle multiple pending batch numbers, anticipating that batch intervals might decrease dramatically.
-        // 3. Ask the Main Node what is the earliest batch number that it still expects votes for (ie. what is the last submission + 1).
-        // 4. Look at L1 to figure out what is the last submssion, and sign after that.
+        // 2. Ask the Main Node what is the earliest batch number that it still expects votes for (ie. what is the last submission + 1).
+        // 3. Change `BatchVotes` to handle multiple pending batch numbers, anticipating that batch intervals might decrease dramatically.
+        // 4. Once QC is required to submit to L1, Look at L1 to figure out what is the last submission, and sign after that.
 
-        // Originally this method returned all unsigned batch numbers by doing a DAL query, but we decided it shoudl be okay and cheap
+        // Originally this method returned all unsigned batch numbers by doing a DAL query, but we decided it should be okay and cheap
         // to resend signatures for already signed batches, and we don't have to worry about skipping them. Because of that, we also
         // didn't think it makes sense to query the database for the earliest unsigned batch *after* the submission, because we might
         // as well just re-sign everything. Until we have a way to argue about the "last submission" we just re-sign the last 10 to
         // try to produce as many QCs as the voting register allows, within reason.
 
-        let Some(last_batch_number) = self.last_batch(ctx).await? else {
-            return Ok(None);
-        };
-        Ok(Some(attester::BatchNumber(
-            last_batch_number.0.saturating_sub(10),
-        )))
-    }
+        // The latest decision is not to store batches with gaps between in the database *of the main node*.
+        // Once we have an API to serve to external nodes the earliest number the main node wants them to sign,
+        // we can get rid of this method: on the main node we can sign from what `last_batc_qc` returns, and
+        // while external nodes we can go from whatever the API returned.
 
-    /// Get the highest L1 batch number from storage.
-    async fn last_batch(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchNumber>> {
-        self.conn(ctx)
+        const NUM_BATCHES_TO_SIGN: u64 = 10;
+
+        let Some(last_batch_number) = self
+            .conn(ctx)
             .await?
             .get_last_batch_number(ctx)
             .await
-            .wrap("get_last_batch_number")
+            .wrap("get_last_batch_number")?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(attester::BatchNumber(
+            last_batch_number.0.saturating_sub(NUM_BATCHES_TO_SIGN),
+        )))
     }
 
     /// Get the L1 batch QC from storage with the highest number.
