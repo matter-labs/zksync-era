@@ -15,7 +15,6 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::PrometheusConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -27,9 +26,9 @@ mod metrics;
 mod tests;
 
 async fn maybe_enable_prometheus_metrics(
+    prometheus_config: Option<PrometheusConfig>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
-    let prometheus_config = PrometheusConfig::from_env().ok();
     match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
         Some((Some(gateway_endpoint), push_interval)) => {
             tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
@@ -76,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("Invalid log format")?;
 
-    let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
+    let prometheus_exporter_task =
+        maybe_enable_prometheus_metrics(general_config.prometheus_config, stop_receiver).await?;
     let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
