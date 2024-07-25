@@ -100,16 +100,8 @@ fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            let mut configs =
-                decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                    .context("failed decoding general YAML config")?;
-            // Fallback to the consensus_config.yaml file.
-            // TODO: remove once we move the consensus config to general config on stage
-            if configs.consensus_config.is_none() {
-                configs.consensus_config =
-                    config::read_consensus_config().context("read_consensus_config()")?;
-            }
-            configs
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                .context("failed decoding general YAML config")?
         }
     };
 
