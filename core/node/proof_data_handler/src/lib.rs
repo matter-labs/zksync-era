@@ -127,7 +127,7 @@ fn create_proof_processing_router(
                 },
             ),
         )
-        .route("tee/get_proof/:l1_batch_number",
+        .route("/tee/get_proof/:l1_batch_number",
             get(
                 move |l1_batch_number: Path<u32>| async move {
                     get_tee_proof_processor
