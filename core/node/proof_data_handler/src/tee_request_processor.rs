@@ -131,7 +131,7 @@ impl TeeRequestProcessor {
         let mut dal = connection.tee_proof_generation_dal();
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let tee_proof = dal
-            .get_proof(l1_batch_number)
+            .get_tee_proof(l1_batch_number)
             .await
             .map_err(RequestProcessorError::Dal)?;
 

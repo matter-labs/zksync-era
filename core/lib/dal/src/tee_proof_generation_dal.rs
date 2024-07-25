@@ -48,7 +48,7 @@ impl TeeProofGenerationDal<'_, '_> {
         processing_timeout: Duration,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let result: Option<L1BatchNumber> = sqlx::query!(
+        let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -82,13 +82,15 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_proof_generation_details.l1_batch_number
             "#,
             &processing_timeout,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        );
+        let batch_number = Instrumented::new("get_next_block_to_be_proven")
+            .with_arg("processing_timeout", &processing_timeout)
+            .with(query)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        Ok(result)
+        Ok(batch_number)
     }
 
     pub async fn save_proof_artifacts_metadata(
@@ -163,7 +165,7 @@ impl TeeProofGenerationDal<'_, '_> {
     }
 
     pub async fn get_oldest_unpicked_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
+        let query = sqlx::query!(
             r#"
             SELECT
                 proofs.l1_batch_number
@@ -178,13 +180,14 @@ impl TeeProofGenerationDal<'_, '_> {
             LIMIT
                 1
             "#,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        );
+        let batch_number = Instrumented::new("get_oldest_unpicked_batch")
+            .with(query)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        Ok(result)
+        Ok(batch_number)
     }
 
     pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
@@ -217,8 +220,11 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_proof(&mut self, block_number: L1BatchNumber) -> DalResult<Option<TeeProof>> {
-        let result: Option<TeeProof> = sqlx::query!(
+    pub async fn get_tee_proof(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DalResult<Option<TeeProof>> {
+        let query = sqlx::query!(
             r#"
             SELECT
                 signature,
@@ -231,19 +237,21 @@ impl TeeProofGenerationDal<'_, '_> {
                 l1_batch_number = $1
             "#,
             i64::from(block_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| TeeProof {
-            signature: row.signature,
-            pubkey: row.pubkey,
-            proof: row.proof,
-            tee_type: row
-                .tee_type
-                .map(|tt| tt.parse::<TeeType>().expect("Invalid TEE type")),
-        });
+        );
+        let proof = Instrumented::new("get_tee_proof")
+            .with_arg("l1_batch_number", &block_number)
+            .with(query)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| TeeProof {
+                signature: row.signature,
+                pubkey: row.pubkey,
+                proof: row.proof,
+                tee_type: row
+                    .tee_type
+                    .map(|tt| tt.parse::<TeeType>().expect("Invalid TEE type")),
+            });
 
-        Ok(result)
+        Ok(proof)
     }
 }
