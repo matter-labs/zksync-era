@@ -153,8 +153,8 @@ snapshot_creator:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  concurrent_queries_count: 1
-  storage_logs_chunk_size: 2
+  concurrent_queries_count: 25
+  storage_logs_chunk_size: 1000000
 
 
 prover:
