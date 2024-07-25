@@ -29,7 +29,7 @@ use crate::{
 /// Serves two purposes:
 /// - Tracks where next tx should be pushed to in the bootloader memory.
 /// - Tracks which transaction should be executed next.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BootloaderState {
     /// ID of the next transaction to be executed.
     /// See the structure doc-comment for a better explanation of purpose.
