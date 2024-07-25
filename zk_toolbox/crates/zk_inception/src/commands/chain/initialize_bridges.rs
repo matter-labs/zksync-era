@@ -38,7 +38,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &mut contracts,
         args,
     )
-        .await?;
+    .await?;
     contracts.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
