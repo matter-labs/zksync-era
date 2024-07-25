@@ -29,6 +29,10 @@ jobs:
         run: |
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
 
+      -  name: Auth Docker hub registry
+         run: |
+           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to us-central1 GAR
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
@@ -44,7 +48,7 @@ jobs:
         with:
           context: docker/prover-gpu-fri-gar
           build-args: |
-            PROVER_IMAGE=${{ inputs.image_tag_suffix }}
+            PROVER_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           push: true
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}

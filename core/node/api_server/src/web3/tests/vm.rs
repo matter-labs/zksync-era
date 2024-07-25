@@ -695,20 +695,18 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         // Transaction with balance override
         let l2_transaction = create_l2_transaction(10, 100);
         let mut call_request = CallRequest::from(l2_transaction);
-        call_request.from = Some(Address::random());
+        let request_initiator = Address::random();
+        call_request.from = Some(request_initiator);
         call_request.value = Some(1_000_000.into());
 
-        let mut state_override_map = HashMap::new();
-        state_override_map.insert(
-            call_request.from.unwrap(),
+        let state_override = HashMap::from([(
+            request_initiator,
             OverrideAccount {
                 balance: Some(U256::max_value()),
-                nonce: None,
-                code: None,
-                state: None,
+                ..OverrideAccount::default()
             },
-        );
-        let state_override = StateOverride::new(state_override_map);
+        )]);
+        let state_override = StateOverride::new(state_override);
 
         client
             .estimate_gas(call_request.clone(), None, Some(state_override))
