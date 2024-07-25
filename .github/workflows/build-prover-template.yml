@@ -70,6 +70,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: start-services
         run: |
@@ -185,6 +186,9 @@ jobs:
         component:
           - witness-vector-generator
     steps:
+      -  name: Auth Docker hub registry
+         run: |
+           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
