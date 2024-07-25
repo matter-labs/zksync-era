@@ -1,6 +1,6 @@
 use std::fmt;
 
-use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Transaction,
 };

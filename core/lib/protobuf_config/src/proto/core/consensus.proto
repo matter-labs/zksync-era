@@ -29,6 +29,8 @@ syntax = "proto3";
 
 package zksync.core.consensus;
 
+import "zksync/std.proto";
+
 // (public key, ip address) of a gossip network node.
 message NodeAddr {
   optional string key = 1; // required; NodePublicKey
@@ -41,12 +43,24 @@ message WeightedValidator {
   optional uint64 weight = 2; // required
 }
 
+// Weighted member of an attester committee. 
+message WeightedAttester {
+  optional string key = 1; // required; AttesterPublic
+  optional uint64 weight = 2; // required
+}
+
 // Consensus genesis specification.
 message GenesisSpec {
   optional uint64 chain_id = 1; // required; L2ChainId, should be the same as `l2_chain_id` in the `zksync.config.genesis.Genesis`.
   optional uint32 protocol_version = 2; // required; validator::ProtocolVersion
   repeated WeightedValidator validators = 3; // must be non-empty; validator committee.
   optional string leader = 4; // required; ValidatorPublicKey
+  repeated WeightedAttester attesters = 5; // can be empty; attester committee.
+}
+
+// Per peer connection RPC rate limits.
+message RpcConfig {
+  optional std.RateLimit get_block_rate = 1; // optional; defaults to 10 blocks/s.
 }
 
 message Config {
@@ -64,6 +78,9 @@ message Config {
   // Maximal allowed size of the payload.
   optional uint64 max_payload_size = 4; // required; bytes
 
+  // Maximal allowed size of the sync batches.
+  optional uint64 max_batch_size = 10; // required; bytes
+
   // Inbound connections that should be unconditionally accepted on the gossip network.
   repeated string gossip_static_inbound = 5; // required; NodePublicKey
 
@@ -79,5 +96,9 @@ message Config {
   // Used to (re)initialize genesis if needed.
   // External nodes fetch the genesis from the main node.
   optional GenesisSpec genesis_spec = 8;
+
+  // RPC rate limits configuration.
+  // If missing, defaults are used.
+  optional RpcConfig rpc_config = 9; // optional
 }
 

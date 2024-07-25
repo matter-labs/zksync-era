@@ -4,10 +4,7 @@ use std::{cell::RefCell, mem, sync::Arc, time::Instant};
 
 use thread_local::ThreadLocal;
 use zksync_types::api;
-use zksync_web3_decl::{
-    error::Web3Error,
-    jsonrpsee::{helpers::MethodResponseResult, MethodResponse},
-};
+use zksync_web3_decl::{error::Web3Error, jsonrpsee::MethodResponse};
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
@@ -154,11 +151,11 @@ impl MethodCall<'_> {
         self.is_completed = true;
         let meta = &self.meta;
         let params = &self.params;
-        match response.success_or_error {
-            MethodResponseResult::Success => {
-                API_METRICS.observe_response_size(meta.name, params, response.result.len());
+        match response.as_error_code() {
+            None => {
+                API_METRICS.observe_response_size(meta.name, params, response.as_result().len());
             }
-            MethodResponseResult::Failed(error_code) => {
+            Some(error_code) => {
                 API_METRICS.observe_protocol_error(
                     meta.name,
                     params,

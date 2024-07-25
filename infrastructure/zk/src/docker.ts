@@ -75,13 +75,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'server-v2',
         'external-node',
         'contract-verifier',
-        'witness-generator',
-        'prover-fri',
-        'prover-gpu-fri',
-        'witness-vector-generator',
         'prover-fri-gateway',
-        'proof-fri-compressor',
-        'proof-fri-gpu-compressor',
         'snapshots-creator'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]

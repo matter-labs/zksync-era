@@ -17,7 +17,7 @@ use crate::tests::{gen_storage_logs, reset_db_state, run_calculator, setup_calcu
 async fn merkle_tree_api() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone(), true).await;
     let api_addr = (Ipv4Addr::LOCALHOST, 0).into();
 
     reset_db_state(&pool, 5).await;
@@ -30,6 +30,7 @@ async fn merkle_tree_api() {
         .await
         .unwrap()
         .create_api_server(&api_addr, stop_receiver.clone())
+        .await
         .unwrap();
     let local_addr = *api_server.local_addr();
     let api_server_task = tokio::spawn(api_server.run());
@@ -114,7 +115,7 @@ async fn api_client_unparesable_response_error() {
 async fn local_merkle_tree_client() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone(), true).await;
 
     reset_db_state(&pool, 5).await;
     let tree_reader = calculator.tree_reader();

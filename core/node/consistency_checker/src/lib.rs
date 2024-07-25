@@ -262,6 +262,7 @@ pub fn detect_da(
     /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
     const PUBDATA_SOURCE_CALLDATA: u8 = 0;
     const PUBDATA_SOURCE_BLOBS: u8 = 1;
+    const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -292,6 +293,7 @@ pub fn detect_da(
     match last_reference_token.first() {
         Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
         Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
         Some(&byte) => Err(parse_error(format!(
             "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
                 got {byte}"

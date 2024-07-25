@@ -1,9 +1,11 @@
 use std::{
     mem,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use anyhow::Context as _;
+use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{
     runtime::Handle,
     sync::{
@@ -42,12 +44,12 @@ impl CacheValue<H256> for TimestampedFactoryDep {
 }
 
 /// Type alias for initial writes caches.
-type InitialWritesCache = LruCache<StorageKey, L1BatchNumber>;
+type InitialWritesCache = LruCache<H256, L1BatchNumber>;
 
-impl CacheValue<StorageKey> for L1BatchNumber {
+impl CacheValue<H256> for L1BatchNumber {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
     fn cache_weight(&self) -> u32 {
-        const WEIGHT: usize = mem::size_of::<L1BatchNumber>() + mem::size_of::<StorageKey>();
+        const WEIGHT: usize = mem::size_of::<L1BatchNumber>() + mem::size_of::<H256>();
         // ^ Since values are small, we want to account for key sizes as well
 
         WEIGHT as u32
@@ -122,7 +124,7 @@ impl ValuesCache {
 
     /// Gets the cached value for `key` provided that the cache currently holds values
     /// for `l2_block_number`.
-    fn get(&self, l2_block_number: L2BlockNumber, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&self, l2_block_number: L2BlockNumber, hashed_key: H256) -> Option<StorageValue> {
         let lock = self.0.read().expect("values cache is poisoned");
         if lock.valid_for < l2_block_number {
             // The request is from the future; we cannot say which values in the cache remain valid,
@@ -130,7 +132,7 @@ impl ValuesCache {
             return None;
         }
 
-        let timestamped_value = lock.values.get(&key.hashed_key())?;
+        let timestamped_value = lock.values.get(&hashed_key)?;
         if timestamped_value.loaded_at <= l2_block_number {
             Some(timestamped_value.value)
         } else {
@@ -139,11 +141,11 @@ impl ValuesCache {
     }
 
     /// Caches `value` for `key`, but only if the cache currently holds values for `l2_block_number`.
-    fn insert(&self, l2_block_number: L2BlockNumber, key: StorageKey, value: StorageValue) {
+    fn insert(&self, l2_block_number: L2BlockNumber, hashed_key: H256, value: StorageValue) {
         let lock = self.0.read().expect("values cache is poisoned");
         if lock.valid_for == l2_block_number {
             lock.values.insert(
-                key.hashed_key(),
+                hashed_key,
                 TimestampedStorageValue {
                     value,
                     loaded_at: l2_block_number,
@@ -481,19 +483,36 @@ impl<'a> PostgresStorage<'a> {
 }
 
 impl ReadStorage for PostgresStorage<'_> {
-    fn read_value(&mut self, &key: &StorageKey) -> StorageValue {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        let hashed_key = key.hashed_key();
         let latency = STORAGE_METRICS.storage[&Method::ReadValue].start();
         let values_cache = self.values_cache();
-        let cached_value = values_cache.and_then(|cache| cache.get(self.l2_block_number, &key));
+        let cached_value =
+            values_cache.and_then(|cache| cache.get(self.l2_block_number, hashed_key));
 
         let value = cached_value.unwrap_or_else(|| {
+            const RETRY_INTERVAL: Duration = Duration::from_millis(500);
+            const MAX_TRIES: usize = 20;
+
             let mut dal = self.connection.storage_web3_dal();
-            let value = self
-                .rt_handle
-                .block_on(dal.get_historical_value_unchecked(&key, self.l2_block_number))
-                .expect("Failed executing `read_value`");
+            let value = (|| {
+                self.rt_handle
+                    .block_on(dal.get_historical_value_unchecked(hashed_key, self.l2_block_number))
+            })
+            .retry(
+                &ConstantBuilder::default()
+                    .with_delay(RETRY_INTERVAL)
+                    .with_max_times(MAX_TRIES),
+            )
+            .when(|e| {
+                e.inner()
+                    .as_database_error()
+                    .is_some_and(|e| e.message() == "canceling statement due to statement timeout")
+            })
+            .call()
+            .expect("Failed executing `read_value`");
             if let Some(cache) = self.values_cache() {
-                cache.insert(self.l2_block_number, key, value);
+                cache.insert(self.l2_block_number, hashed_key, value);
             }
             value
         });
@@ -503,13 +522,15 @@ impl ReadStorage for PostgresStorage<'_> {
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        let hashed_key = key.hashed_key();
         let latency = STORAGE_METRICS.storage[&Method::IsWriteInitial].start();
         let caches = self.caches.as_ref();
-        let cached_value = caches.and_then(|caches| caches.initial_writes.get(key));
+        let cached_value = caches.and_then(|caches| caches.initial_writes.get(&hashed_key));
 
         if cached_value.is_none() {
             // Write is absent in positive cache, check whether it's present in the negative cache.
-            let cached_value = caches.and_then(|caches| caches.negative_initial_writes.get(key));
+            let cached_value =
+                caches.and_then(|caches| caches.negative_initial_writes.get(&hashed_key));
             if let Some(min_l1_batch_for_initial_write) = cached_value {
                 // We know that this slot was certainly not touched before `min_l1_batch_for_initial_write`.
                 // Try to use this knowledge to decide if the change is certainly initial.
@@ -526,17 +547,17 @@ impl ReadStorage for PostgresStorage<'_> {
             let mut dal = self.connection.storage_web3_dal();
             let value = self
                 .rt_handle
-                .block_on(dal.get_l1_batch_number_for_initial_write(key))
+                .block_on(dal.get_l1_batch_number_for_initial_write(hashed_key))
                 .expect("Failed executing `is_write_initial`");
 
             if let Some(caches) = &self.caches {
                 if let Some(l1_batch_number) = value {
-                    caches.negative_initial_writes.remove(key);
-                    caches.initial_writes.insert(*key, l1_batch_number);
+                    caches.negative_initial_writes.remove(&hashed_key);
+                    caches.initial_writes.insert(hashed_key, l1_batch_number);
                 } else {
                     caches
                         .negative_initial_writes
-                        .insert(*key, self.pending_l1_batch_number);
+                        .insert(hashed_key, self.pending_l1_batch_number);
                     // The pending L1 batch might have been sealed since its number was requested from Postgres
                     // in `Self::new()`, so this is a somewhat conservative estimate.
                 }
@@ -589,13 +610,11 @@ impl ReadStorage for PostgresStorage<'_> {
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let hashed_key = key.hashed_key();
         let mut dal = self.connection.storage_logs_dedup_dal();
-        let value = self
-            .rt_handle
-            .block_on(dal.get_enumeration_index_in_l1_batch(
-                key.hashed_key(),
-                self.l1_batch_number_for_l2_block,
-            ));
+        let value = self.rt_handle.block_on(
+            dal.get_enumeration_index_in_l1_batch(hashed_key, self.l1_batch_number_for_l2_block),
+        );
         value.expect("failed getting enumeration index for key")
     }
 }

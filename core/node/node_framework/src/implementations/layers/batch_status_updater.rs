@@ -6,36 +6,57 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub pool: PoolResource<MasterPool>,
+    pub client: MainNodeClientResource,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub updater: BatchStatusUpdater,
+}
+
+/// Wiring layer for `BatchStatusUpdater`, part of the external node.
 #[derive(Debug)]
 pub struct BatchStatusUpdaterLayer;
 
 #[async_trait::async_trait]
 impl WiringLayer for BatchStatusUpdaterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "batch_status_updater_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        let MainNodeClientResource(client) = context.get_resource().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let Input {
+            pool,
+            client,
+            app_health,
+        } = input;
 
-        let updater = BatchStatusUpdater::new(client, pool.get().await?);
+        let updater = BatchStatusUpdater::new(client.0, pool.get().await?);
 
         // Insert healthcheck
-        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health
+            .0
             .insert_component(updater.health_check())
             .map_err(WiringError::internal)?;
 
-        // Insert task
-        context.add_task(Box::new(updater));
-
-        Ok(())
+        Ok(Output { updater })
     }
 }
 

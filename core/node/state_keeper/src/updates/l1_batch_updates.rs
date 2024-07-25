@@ -1,4 +1,4 @@
-use multivm::interface::FinishedL1Batch;
+use zksync_multivm::interface::FinishedL1Batch;
 use zksync_types::{
     block::BlockGasCount,
     priority_op_onchain_data::PriorityOpOnchainData,
@@ -51,7 +51,7 @@ impl L1BatchUpdates {
 
 #[cfg(test)]
 mod tests {
-    use multivm::vm_latest::TransactionVmExt;
+    use zksync_multivm::vm_latest::TransactionVmExt;
     use zksync_types::{L2BlockNumber, ProtocolVersionId, H256};
 
     use super::*;

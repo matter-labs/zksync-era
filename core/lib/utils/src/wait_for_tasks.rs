@@ -47,14 +47,14 @@ impl ManagedTasks {
                     let err =
                         "One of the actors finished its run, while it wasn't expected to do it";
                     tracing::error!("{err}");
-                    vlog::capture_message(err, vlog::AlertLevel::Warning);
+                    zksync_vlog::capture_message(err, zksync_vlog::AlertLevel::Warning);
                 }
             }
             Ok(Err(err)) => {
                 let err =
                     format!("One of the tokio actors unexpectedly finished with error: {err:#}");
                 tracing::error!("{err}");
-                vlog::capture_message(&err, vlog::AlertLevel::Warning);
+                zksync_vlog::capture_message(&err, zksync_vlog::AlertLevel::Warning);
             }
             Err(error) => {
                 let panic_message = try_extract_panic_message(error);

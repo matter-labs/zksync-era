@@ -1,19 +1,16 @@
 use std::{cell::RefCell, time::Duration};
 
-use anyhow::Context as _;
+use anyhow::Context;
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{ObservabilityConfig, PrometheusConfig},
-    ApiConfig, ContractVerifierConfig,
-};
+use zksync_config::configs::PrometheusConfig;
 use zksync_contract_verifier_lib::ContractVerifier;
+use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
@@ -109,26 +106,34 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     transaction.commit().await.unwrap();
 }
 
-use zksync_config::configs::DatabaseSecrets;
-
 #[derive(StructOpt)]
 #[structopt(name = "ZKsync contract code verifier", author = "Matter Labs")]
 struct Opt {
     /// Number of jobs to process. If None, runs indefinitely.
     #[structopt(long)]
     jobs_number: Option<usize>,
+    /// Path to the configuration file.
+    #[structopt(long)]
+    config_path: Option<std::path::PathBuf>,
+    /// Path to the secrets file.
+    #[structopt(long)]
+    secrets_path: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
-    let verifier_config = ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
+    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+
+    let verifier_config = general_config
+        .contract_verifier
+        .context("ContractVerifierConfig")?;
     let prometheus_config = PrometheusConfig {
         listener_port: verifier_config.prometheus_port,
-        ..ApiConfig::from_env().context("ApiConfig")?.prometheus
+        ..general_config.api_config.context("ApiConfig")?.prometheus
     };
-    let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets")?;
     let pool = ConnectionPool::<Core>::singleton(
         database_secrets
             .master_url()
@@ -138,13 +143,14 @@ async fn main() -> anyhow::Result<()> {
     .await
     .unwrap();
 
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: vlog::LogFormat = observability_config
+    let observability_config = general_config
+        .observability
+        .context("ObservabilityConfig")?;
+    let log_format: zksync_vlog::LogFormat = observability_config
         .log_format
         .parse()
         .context("Invalid log format")?;
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)

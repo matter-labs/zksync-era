@@ -12,14 +12,16 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::inputs::{
+    TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_tee_verifier::TeeVerifierInput;
+use zksync_tee_verifier::Verify;
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use self::metrics::METRICS;
 
@@ -53,7 +55,7 @@ impl TeeVerifierInputProducer {
         object_store: Arc<dyn ObjectStore>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<TeeVerifierInput> {
-        let prepare_basic_circuits_job: PrepareBasicCircuitsJob = object_store
+        let prepare_basic_circuits_job: WitnessInputMerklePaths = object_store
             .get(l1_batch_number)
             .await
             .context("failed to get PrepareBasicCircuitsJob from object store")?;
@@ -75,7 +77,9 @@ impl TeeVerifierInputProducer {
             .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?
             .unwrap();
 
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut connection)
             .await
             .context("failed initializing L1 batch params provider")?;
 
@@ -128,7 +132,7 @@ impl TeeVerifierInputProducer {
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 
-        let tee_verifier_input = TeeVerifierInput::new(
+        let tee_verifier_input = V1TeeVerifierInput::new(
             prepare_basic_circuits_job,
             l2_blocks_execution_data,
             l1_batch_env,
@@ -149,7 +153,7 @@ impl TeeVerifierInputProducer {
             l1_batch_number.0
         );
 
-        Ok(tee_verifier_input)
+        Ok(TeeVerifierInput::new(tee_verifier_input))
     }
 }
 
@@ -214,15 +218,13 @@ impl JobProcessor for TeeVerifierInputProducer {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        let upload_started_at = Instant::now();
+        let observer: vise::LatencyObserver = METRICS.upload_input_time.start();
         let object_path = self
             .object_store
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for TeeVerifierInputProducer")?;
-        METRICS
-            .upload_input_time
-            .observe(upload_started_at.elapsed());
+        observer.observe();
         let mut connection = self
             .connection_pool
             .connection()
@@ -245,7 +247,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .commit()
             .await
             .context("failed to commit DB transaction for TeeVerifierInputProducer")?;
-        METRICS.block_number_processed.set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as u64);
         Ok(())
     }
 

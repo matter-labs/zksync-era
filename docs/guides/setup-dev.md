@@ -17,12 +17,12 @@ sudo usermod -aG docker YOUR_USER
 ## You might need to re-connect (due to usermod change).
 
 # Node & yarn
-nvm install 18
+nvm install 20
 npm install -g yarn
 yarn set version 1.22.19
 
 # SQL tools
-cargo install sqlx-cli --version 0.7.3
+cargo install sqlx-cli --version 0.7.4
 # Stop default postgres (as we'll use the docker one)
 sudo systemctl stop postgresql
 # Start docker.

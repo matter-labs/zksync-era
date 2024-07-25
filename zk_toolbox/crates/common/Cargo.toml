@@ -27,3 +27,4 @@ tokio.workspace = true
 toml.workspace = true
 url.workspace = true
 xshell.workspace = true
+thiserror = "1.0.57"
