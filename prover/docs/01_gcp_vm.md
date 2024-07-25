@@ -3,6 +3,16 @@
 In this section we will cover the creation of a VM suitable for prover development. We assume that you already have
 access to the GCP cluster.
 
+## When you need a VM
+
+Generally, you don't always need a VM to work on prover. You typically need it to either modify the code under
+`cfg(feature = "gpu")` flag, or when you need to run some tests. Moreover, VMs are shared, e.g. many people have access
+to them, and you can't store sensitive data (like SSH keys) there, so they can't be used as primary workstations.
+Finally, the VMs with GPU aren't cheap, so we expect you to use them when you really need them.
+
+A typical workflow so far is to instantiate a new VM when you need it, and remove once you're done. Remember: even if
+the VM is stopped, the SSD is persisted, so it's not free.
+
 ## Create a VM
 
 Open [Google cloud console](https://console.cloud.google.com/) and choose "Compute Engine".
@@ -10,7 +20,8 @@ Open [Google cloud console](https://console.cloud.google.com/) and choose "Compu
 On the "Compute Engine" page choose the cluster suitable for creating VMs with GPU, and then click on "Create instance".
 
 We will need an GPU **L4** instance, so find the zone that is close to you geographically and has such instances. At the
-time of writing, `europe-west2` is one of the possible options.
+time of writing, `europe-west2` is one of the possible options. L4 is recommended as the cheapest option, but you may
+use a beefier machine if you need it.
 
 When you choose the region, set the following options:
 
@@ -19,8 +30,10 @@ When you choose the region, set the following options:
 - Machine configuration: "GPUs", then:
   - GPU Type: NVIDIA L4
   - Number of GPUs: 1
-  - Machine type: Preset, `g2-standard-32`
-- Availability policies: Spot ⚠️ Make sure to not skip that, standard provisioning is much more expensive.
+  - Machine type: Preset, `g2-standard-16`
+- Availability policies: Spot instances are much cheaper, but there is a chance that it will be preempted while you work
+  on it. If you're working on something that is not very important, spot instances are recommended. If any disruption
+  will be harmful, choose standard provisioning.
 - Then click on "VM provisioning model advanced settings" and
   - Click on "Set a time limit for the VM"
   - Set the limit to 8 hours
@@ -38,7 +51,10 @@ an arrow near "SSH" in the list of options, and choose "Open in browser window".
 
 You should successfully connect to your machine now.
 
-## Adding your own ssh key
+⚠️ Don't forget to remove the VM once you've finished your scope of work. It's OK to keep the machine if you expect to
+work with it on the next working day, but otherwise it's better to remove and create a new one when needed.
+
+## Adding your own ssh key (on local machine)
 
 Using browser to connect to the machine may not be the most convenient option. Instead, we can add an SSH key to be able
 to connect there.
@@ -80,8 +96,8 @@ Native `tmux` may be hard to use, so you may also want to install some configura
 - [oh-my-tmux](https://github.com/gpakosz/.tmux) or
 - [tmux-sensible](https://github.com/tmux-plugins/tmux-sensible).
 
-Finally, it is recommended to choose a different terminal theme than what you use locally, so that you can easily see
-whether you're running in the VM or locally.
+Finally, it is recommended to choose a different terminal theme or prompt than what you use locally, so that you can
+easily see whether you're running in the VM or locally.
 
 ## Connecting via VS Code
 
@@ -123,18 +139,9 @@ Once you've configured the host, you can click on "Connect to" again, then "Conn
 listed there. On the first connect you'll have to confirm that you want to connect to it, and then choose the operating
 system (Linux).
 
-## Generating the SSH key on VM
+## On security
 
-Last but not least, you probably want to make sure that you can access GitHub from your VM, so that you can push and
-access private repositories.
+Do not store SSH keys, tokens, or other private information on GCP VMs. Do not use SSH keys forwarding either. These VMs
+are shared, and every person has root access to all the VMs by default.
 
-The simplest option would be to generate a new key on the VM and add it to GitHub. You probably know how to do it, but
-if not, here's a guide on
-[generating a key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
-and
-[adding it to github](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account?platform=linux).
-
-If you're signing your commits, don't forget to setup signing key as well.
-
-If you want to use another approach, e.g. use key forwarding, feel free to do so. However, using `https` to interact
-with GitHub is not recommended.
+You may, however, use tools like `rsync` or `sshfs`.

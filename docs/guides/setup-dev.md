@@ -8,23 +8,35 @@ initializing the workspace, it's recommended that you read the whole guide below
 If you run on 'clean' Ubuntu on GCP:
 
 ```bash
+# For VMs only! They don't have SSH keys, so we override SSH with HTTPS
+git config --global url."https://github.com/".insteadOf git@github.com:
+git config --global url."https://".insteadOf git://
+
 # Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 # All necessary stuff
-sudo apt-get update && sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
+sudo apt-get update
+sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql apt-transport-https ca-certificates curl software-properties-common
 # Install docker
-sudo apt install apt-transport-https ca-certificates curl software-properties-common
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
 sudo apt install docker-ce
 sudo usermod -aG docker ${USER}
 
+# Stop default postgres (as we'll use the docker one)
+sudo systemctl stop postgresql
+sudo systemctl disable postgresql
+# Start docker.
+sudo systemctl start docker
+
 ## You might need to re-connect (due to usermod change).
 
 # Node & yarn
 nvm install 20
+# Important: there will be a note in the output to load
+# new paths in your local session, either run it or reload the terminal.
 npm install -g yarn
 yarn set version 1.22.19
 
@@ -32,14 +44,11 @@ yarn set version 1.22.19
 cargo install cargo-nextest
 # SQL tools
 cargo install sqlx-cli --version 0.7.4
-# Stop default postgres (as we'll use the docker one)
-sudo systemctl stop postgresql
-# Start docker.
-sudo systemctl start docker
 
 # Foundry
 curl -L https://foundry.paradigm.xyz | bash
 foundryup --branch master
+# You will need to reload your `*rc` file here
 
 # Clone the repo to the desired location
 git clone git@github.com:matter-labs/zksync-era.git

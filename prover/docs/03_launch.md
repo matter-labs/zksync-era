@@ -15,6 +15,14 @@ It will create a config similar to `dev`, but with:
 
 You can always switch back to dev config via `zk env dev`.
 
+## Enter the prover workspace
+
+All the commands for binaries in the prover workspace must be done from the prover folder:
+
+```
+cd $ZKSYNC_HOME/prover
+```
+
 ## Key generation
 
 This operation should only be done once; if you already generated keys, you can skip it.
@@ -67,7 +75,8 @@ FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --rele
 ```
 
 WVG prepares inputs for prover, and it's a single-threaded time-consuming operation. You may run several instances (make
-sure to use different ports). One prover can be "fed" by 10 WVGs.
+sure to use different ports). The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
+ballpark estimate (useful for local development) is 10 WVGs per prover.
 
 ### Prover
 

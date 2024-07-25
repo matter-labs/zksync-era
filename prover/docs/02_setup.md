@@ -46,13 +46,13 @@ Navigate to some directory where you want to store the code, and then do the fol
 ```
 git clone git@github.com:matter-labs/era-bellman-cuda.git
 cmake -Bera-bellman-cuda/build -Sera-bellman-cuda/ -DCMAKE_BUILD_TYPE=Release
-cmake --build bellman-cuda/build/
+cmake --build era-bellman-cuda/build/
 ```
 
 After that add the following environment variable to your config (`.bashrc`/`.zshrc`):
 
 ```
-export BELLMAN_CUDA_DIR=<PATH_TO>/bellman-cuda
+export BELLMAN_CUDA_DIR=<PATH_TO>/era-bellman-cuda
 ```
 
 Don't forget to reload it (e.g. `source ~/.zshrc`).

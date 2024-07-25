@@ -1,5 +1,5 @@
 # FRI Prover
 
-Implementation of the prover.
+Implementation of the circuit prover.
 
-While technically CPU proving is possible, right now the GPU prover is the only supported implementation.
+GPU circuit proving is the only maintained implementation. CPU circuit proving has been deprecated.

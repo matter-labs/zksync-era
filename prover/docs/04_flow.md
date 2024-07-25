@@ -6,7 +6,7 @@ we'll be looking at it from four perspectives:
 - Core<->Prover subsystem interactions.
 - Core side of workflow.
 - Prover pipeline.
-- Actual proof generation.
+- Batch proof generation.
 - Infrastructure distribution.
 
 After that, we will touch on how this flow is mapped on the actual production infrastructure.
@@ -17,7 +17,9 @@ Core and prover subsystem are built in such a way that they are mostly isolated 
 database and GCS buckets, and both have "gateway" components they use for interaction.
 
 The only exception here is the `house_keeper`: it's a component that exists as a part of the server, it's main purpose
-is to manage jobs in the prover workspace, but at the same time it has access to both core and prover databases.
+is to manage jobs (and emit metrics for job management) in the prover workspace, but at the same time it has access to
+both core and prover databases. The component will probably be split in the future and most of it will be moved to the
+prover workspace.
 
 Otherwise, the interaction between subsystems can be expressed as follows:
 
@@ -34,7 +36,7 @@ sequenceDiagram
   end
 ```
 
-Core exposes an API, and Prover repeatedly polls this API, fetching new jobs and submitting ready proofs.
+Core exposes an API, and Prover repeatedly polls this API, fetching new batch proof jobs and submitting batch proofs.
 
 ## Core side of workflow
 
@@ -69,7 +71,8 @@ sources. Then this data is given to the prover together with the batch number.
 
 ## Prover pipeline
 
-Once job is received by the prover, it has to go through several different stages:
+Once job is received by the prover, it has to go through several different stages. Consider this a mental model of the
+pipeline, since in reality some stages happen in parallel, and some have different degree of sequencing.
 
 ```mermaid
 sequenceDiagram
@@ -95,8 +98,9 @@ CP->>PG: SNARK proof
 PG-->>C: Proof
 ```
 
-Initially, when job is created, we create many sub-jobs for basic witness generation. Once they are processed, we start
-to aggregate generated proofs, and we do it in "levels". With each aggregation level, we reduce the number of jobs.
+When we process the initial job (during basic witness generation) we create many sub-jobs for basic proof generation.
+Once they are processed, we start to aggregate generated proofs, and we do it in "levels". With each aggregation level,
+we reduce the number of jobs.
 
 Aggregation levels are commonly referred by numbers in the prover workspace, from 0 to 4. So if someone mentions
 "aggregation round 2", they refer to the "node" stage, and round 4 corresponds to the "scheduler" stage. Proof
@@ -116,12 +120,14 @@ which are processed as follows:
 - On round 4, we already have just 1 job, and we produce a single aggregated proof.
 - Finally, the proof is processed by the proof compressor and sent back to the core.
 
-Once again, these numbers are just for example, and don't necessarily represent the actual state of affairs.
+Once again, these numbers are just for example, and don't necessarily represent the actual state of affairs. The exact
+number of jobs depend on number of txs in a batch (and what's done inside those txs) while the aggregation split
+(mapping of `N circuits of level X` to `M circuits of level X + 1`) is determined by the config geometry.
 
 ## Actual proof generation
 
 Every "job" we mentioned has several sub-stages. More precisely, it receives some kind of input, which is followed by
-witness generation, witness vector generation, and actual GPU proving. The output of GPU proving is passed as an input
+witness generation, witness vector generation, and circuit proving. The output of circuit proving is passed as an input
 for the next "job" in the pipeline.
 
 For each aggregation level mentioned above the steps are the same, though the inputs and outputs are different.
@@ -191,7 +197,28 @@ regions.
 
 It mostly doesn't affect the code, since we use Postgres and GCS for communication, with one major exception: since WVG
 streams data directly to GPU provers via TCP, it will only look for prover machines that are registered in the same zone
-as WVG.
+as WVG in order to reduce network transfers (inter-AZ costs less than intra-AZ or even cross DC).
+
+## Protocol versions
+
+Finally, ZKsync has protocol versions, and it has upgrades from time to time. Each protocol version upgrade is defined
+on L1, and the version follows SemVer convention, e.g. each version is defined as `0.x.y`. During the protocol version
+upgrade, one of three things can change:
+
+- Protocol _behavior_. For example, we add new functionality and our VM starts working differently.
+- Circuits _implementation_. For example, VM behavior doesn't change, but we add more constraints to the circuits.
+- Contracts changes. For example, we add a new method to the contract, which doesn't affect neither VM or circuits.
+
+For the first two cases, there will be changes in circuits, and there will be new verification keys. It means, that the
+proving process will be different. The latter has no implications for L2 behavior.
+
+As a result, after upgrade, we may need to generate different proofs. But given that upgrades happen asynchronously, we
+cannot guarantee that all the "old" batched will be proven at the time of upgrade.
+
+Because of that, prover is protocol version aware. Each binary that participates in proving is designed to only generate
+proofs for a single protocol version. Once the upgrade happens, "old" provers continue working on the "old" unproven
+batches, and simultaneously we start spawning "new" provers for the batches generated with the new protocol version.
+Once all the "old" batches are proven, no "old" provers will be spawned anymore.
 
 ## Recap
 
@@ -207,3 +234,5 @@ page:
 - On the infrastructure level, these 35 pairs are spread across 15 different prover groups, according to how "busy" the
   group is.
 - Groups may exist in different clusters in different GCP regions.
+- Provers are versioned according to the L1 protocol version. There may be provers with different versions running at
+  the same time.
