@@ -40,6 +40,8 @@ impl EnNamespace {
                 return to_l1_batch_number(last + 1);
             }
             // Otherwise start with the next sealed L1 batch.
+            // NOTE: we may start at arbitrary point,
+            // choice of `sealed + 1` is arbitrary.
             if let Some(sealed) = conn
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
