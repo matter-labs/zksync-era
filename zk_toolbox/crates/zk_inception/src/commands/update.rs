@@ -37,14 +37,14 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let updated_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
-    let general_config = serde_yaml::from_reader(std::fs::File::open(updated_config_path)?)?;
+    let general_config = serde_yaml::from_str(&shell.read_file(updated_config_path)?)?;
 
     for chain in ecosystem.list_of_chains() {
         logger::info(msg_updating_chain(&chain));
         let chain = ecosystem
             .load_chain(Some(chain))
             .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-        update_chain(&chain, &general_config)?;
+        update_chain(shell, &chain, &general_config)?;
     }
 
     logger::outro(MSG_ZKSYNC_UPDATED);
@@ -105,11 +105,15 @@ fn save_updated_config(
     Ok(())
 }
 
-fn update_chain(chain: &ChainConfig, general: &serde_yaml::Value) -> anyhow::Result<()> {
+fn update_chain(
+    shell: &Shell,
+    chain: &ChainConfig,
+    general: &serde_yaml::Value,
+) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_GENERAL_CONFIG);
     let current_general_config_path = chain.path_to_general_config();
     let mut current_general_config =
-        serde_yaml::from_reader(std::fs::File::open(current_general_config_path.clone())?)?;
+        serde_yaml::from_str(&shell.read_file(current_general_config_path.clone())?)?;
     let diff = merge_yaml(&mut current_general_config, general.clone())?;
     save_updated_config(current_general_config, &current_general_config_path, diff)?;
     Ok(())
