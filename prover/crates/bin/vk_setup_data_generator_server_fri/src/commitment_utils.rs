@@ -10,10 +10,7 @@ use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
 };
-use zksync_types::{
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    H256,
-};
+use zksync_types::{protocol_version::L1VerifierConfig, H256};
 
 use crate::{
     keystore::Keystore,
