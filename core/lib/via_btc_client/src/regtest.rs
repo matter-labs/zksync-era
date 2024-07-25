@@ -1,6 +1,5 @@
 use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
 
-use bitcoin::{address::NetworkUnchecked, Address, Network};
 use bitcoincore_rpc::{Auth, Client};
 use rand::Rng;
 use tempfile::TempDir;
@@ -88,14 +87,13 @@ impl Drop for BitcoinRegtest {
     }
 }
 
-pub(crate) struct TestContext {
+pub struct TestContext {
     pub(crate) _regtest: BitcoinRegtest,
     pub(crate) client: BitcoinRpcClient,
-    pub(crate) test_address: Address,
 }
 
 impl TestContext {
-    pub(crate) async fn setup(address: Option<&str>) -> Self {
+    pub async fn setup() -> Self {
         let regtest = BitcoinRegtest::new().expect("Failed to create BitcoinRegtest");
         regtest.run().expect("Failed to run Bitcoin regtest");
 
@@ -103,19 +101,14 @@ impl TestContext {
         let client = BitcoinRpcClient::new(&url, "rpcuser", "rpcpassword")
             .expect("Failed to create BitcoinRpcClient");
 
-        // some random address
-        let test_address = address
-            .unwrap_or("bcrt1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt080")
-            .parse::<Address<NetworkUnchecked>>()
-            .unwrap()
-            .require_network(Network::Regtest)
-            .unwrap();
-
         Self {
             _regtest: regtest,
             client,
-            test_address,
         }
+    }
+
+    pub fn get_url(&self) -> String {
+        self._regtest.get_url()
     }
 }
 

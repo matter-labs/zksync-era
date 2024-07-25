@@ -1,16 +1,12 @@
 use async_trait::async_trait;
-use bitcoin::{Address, Block, Network, OutPoint, Transaction, Txid};
+use bitcoin::{Address, Block, OutPoint, Transaction, TxOut, Txid};
 
 use crate::types;
 
 #[allow(dead_code)]
 #[async_trait]
 pub trait BitcoinOps: Send + Sync {
-    async fn new(
-        rpc_url: &str,
-        network: Network,
-        sender_address: &str,
-    ) -> types::BitcoinClientResult<Self>
+    async fn new(rpc_url: &str, network: &str) -> types::BitcoinClientResult<Self>
     where
         Self: Sized;
     async fn get_balance(&self, address: &Address) -> types::BitcoinClientResult<u128>;
@@ -19,7 +15,7 @@ pub trait BitcoinOps: Send + Sync {
         // TODO: change type here
         signed_transaction: &str,
     ) -> types::BitcoinClientResult<Txid>;
-    async fn fetch_utxos(&self, address: &Address) -> types::BitcoinClientResult<Vec<OutPoint>>;
+    async fn fetch_utxos(&self, address: &Address) -> types::BitcoinClientResult<Vec<TxOut>>;
     async fn check_tx_confirmation(&self, txid: &Txid) -> types::BitcoinClientResult<bool>;
     async fn fetch_block_height(&self) -> types::BitcoinClientResult<u128>;
     async fn fetch_and_parse_block(&self, block_height: u128)

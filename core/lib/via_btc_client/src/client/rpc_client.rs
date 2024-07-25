@@ -101,47 +101,22 @@ mod tests {
     use crate::{regtest::TestContext, traits::BitcoinRpc};
 
     #[tokio::test]
-    async fn test_get_balance() {
-        let context = TestContext::setup(None).await;
-        let balance = context
-            .client
-            .get_balance(&context.test_address)
-            .await
-            .unwrap();
-        assert_eq!(balance, 0, "Initial balance should be 0");
-    }
-
-    #[tokio::test]
     async fn test_get_block_count() {
-        let context = TestContext::setup(None).await;
+        let context = TestContext::setup().await;
         let block_count = context.client.get_block_count().await.unwrap();
         assert!(block_count > 100, "Block count should be greater than 100");
     }
 
     #[tokio::test]
     async fn test_get_block_size() {
-        let context = TestContext::setup(None).await;
+        let context = TestContext::setup().await;
         let block = context.client.get_block(1).await.unwrap();
         assert_eq!(block.total_size(), 248usize, "Block version should be 1");
     }
 
     #[tokio::test]
-    async fn test_list_unspent() {
-        let context = TestContext::setup(None).await;
-        let unspent = context
-            .client
-            .list_unspent(&context.test_address)
-            .await
-            .unwrap();
-        assert!(
-            unspent.is_empty(),
-            "Initially, there should be no unspent outputs"
-        );
-    }
-
-    #[tokio::test]
     async fn test_send_raw_transaction() {
-        let context = TestContext::setup(None).await;
+        let context = TestContext::setup().await;
         let dummy_tx_hex = "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0502cd010101ffffffff0200f2052a01000000160014a8a01aa2b9c7f00bbd59aabfb047e8f3a181d7ed0000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf90120000000000000000000000000000000000000000000000000000000000000000000000000";
         let result = context.client.send_raw_transaction(dummy_tx_hex).await;
         assert!(result.is_err(), "Sending invalid transaction should fail");
@@ -149,7 +124,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction() {
-        let context = TestContext::setup(None).await;
+        let context = TestContext::setup().await;
         let dummy_txid =
             Txid::from_str("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b")
                 .unwrap();
