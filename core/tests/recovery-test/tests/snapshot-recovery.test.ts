@@ -16,7 +16,7 @@ import {
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
-import { getAllConfigsPath, loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -152,16 +152,10 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        if (fileConfig.loadFromFile) {
-            const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
-            const logLevel = 'RUST_LOG=snapshots_creator=debug';
-            const config = `--config-path ${configPaths['general.yaml']}`;
-            const secrets = `--secrets-path ${configPaths['secrets.yaml']}`;
-            const cmd = `${logLevel} cargo run --bin snapshots_creator -- ${config} ${secrets}`;
-            await executeCommandWithLogs(cmd, 'snapshot-creator.log');
-        } else {
-            await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
-        }
+        await executeCommandWithLogs(
+            fileConfig.loadFromFile ? `zk_supervisor snapshot create` : 'zk run snapshots-creator',
+            'snapshot-creator.log'
+        );
     });
 
     step('validate snapshot', async () => {
