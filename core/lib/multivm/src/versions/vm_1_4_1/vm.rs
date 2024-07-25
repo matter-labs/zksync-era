@@ -180,7 +180,6 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::Hist
         self.make_snapshot_inner()
     }
 
-    /// Rollback vm state to the latest snapshot and destroy the snapshot
     fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
@@ -189,10 +188,7 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::Hist
         self.rollback_to_snapshot(snapshot);
     }
 
-    /// Pop the latest snapshot from the memory and destroy it
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots
-            .pop()
-            .expect("Snapshot should be created before rolling it back");
+        self.snapshots.pop();
     }
 }

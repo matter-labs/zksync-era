@@ -146,14 +146,11 @@ impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     }
 }
 
-/// Methods of vm, which required some history manipulations
 impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
-    /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
         self.make_snapshot_inner()
     }
 
-    /// Rollback vm state to the latest snapshot and destroy the snapshot
     fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
@@ -162,10 +159,7 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
         self.rollback_to_snapshot(snapshot);
     }
 
-    /// Pop the latest snapshot from the memory and destroy it
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots
-            .pop()
-            .expect("Snapshot should be created before rolling it back");
+        self.snapshots.pop();
     }
 }

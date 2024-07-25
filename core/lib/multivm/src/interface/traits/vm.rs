@@ -147,6 +147,17 @@ pub trait VmFactory<S>: VmInterface {
 }
 
 /// Methods of VM requiring history manipulations.
+///
+/// # Snapshot workflow
+///
+/// External callers must follow the following snapshot workflow:
+///
+/// - Each new snapshot created using `make_snapshot()` must be either popped or rolled back before creating the following snapshot.
+///   OTOH, it's not required to call either of these methods by the end of VM execution.
+/// - `pop_snapshot_no_rollback()` may be called spuriously, when no snapshot was created. It is a no-op in this case.
+///
+/// These rules guarantee that at each given moment, a VM instance has <=1 snapshot (unless the VM makes snapshots internally),
+/// which may allow additional VM optimizations.
 pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Create a snapshot of the current VM state and push it into memory.
     fn make_snapshot(&mut self);
@@ -154,6 +165,7 @@ pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Roll back VM state to the latest snapshot and destroy the snapshot.
     fn rollback_to_the_latest_snapshot(&mut self);
 
-    /// Pop the latest snapshot from memory and destroy it.
+    /// Pop the latest snapshot from memory and destroy it. If there are no snapshots, this should be a no-op
+    /// (i.e., the VM must not panic in this case).
     fn pop_snapshot_no_rollback(&mut self);
 }
