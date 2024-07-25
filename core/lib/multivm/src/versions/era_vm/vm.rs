@@ -1,27 +1,31 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc};
+use std::{borrow::Borrow, cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc};
 
 use era_vm::{
-    state::VMStateBuilder,
+    state::{Event, VMStateBuilder},
     store::{InMemory, Storage, StorageError, StorageKey as EraStorageKey},
+    vm::ExecutionOutput,
     LambdaVm, VMState,
 };
 use zksync_contracts::SystemContractCode;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    l1::is_l1_tx_type, AccountTreeId, Address, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160,
-    U256,
+    l1::is_l1_tx_type, AccountTreeId, Address, L1BatchNumber, StorageKey, Transaction, VmEvent,
+    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
 
-use super::{initial_bootloader_memory::bootloader_initial_memory, snapshot::VmSnapshot};
+use super::{
+    bootloader_state::BootloaderState, event::merge_events,
+    initial_bootloader_memory::bootloader_initial_memory, snapshot::VmSnapshot,
+};
 use crate::{
     era_vm::{bytecode::compress_bytecodes, transaction_data::TransactionData},
-    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::{
-        BootloaderMemory, BootloaderState, CurrentExecutionState, ExecutionResult, HistoryEnabled,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs,
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
     },
+    HistoryMode,
 };
 
 pub struct Vm<S: ReadStorage> {
@@ -41,6 +45,55 @@ pub struct Vm<S: ReadStorage> {
     pub(crate) system_env: SystemEnv,
 
     snapshots: Vec<VmSnapshot>, // TODO: Implement snapshots logic
+}
+
+impl<S: ReadStorage + 'static> Vm<S> {
+    pub fn run(&mut self, _execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
+        let (result, final_vm) = self.inner.run_program_with_custom_bytecode();
+        let result = match result {
+            ExecutionOutput::Ok(output) => {
+                // println!("ExecutionOutput::Ok");
+                ExecutionResult::Success { output }
+            }
+            ExecutionOutput::Revert(output) => {
+                // println!("ExecutionOutput::Revert");
+                match TxRevertReason::parse_error(&output) {
+                    TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
+                    TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
+                }
+            }
+            ExecutionOutput::Panic => {
+                // println!("ExecutionOutput::Panic");
+                ExecutionResult::Halt {
+                    reason: if self.inner.state.gas_left().unwrap() == 0 {
+                        Halt::BootloaderOutOfGas
+                    } else {
+                        Halt::VMPanic
+                    },
+                }
+            }
+        };
+        (result, final_vm)
+    }
+
+    fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
+        assert!(self.inner.state.running_contexts.len() == 1); // No on-going far calls
+        if let Some(heap) = &mut self
+            .inner
+            .state
+            .heaps
+            .get(self.inner.state.current_frame().unwrap().heap_id)
+            .cloned()
+        {
+            for (slot, value) in memory {
+                let end = (slot + 1) * 32;
+                if heap.len() <= end {
+                    heap.expand_memory(end as u32);
+                }
+                heap.store((slot * 32) as u32, value);
+            }
+        }
+    }
 }
 
 impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
@@ -76,7 +129,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         );
 
         let world_storage = World::new(storage.clone(), pre_contract_storage);
-        let vm = LambdaVm::new(vm_state, Box::new(world_storage));
+        let vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
         Self {
             inner: vm,
             suspended_at: 0,
@@ -97,44 +150,70 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn push_transaction(&mut self, tx: Transaction) {
-        todo!()
-        // let tx: TransactionData = tx.into();
-        // let overhead = tx.overhead_gas();
+        let tx: TransactionData = tx.into();
+        let overhead = tx.overhead_gas();
 
-        // // self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
+        // self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
-        // let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
-        //     // L1 transactions do not need compression
-        //     vec![]
-        // } else {
-        //     compress_bytecodes(&tx.factory_deps, |hash| {
-        //         self.inner
-        //             .world
-        //             .get_storage_changes()
-        //             .get(&(KNOWN_CODES_STORAGE_ADDRESS.into(), h256_to_u256(hash)))
-        //             .map(|x| !x.is_zero())
-        //             .unwrap_or_else(|| self.storage.borrow_mut().is_bytecode_known(&hash))
-        //     })
-        // };
+        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
+            // L1 transactions do not need compression
+            vec![]
+        } else {
+            compress_bytecodes(&tx.factory_deps, |hash| {
+                (*self.inner.storage.clone().borrow_mut())
+                    .storage_read(EraStorageKey::new(
+                        KNOWN_CODES_STORAGE_ADDRESS,
+                        h256_to_u256(hash),
+                    ))
+                    .map(|x| !x.is_none())
+                    .unwrap_or_else(|_| {
+                        let mut storage = RefCell::borrow_mut(&self.storage);
+                        storage.is_bytecode_known(&hash)
+                    })
+            })
+        };
 
-        // let trusted_ergs_limit = tx.trusted_ergs_limit();
+        let trusted_ergs_limit = tx.trusted_ergs_limit();
 
-        // let memory = self.bootloader_state.push_tx(
-        //     tx,
-        //     overhead,
-        //     refund,
-        //     compressed_bytecodes,
-        //     trusted_ergs_limit,
-        //     self.system_env.chain_id,
-        // );
+        let memory = self.bootloader_state.push_tx(
+            tx,
+            overhead,
+            0, //TODO: Is this correct?
+            compressed_bytecodes,
+            trusted_ergs_limit,
+            self.system_env.chain_id,
+        );
+
+        self.write_to_bootloader_heap(memory);
     }
 
     fn inspect(
         &mut self,
         _tracer: Self::TracerDispatcher,
-        _execution_mode: VmExecutionMode,
+        execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
+        let mut enable_refund_tracer = false;
+        if let VmExecutionMode::OneTx = execution_mode {
+            // Move the pointer to the next transaction
+            self.bootloader_state.move_tx_to_execute_pointer();
+            enable_refund_tracer = true;
+        }
+
+        let (result, final_vm_state) = self.run(execution_mode);
+        //dbg!(&result);
+
+        VmExecutionResultAndLogs {
+            result,
+            logs: VmExecutionLogs {
+                storage_logs: Default::default(),
+                events: merge_events(&final_vm_state.events, self.batch_env.number),
+                user_l2_to_l1_logs: Default::default(),
+                system_l2_to_l1_logs: Default::default(),
+                total_log_queries_count: 0, // This field is unused
+            },
+            statistics: Default::default(),
+            refunds: Default::default(),
+        }
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
@@ -222,9 +301,9 @@ impl<S: ReadStorage> era_vm::store::Storage for World<S> {
     }
 
     fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
+        let mut storage = RefCell::borrow_mut(&self.storage);
         Ok(Some(
-            self.storage
-                .borrow_mut()
+            storage
                 .read_value(&StorageKey::new(
                     AccountTreeId::new(key.address),
                     u256_to_h256(key.key),
@@ -235,6 +314,10 @@ impl<S: ReadStorage> era_vm::store::Storage for World<S> {
     }
 
     fn storage_write(&mut self, key: EraStorageKey, value: U256) -> Result<(), StorageError> {
-        todo!()
+        unimplemented!()
+    }
+
+    fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
+        unimplemented!()
     }
 }
