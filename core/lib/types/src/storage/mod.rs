@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use std::str::FromStr;
 
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,11 @@ pub fn get_system_context_key(key: H256) -> StorageKey {
     StorageKey::new(system_context, key)
 }
 
+fn get_message_root_log_key(key: H256) -> StorageKey {
+    let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
+    StorageKey::new(message_root, key)
+}
+
 pub fn get_is_account_key(account: &Address) -> StorageKey {
     let deployer = AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS);
 
@@ -99,7 +105,7 @@ pub fn get_is_account_key(account: &Address) -> StorageKey {
 
 pub type StorageValue = H256;
 
-pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
+fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
@@ -118,4 +124,62 @@ pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
             SYSTEM_CONTEXT_DIFFICULTY,
         ),
     ]
+}
+
+/// The slots that are initialized in the message root storage.
+///
+/// Typically all the contracts with complex initialization logic are initialized in the system
+/// via the genesis upgrade. However, the `L2_MESSAGE_ROOT` contract must be initialized for every batch
+/// test in order for L1Messenger to work.
+/// In order to simplify testing, we always initialize it via hardcoding the slots in the genesis.
+///
+/// The constants below might seem magical. For now, our genesis only supports genesis from the latest version of the VM
+/// and so for now the correctness of those values is tested in a unit tests within the multivm crate.
+pub fn get_l2_message_root_init_logs() -> Vec<StorageLog> {
+    let slots_values = vec![
+        (
+            "8e94fed44239eb2314ab7a406345e6c5a8f0ccedf3b600de3d004e672c33abf4",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "0000000000000000000000000000000000000000000000000000000000000007",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "a66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688",
+            "46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21",
+        ),
+        (
+            "0000000000000000000000000000000000000000000000000000000000000006",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "f652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        ),
+        (
+            "b868bdfa8727775661e4ccf117824a175a33f8703d728c04488fbfffcafda9f9",
+            "46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21",
+        ),
+    ];
+
+    slots_values
+        .into_iter()
+        .map(|(k, v)| {
+            let key = H256::from_str(k).unwrap();
+            let value = H256::from_str(v).unwrap();
+
+            StorageLog::new_write_log(get_message_root_log_key(key), value)
+        })
+        .collect()
+}
+
+pub fn get_system_contracts_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
+    let system_context_init_logs = get_system_context_init_logs(chain_id);
+    let l2_message_root_init_logs = get_l2_message_root_init_logs();
+
+    system_context_init_logs
+        .into_iter()
+        .chain(l2_message_root_init_logs)
+        .collect()
 }
