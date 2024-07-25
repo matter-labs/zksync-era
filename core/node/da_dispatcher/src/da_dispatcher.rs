@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use anyhow::Context;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
 use zksync_config::DADispatcherConfig;
