@@ -129,6 +129,10 @@ impl OpenTelemetry {
             .fill_from_env()
             .into_otlp_resource();
 
+        // We can't know if we will be running within tokio context, so we will spawn
+        // a separate thread for the exporter.
+        let runtime = opentelemetry::runtime::TokioCurrentThread;
+
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(
@@ -142,7 +146,7 @@ impl OpenTelemetry {
                     .with_id_generator(RandomIdGenerator::default())
                     .with_resource(resource),
             )
-            .install_batch(::opentelemetry::runtime::Tokio)
+            .install_batch(runtime)
             .unwrap();
 
         opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
