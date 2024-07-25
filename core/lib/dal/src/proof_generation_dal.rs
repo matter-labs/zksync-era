@@ -30,7 +30,14 @@ enum ProofGenerationJobStatus {
 }
 
 impl ProofGenerationDal<'_, '_> {
-    pub async fn get_next_block_to_be_proven(
+    /// Chooses the batch number so that it has all the necessary data to generate the proof
+    /// and is not already picked.
+    ///
+    /// Marks the batch as picked by the prover, preventing it from being picked twice.
+    ///
+    /// The batch can be unpicked either via a corresponding DAL method, or it is considered
+    /// not picked after `processing_timeout` passes.
+    pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
     ) -> DalResult<Option<L1BatchNumber>> {
@@ -72,12 +79,36 @@ impl ProofGenerationDal<'_, '_> {
             "#,
             &processing_timeout,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
+        .instrument("lock_batch_for_proving")
+        .with_arg("processing_timeout", &processing_timeout)
+        .fetch_optional(self.storage)
+        .await?
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
+    }
+
+    /// Marks a previously locked batch as 'unpicked', allowing it to be picked without having
+    /// to wait for the processing timeout.
+    pub async fn unlock_batch(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<()> {
+        let batch_number = i64::from(l1_batch_number.0);
+        sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                status = 'unpicked',
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+            "#,
+            batch_number,
+        )
+        .instrument("unlock_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn save_proof_artifacts_metadata(
@@ -388,7 +419,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .get_next_block_to_be_proven(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -399,10 +430,22 @@ mod tests {
             .unwrap();
         assert_eq!(unpicked_l1_batch, None);
 
+        // Check that we can unlock the batch and then pick it again.
+        conn.proof_generation_dal()
+            .unlock_batch(L1BatchNumber(1))
+            .await
+            .unwrap();
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+
         // Check that with small enough processing timeout, the L1 batch can be picked again
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .get_next_block_to_be_proven(Duration::ZERO)
+            .lock_batch_for_proving(Duration::ZERO)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -414,7 +457,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .get_next_block_to_be_proven(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, None);
