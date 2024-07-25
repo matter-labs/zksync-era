@@ -18,7 +18,7 @@ use crate::{
     },
     create_localhost_wallets,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig, EN_CONFIG_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -102,6 +102,12 @@ impl ChainConfig {
 
     pub fn path_to_general_config(&self) -> PathBuf {
         self.configs.join(GENERAL_FILE)
+    }
+
+    pub fn path_to_external_node_config(&self) -> PathBuf {
+        self.external_node_config_path
+            .clone()
+            .unwrap_or_else(|| self.configs.join(EN_CONFIG_FILE))
     }
 
     pub fn path_to_genesis_config(&self) -> PathBuf {

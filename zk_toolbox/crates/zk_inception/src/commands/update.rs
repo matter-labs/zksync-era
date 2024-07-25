@@ -7,14 +7,16 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    ChainConfig, EcosystemConfig, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
+    SECRETS_FILE,
 };
 use xshell::Shell;
 
 use crate::messages::{
     msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-    MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_GENERAL_CONFIG,
+    MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
+    MSG_ZKSYNC_UPDATED,
 };
 
 #[derive(Default)]
@@ -56,6 +58,9 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let general_config = serde_yaml::from_str(
         &shell.read_file(ecosystem.get_default_configs_path().join(GENERAL_FILE))?,
     )?;
+    let external_node_config = serde_yaml::from_str(
+        &shell.read_file(ecosystem.get_default_configs_path().join(EN_CONFIG_FILE))?,
+    )?;
     let genesis_config = serde_yaml::from_str(
         &shell.read_file(ecosystem.get_default_configs_path().join(GENESIS_FILE))?,
     )?;
@@ -74,6 +79,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
             shell,
             &chain,
             &general_config,
+            &external_node_config,
             &genesis_config,
             &contracts_config,
             &secrets,
@@ -142,6 +148,7 @@ fn update_chain(
     shell: &Shell,
     chain: &ChainConfig,
     general: &serde_yaml::Value,
+    external_node: &serde_yaml::Value,
     genesis: &serde_yaml::Value,
     contracts: &serde_yaml::Value,
     secrets: &serde_yaml::Value,
@@ -157,6 +164,18 @@ fn update_chain(
         &current_general_config_path,
         diff,
         MSG_DIFF_GENERAL_CONFIG,
+    )?;
+
+    let curret_external_node_config_path = chain.path_to_external_node_config();
+    let mut current_external_node_config =
+        serde_yaml::from_str(&shell.read_file(curret_external_node_config_path.clone())?)?;
+    let diff = merge_yaml(&mut current_external_node_config, external_node.clone())?;
+    save_updated_config(
+        shell,
+        current_external_node_config,
+        &curret_external_node_config_path,
+        diff,
+        MSG_DIFF_EN_CONFIG,
     )?;
 
     let mut current_genesis_config =

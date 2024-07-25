@@ -326,6 +326,8 @@ pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era rep
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
 pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
     "Added the following fields to the general config:";
+pub(super) const MSG_DIFF_EN_CONFIG: &str =
+    "Added the following fields to the external node config:";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
