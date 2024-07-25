@@ -722,7 +722,7 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 impl<S: ReadStorage> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshots.is_empty() && self.inner.state.previous_frames.is_empty() {
-            self.inner.world_diff.delete_history();
+            self.inner.delete_history();
         }
     }
 }
