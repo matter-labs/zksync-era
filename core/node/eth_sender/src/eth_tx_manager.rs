@@ -9,8 +9,10 @@ use zksync_eth_client::{
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::transaction_request::CallRequest;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, L1ChainId, H256, U256};
+use zksync_types::{
+    eth_sender::EthTx, transaction_request::CallRequest, Address, L1BlockNumber, L1ChainId, H256,
+    U256,
+};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};

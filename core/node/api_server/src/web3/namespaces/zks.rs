@@ -8,8 +8,9 @@ use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BatchAvailableOnChainData, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
+        state_override::StateOverride, BatchAvailableOnChainData, BlockDetails, BridgeAddresses,
+        GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},

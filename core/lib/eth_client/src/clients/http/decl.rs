@@ -1,8 +1,8 @@
-use crate::clients::LineaEstimateGas;
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::transaction_request::CallRequest;
-use zksync_types::{web3, Address, H256, U256, U64};
+use zksync_types::{transaction_request::CallRequest, web3, Address, H256, U256, U64};
 use zksync_web3_decl::client::{ForNetwork, L1};
+
+use crate::clients::LineaEstimateGas;
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
 #[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L1>))]

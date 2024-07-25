@@ -10,11 +10,13 @@ use zksync_types::{
     web3::{self, contract::Tokenize, BlockId, CallRequest},
     Address, L1ChainId, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{DynClient, MockClient, L1};
-use zksync_web3_decl::error::EnrichedClientResult;
+use zksync_web3_decl::{
+    client::{DynClient, MockClient, L1},
+    error::EnrichedClientResult,
+};
 
-use crate::clients::LineaEstimateGas;
 use crate::{
+    clients::LineaEstimateGas,
     types::{ContractCallError, SignedCallResult, SigningError},
     BaseFees, BoundEthInterface, Options, RawTransactionBytes,
 };

@@ -2,18 +2,17 @@ use std::fmt;
 
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
-use zksync_eth_client::clients::LineaEstimateGas;
 use zksync_eth_client::{
-    clients::{DynClient, L1},
+    clients::{DynClient, LineaEstimateGas, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
-use zksync_types::transaction_request::CallRequest;
 #[cfg(test)]
 use zksync_types::web3;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar},
+    transaction_request::CallRequest,
     web3::{BlockId, BlockNumber},
     Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };

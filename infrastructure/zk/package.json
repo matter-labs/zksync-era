@@ -7,7 +7,8 @@
     "scripts": {
         "build": "tsc",
         "watch": "tsc --watch",
-        "start": "node build/index.js"
+        "start": "node build/index.js",
+        "start:dev": "ts-node src/index.ts"
     },
     "dependencies": {
         "@iarna/toml": "^2.2.5",

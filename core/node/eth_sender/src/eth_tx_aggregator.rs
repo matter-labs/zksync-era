@@ -3,17 +3,15 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
-use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
-        methods::CommitBatches,
+        methods::{CommitBatches, ExecuteBatches},
     },
     multicall3::{Multicall3Call, Multicall3Result},
     Tokenizable, Tokenize,
 };
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::web3::contract::Error;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchWithMetadata, SerializeCommitment},
@@ -22,7 +20,10 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    web3::{
+        contract::{Error, Error as Web3ContractError},
+        BlockNumber,
+    },
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 

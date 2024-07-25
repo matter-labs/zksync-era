@@ -5,8 +5,9 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BatchAvailableOnChainData, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, BatchAvailableOnChainData, BlockDetails, BridgeAddresses,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},

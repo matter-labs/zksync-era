@@ -1,10 +1,11 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
-    ethabi, web3,
+    ethabi,
+    transaction_request::CallRequest,
+    web3,
     web3::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,

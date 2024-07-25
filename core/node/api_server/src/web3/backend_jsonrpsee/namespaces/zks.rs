@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        state_override::StateOverride, ApiStorageLog, BatchAvailableOnChainData, BlockDetails, BridgeAddresses,
-        L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
-        TransactionDetails,
+        state_override::StateOverride, ApiStorageLog, BatchAvailableOnChainData, BlockDetails,
+        BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},

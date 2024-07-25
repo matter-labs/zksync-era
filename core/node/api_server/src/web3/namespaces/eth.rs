@@ -18,8 +18,8 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::tx_sender::SubmitTxError;
 use crate::{
+    tx_sender::SubmitTxError,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
@@ -147,10 +147,10 @@ impl EthNamespace {
                 acceptable_overestimation as u64,
                 state_override,
             )
-            .await?
+            .await
         {
             Ok(fee) => fee,
-            Err(SubmitTxError::FromIsNotAnAccount) => return Ok(U256::zero()),
+            Err(SubmitTxError::FromIsNotAnAccount) => return Ok(Default::default()),
             Err(err) => return Err(err.into()),
         };
         Ok(fee.gas_limit)

@@ -1,4 +1,5 @@
 use std::ops::RangeInclusive;
+
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, L1BatchNumber};
 
 use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};

@@ -3,16 +3,18 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
-use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
-    ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
+    ethabi, transaction_request::CallRequest, web3, Address, K256PrivateKey, L1ChainId,
+    EIP_4844_TX_TYPE, H160, U256,
 };
-use zksync_web3_decl::client::{DynClient, L1};
-use zksync_web3_decl::error::EnrichedClientResult;
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    error::EnrichedClientResult,
+};
 
 use super::{Method, LATENCIES};
-use crate::clients::LineaEstimateGas;
 use crate::{
+    clients::LineaEstimateGas,
     types::{encode_blob_tx_with_sidecar, ContractCallError, SignedCallResult, SigningError},
     BoundEthInterface, CallFunctionArgs, EthInterface, Options, RawTransactionBytes,
 };
