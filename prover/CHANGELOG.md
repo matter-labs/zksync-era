@@ -1,5 +1,18 @@
 # Changelog
 
+## [16.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.0.0...prover-v16.1.0) (2024-07-24)
+
+
+### Features
+
+* **prover:** Make it possible to run prover out of GCP ([#2448](https://github.com/matter-labs/zksync-era/issues/2448)) ([c9da549](https://github.com/matter-labs/zksync-era/commit/c9da5497e2aa9d85f204ab7b74fefcfe941793ff))
+* remove leftovers after BWIP ([#2456](https://github.com/matter-labs/zksync-era/issues/2456)) ([990676c](https://github.com/matter-labs/zksync-era/commit/990676c5f84afd2ff8cd337f495c82e8d1f305a4))
+
+
+### Bug Fixes
+
+* **prover:** BWG optimizations ([#2469](https://github.com/matter-labs/zksync-era/issues/2469)) ([d8851c8](https://github.com/matter-labs/zksync-era/commit/d8851c8af2cd4b595f4edb9c36c81e2310835a77))
+
 ## [16.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v15.1.0...prover-v16.0.0) (2024-07-11)
 
 
