@@ -186,6 +186,9 @@ jobs:
         component:
           - witness-vector-generator
     steps:
+      -  name: Auth Docker hub registry
+         run: |
+           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
