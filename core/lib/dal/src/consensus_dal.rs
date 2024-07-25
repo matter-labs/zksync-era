@@ -392,7 +392,7 @@ impl ConsensusDal<'_, '_> {
             VALUES
                 ($1, $2)
             "#,
-            header.number.0 as i64,
+            i64::try_from(header.number.0).context("overflow")?,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_block_certificate")
@@ -406,7 +406,10 @@ impl ConsensusDal<'_, '_> {
     /// Noop if a certificate for the same L1 batch is already present.
     /// No verification is performed - it cannot be performed due to circular dependency on
     /// `zksync_l1_contract_interface`.
-    pub async fn insert_batch_certificate(&mut self, cert: &attester::BatchQC) -> DalResult<()> {
+    pub async fn insert_batch_certificate(
+        &mut self,
+        cert: &attester::BatchQC,
+    ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
             INSERT INTO
@@ -415,7 +418,8 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            cert.message.number.0 as i64,
+            i64::try_from(cert.message.number.0).context("overflow")?,
+            // Unwrap is ok, because serialization should always succeed.
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")

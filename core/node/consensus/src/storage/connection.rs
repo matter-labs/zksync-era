@@ -135,7 +135,7 @@ impl<'a> Connection<'a> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await?
-            .map_err(E::Dal)?)
+            .map_err(E::Other)?)
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
