@@ -6,16 +6,13 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use config::{ChainConfig, EcosystemConfig};
+use config::{ChainConfig, EcosystemConfig, GENERAL_FILE};
 use xshell::Shell;
 
-use crate::{
-    consts::GENERAL_FILE,
-    messages::{
-        msg_updating_chain, MSG_CHAIN_NOT_FOUND_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-        MSG_SHOW_DIFF, MSG_UPDATING_GENERAL_CONFIG, MSG_UPDATING_SUBMODULES_SPINNER,
-        MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
-    },
+use crate::messages::{
+    msg_updating_chain, MSG_CHAIN_NOT_FOUND_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_SHOW_DIFF,
+    MSG_UPDATING_GENERAL_CONFIG, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
+    MSG_ZKSYNC_UPDATED,
 };
 
 #[derive(Default)]
