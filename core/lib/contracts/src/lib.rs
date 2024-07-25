@@ -63,20 +63,21 @@ fn home_path() -> &'static Path {
     workspace_dir_or_current_dir()
 }
 
-fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
+fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> Option<serde_json::Value> {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    let file =
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e));
-    serde_json::from_reader(BufReader::new(file))
-        .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
+    let file = File::open(&path).ok()?;
+    Some(
+        serde_json::from_reader(BufReader::new(file))
+            .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e)),
+    )
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
-        serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
+        serde_json::from_value(read_file_to_json_value(&path).unwrap()["abi"].take())
             .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
     })
 }
@@ -108,17 +109,26 @@ pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
-    load_contract(format!(
+    if let Some(contract) = load_contract_if_present(format!(
         "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
-    ))
+    )) {
+        return contract;
+    } else {
+        load_contract(format!(
+            "contracts/system-contracts/zkout/{0}.sol/{0}.json",
+            contract_name
+        ))
+    }
 }
 
-pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
-    read_file_to_json_value(path)["abi"]
-        .as_str()
-        .expect("Failed to parse abi")
-        .to_string()
+pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> Option<String> {
+    Some(
+        read_file_to_json_value(path)?["abi"]
+            .as_str()
+            .expect("Failed to parse abi")
+            .to_string(),
+    )
 }
 
 pub fn bridgehub_contract() -> Contract {
@@ -190,7 +200,7 @@ pub fn l1_messenger_contract() -> Contract {
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path)
+    read_bytecode_from_path(relative_path).expect("Exists")
 }
 
 pub fn eth_contract() -> Contract {
@@ -202,17 +212,23 @@ pub fn known_codes_contract() -> Contract {
 }
 
 /// Reads bytecode from a given path.
-fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    let artifact = read_file_to_json_value(&artifact_path);
+fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Option<Vec<u8>> {
+    let artifact = read_file_to_json_value(&artifact_path)?;
 
-    let bytecode = artifact["bytecode"]
-        .as_str()
-        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
-        .strip_prefix("0x")
-        .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path));
+    let bytecode = if let Some(bytecode) = artifact["bytecode"].as_str() {
+        bytecode
+            .strip_prefix("0x")
+            .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path))
+    } else {
+        artifact["bytecode"]["object"]
+            .as_str()
+            .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
+    };
 
-    hex::decode(bytecode)
-        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
+    Some(
+        hex::decode(bytecode)
+            .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
+    )
 }
 
 pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
@@ -245,10 +261,20 @@ impl SystemContractsRepo {
         lang: ContractLanguage,
     ) -> Vec<u8> {
         match lang {
-            ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
-                "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
-                directory, name
-            ))),
+            ContractLanguage::Sol => {
+                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
+                    "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
+                    directory, name
+                ))) {
+                    return contract;
+                } else {
+                    read_bytecode_from_path(
+                        self.root
+                            .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
+                    )
+                    .expect("One of the outputs should exists")
+                }
+            }
             ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
                 "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
                 directory, name
