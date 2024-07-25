@@ -675,8 +675,6 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
 async fn test_attestation_status_api(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
-
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) =
@@ -698,7 +696,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             .await?;
         {
             let mut conn = validator_pool.connection(ctx).await?;
-            let number = attester::BatchNumber(status.next_batch_to_attest.0.try_into().unwrap());
+            let number = attester::BatchNumber(status.next_batch_to_attest.0.into());
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
             let cert = attester::BatchQC {
                 signatures: attester::MultiSig::default(),
