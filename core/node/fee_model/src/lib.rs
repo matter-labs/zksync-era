@@ -34,13 +34,13 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
                 params,
                 l1_gas_price_scale_factor,
             )),
-            FeeParams::V2(params) => {
-                BatchFeeInput::PubdataIndependent(compute_batch_fee_model_input_v2(
+            FeeParams::V2(params) => BatchFeeInput::PubdataIndependent(
+                clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(
                     params,
                     l1_gas_price_scale_factor,
                     l1_pubdata_price_scale_factor,
-                ))
-            }
+                )),
+            ),
         })
     }
 
@@ -202,18 +202,7 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
 
         // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
-        let calculated_price = minimal_l2_gas_price + gas_overhead_wei;
-
-        if calculated_price < config.maximum_l2_gas_price() {
-            calculated_price
-        } else {
-            tracing::warn!(
-                "Fair l2 gas price {} exceeds maximum. Limiting to {}",
-                calculated_price,
-                config.maximum_l2_gas_price()
-            );
-            config.maximum_l2_gas_price()
-        }
+        minimal_l2_gas_price + gas_overhead_wei
     };
 
     let fair_pubdata_price = {
@@ -228,24 +217,40 @@ fn compute_batch_fee_model_input_v2(
             (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
 
         // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
-        let calculated_price = l1_pubdata_price + pubdata_overhead_wei;
-
-        if calculated_price < config.maximum_pubdata_price() {
-            calculated_price
-        } else {
-            tracing::warn!(
-                "Fair pubdata price {} exceeds maximum. Limitting to {}",
-                calculated_price,
-                config.maximum_pubdata_price()
-            );
-            config.maximum_pubdata_price()
-        }
+        l1_pubdata_price + pubdata_overhead_wei
     };
 
     PubdataIndependentBatchFeeModelInput {
         l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,
+    }
+}
+
+/// Bootloader places limitations on fair_l2_gas_price and fair_pubdata_price.
+/// (MAX_ALLOWED_FAIR_L2_GAS_PRICE and MAX_ALLOWED_FAIR_PUBDATA_PRICE in bootloader code respectively)
+/// Server needs to clip this prices in order to allow chain continues operation at a loss. The alternative
+/// would be to stop accepting the transactions until the conditions improve.
+/// TODO PE-153, to be removed when bootloader limitation is removed
+fn clip_batch_fee_model_input_v2(
+    fee_model: PubdataIndependentBatchFeeModelInput,
+) -> PubdataIndependentBatchFeeModelInput {
+    /// MAX_ALLOWED_FAIR_L2_GAS_PRICE
+    const MAXIMUM_L2_GAS_PRICE: u64 = 10_000_000_000_000;
+    /// MAX_ALLOWED_FAIR_PUBDATA_PRICE
+    const MAXIMUM_PUBDATA_PRICE: u64 = 1_000_000_000_000_000;
+    PubdataIndependentBatchFeeModelInput {
+        l1_gas_price: fee_model.l1_gas_price,
+        fair_l2_gas_price: if fee_model.fair_l2_gas_price < MAXIMUM_L2_GAS_PRICE {
+            fee_model.fair_l2_gas_price
+        } else {
+            MAXIMUM_L2_GAS_PRICE
+        },
+        fair_pubdata_price: if fee_model.fair_pubdata_price < MAXIMUM_PUBDATA_PRICE {
+            fee_model.fair_pubdata_price
+        } else {
+            MAXIMUM_PUBDATA_PRICE
+        },
     }
 }
 
@@ -282,8 +287,7 @@ mod tests {
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
     const GWEI: u64 = 1_000_000_000;
-    const GIANT_L1_GAS_PRICE: u64 = 1_000 * GWEI;
-    const GIANT_L1_PUB_DATA_PRICE: u64 = 100_000 * GWEI;
+    const GIANT_L1_GAS_PRICE: u64 = 100_000 * GWEI;
 
     // As a small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
@@ -307,7 +311,7 @@ mod tests {
         let params = FeeParamsV2::new(
             config,
             GIANT_L1_GAS_PRICE,
-            GIANT_L1_PUB_DATA_PRICE,
+            GIANT_L1_GAS_PRICE,
             BaseTokenConversionRatio::default(),
         );
 
@@ -315,8 +319,8 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 3.0, 3.0);
 
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE * 3);
-        assert_eq!(input.fair_l2_gas_price, 1_300_000_000_000);
-        assert_eq!(input.fair_pubdata_price, 450_000_000_000_000);
+        assert_eq!(input.fair_l2_gas_price, 130_000_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 15_300_000_000_000_000);
     }
 
     #[test]
@@ -338,7 +342,8 @@ mod tests {
             BaseTokenConversionRatio::default(),
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
 
         assert_eq!(input.l1_gas_price, SMALL_L1_GAS_PRICE);
         assert_eq!(input.fair_l2_gas_price, SMALL_L1_GAS_PRICE);
@@ -360,23 +365,24 @@ mod tests {
         let params = FeeParamsV2::new(
             config,
             GIANT_L1_GAS_PRICE,
-            GIANT_L1_PUB_DATA_PRICE,
+            GIANT_L1_GAS_PRICE,
             BaseTokenConversionRatio::default(),
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one.
         assert_eq!(input.fair_l2_gas_price, 100_000_000_000);
         // The fair pubdata price is the minimal one plus the overhead.
-        assert_eq!(input.fair_pubdata_price, 107_000_000_000_000);
+        assert_eq!(input.fair_pubdata_price, 800_000_000_000_000);
     }
 
     #[test]
     fn test_compute_baxtch_fee_model_input_v2_only_compute_overhead() {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
-            minimal_l2_gas_price: 1_000_000_000,
+            minimal_l2_gas_price: 100_000_000_000,
             compute_overhead_part: 1.0,
             pubdata_overhead_part: 0.0,
             batch_overhead_l1_gas: 700_000,
@@ -394,7 +400,7 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one, plus the overhead
-        assert_eq!(input.fair_l2_gas_price, 2_400_000_000);
+        assert_eq!(input.fair_l2_gas_price, 240_000_000_000);
         // The fair pubdata price is equal to the original one.
         assert_eq!(input.fair_pubdata_price, GIANT_L1_GAS_PRICE);
     }
@@ -531,14 +537,16 @@ mod tests {
         let params = FeeParamsV2::new(
             config,
             l1_gas_price,
-            GIANT_L1_PUB_DATA_PRICE,
+            GIANT_L1_GAS_PRICE,
             BaseTokenConversionRatio::default(),
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
         assert_eq!(input.l1_gas_price, l1_gas_price);
         // The fair L2 gas price is identical to the maximum
-        assert_eq!(input.fair_l2_gas_price, config.maximum_l2_gas_price());
+        assert_eq!(input.fair_l2_gas_price, 10_000 * GWEI);
+        assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
     }
 
     #[test]
@@ -563,10 +571,12 @@ mod tests {
             },
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
         assert_eq!(input.l1_gas_price, 3_000_000 * GWEI);
         // The fair L2 gas price is identical to the maximum
-        assert_eq!(input.fair_l2_gas_price, config.maximum_l2_gas_price());
+        assert_eq!(input.fair_l2_gas_price, 10_000 * GWEI);
+        assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
     }
 
     #[tokio::test]

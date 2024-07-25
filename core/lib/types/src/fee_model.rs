@@ -202,21 +202,6 @@ pub struct FeeModelConfigV2 {
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
 }
-
-impl FeeModelConfigV2 {
-    /// The maximum acceptable L2 gas price. Currently, this is required by the bootloader.
-    /// TODO remove when no longer required by bootloader
-    pub fn maximum_l2_gas_price(&self) -> u64 {
-        10_000_000_000_000 // 10k gwei
-    }
-
-    /// The maximum acceptable pubdata. Currently, this is required by the bootloader.
-    /// TODO remove when no longer required by bootloader
-    pub fn maximum_pubdata_price(&self) -> u64 {
-        1_000_000_000_000_000 // 1M gwei
-    }
-}
-
 impl Default for FeeModelConfig {
     /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.
