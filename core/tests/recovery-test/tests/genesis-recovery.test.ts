@@ -2,15 +2,7 @@ import { expect } from 'chai';
 import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
 
-import {
-    NodeProcess,
-    dropNodeDatabase,
-    dropNodeStorage,
-    getExternalNodeHealth,
-    NodeComponents,
-    sleep,
-    FundedWallet
-} from '../src';
+import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 
@@ -103,12 +95,8 @@ describe('genesis recovery', () => {
         }
     });
 
-    step('drop external node database', async () => {
-        await dropNodeDatabase(fileConfig.loadFromFile, externalNodeEnv);
-    });
-
-    step('drop external node storage', async () => {
-        await dropNodeStorage(fileConfig.loadFromFile, externalNodeEnv);
+    step('drop external node data', async () => {
+        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
     });
 
     step('initialize external node w/o a tree', async () => {

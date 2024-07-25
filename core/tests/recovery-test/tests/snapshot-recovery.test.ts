@@ -11,8 +11,7 @@ import {
     sleep,
     NodeComponents,
     NodeProcess,
-    dropNodeDatabase,
-    dropNodeStorage,
+    dropNodeData,
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
@@ -208,12 +207,8 @@ describe('snapshot recovery', () => {
         }
     });
 
-    step('drop external node database', async () => {
-        await dropNodeDatabase(fileConfig.loadFromFile, externalNodeEnv);
-    });
-
-    step('drop external node storage', async () => {
-        await dropNodeStorage(fileConfig.loadFromFile, externalNodeEnv);
+    step('drop external node data', async () => {
+        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
     });
 
     step('initialize external node', async () => {
