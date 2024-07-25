@@ -325,7 +325,15 @@ pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
 pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
 pub(super) const MSG_UPDATING_GENERAL_CONFIG: &str = "Updating general config";
-pub(super) const MSG_SHOW_DIFF: &str = "Added the following values:";
+pub(super) const MSG_SHOW_DIFF_ADDED_FIELDS: &str = "Added the following values:";
+pub(super) const MSG_SHOW_DIFF: &str = "Found differences in the following fields:";
+
+pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {} and era genesis configs. Consider updating the chain {} genesis config and re-running genesis.",
+        chain, chain
+    )
+}
 
 pub(super) fn msg_updating_chain(chain: &str) -> String {
     format!("Updating chain: {}", chain)
