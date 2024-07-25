@@ -10,6 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
+use zksync_config::SnapshotsCreatorConfig;
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
