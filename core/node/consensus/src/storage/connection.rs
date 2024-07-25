@@ -422,20 +422,6 @@ impl<'a> Connection<'a> {
             .await
             .context("get_last_batch_number()")?;
 
-        let last = if let Some(last) = last {
-            // For now it would be unexpected if we couldn't retrieve the payloads
-            // for the `last` batch number, as an L1 batch is only created if we
-            // have all the L2 miniblocks for it.
-            Some(
-                self.get_batch(ctx, last)
-                    .await
-                    .context("get_batch()")?
-                    .context("last batch not available")?,
-            )
-        } else {
-            None
-        };
-
         Ok(BatchStoreState {
             first: first
                 .map(|n| attester::BatchNumber(n.0 as u64))

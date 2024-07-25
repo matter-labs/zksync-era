@@ -121,17 +121,25 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
         let batches = conn.batches_range(ctx).await?;
         let last = batches.last.expect("last is set");
         let (min, max) = conn
-            .get_l2_block_range_of_l1_batch(ctx, last.number)
+            .get_l2_block_range_of_l1_batch(ctx, last)
             .await?
             .unwrap();
 
+        let last_batch = conn
+            .get_batch(ctx, last)
+            .await?
+            .expect("last batch can be retrieved");
+
         assert_eq!(
-            last.payloads.len(),
+            last_batch.payloads.len(),
             (max.0 - min.0) as usize,
             "all block payloads present"
         );
 
-        let first_payload = last.payloads.first().expect("last batch has payloads");
+        let first_payload = last_batch
+            .payloads
+            .first()
+            .expect("last batch has payloads");
 
         let want_payload = conn.payload(ctx, min).await?.expect("payload is in the DB");
         let want_payload = want_payload.encode();
