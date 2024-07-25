@@ -5,7 +5,7 @@ use via_btc_client::{client::BitcoinClient, regtest::TestContext, BitcoinOps};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let context = TestContext::setup(None).await;
+    let context = TestContext::setup().await;
 
     let client = BitcoinClient::new(&context.get_url(), "regtest").await?;
 
