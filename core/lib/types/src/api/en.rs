@@ -47,9 +47,9 @@ pub struct SyncBlock {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGenesis(pub serde_json::Value);
 
-/// Status of L1 simulated by the main node.
+/// AttestationStatus maintained by the main node.
 /// Used for testing L1 batch signing by consensus attesters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SimulatedL1Status {
-    pub next_batch_to_commit: L1BatchNumber,
+pub struct AttestationStatus {
+    pub next_batch_to_attest: L1BatchNumber,
 }

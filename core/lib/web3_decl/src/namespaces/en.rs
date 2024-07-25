@@ -35,12 +35,12 @@ pub trait EnNamespace {
     #[method(name = "genesisConfig")]
     async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
 
-    /// INTERNAL RPC:
-    /// Gets the status of L1 simulated by the main node.
+    /// MAIN NODE ONLY:
+    /// Gets the AttestationStatus of L1 batches.
     /// This is a temporary RPC used for testing L1 batch signing
     /// by consensus attesters.
-    #[method(name = "simulatedL1Status")]
-    async fn simulated_l1_status(&self) -> RpcResult<en::SimulatedL1Status>;
+    #[method(name = "attestationStatus")]
+    async fn attestation_status(&self) -> RpcResult<en::AttestationStatus>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]

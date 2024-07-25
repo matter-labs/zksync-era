@@ -78,19 +78,20 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn simulated_l1_status_impl(&self) -> Result<en::SimulatedL1Status, Web3Error> {
-        let mut conn = self.state.acquire_connection().await?;
-        let next_batch_to_commit = match conn
-            .consensus_dal()
-            .get_last_batch_certificate_number()
-            .await
-            .context("get_last_batch_certificate_number()")?
-        {
-            Some(n) => to_l1_batch_number(n + 1)?,
-            None => self.first_batch_to_commit,
-        };
-        Ok(en::SimulatedL1Status {
-            next_batch_to_commit,
+    pub async fn attestation_status_impl(&self) -> Result<en::AttestationStatus, Web3Error> {
+        Ok(en::AttestationStatus {
+            next_batch_to_attest: match self
+                .state
+                .acquire_connection()
+                .await?
+                .consensus_dal()
+                .get_last_batch_certificate_number()
+                .await
+                .context("get_last_batch_certificate_number()")?
+            {
+                Some(n) => to_l1_batch_number(n + 1)?,
+                None => self.first_batch_to_commit,
+            },
         })
     }
 

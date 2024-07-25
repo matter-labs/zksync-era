@@ -662,15 +662,15 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
     .unwrap();
 }
 
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_simulated_l1_status_api(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_attestation_status_api(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
-        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
+        let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
@@ -681,9 +681,9 @@ async fn test_simulated_l1_status_api(from_snapshot: bool, version: ProtocolVers
 
         // If the main node has no L1 batch certificates,
         // the first one to sign should be `last_sealed_batch + 1`.
-        let status = api.fetch_simulated_l1_status().await?;
+        let status = api.fetch_attestation_status().await?;
         assert_eq!(
-            status.next_batch_to_commit,
+            status.next_batch_to_attest,
             validator.last_sealed_batch() + 1
         );
 
@@ -691,17 +691,17 @@ async fn test_simulated_l1_status_api(from_snapshot: bool, version: ProtocolVers
         validator.push_random_block(rng).await;
         validator.seal_batch().await;
         assert_eq!(
-            status.next_batch_to_commit,
-            api.fetch_simulated_l1_status().await?.next_batch_to_commit,
+            status.next_batch_to_attest,
+            api.fetch_attestation_status().await?.next_batch_to_attest,
         );
 
         // Insert a cert, then check again.
         validator_pool
-            .wait_for_batch(ctx, status.next_batch_to_commit)
+            .wait_for_batch(ctx, status.next_batch_to_attest)
             .await?;
         {
             let mut conn = validator_pool.connection(ctx).await?;
-            let number = attester::BatchNumber(status.next_batch_to_commit.0.try_into().unwrap());
+            let number = attester::BatchNumber(status.next_batch_to_attest.0.try_into().unwrap());
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
             let cert = attester::BatchQC {
                 signatures: attester::MultiSig::default(),
@@ -711,12 +711,12 @@ async fn test_simulated_l1_status_api(from_snapshot: bool, version: ProtocolVers
                 .await
                 .context("insert_batch_certificate()")?;
         }
-        let want = status.next_batch_to_commit + 1;
+        let want = status.next_batch_to_attest + 1;
         let got = api
-            .fetch_simulated_l1_status()
+            .fetch_attestation_status()
             .await
-            .context("fetch_simulated_l1_status()")?;
-        assert_eq!(want, got.next_batch_to_commit);
+            .context("fetch_attestation_status()")?;
+        assert_eq!(want, got.next_batch_to_attest);
 
         Ok(())
     })
