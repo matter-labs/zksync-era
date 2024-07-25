@@ -94,7 +94,7 @@ impl DataAvailabilityDispatcher {
             })?;
             let dispatch_latency_duration = dispatch_latency.observe();
 
-            let sent_at = DateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap();
+            let sent_at = Utc::now().naive_utc();
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
