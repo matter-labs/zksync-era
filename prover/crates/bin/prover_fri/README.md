@@ -325,7 +325,7 @@ npm install -g yarn
 yarn set version 1.22.19
 
 # Install SQLX for database management
-cargo install sqlx-cli --version 0.7.3
+cargo install sqlx-cli --version 0.8.0
 
 # Get solidity working
 sudo add-apt-repository ppa:ethereum/ethereum
