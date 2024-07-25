@@ -23,6 +23,6 @@ fn main() {
 
         let name = path.file_name().unwrap().to_str().unwrap();
 
-        println!("{} {}", name, BenchmarkingVm::new().instruction_count(&tx));
+        // println!("{} {}", name, BenchmarkingVm::new().instruction_count(&tx));
     }
 }
