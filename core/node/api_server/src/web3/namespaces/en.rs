@@ -15,9 +15,6 @@ use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 #[derive(Debug)]
 pub(crate) struct EnNamespace {
     state: RpcState,
-    /// First batch to commit to L1 simulated by the main node.
-    /// This is temporary and used only for testing L1 batch signing by consensus attesters.
-    first_batch_to_commit: L1BatchNumber,
 }
 
 fn to_l1_batch_number(n: attester::BatchNumber) -> anyhow::Result<L1BatchNumber> {
@@ -27,41 +24,8 @@ fn to_l1_batch_number(n: attester::BatchNumber) -> anyhow::Result<L1BatchNumber>
 }
 
 impl EnNamespace {
-    pub async fn new(state: RpcState) -> anyhow::Result<Self> {
-        let first_batch_to_commit = async {
-            let mut conn = state.acquire_connection().await.context("connection()")?;
-            // Try to continue from where we left.
-            if let Some(last) = conn
-                .consensus_dal()
-                .get_last_batch_certificate_number()
-                .await
-                .context("get_last_batch_certificate_number()")?
-            {
-                return to_l1_batch_number(last + 1);
-            }
-            // Otherwise start with the next sealed L1 batch.
-            // NOTE: we may start at arbitrary point,
-            // choice of `sealed + 1` is arbitrary.
-            if let Some(sealed) = conn
-                .blocks_dal()
-                .get_sealed_l1_batch_number()
-                .await
-                .context("get_sealed_l1_batch_number()")?
-            {
-                return Ok(sealed + 1);
-            }
-            // Otherwise start with 0.
-            // Note that the `simulated_l1_status()` RPC is
-            // served only by the main node, therefore we
-            // don't have to care about pruning (there is no
-            // pruning on the main node).
-            Ok(L1BatchNumber(0))
-        }
-        .await?;
-        Ok(Self {
-            state,
-            first_batch_to_commit,
-        })
+    pub fn new(state: RpcState) -> Self {
+        Self { state }
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
@@ -82,18 +46,15 @@ impl EnNamespace {
     #[tracing::instrument(skip(self))]
     pub async fn attestation_status_impl(&self) -> Result<en::AttestationStatus, Web3Error> {
         Ok(en::AttestationStatus {
-            next_batch_to_attest: match self
-                .state
-                .acquire_connection()
-                .await?
-                .consensus_dal()
-                .get_last_batch_certificate_number()
-                .await
-                .context("get_last_batch_certificate_number()")?
-            {
-                Some(n) => to_l1_batch_number(n + 1)?,
-                None => self.first_batch_to_commit,
-            },
+            next_batch_to_attest: to_l1_batch_number(
+                self.state
+                    .acquire_connection()
+                    .await?
+                    .consensus_dal()
+                    .next_batch_to_attest()
+                    .await
+                    .context("next_batch_to_attest()")?,
+            )?,
         })
     }
 

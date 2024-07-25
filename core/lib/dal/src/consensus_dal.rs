@@ -457,6 +457,40 @@ impl ConsensusDal<'_, '_> {
             n.try_into().context("overflow")?,
         )))
     }
+
+    /// Next batch that the attesters should vote for.
+    /// This is a main node only query.
+    /// ENs should call the attestation_status RPC of the main node.
+    pub async fn next_batch_to_attest(&mut self) -> anyhow::Result<attester::BatchNumber> {
+        // First batch that we don't have a certificate for.
+        if let Some(last) = self
+            .get_last_batch_certificate_number()
+            .await
+            .context("get_last_batch_certificate_number()")?
+        {
+            return Ok(last + 1);
+        }
+        // Otherwise start with the last sealed L1 batch.
+        // We don't want to backfill certificates for old batches.
+        // Note that there is a race condition in case the next
+        // batch is sealed before the certificate for the current
+        // last sealed batch is stored. This is only relevant
+        // for the first certificate though and anyway this is
+        // a test setup, so we are OK with that race condition.
+        if let Some(sealed) = self
+            .storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .context("get_sealed_l1_batch_number()")?
+        {
+            return Ok(attester::BatchNumber(sealed.0.into()));
+        }
+        // Otherwise start with 0.
+        // Note that main node doesn't start from snapshot
+        // and doesn't have prunning enabled.
+        Ok(attester::BatchNumber(0))
+    }
 }
 
 #[cfg(test)]

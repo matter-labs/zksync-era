@@ -688,20 +688,9 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         let api = validator.connect(ctx).await?;
 
         // If the main node has no L1 batch certificates,
-        // the first one to sign should be `last_sealed_batch + 1`.
+        // the first one to sign should be `last_sealed_batch`.
         let status = api.fetch_attestation_status().await?;
-        assert_eq!(
-            status.next_batch_to_attest,
-            validator.last_sealed_batch() + 1
-        );
-
-        // Insert next batch, the response shouldn't change.
-        validator.push_random_block(rng).await;
-        validator.seal_batch().await;
-        assert_eq!(
-            status.next_batch_to_attest,
-            api.fetch_attestation_status().await?.next_batch_to_attest,
-        );
+        assert_eq!(status.next_batch_to_attest, validator.last_sealed_batch());
 
         // Insert a cert, then check again.
         validator_pool

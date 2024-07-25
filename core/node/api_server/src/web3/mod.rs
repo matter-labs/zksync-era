@@ -405,10 +405,7 @@ impl ApiServer {
                 .context("cannot merge zks namespace")?;
         }
         if namespaces.contains(&Namespace::En) {
-            let n = EnNamespace::new(rpc_state.clone())
-                .await
-                .context("EnNamespace:::new()")?;
-            rpc.merge(n.into_rpc())
+            rpc.merge(EnNamespace::new(rpc_state.clone()).into_rpc())
                 .context("cannot merge en namespace")?;
         }
         if namespaces.contains(&Namespace::Snapshots) {
