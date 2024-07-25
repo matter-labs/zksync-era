@@ -446,7 +446,9 @@ impl ConsensusDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        let Some(n) = row.number else { return Ok(None) };
+        let Some(n) = row.number else {
+            return Ok(None);
+        };
         Ok(Some(attester::BatchNumber(
             n.try_into().context("overflow")?,
         )))
