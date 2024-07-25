@@ -122,3 +122,6 @@ pub(super) const MSG_CONTRACTS_CLEANING: &str =
     "Removing contracts building and deployment artifacts";
 pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
     "Contracts building and deployment artifacts are cleaned up";
+
+/// Snapshot creator related messages
+pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";

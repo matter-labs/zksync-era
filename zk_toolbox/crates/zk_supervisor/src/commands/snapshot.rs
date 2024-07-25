@@ -1,7 +1,10 @@
 use anyhow::Context;
 use clap::Subcommand;
 use common::{cmd::Cmd, logger};
+use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_RUNNING_SNAPSHOT_CREATOR};
 
 #[derive(Subcommand, Debug)]
 pub enum SnapshotCommands {
@@ -19,9 +22,17 @@ pub(crate) async fn run(shell: &Shell, args: SnapshotCommands) -> anyhow::Result
 }
 
 async fn create(shell: &Shell) -> anyhow::Result<()> {
-    logger::info("Log");
+    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let chain = ecosystem
+        .load_chain(Some(ecosystem.default_chain.clone()))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --bin snapshots_creator --release"))
+    let config_path = chain.path_to_general_config();
+    let secrets_path = chain.path_to_secrets_config();
+
+    logger::info(MSG_RUNNING_SNAPSHOT_CREATOR);
+
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --bin snapshots_creator --release -- --config-path={config_path} --secrets-path={secrets_path}"))
         .env("RUST_LOG", "snapshots_creator=debug");
 
     cmd = cmd.with_force_run();
