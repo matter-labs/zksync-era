@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   changed_files:
-    runs-on: [matterlabs-default-infra-runners]
+    runs-on: ubuntu-latest
     name: Get changed files
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
