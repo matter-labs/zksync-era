@@ -32,6 +32,10 @@ struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    /// Number of WVG jobs to run in parallel.
+    /// Default value is 1.
+    #[arg(long, default_value_t = 1)]
+    pub(crate) threads: usize,
 }
 
 #[tokio::main]
@@ -106,17 +110,6 @@ async fn main() -> anyhow::Result<()> {
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
-    let witness_vector_generator = WitnessVectorGenerator::new(
-        object_store,
-        pool,
-        circuit_ids_for_round_to_be_proven.clone(),
-        zone.clone(),
-        config,
-        protocol_version,
-        prover_config.max_attempts,
-        Some(prover_config.setup_data_path.clone()),
-    );
-
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
@@ -128,12 +121,32 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with protocol_version: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, protocol_version);
+    tracing::info!(
+        "Starting {} witness vector generation jobs for group: {} with circuits: {:?} in zone: {} with protocol_version: {:?}",
+        opt.threads,
+        specialized_group_id,
+        circuit_ids_for_round_to_be_proven,
+        zone,
+        protocol_version
+    );
 
-    let tasks = vec![
-        tokio::spawn(exporter_config.run(stop_receiver.clone())),
-        tokio::spawn(witness_vector_generator.run(stop_receiver, opt.n_iterations)),
-    ];
+    let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
+
+    for _ in 0..opt.threads {
+        let witness_vector_generator = WitnessVectorGenerator::new(
+            object_store.clone(),
+            pool.clone(),
+            circuit_ids_for_round_to_be_proven.clone(),
+            zone.clone(),
+            config.clone(),
+            protocol_version,
+            prover_config.max_attempts,
+            Some(prover_config.setup_data_path.clone()),
+        );
+        tasks.push(tokio::spawn(
+            witness_vector_generator.run(stop_receiver.clone(), opt.n_iterations),
+        ));
+    }
 
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
