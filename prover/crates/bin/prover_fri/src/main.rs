@@ -169,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         circuit_ids_for_round_to_be_proven,
         notify,
+        opt.n_iterations,
     )
     .await
     .context("get_prover_tasks()")?;
@@ -208,6 +209,7 @@ async fn get_prover_tasks(
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     _init_notifier: Arc<Notify>,
+    n_iterations: Option<usize>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
@@ -229,7 +231,7 @@ async fn get_prover_tasks(
         circuit_ids_for_round_to_be_proven,
         protocol_version,
     );
-    Ok(vec![tokio::spawn(prover.run(stop_receiver, None))])
+    Ok(vec![tokio::spawn(prover.run(stop_receiver, n_iterations))])
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -243,6 +245,7 @@ async fn get_prover_tasks(
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     init_notifier: Arc<Notify>,
+    n_iterations: Option<usize>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
@@ -296,7 +299,7 @@ async fn get_prover_tasks(
             socket_listener
                 .listen_incoming_connections(stop_receiver.clone(), init_notifier.clone()),
         ),
-        tokio::spawn(prover.run(stop_receiver.clone(), None)),
+        tokio::spawn(prover.run(stop_receiver.clone(), n_iterations)),
     ];
 
     // TODO(PLA-874): remove the check after making the availability checker required
@@ -324,4 +327,6 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    #[arg(long, short)]
+    n_iterations: Option<usize>,
 }
