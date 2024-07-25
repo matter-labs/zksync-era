@@ -22,6 +22,25 @@ struct ConfigDiff {
     pub added_fields: serde_yaml::Mapping,
 }
 
+impl ConfigDiff {
+    fn print(&self, msg: &str) {
+        if self.value_diff.is_empty() && self.added_fields.is_empty() {
+            return;
+        }
+
+        logger::warn(msg);
+        logger::info(MSG_SHOW_DIFF);
+        for (key, value) in self.added_fields.iter() {
+            let key = key.as_str().unwrap();
+            logger::info(format!("{}: {:?}", key, value));
+        }
+        for (key, value) in self.value_diff.iter() {
+            let key = key.as_str().unwrap();
+            logger::info(format!("{}: {:?}", key, value));
+        }
+    }
+}
+
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = EcosystemConfig::from_file(shell)?;
@@ -109,25 +128,6 @@ fn save_updated_config(
     Ok(())
 }
 
-fn check_diff(diff: &ConfigDiff, msg: &str) -> anyhow::Result<()> {
-    if diff.value_diff.is_empty() && diff.added_fields.is_empty() {
-        return Ok(());
-    }
-
-    logger::warn(msg);
-    logger::info(MSG_SHOW_DIFF);
-    for (key, value) in diff.added_fields.iter() {
-        let key = key.as_str().unwrap();
-        logger::info(format!("{}: {:?}", key, value));
-    }
-    for (key, value) in diff.value_diff.iter() {
-        let key = key.as_str().unwrap();
-        logger::info(format!("{}: {:?}", key, value));
-    }
-
-    Ok(())
-}
-
 fn update_chain(
     shell: &Shell,
     chain: &ChainConfig,
@@ -149,7 +149,7 @@ fn update_chain(
     let mut current_genesis_config =
         serde_yaml::from_str(&shell.read_file(chain.path_to_genesis_config())?)?;
     let diff = merge_yaml(&mut current_genesis_config, genesis.clone())?;
-    check_diff(&diff, &msg_diff_genesis_config(&chain.name))?;
+    diff.print(&msg_diff_genesis_config(&chain.name));
 
     Ok(())
 }
