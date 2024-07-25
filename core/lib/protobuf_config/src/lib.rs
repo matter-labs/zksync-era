@@ -79,6 +79,8 @@ fn serialize_proto<T: ReflectMessage, S: serde::Serializer>(
     x: &T,
     s: S,
 ) -> Result<S::Ok, S::Error> {
-    let opts = prost_reflect::SerializeOptions::new().use_proto_field_name(true);
+    let opts = prost_reflect::SerializeOptions::new()
+        .use_proto_field_name(true)
+        .stringify_64_bit_integers(false);
     x.transcode_to_dynamic().serialize_with_options(s, &opts)
 }
