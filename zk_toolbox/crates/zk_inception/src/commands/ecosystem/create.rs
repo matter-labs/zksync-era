@@ -39,7 +39,7 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt();
+    let args = args.fill_values_with_prompt(shell);
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_ECOSYSTEM);
