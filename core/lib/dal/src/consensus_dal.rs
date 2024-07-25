@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use bigdecimal::Zero as _;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -402,19 +403,17 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Inserts a certificate for the L1 batch.
-    ///
-    /// Insertion is allowed even if it creates gaps in the L1 batch history.
-    ///
-    /// This method assumes that all payload validation has been carried out by the caller.
-    /// Verification cannot be performed internally, due to circular dependency on
+    /// Noop if a certificate for the same L1 batch is already present.
+    /// No verification is performed - it cannot be performed due to circular dependency on
     /// `zksync_l1_contract_interface`.
     pub async fn insert_batch_certificate(&mut self, cert: &attester::BatchQC) -> DalResult<()> {
-        sqlx::query!(
+        let res = sqlx::query!(
             r#"
             INSERT INTO
                 l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
             VALUES
                 ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             cert.message.number.0 as i64,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
@@ -423,6 +422,9 @@ impl ConsensusDal<'_, '_> {
         .report_latency()
         .execute(self.storage)
         .await?;
+        if res.rows_affected().is_zero() {
+            tracing::debug!(l1_batch_number = ?cert.message.number, "duplicate batch certificate");
+        }
         Ok(())
     }
 

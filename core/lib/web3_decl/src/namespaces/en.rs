@@ -39,7 +39,7 @@ pub trait EnNamespace {
     /// Gets the status of L1 simulated by the main node.
     /// This is a temporary RPC used for testing L1 batch signing
     /// by consensus attesters.
-    #[method(name = "simulated_l1_status")]
+    #[method(name = "simulatedL1Status")]
     async fn simulated_l1_status(&self) -> RpcResult<en::SimulatedL1Status>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.

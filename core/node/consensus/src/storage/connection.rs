@@ -168,7 +168,7 @@ impl<'a> Connection<'a> {
         let Some(meta) = ctx
             .wait(self.0.blocks_dal().get_l1_batch_metadata(n))
             .await?
-            .context("sqlx")?
+            .context("get_l1_batch_metadata()")?
         else {
             return Ok(None);
         };

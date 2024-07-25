@@ -687,9 +687,15 @@ async fn test_simulated_l1_status_api(from_snapshot: bool, version: ProtocolVers
             validator.last_sealed_batch() + 1
         );
 
-        // Insert a cert, then check again.
+        // Insert next batch, the response shouldn't change.
         validator.push_random_block(rng).await;
         validator.seal_batch().await;
+        assert_eq!(
+            status.next_batch_to_commit,
+            api.fetch_simulated_l1_status().await?.next_batch_to_commit,
+        );
+
+        // Insert a cert, then check again.
         validator_pool
             .wait_for_batch(ctx, status.next_batch_to_commit)
             .await?;

@@ -48,16 +48,12 @@ impl EnNamespace {
             {
                 return Ok(sealed + 1);
             }
-            // Otherwise start from the first non-pruned batch.
-            let info = conn
-                .pruning_dal()
-                .get_pruning_info()
-                .await
-                .context("get_pruning_info()")?;
-            Ok(info
-                .last_soft_pruned_l1_batch
-                .map(|n| n + 1)
-                .unwrap_or(L1BatchNumber(0)))
+            // Otherwise start with 0.
+            // Note that the `simulated_l1_status()` RPC is
+            // served only by the main node, therefore we
+            // don't have to care about pruning (there is no
+            // pruning on the main node).
+            Ok(L1BatchNumber(0))
         }
         .await?;
         Ok(Self {
