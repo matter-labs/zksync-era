@@ -3,8 +3,6 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::era_vm::transaction_data::TransactionData;
 
-
-
 /// Information about tx necessary for execution in bootloader.
 #[derive(Debug, Clone)]
 pub(crate) struct BootloaderTx {

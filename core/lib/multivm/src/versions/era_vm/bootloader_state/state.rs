@@ -4,9 +4,17 @@ use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use super::{l2_block::BootloaderL2Block, tx::BootloaderTx, utils::{apply_l2_block, apply_pubdata_to_memory, apply_tx_to_memory, PubdataInput}, BootloaderStateSnapshot};
-use crate::{era_vm::transaction_data::TransactionData, interface::{BootloaderMemory, TxExecutionMode}, vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block}};
-use crate::interface::{L2BlockEnv};
+use super::{
+    l2_block::BootloaderL2Block,
+    tx::BootloaderTx,
+    utils::{apply_l2_block, apply_pubdata_to_memory, apply_tx_to_memory, PubdataInput},
+    BootloaderStateSnapshot,
+};
+use crate::{
+    era_vm::transaction_data::TransactionData,
+    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block},
+};
 
 /// Intermediate bootloader-related VM state.
 ///
