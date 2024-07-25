@@ -324,14 +324,28 @@ pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
 pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
 pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
-pub(super) const MSG_UPDATING_GENERAL_CONFIG: &str = "Updating general config";
-pub(super) const MSG_SHOW_DIFF_ADDED_FIELDS: &str = "Added the following values:";
-pub(super) const MSG_SHOW_DIFF: &str = "Found differences in the following fields:";
+pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
+    "Added the following fields to the general config:";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
-        "Found differences between chain {} and era genesis configs. Consider updating the chain {} genesis config and re-running genesis.",
-        chain, chain
+        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_secrets(
+    chain: &str,
+    current_secrets_path: &Path,
+    era_secret_path: &Path,
+) -> String {
+    format!(
+        "Found differences between chain {chain} and era secrets configs. Consider updating the chain {chain} secrets config at {current_secrets_path:?} using the file {era_secret_path:?} as reference. Diff:"
     )
 }
 

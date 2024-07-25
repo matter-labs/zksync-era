@@ -6,14 +6,15 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use config::{ChainConfig, EcosystemConfig, GENERAL_FILE, GENESIS_FILE};
+use config::{
+    ChainConfig, EcosystemConfig, CONTRACTS_FILE, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+};
 use xshell::Shell;
 
 use crate::messages::{
-    msg_diff_genesis_config, msg_updating_chain, MSG_CHAIN_NOT_FOUND_ERR,
-    MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_SHOW_DIFF, MSG_SHOW_DIFF_ADDED_FIELDS,
-    MSG_UPDATING_GENERAL_CONFIG, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
-    MSG_ZKSYNC_UPDATED,
+    msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
+    MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
 };
 
 #[derive(Default)]
@@ -28,16 +29,15 @@ impl ConfigDiff {
             return;
         }
 
+        let mut diff = logger::object_to_string(&self.value_diff);
+        diff.push_str(&logger::object_to_string(&self.added_fields));
+
         logger::warn(msg);
-        logger::info(MSG_SHOW_DIFF);
-        for (key, value) in self.added_fields.iter() {
-            let key = key.as_str().unwrap();
-            logger::info(format!("{}: {:?}", key, value));
-        }
-        for (key, value) in self.value_diff.iter() {
-            let key = key.as_str().unwrap();
-            logger::info(format!("{}: {:?}", key, value));
-        }
+        logger::warn(diff);
+    }
+
+    fn reset_value_diff(&mut self) {
+        self.value_diff = serde_yaml::Mapping::new();
     }
 }
 
@@ -56,17 +56,29 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let general_config = serde_yaml::from_str(
         &shell.read_file(ecosystem.get_default_configs_path().join(GENERAL_FILE))?,
     )?;
-
     let genesis_config = serde_yaml::from_str(
         &shell.read_file(ecosystem.get_default_configs_path().join(GENESIS_FILE))?,
     )?;
+    let contracts_config = serde_yaml::from_str(
+        &shell.read_file(ecosystem.get_default_configs_path().join(CONTRACTS_FILE))?,
+    )?;
+    let secrets_path = ecosystem.get_default_configs_path().join(SECRETS_FILE);
+    let secrets = serde_yaml::from_str(&shell.read_file(secrets_path.clone())?)?;
 
     for chain in ecosystem.list_of_chains() {
-        logger::info(msg_updating_chain(&chain));
+        logger::step(msg_updating_chain(&chain));
         let chain = ecosystem
             .load_chain(Some(chain))
             .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-        update_chain(shell, &chain, &general_config, &genesis_config)?;
+        update_chain(
+            shell,
+            &chain,
+            &general_config,
+            &genesis_config,
+            &contracts_config,
+            &secrets,
+            &secrets_path,
+        )?;
     }
 
     logger::outro(MSG_ZKSYNC_UPDATED);
@@ -111,16 +123,14 @@ fn save_updated_config(
     config: serde_yaml::Value,
     path: &Path,
     diff: ConfigDiff,
+    msg: &str,
 ) -> anyhow::Result<()> {
     if diff.added_fields.is_empty() {
         return Ok(());
     }
 
-    logger::info(MSG_SHOW_DIFF_ADDED_FIELDS);
-    for (key, value) in diff.added_fields {
-        let key = key.as_str().unwrap();
-        logger::info(format!("{}: {:?}", key, value));
-    }
+    logger::info(msg);
+    logger::info(logger::object_to_string(&diff.added_fields));
 
     let general_config = serde_yaml::to_string(&config)?;
     shell.write_file(path, general_config)?;
@@ -133,8 +143,10 @@ fn update_chain(
     chain: &ChainConfig,
     general: &serde_yaml::Value,
     genesis: &serde_yaml::Value,
+    contracts: &serde_yaml::Value,
+    secrets: &serde_yaml::Value,
+    secrets_path: &Path,
 ) -> anyhow::Result<()> {
-    logger::info(MSG_UPDATING_GENERAL_CONFIG);
     let current_general_config_path = chain.path_to_general_config();
     let mut current_general_config =
         serde_yaml::from_str(&shell.read_file(current_general_config_path.clone())?)?;
@@ -144,12 +156,28 @@ fn update_chain(
         current_general_config,
         &current_general_config_path,
         diff,
+        MSG_DIFF_GENERAL_CONFIG,
     )?;
 
     let mut current_genesis_config =
         serde_yaml::from_str(&shell.read_file(chain.path_to_genesis_config())?)?;
     let diff = merge_yaml(&mut current_genesis_config, genesis.clone())?;
     diff.print(&msg_diff_genesis_config(&chain.name));
+
+    let mut current_contracts_config =
+        serde_yaml::from_str(&shell.read_file(chain.path_to_contracts_config())?)?;
+    let diff = merge_yaml(&mut current_contracts_config, contracts.clone())?;
+    diff.print(&msg_diff_contracts_config(&chain.name));
+
+    let mut current_secrets =
+        serde_yaml::from_str(&shell.read_file(chain.path_to_secrets_config())?)?;
+    let mut diff = merge_yaml(&mut current_secrets, secrets.clone())?;
+    diff.reset_value_diff(); // Values are expected to be different
+    diff.print(&msg_diff_secrets(
+        &chain.name,
+        &chain.path_to_secrets_config(),
+        secrets_path,
+    ));
 
     Ok(())
 }
