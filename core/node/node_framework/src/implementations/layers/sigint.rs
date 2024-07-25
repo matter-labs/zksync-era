@@ -1,42 +1,55 @@
 use tokio::sync::oneshot;
 
 use crate::{
-    service::{ServiceContext, StopReceiver},
-    task::{TaskId, UnconstrainedTask},
+    service::StopReceiver,
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 
-/// Layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
+/// Wiring layer that changes the handling of SIGINT signal, preventing an immediate shutdown.
 /// Instead, it would propagate the signal to the rest of the node, allowing it to shut down gracefully.
 #[derive(Debug)]
 pub struct SigintHandlerLayer;
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: SigintHandlerTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for SigintHandlerLayer {
+    type Input = ();
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "sigint_handler_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        // SIGINT may happen at any time, so we must handle it as soon as it happens.
-        node.add_unconstrained_task(Box::new(SigintHandlerTask));
-        Ok(())
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(Output {
+            task: SigintHandlerTask,
+        })
     }
 }
 
 #[derive(Debug)]
-struct SigintHandlerTask;
+pub struct SigintHandlerTask;
 
 #[async_trait::async_trait]
-impl UnconstrainedTask for SigintHandlerTask {
+impl Task for SigintHandlerTask {
+    fn kind(&self) -> TaskKind {
+        // SIGINT may happen at any time, so we must handle it as soon as it happens.
+        TaskKind::UnconstrainedTask
+    }
+
     fn id(&self) -> TaskId {
         "sigint_handler".into()
     }
 
-    async fn run_unconstrained(
-        self: Box<Self>,
-        mut stop_receiver: StopReceiver,
-    ) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let (sigint_sender, sigint_receiver) = oneshot::channel();
         let mut sigint_sender = Some(sigint_sender); // Has to be done this way since `set_handler` requires `FnMut`.
         ctrlc::set_handler(move || {
@@ -51,7 +64,9 @@ impl UnconstrainedTask for SigintHandlerTask {
 
         // Wait for either SIGINT or stop signal.
         tokio::select! {
-            _ = sigint_receiver => {},
+            _ = sigint_receiver => {
+                tracing::info!("Received SIGINT signal");
+            },
             _ = stop_receiver.0.changed() => {},
         };
 

@@ -23,7 +23,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
-    api,
+    api::{self, state_override::StateOverride},
     block::{pack_block_info, unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
     get_nonce_key,
@@ -34,11 +34,13 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
 use super::{
+    storage::StorageWithOverrides,
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
+type VmStorageView<'a> = StorageView<StorageWithOverrides<PostgresStorage<'a>>>;
+type BoxedVm<'a> = Box<VmInstance<VmStorageView<'a>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -46,7 +48,7 @@ struct Sandbox<'a> {
     l1_batch_env: L1BatchEnv,
     execution_args: &'a TxExecutionArgs,
     l2_block_info_to_reset: Option<StoredL2BlockInfo>,
-    storage_view: StorageView<PostgresStorage<'a>>,
+    storage_view: VmStorageView<'a>,
 }
 
 impl<'a> Sandbox<'a> {
@@ -55,6 +57,7 @@ impl<'a> Sandbox<'a> {
         shared_args: TxSharedArgs,
         execution_args: &'a TxExecutionArgs,
         block_args: BlockArgs,
+        state_override: &StateOverride,
     ) -> anyhow::Result<Sandbox<'a>> {
         let resolve_started_at = Instant::now();
         let resolved_block_info = block_args
@@ -90,7 +93,8 @@ impl<'a> Sandbox<'a> {
         .context("cannot create `PostgresStorage`")?
         .with_caches(shared_args.caches.clone());
 
-        let storage_view = StorageView::new(storage);
+        let storage_with_overrides = StorageWithOverrides::new(storage, state_override);
+        let storage_view = StorageView::new(storage_with_overrides);
         let (system_env, l1_batch_env) = Self::prepare_env(
             shared_args,
             execution_args,
@@ -259,7 +263,7 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> (BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>) {
+    ) -> (BoxedVm<'a>, StoragePtr<VmStorageView<'a>>) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
@@ -294,9 +298,10 @@ pub(super) fn apply_vm_in_sandbox<T>(
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool<Core>,
     tx: Transaction,
-    block_args: BlockArgs,
+    block_args: BlockArgs, // Block arguments for the transaction.
+    state_override: Option<StateOverride>,
     apply: impl FnOnce(
-        &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
+        &mut VmInstance<VmStorageView<'_>, HistoryDisabled>,
         Transaction,
         ProtocolVersionId,
     ) -> T,
@@ -319,6 +324,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         shared_args,
         execution_args,
         block_args,
+        state_override.as_ref().unwrap_or(&StateOverride::default()),
     ))?;
     let protocol_version = sandbox.system_env.version;
     let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
@@ -331,6 +337,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tx.initiator_account(),
         tx.nonce().unwrap_or(Nonce(0))
     );
+
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
     let result = apply(&mut vm, tx, protocol_version);
     let vm_execution_took = execution_latency.observe();
@@ -366,7 +373,7 @@ impl StoredL2BlockInfo {
         );
         let l2_block_info = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_info_key, l2_block_number)
+            .get_historical_value_unchecked(l2_block_info_key.hashed_key(), l2_block_number)
             .await
             .context("failed reading L2 block info from VM state")?;
         let (l2_block_number_from_state, l2_block_timestamp) =
@@ -378,7 +385,10 @@ impl StoredL2BlockInfo {
         );
         let txs_rolling_hash = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, l2_block_number)
+            .get_historical_value_unchecked(
+                l2_block_txs_rolling_hash_key.hashed_key(),
+                l2_block_number,
+            )
             .await
             .context("failed reading transaction rolling hash from VM state")?;
 

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
     web3::{AccessList, Bytes, Index},
@@ -17,6 +18,7 @@ use crate::{
 };
 
 pub mod en;
+pub mod state_override;
 
 /// Block Number
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
@@ -442,6 +444,9 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {
@@ -819,6 +824,14 @@ pub struct ApiStorageLog {
     pub address: Address,
     pub key: U256,
     pub written_value: U256,
+}
+
+/// Raw transaction execution data.
+/// Data is taken from `TransactionExecutionMetrics`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionExecutionInfo {
+    pub execution_info: Value,
 }
 
 #[cfg(test)]

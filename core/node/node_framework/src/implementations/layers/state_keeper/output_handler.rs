@@ -1,6 +1,7 @@
 use anyhow::Context as _;
+use zksync_node_framework_derive::FromContext;
 use zksync_state_keeper::{
-    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, OutputHandler,
+    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::Address;
@@ -12,11 +13,26 @@ use crate::{
         sync_state::SyncStateResource,
     },
     resource::Unique,
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 
+/// Wiring layer for the state keeper output handler.
+///
+/// ## Requests resources
+///
+/// - `PoolResource<MasterPool>`
+/// - `SyncStateResource` (optional)
+///
+/// ## Adds resources
+///
+/// - `OutputHandlerResource`
+///
+/// ## Adds tasks
+///
+/// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
@@ -29,6 +45,21 @@ pub struct OutputHandlerLayer {
     /// Must be `true` for any node that maintains a full Merkle Tree (e.g. any instance of main node).
     /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes).
     protective_reads_persistence_enabled: bool,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub sync_state: Option<SyncStateResource>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub output_handler: OutputHandlerResource,
+    #[context(task)]
+    pub l2_block_sealer: L2BlockSealerTask,
 }
 
 impl OutputHandlerLayer {
@@ -57,23 +88,18 @@ impl OutputHandlerLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for OutputHandlerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "state_keeper_output_handler_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Fetch required resources.
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
-        // Use `SyncState` if provided.
-        let sync_state = match context.get_resource::<SyncStateResource>().await {
-            Ok(sync_state) => Some(sync_state.0),
-            Err(WiringError::ResourceLacking { .. }) => None,
-            Err(err) => return Err(err),
-        };
-
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Create L2 block sealer task and output handler.
         // L2 Block sealing process is parallelized, so we have to provide enough pooled connections.
-        let persistence_pool = master_pool
+        let persistence_pool = input
+            .master_pool
             .get_custom(L2BlockSealProcess::subtasks_len())
             .await
             .context("Get master pool")?;
@@ -95,18 +121,17 @@ impl WiringLayer for OutputHandlerLayer {
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(tree_writes_persistence));
-        if let Some(sync_state) = sync_state {
-            output_handler = output_handler.with_handler(Box::new(sync_state));
+        if let Some(sync_state) = input.sync_state {
+            output_handler = output_handler.with_handler(Box::new(sync_state.0));
         }
-        context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
-        context.add_task(Box::new(L2BlockSealerTask(l2_block_sealer)));
+        let output_handler = OutputHandlerResource(Unique::new(output_handler));
 
-        Ok(())
+        Ok(Output {
+            output_handler,
+            l2_block_sealer,
+        })
     }
 }
-
-#[derive(Debug)]
-struct L2BlockSealerTask(zksync_state_keeper::L2BlockSealerTask);
 
 #[async_trait::async_trait]
 impl Task for L2BlockSealerTask {
@@ -116,6 +141,6 @@ impl Task for L2BlockSealerTask {
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
         // Miniblock sealer will exit itself once sender is dropped.
-        self.0.run().await
+        (*self).run().await
     }
 }

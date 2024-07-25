@@ -25,6 +25,16 @@ use crate::tests::utils::HangingObjectStore;
 
 mod utils;
 
+async fn is_recovery_completed(
+    pool: &ConnectionPool<Core>,
+    client: &MockMainNodeClient,
+) -> RecoveryCompletionStatus {
+    let mut connection = pool.connection().await.unwrap();
+    SnapshotsApplierTask::is_recovery_completed(&mut connection, client)
+        .await
+        .unwrap()
+}
+
 #[test_casing(3, [(None, false), (Some(2), false), (None, true)])]
 #[tokio::test]
 async fn snapshots_creator_can_successfully_recover_db(
@@ -36,13 +46,12 @@ async fn snapshots_creator_can_successfully_recover_db(
     } else {
         ConnectionPool::<Core>::test_pool().await
     };
+
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
-    let storage_logs_by_hashed_key: HashMap<_, _> = storage_logs
-        .into_iter()
-        .map(|log| (log.key.hashed_key(), log))
-        .collect();
+    let storage_logs_by_hashed_key: HashMap<_, _> =
+        storage_logs.into_iter().map(|log| (log.key, log)).collect();
 
     let object_store_with_errors;
     let object_store = if with_object_store_errors {
@@ -62,6 +71,12 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store
     };
 
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::NoRecoveryDetected,
+        "No snapshot information in the DB"
+    );
+
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
         pool.clone(),
@@ -69,11 +84,18 @@ async fn snapshots_creator_can_successfully_recover_db(
         object_store.clone(),
     );
     let task_health = task.health_check();
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(stats.done_work);
     assert_matches!(
         task_health.check_health().await.status(),
         HealthStatus::Ready
+    );
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery has been completed"
     );
 
     let mut storage = pool.connection().await.unwrap();
@@ -103,8 +125,9 @@ async fn snapshots_creator_can_successfully_recover_db(
     assert_eq!(all_storage_logs.len(), storage_logs_by_hashed_key.len());
     for db_log in all_storage_logs {
         let expected_log = &storage_logs_by_hashed_key[&db_log.hashed_key];
-        assert_eq!(db_log.address, *expected_log.key.address());
-        assert_eq!(db_log.key, *expected_log.key.key());
+        assert_eq!(db_log.hashed_key, expected_log.key);
+        assert!(db_log.key.is_none());
+        assert!(db_log.address.is_none());
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
     }
@@ -116,7 +139,9 @@ async fn snapshots_creator_can_successfully_recover_db(
         Box::new(client.clone()),
         object_store.clone(),
     );
-    task.run().await.unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
     // Here, stats would unfortunately have `done_work: true` because work detection isn't smart enough.
 
     // Emulate a node processing data after recovery.
@@ -139,15 +164,64 @@ async fn snapshots_creator_can_successfully_recover_db(
         Box::new(client),
         object_store,
     );
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(!stats.done_work);
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn applier_recovers_v0_snapshot(drop_storage_key_preimages: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let storage_logs = random_storage_logs::<StorageKey>(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+
+    let mut task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client),
+        object_store,
+    );
+    if drop_storage_key_preimages {
+        task.drop_storage_key_preimages();
+    }
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
+    assert!(stats.done_work);
+
+    let mut storage = pool.connection().await.unwrap();
+    let all_storage_logs = storage
+        .storage_logs_dal()
+        .dump_all_storage_logs_for_tests()
+        .await;
+    assert_eq!(all_storage_logs.len(), storage_logs.len());
+
+    let storage_logs_by_hashed_key: HashMap<_, _> = storage_logs
+        .into_iter()
+        .map(|log| (log.key.hashed_key(), log))
+        .collect();
+    for db_log in all_storage_logs {
+        let expected_log = &storage_logs_by_hashed_key[&db_log.hashed_key];
+        assert_eq!(db_log.hashed_key, expected_log.key.hashed_key());
+        assert_eq!(db_log.value, expected_log.value);
+        assert_eq!(db_log.l2_block_number, expected_status.l2_block_number);
+
+        if drop_storage_key_preimages {
+            assert!(db_log.key.is_none());
+            assert!(db_log.address.is_none());
+        } else {
+            assert_eq!(db_log.key, Some(*expected_log.key.key()));
+            assert_eq!(db_log.address, Some(*expected_log.key.address()));
+        }
+    }
 }
 
 #[tokio::test]
 async fn applier_recovers_explicitly_specified_snapshot() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
 
     let mut task = SnapshotsApplierTask::new(
@@ -157,7 +231,8 @@ async fn applier_recovers_explicitly_specified_snapshot() {
         object_store,
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number);
-    let stats = task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let stats = task.run(stop_receiver).await.unwrap();
     assert!(stats.done_work);
 
     let mut storage = pool.connection().await.unwrap();
@@ -172,7 +247,7 @@ async fn applier_recovers_explicitly_specified_snapshot() {
 async fn applier_error_for_missing_explicitly_specified_snapshot() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
 
     let mut task = SnapshotsApplierTask::new(
@@ -183,7 +258,8 @@ async fn applier_error_for_missing_explicitly_specified_snapshot() {
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number + 1);
 
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(
         format!("{err:#}").contains("not present on main node"),
         "{err:#}"
@@ -195,7 +271,7 @@ async fn snapshot_applier_recovers_after_stopping() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut expected_status = mock_recovery_status();
     expected_status.storage_logs_chunks_processed = vec![true; 10];
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let (stopping_object_store, mut stop_receiver) =
         HangingObjectStore::new(object_store.clone(), 1);
@@ -208,12 +284,19 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
     stop_receiver.wait_for(|&count| count > 1).await.unwrap();
     assert!(!task_handle.is_finished());
     task_handle.abort();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Recovery has been aborted"
+    );
 
     // Check that factory deps have been persisted, but no storage logs.
     let mut storage = pool.connection().await.unwrap();
@@ -238,11 +321,18 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     stop_receiver.wait_for(|&count| count > 3).await.unwrap();
     assert!(!task_handle.is_finished());
     task_handle.abort();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Not all logs have been recovered"
+    );
 
     let all_storage_logs = storage
         .storage_logs_dal()
@@ -255,11 +345,18 @@ async fn snapshot_applier_recovers_after_stopping() {
     let mut task = SnapshotsApplierTask::new(
         config,
         pool.clone(),
-        Box::new(client),
+        Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
     task.set_snapshot_l1_batch(expected_status.l1_batch_number); // check that this works fine
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery has been completed"
+    );
 
     let all_storage_logs = storage
         .storage_logs_dal()
@@ -324,7 +421,8 @@ async fn health_status_immediately_after_task_start() {
         object_store,
     );
     let task_health = task.health_check();
-    let task_handle = tokio::spawn(task.run());
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     client.0.wait().await; // Wait for the first L2 client call (at which point, the task is certainly initialized)
     assert_matches!(
@@ -378,7 +476,8 @@ async fn applier_errors_after_genesis() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, task_stop_receiver) = watch::channel(false);
+    task.run(task_stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -393,7 +492,8 @@ async fn applier_errors_without_snapshots() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -402,10 +502,7 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
     let object_store = MockObjectStore::arc();
     let expected_status = mock_recovery_status();
     let client = MockMainNodeClient {
-        fetch_newest_snapshot_response: Some(SnapshotHeader {
-            version: u16::MAX,
-            ..mock_snapshot_header(&expected_status)
-        }),
+        fetch_newest_snapshot_response: Some(mock_snapshot_header(u16::MAX, &expected_status)),
         ..MockMainNodeClient::default()
     };
 
@@ -415,14 +512,15 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
 async fn applier_returns_error_on_fatal_object_store_error() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::KeyNotFound("not found".into()))
@@ -434,7 +532,8 @@ async fn applier_returns_error_on_fatal_object_store_error() {
         Box::new(client),
         Arc::new(object_store),
     );
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -447,7 +546,7 @@ async fn applier_returns_error_on_fatal_object_store_error() {
 async fn applier_returns_error_after_too_many_object_store_retries() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
-    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::Other {
@@ -462,7 +561,8 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
         Box::new(client),
         Arc::new(object_store),
     );
-    let err = task.run().await.unwrap_err();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -482,7 +582,7 @@ async fn recovering_tokens() {
             continue;
         }
         storage_logs.push(SnapshotStorageLog {
-            key: get_code_key(&token.l2_address),
+            key: get_code_key(&token.l2_address).hashed_key(),
             value: H256::random(),
             l1_batch_number_of_initial_write: expected_status.l1_batch_number,
             enumeration_index: storage_logs.len() as u64 + 1,
@@ -492,13 +592,40 @@ async fn recovering_tokens() {
 
     client.tokens_response.clone_from(&tokens);
 
+    // Make sure that the task will fail when we will start migrating tokens.
+    client.set_token_response_error(EnrichedClientError::custom("Error", "not_important"));
+
     let task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
         pool.clone(),
         Box::new(client.clone()),
         object_store.clone(),
     );
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let task_result = task.run(stop_receiver).await;
+    assert!(task_result.is_err());
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::InProgress,
+        "Tokens are not migrated"
+    );
+
+    // Now perform the recovery again, tokens should be migrated.
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client.clone()),
+        object_store.clone(),
+    );
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
+
+    assert_eq!(
+        is_recovery_completed(&pool, &client).await,
+        RecoveryCompletionStatus::Completed,
+        "Recovery is completed"
+    );
 
     // Check that tokens are successfully restored.
     let mut storage = pool.connection().await.unwrap();
@@ -526,5 +653,41 @@ async fn recovering_tokens() {
         Box::new(client),
         object_store,
     );
-    task.run().await.unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    task.run(stop_receiver).await.unwrap();
+}
+
+#[tokio::test]
+async fn snapshot_applier_can_be_canceled() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut expected_status = mock_recovery_status();
+    expected_status.storage_logs_chunks_processed = vec![true; 10];
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (stopping_object_store, mut stop_receiver) =
+        HangingObjectStore::new(object_store.clone(), 1);
+
+    let mut config = SnapshotsApplierConfig::for_tests();
+    config.max_concurrency = NonZeroUsize::new(1).unwrap();
+    let task = SnapshotsApplierTask::new(
+        config.clone(),
+        pool.clone(),
+        Box::new(client.clone()),
+        Arc::new(stopping_object_store),
+    );
+    let (task_stop_sender, task_stop_receiver) = watch::channel(false);
+    let task_handle = tokio::spawn(task.run(task_stop_receiver));
+
+    // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
+    stop_receiver.wait_for(|&count| count > 1).await.unwrap();
+    assert!(!task_handle.is_finished());
+
+    task_stop_sender.send(true).unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(5), task_handle)
+        .await
+        .expect("Task wasn't canceled")
+        .unwrap()
+        .expect("Task erred");
+    assert!(result.canceled);
+    assert!(!result.done_work);
 }

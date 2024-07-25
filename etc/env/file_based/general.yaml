@@ -63,6 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
+    api_namespaces: [ eth,net,web3,zks,pubsub,debug ]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
@@ -129,7 +130,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1,4 ]
+    aggregated_proof_sizes: [ 1 ]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -180,10 +181,11 @@ witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10
   shall_save_to_public_bucket: true
+  prometheus_listener_port: 3116
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
   prover_instance_poll_time_in_milli_secs: 250
-  prometheus_listener_port: 3314
+  prometheus_listener_port: 3420
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
   specialized_group_id: 100
@@ -195,7 +197,7 @@ data_handler:
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 1000
-  prometheus_listener_port: 3314
+  prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
 proof_compressor:
@@ -294,6 +296,12 @@ prover_group:
       aggregation_round: 1
     - circuit_id: 18
       aggregation_round: 1
+base_token_adjuster:
+  price_polling_interval_ms: 30000
+  price_cache_update_interval_ms: 2000
+external_price_api_client:
+  source: "no-op"
+  client_timeout_ms: 10000
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
@@ -312,13 +320,13 @@ house_keeper:
   fri_gpu_prover_archiver_archive_after_secs: 172800
 
 prometheus:
-  listener_port: 3312
+  listener_port: 3314
   pushgateway_url: http://127.0.0.1:9091
   push_interval_ms: 100
 
 observability:
   log_format: plain
-  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_tee_verifier_input_producer=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=debug,snapshots_creator=debug"
+  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_tee_verifier_input_producer=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
   sentry:
     url: unset
     panic_interval: 1800
@@ -333,6 +341,28 @@ protective_reads_writer:
   window_size: 3
   first_processed_batch: 0
 
+basic_witness_input_producer:
+    db_path: "./db/main/basic_witness_input_producer"
+    window_size: 3
+    first_processed_batch: 0
+
+snapshot_recovery:
+  enabled: false
+  postgres:
+    max_concurrency: 10
+  tree:
+    chunk_size: 200000
+  experimental:
+    tree_recovery_parallel_persistence_buffer: 1
+    drop_storage_key_preimages: true
+pruning:
+  enabled: true
+  chunk_size: 10
+  removal_delay_sec: 60
+  data_retention_sec: 3600
+
+commitment_generator:
+  max_parallelism: 10
 
 core_object_store:
   file_backed:

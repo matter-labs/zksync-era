@@ -14,7 +14,7 @@ use loadnext::{
 };
 use tokio::sync::watch;
 use zksync_config::configs::api::PrometheusConfig;
-use zksync_prometheus_exporter::PrometheusExporterConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,16 +62,15 @@ async fn main() -> anyhow::Result<()> {
     let mut executor = Executor::new(config, execution_config).await?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    if let Some(prometheus_config) = prometheus_config {
-        let exporter_config = PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        );
-
-        tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        tokio::spawn(exporter_config.run(stop_receiver));
-    } else {
-        tracing::info!("Starting without prometheus exporter");
+    match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
+        Some((Some(gateway_endpoint), push_interval)) => {
+            tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
+            let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
+            tokio::spawn(exporter_config.run(stop_receiver));
+        }
+        _ => {
+            tracing::info!("Starting without prometheus exporter");
+        }
     }
 
     let result = executor.start().await;

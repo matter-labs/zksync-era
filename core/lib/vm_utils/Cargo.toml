@@ -1,6 +1,7 @@
 [package]
 name = "zksync_vm_utils"
-version = "0.1.0"
+description = "ZKsync VM utilities"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

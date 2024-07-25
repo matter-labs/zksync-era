@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
-        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
+        L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -22,14 +23,22 @@ use crate::web3::ZksNamespace;
 
 #[async_trait]
 impl ZksNamespaceServer for ZksNamespace {
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
-        self.estimate_fee_impl(req)
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee> {
+        self.estimate_fee_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256> {
-        self.estimate_l1_to_l2_gas_impl(req)
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256> {
+        self.estimate_l1_to_l2_gas_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

@@ -18,16 +18,24 @@ pub trait FileConfigWithDefaultName {
 }
 
 impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
-impl<T> ReadConfig for T where T: FileConfig + Clone + DeserializeOwned {}
+
 impl<T> SaveConfig for T where T: FileConfig + Serialize {}
+
 impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
+
 impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + Clone + DeserializeOwned {}
+
 impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+
 impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+
+pub trait ReadConfig: Sized {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self>;
+}
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfig: DeserializeOwned + Clone {
+impl<T: DeserializeOwned> ReadConfig for T {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
 

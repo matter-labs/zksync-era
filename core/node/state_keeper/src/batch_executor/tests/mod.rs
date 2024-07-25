@@ -69,12 +69,12 @@ impl SnapshotRecoveryMutation {
     fn mutate_snapshot(self, storage_snapshot: &mut StorageSnapshot, alice: &Account) {
         match self {
             Self::RemoveNonce => {
-                let nonce_key = get_nonce_key(&alice.address());
+                let nonce_key = get_nonce_key(&alice.address()).hashed_key();
                 let nonce_value = storage_snapshot.storage_logs.remove(&nonce_key);
                 assert!(nonce_value.is_some());
             }
             Self::RemoveBalance => {
-                let balance_key = storage_key_for_eth_balance(&alice.address());
+                let balance_key = storage_key_for_eth_balance(&alice.address()).hashed_key();
                 let balance_value = storage_snapshot.storage_logs.remove(&balance_key);
                 assert!(balance_value.is_some());
             }
@@ -82,8 +82,8 @@ impl SnapshotRecoveryMutation {
     }
 }
 
-const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: test_casing::Product<(
-    [std::option::Option<SnapshotRecoveryMutation>; 3],
+const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: Product<(
+    [Option<SnapshotRecoveryMutation>; 3],
     [StorageType; 3],
 )> = Product((SnapshotRecoveryMutation::ALL, StorageType::ALL));
 

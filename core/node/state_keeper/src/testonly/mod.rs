@@ -15,7 +15,7 @@ use zksync_multivm::{
     },
     vm_latest::VmExecutionLogs,
 };
-use zksync_state::ReadStorageFactory;
+use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -79,6 +79,10 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
     }
 }
 
+pub(crate) fn storage_view_cache() -> StorageViewCache {
+    StorageViewCache::default()
+}
+
 /// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
 #[derive(Debug)]
 pub struct MockBatchExecutor;
@@ -105,6 +109,9 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
+                    Command::FinishBatchWithCache(resp) => resp
+                        .send((default_vm_batch_result(), storage_view_cache()))
+                        .unwrap(),
                 }
             }
             anyhow::Ok(())
@@ -142,7 +149,7 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
         {
             storage
                 .storage_logs_dedup_dal()
-                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key.hashed_key()])
                 .await
                 .unwrap();
         }

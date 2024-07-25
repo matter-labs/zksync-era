@@ -1,4 +1,4 @@
-import { exec as _exec, spawn as _spawn } from 'child_process';
+import { exec as _exec, spawn as _spawn, type ProcessEnvOptions } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import readline from 'readline';
@@ -55,9 +55,17 @@ export function spawn(command: string) {
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
-export function background(command: string, stdio: any = 'inherit') {
+export function background({
+    command,
+    stdio = 'inherit',
+    cwd
+}: {
+    command: string;
+    stdio: any;
+    cwd?: ProcessEnvOptions['cwd'];
+}) {
     command = command.replace(/\n/g, ' ');
-    return _spawn(command, { stdio: stdio, shell: true, detached: true });
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd });
 }
 
 export async function confirmAction() {

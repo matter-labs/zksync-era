@@ -24,6 +24,7 @@ use zksync_state_keeper::{
     SequencerSealer,
 };
 use zksync_types::{
+    api::state_override::StateOverride,
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
@@ -385,6 +386,7 @@ impl TxSender {
                 self.0.replica_connection_pool.clone(),
                 tx.clone().into(),
                 block_args,
+                None,
                 vec![],
             )
             .await?;
@@ -656,6 +658,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -703,6 +706,7 @@ impl TxSender {
                 self.0.replica_connection_pool.clone(),
                 tx.clone(),
                 block_args,
+                state_override,
                 vec![],
             )
             .await?;
@@ -733,6 +737,7 @@ impl TxSender {
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u64,
+        state_override: Option<StateOverride>,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
@@ -786,17 +791,25 @@ impl TxSender {
                 )
             })?;
 
-        if !tx.is_l1()
-            && account_code_hash == H256::zero()
-            && tx.execute.value > self.get_balance(&tx.initiator_account()).await?
-        {
-            tracing::info!(
-                "fee estimation failed on validation step.
-                account: {} does not have enough funds for for transferring tx.value: {}.",
-                &tx.initiator_account(),
-                tx.execute.value
-            );
-            return Err(SubmitTxError::InsufficientFundsForTransfer);
+        if !tx.is_l1() && account_code_hash == H256::zero() {
+            let balance = match state_override
+                .as_ref()
+                .and_then(|overrides| overrides.get(&tx.initiator_account()))
+                .and_then(|account| account.balance)
+            {
+                Some(balance) => balance,
+                None => self.get_balance(&tx.initiator_account()).await?,
+            };
+
+            if tx.execute.value > balance {
+                tracing::info!(
+                    "fee estimation failed on validation step.
+                    account: {} does not have enough funds for for transferring tx.value: {}.",
+                    tx.initiator_account(),
+                    tx.execute.value
+                );
+                return Err(SubmitTxError::InsufficientFundsForTransfer);
+            }
         }
 
         // For L2 transactions we need a properly formatted signature
@@ -836,6 +849,7 @@ impl TxSender {
                     block_args,
                     base_fee,
                     protocol_version.into(),
+                    state_override.clone(),
                 )
                 .await
                 .context("estimate_gas step failed")?;
@@ -871,6 +885,7 @@ impl TxSender {
                     block_args,
                     base_fee,
                     protocol_version.into(),
+                    state_override.clone(),
                 )
                 .await
                 .context("estimate_gas step failed")?;
@@ -903,6 +918,7 @@ impl TxSender {
                 block_args,
                 base_fee,
                 protocol_version.into(),
+                state_override,
             )
             .await
             .context("final estimate_gas step failed")?;
@@ -973,6 +989,7 @@ impl TxSender {
         block_args: BlockArgs,
         call_overrides: CallOverrides,
         tx: L2Tx,
+        state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
@@ -989,6 +1006,7 @@ impl TxSender {
                 block_args,
                 vm_execution_cache_misses_limit,
                 vec![],
+                state_override,
             )
             .await?
             .into_api_call_result()

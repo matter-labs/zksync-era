@@ -2,13 +2,14 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
+use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_node_genesis::create_genesis_l1_batch;
@@ -47,9 +48,15 @@ impl Tester {
     }
 
     async fn create_gas_adjuster(&self) -> GasAdjuster {
-        let eth_client = MockEthereum::builder()
-            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
-            .build();
+        let block_fees = vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
+        let base_fees = block_fees
+            .into_iter()
+            .map(|base_fee_per_gas| BaseFees {
+                base_fee_per_gas,
+                base_fee_per_blob_gas: 1.into(), // Not relevant for the test
+            })
+            .collect();
+        let eth_client = MockEthereum::builder().with_fee_history(base_fees).build();
 
         let gas_adjuster_config = GasAdjusterConfig {
             default_priority_fee_per_gas: 10,
@@ -78,8 +85,10 @@ impl Tester {
 
     pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
+
         MainNodeFeeInputProvider::new(
             gas_adjuster,
+            Arc::new(NoOpRatioProvider::default()),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
@@ -98,6 +107,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
+            Arc::new(NoOpRatioProvider::default()),
             FeeModelConfig::V1(FeeModelConfigV1 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
@@ -119,7 +129,6 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
         )
-        .await
         .unwrap();
 
         (io, mempool)
