@@ -12,7 +12,6 @@ use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
@@ -524,13 +523,14 @@ impl JobProcessor for ContractVerifier {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         let connection_pool = self.connection_pool.clone();
+        let config = self.config.clone();
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
             let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;
-            let verification_result = Self::verify(&mut connection, job, self.config.clone()).await;
+            let verification_result = Self::verify(&mut connection, job, config).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
             API_CONTRACT_VERIFIER_METRICS
