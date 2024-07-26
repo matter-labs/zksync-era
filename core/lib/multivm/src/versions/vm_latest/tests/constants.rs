@@ -2,16 +2,17 @@ use ethabi::Token;
 use itertools::Itertools;
 use zksync_state::WriteStorage;
 use zksync_types::{
-    get_immutable_key, get_l2_message_root_init_logs,
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, H256,
-    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    get_immutable_key, get_l2_message_root_init_logs, AccountTreeId, StorageKey, StorageLog,
+    StorageLogKind, H256, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L2_BRIDGEHUB_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS,
 };
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder}, utils::read_message_root,
+            tester::{DeployContractsTx, TxType, VmTesterBuilder},
+            utils::read_message_root,
         },
         HistoryEnabled,
     },
@@ -26,10 +27,9 @@ fn test_that_bootloader_encoding_space_is_large_enoguh() {
     assert!(encoding_space >= 330000, "Bootloader tx space is too small");
 }
 
+/// Test that checks that the initial logs for the L2 Message Root are correct
 #[test]
 fn test_l2_message_root_init_logs() {
-    // In this test, we aim to test whether a simple account interaction (without any fee logic)
-    // will work. The account will try to deploy a simple contract from integration tests.
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -38,11 +38,7 @@ fn test_l2_message_root_init_logs() {
 
     let message_root_bytecode = read_message_root();
     let account = &mut vm.rich_accounts[0];
-    let DeployContractsTx {
-        tx,
-        address,
-        ..
-    } = account.get_deploy_tx(
+    let DeployContractsTx { tx, address, .. } = account.get_deploy_tx(
         &message_root_bytecode,
         Some(&[Token::Address(L2_BRIDGEHUB_ADDRESS)]),
         TxType::L2,
@@ -52,12 +48,15 @@ fn test_l2_message_root_init_logs() {
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
+    // That's the only key in the immutable simulator that should be changed. It depends on the address
+    // of the deployed contract, so we check that the way it was generated for a random deployed contract is the same.
     let expected_change_immutable_key = get_immutable_key(&address, H256::zero());
     let expected_genesis_immutable_key = get_immutable_key(&L2_MESSAGE_ROOT_ADDRESS, H256::zero());
 
     let mut expected_init_logs = get_l2_message_root_init_logs()
         .into_iter()
         .map(|x| StorageLog {
+            // We unify all the logs to all have the same kind
             kind: StorageLogKind::InitialWrite,
             key: x.key,
             value: x.value,
@@ -82,6 +81,8 @@ fn test_l2_message_root_init_logs() {
                 Some(StorageLog {
                     kind: StorageLogKind::InitialWrite,
                     key: StorageKey::new(
+                        // Note, that it in the end we will compare those with the genesis logs that
+                        // have the `L2_MESSAGE_ROOT_ADDRESS` as the address
                         AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
                         *storage_key.key(),
                     ),
