@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use common::{
     git::{pull, submodule_update},
     logger,
@@ -14,7 +14,7 @@ use xshell::Shell;
 
 use crate::messages::{
     msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_GENERAL_CONFIG,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_GENERAL_CONFIG, MSG_INVALID_KEY_TYPE_ERR,
     MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
     MSG_ZKSYNC_UPDATED,
 };
@@ -185,23 +185,32 @@ fn update_chain(
 fn merge_yaml_internal(
     a: &mut serde_yaml::Value,
     b: serde_yaml::Value,
-    current_key: serde_yaml::Value,
+    current_key: String,
     diff: &mut ConfigDiff,
 ) -> anyhow::Result<()> {
     match (a, b) {
         (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
             for (key, value) in b {
+                let current_key = if let serde_yaml::Value::String(k) = &key {
+                    if current_key.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{}.{}", current_key, k)
+                    }
+                } else {
+                    bail!(MSG_INVALID_KEY_TYPE_ERR);
+                };
                 if a.contains_key(&key) {
-                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, key, diff)?;
+                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, current_key, diff)?;
                 } else {
                     a.insert(key.clone(), value.clone());
-                    diff.added_fields.insert(key, value);
+                    diff.added_fields.insert(current_key.into(), value);
                 }
             }
         }
         (a, b) => {
             if a != &b {
-                diff.value_diff.insert(current_key, b);
+                diff.value_diff.insert(current_key.into(), b);
             }
         }
     }
@@ -354,7 +363,7 @@ mod tests {
         assert_eq!(diff.value_diff.len(), 1);
         assert_eq!(
             diff.value_diff
-                .get::<serde_yaml::Value>("key4".into())
+                .get::<serde_yaml::Value>("key3.key4".into())
                 .unwrap(),
             b.get("key3").unwrap().get("key4").unwrap()
         );
@@ -385,7 +394,7 @@ mod tests {
         assert_eq!(diff.value_diff.len(), 1);
         assert_eq!(
             diff.value_diff
-                .get::<serde_yaml::Value>("key4".into())
+                .get::<serde_yaml::Value>("key3.key4".into())
                 .unwrap(),
             b.get("key3").unwrap().get("key4").unwrap()
         );
