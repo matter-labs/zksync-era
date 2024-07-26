@@ -7,8 +7,15 @@ import fs from 'fs';
 import { BytesLike } from '@ethersproject/bytes';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { BigNumberish } from 'ethers';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { runServerInBackground } from './utils';
+import path from 'path';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
+
 const L1_DEFAULT_UPGRADE_ABI = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
 );
@@ -33,7 +40,7 @@ const STATE_TRANSITON_MANAGER = new ethers.Interface(
     require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
 );
 
-let serverComponents = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+let serverComponents = ['api', 'tree', 'eth', 'state_keeper', 'commitment_generator', 'da_dispatcher'];
 
 const depositAmount = ethers.parseEther('0.001');
 
@@ -50,8 +57,18 @@ describe('Upgrade test', function () {
     let forceDeployBytecode: string;
     let logs: fs.WriteStream;
 
+    let ethProvider: string;
+
     before('Create test wallet', async () => {
-        tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+
+            ethProvider = secretsConfig.l1.l1_rpc_url;
+        } else {
+            ethProvider = process.env.CHAIN_ETH_NETWORK || 'localhost';
+        }
+
+        tester = await Tester.init(ethProvider);
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
@@ -77,9 +94,11 @@ describe('Upgrade test', function () {
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
-        utils.background({
-            command: `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=${serverComponents}`,
-            stdio: [null, logs, logs]
+        runServerInBackground({
+            components: serverComponents,
+            stdio: [null, logs, logs],
+            cwd: process.env.ZKSYNC_HOME!!,
+            useZkInception: fileConfig.loadFromFile
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -278,9 +297,11 @@ describe('Upgrade test', function () {
         await utils.sleep(10);
 
         // Run again.
-        utils.background({
-            command: `cd $ZKSYNC_HOME && zk f cargo run --bin zksync_server --release -- --components=${serverComponents} &> upgrade.log`,
-            stdio: [null, logs, logs]
+        runServerInBackground({
+            components: serverComponents,
+            stdio: [null, logs, logs],
+            cwd: process.env.ZKSYNC_HOME!!,
+            useZkInception: fileConfig.loadFromFile
         });
         await utils.sleep(10);
 
