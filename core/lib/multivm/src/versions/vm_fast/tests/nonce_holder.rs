@@ -1,16 +1,13 @@
-use zksync_types::{Execute, Nonce};
+use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
 
 use crate::{
     interface::{
         ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
         VmRevertReason,
     },
-    vm_fast::{
-        tests::{
-            tester::{Account, VmTesterBuilder},
-            utils::read_nonce_holder_tester,
-        },
-        transaction_data::TransactionData,
+    vm_fast::tests::{
+        tester::{Account, VmTesterBuilder},
+        utils::read_nonce_holder_tester,
     },
 };
 
@@ -60,21 +57,21 @@ fn test_nonce_holder() {
         // it will fail again and again. At the same time we have to keep the same storage, because we want to keep the nonce holder contract state.
         // The easiest way in terms of lifetimes is to reuse `vm_builder` to achieve it.
         vm.reset_state(true);
-        let mut transaction_data: TransactionData = account
-            .get_l2_tx_for_execute_with_nonce(
-                Execute {
-                    contract_address: account.address,
-                    calldata: vec![12],
-                    value: Default::default(),
-                    factory_deps: None,
-                },
-                None,
-                Nonce(nonce),
-            )
-            .into();
-
-        transaction_data.signature = vec![test_mode.into()];
-        vm.vm.push_raw_transaction(transaction_data, 0, 0, true);
+        let mut transaction = account.get_l2_tx_for_execute_with_nonce(
+            Execute {
+                contract_address: account.address,
+                calldata: vec![12],
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            None,
+            Nonce(nonce),
+        );
+        let ExecuteTransactionCommon::L2(tx_data) = &mut transaction.common_data else {
+            unreachable!();
+        };
+        tx_data.signature = vec![test_mode.into()];
+        vm.vm.push_transaction_inner(transaction, 0, true);
         let result = vm.vm.execute(VmExecutionMode::OneTx);
 
         if let Some(msg) = error_message {
@@ -86,14 +83,9 @@ fn test_nonce_holder() {
             let ExecutionResult::Halt { reason } = result.result else {
                 panic!("Expected revert, got {:?}", result.result);
             };
-            assert_eq!(
-                reason.to_string(),
-                expected_error.to_string(),
-                "{}",
-                comment
-            );
+            assert_eq!(reason.to_string(), expected_error.to_string(), "{comment}");
         } else {
-            assert!(!result.result.is_failed(), "{}", comment);
+            assert!(!result.result.is_failed(), "{comment}: {result:?}");
         }
     };
     // Test 1: trying to set value under non sequential nonce value.

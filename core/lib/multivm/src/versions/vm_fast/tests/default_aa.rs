@@ -8,13 +8,11 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_fast::{
-        tests::{
-            tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{get_balance, read_test_contract, verify_required_storage},
-        },
-        utils::fee::get_batch_base_fee,
+    vm_fast::tests::{
+        tester::{DeployContractsTx, TxType, VmTesterBuilder},
+        utils::{get_balance, read_test_contract, verify_required_storage},
     },
+    vm_latest::utils::fee::get_batch_base_fee,
 };
 
 #[test]
@@ -54,13 +52,17 @@ fn test_default_aa_interaction() {
     // The contract should be deployed successfully.
     let account_code_key = get_code_key(&address);
 
-    let expected_slots = vec![
+    let expected_slots = [
         (u256_to_h256(expected_nonce), account_nonce_key),
         (u256_to_h256(U256::from(1u32)), known_codes_key),
         (bytecode_hash, account_code_key),
     ];
 
-    verify_required_storage(&vm.vm.state, expected_slots);
+    verify_required_storage(
+        &expected_slots,
+        &mut vm.vm.world.storage,
+        vm.vm.inner.world_diff.get_storage_state(),
+    );
 
     let expected_fee = maximal_fee
         - U256::from(result.refunds.gas_refunded)
@@ -68,7 +70,8 @@ fn test_default_aa_interaction() {
     let operator_balance = get_balance(
         AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &vm.fee_account,
-        vm.vm.state.storage.storage.get_ptr(),
+        &mut vm.vm.world.storage,
+        vm.vm.inner.world_diff.get_storage_state(),
     );
 
     assert_eq!(

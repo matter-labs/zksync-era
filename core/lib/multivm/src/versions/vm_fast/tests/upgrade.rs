@@ -1,5 +1,4 @@
 use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
-use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 use zksync_types::{
     ethabi::{Contract, Token},
@@ -9,9 +8,8 @@ use zksync_types::{
     CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H160, H256,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use super::utils::{get_complex_upgrade_abi, read_test_contract};
 use crate::{
     interface::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
@@ -19,7 +17,10 @@ use crate::{
     },
     vm_fast::tests::{
         tester::VmTesterBuilder,
-        utils::{read_complex_upgrade, verify_required_storage},
+        utils::{
+            get_complex_upgrade_abi, read_complex_upgrade, read_test_contract,
+            verify_required_storage,
+        },
     },
 };
 
@@ -35,8 +36,7 @@ fn test_protocol_upgrade_is_first() {
         .build();
 
     let bytecode_hash = hash_bytecode(&read_test_contract());
-    vm.vm
-        .storage
+    vm.storage
         .borrow_mut()
         .set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
 
@@ -158,10 +158,14 @@ fn test_force_deploy_upgrade() {
         "The force upgrade was not successful"
     );
 
-    let expected_slots = vec![(bytecode_hash, get_code_key(&address_to_deploy))];
+    let expected_slots = [(bytecode_hash, get_code_key(&address_to_deploy))];
 
     // Verify that the bytecode has been set correctly
-    verify_required_storage(&vm.vm.state, expected_slots);
+    verify_required_storage(
+        &expected_slots,
+        &mut *vm.storage.borrow_mut(),
+        vm.vm.inner.world_diff.get_storage_state(),
+    );
 }
 
 /// Here we show how the work with the complex upgrader could be done
@@ -173,8 +177,6 @@ fn test_complex_upgrader() {
         .with_random_rich_accounts(1)
         .build();
 
-    let storage_view = vm.storage.clone();
-
     let bytecode_hash = hash_bytecode(&read_complex_upgrade());
     let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
 
@@ -183,28 +185,17 @@ fn test_complex_upgrader() {
     let upgrade_impl = H160::random();
     let account_code_key = get_code_key(&upgrade_impl);
 
-    storage_view
-        .borrow_mut()
-        .set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
-    storage_view.borrow_mut().set_value(
-        get_known_code_key(&msg_sender_test_hash),
-        u256_to_h256(1.into()),
-    );
-    storage_view
-        .borrow_mut()
-        .set_value(account_code_key, bytecode_hash);
-    drop(storage_view);
-
-    vm.vm.state.decommittment_processor.populate(vec![
-        (
-            h256_to_u256(bytecode_hash),
-            bytes_to_be_words(read_complex_upgrade()),
-        ),
-        (
-            h256_to_u256(msg_sender_test_hash),
-            bytes_to_be_words(read_msg_sender_test()),
-        ),
-    ]);
+    {
+        let mut storage = vm.storage.borrow_mut();
+        storage.set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
+        storage.set_value(
+            get_known_code_key(&msg_sender_test_hash),
+            u256_to_h256(1.into()),
+        );
+        storage.set_value(account_code_key, bytecode_hash);
+        storage.store_factory_dep(bytecode_hash, read_complex_upgrade());
+        storage.store_factory_dep(msg_sender_test_hash, read_msg_sender_test());
+    }
 
     let address_to_deploy1 = H160::random();
     let address_to_deploy2 = H160::random();
@@ -223,13 +214,17 @@ fn test_complex_upgrader() {
         "The force upgrade was not successful"
     );
 
-    let expected_slots = vec![
+    let expected_slots = [
         (bytecode_hash, get_code_key(&address_to_deploy1)),
         (bytecode_hash, get_code_key(&address_to_deploy2)),
     ];
 
     // Verify that the bytecode has been set correctly
-    verify_required_storage(&vm.vm.state, expected_slots);
+    verify_required_storage(
+        &expected_slots,
+        &mut *vm.storage.borrow_mut(),
+        vm.vm.inner.world_diff.get_storage_state(),
+    );
 }
 
 #[derive(Debug, Clone)]
@@ -272,7 +267,7 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
     let execute = Execute {
         contract_address: CONTRACT_DEPLOYER_ADDRESS,
         calldata,
-        factory_deps: None,
+        factory_deps: vec![],
         value: U256::zero(),
     };
 
@@ -322,7 +317,7 @@ fn get_complex_upgrade_tx(
     let execute = Execute {
         contract_address: COMPLEX_UPGRADER_ADDRESS,
         calldata: complex_upgrader_calldata,
-        factory_deps: None,
+        factory_deps: vec![],
         value: U256::zero(),
     };
 
