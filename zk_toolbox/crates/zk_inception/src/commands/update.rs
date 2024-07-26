@@ -82,38 +82,6 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn merge_yaml_internal(
-    a: &mut serde_yaml::Value,
-    b: serde_yaml::Value,
-    current_key: serde_yaml::Value,
-    diff: &mut ConfigDiff,
-) -> anyhow::Result<()> {
-    match (a, b) {
-        (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
-            for (key, value) in b {
-                if a.contains_key(&key) {
-                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, key, diff)?;
-                } else {
-                    a.insert(key.clone(), value.clone());
-                    diff.added_fields.insert(key, value);
-                }
-            }
-        }
-        (a, b) => {
-            if a != &b {
-                diff.value_diff.insert(current_key, b);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn merge_yaml(a: &mut serde_yaml::Value, b: serde_yaml::Value) -> anyhow::Result<ConfigDiff> {
-    let mut diff = ConfigDiff::default();
-    merge_yaml_internal(a, b, "".into(), &mut diff)?;
-    Ok(diff)
-}
-
 fn save_updated_config(
     shell: &Shell,
     config: serde_yaml::Value,
@@ -212,4 +180,183 @@ fn update_chain(
     )?;
 
     Ok(())
+}
+
+fn merge_yaml_internal(
+    a: &mut serde_yaml::Value,
+    b: serde_yaml::Value,
+    current_key: serde_yaml::Value,
+    diff: &mut ConfigDiff,
+) -> anyhow::Result<()> {
+    match (a, b) {
+        (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
+            for (key, value) in b {
+                if a.contains_key(&key) {
+                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, key, diff)?;
+                } else {
+                    a.insert(key.clone(), value.clone());
+                    diff.added_fields.insert(key, value);
+                }
+            }
+        }
+        (a, b) => {
+            if a != &b {
+                diff.value_diff.insert(current_key, b);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn merge_yaml(a: &mut serde_yaml::Value, b: serde_yaml::Value) -> anyhow::Result<ConfigDiff> {
+    let mut diff = ConfigDiff::default();
+    merge_yaml_internal(a, b, "".into(), &mut diff)?;
+    Ok(diff)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_merge_yaml_both_are_equal_returns_no_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b).unwrap();
+        assert!(diff.value_diff.is_empty());
+        assert!(diff.added_fields.is_empty());
+    }
+
+    #[test]
+    fn test_merge_yaml_b_has_extra_field_returns_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        assert!(diff.value_diff.is_empty());
+        assert_eq!(diff.added_fields.len(), 1);
+        assert_eq!(
+            diff.added_fields.get::<String>("key5".into()).unwrap(),
+            b.clone().get("key5").unwrap()
+        );
+        assert_eq!(a.get("key5"), b.get("key5"));
+    }
+
+    #[test]
+    fn test_merge_yaml_a_has_extra_field_no_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b).unwrap();
+        assert!(diff.value_diff.is_empty());
+        assert!(diff.added_fields.is_empty());
+    }
+
+    #[test]
+    fn test_merge_yaml_a_has_extra_field_and_b_has_extra_field_returns_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key6: value6
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        assert_eq!(diff.value_diff.len(), 0);
+        assert_eq!(diff.added_fields.len(), 1);
+        assert_eq!(
+            diff.added_fields.get::<String>("key6".into()).unwrap(),
+            b.clone().get("key6").unwrap()
+        );
+        assert_eq!(a.get("key6"), b.get("key6"));
+    }
+
+    #[test]
+    fn test_merge_yaml_a_has_different_value_returns_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        assert_eq!(diff.value_diff.len(), 1);
+        assert_eq!(
+            diff.value_diff
+                .get::<serde_yaml::Value>("key4".into())
+                .unwrap(),
+            b.get("key3").unwrap().get("key4").unwrap()
+        );
+    }
 }
