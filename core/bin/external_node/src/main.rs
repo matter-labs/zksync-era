@@ -824,6 +824,8 @@ async fn main() -> anyhow::Result<()> {
     if !opt.enable_consensus {
         config.consensus = None;
     }
+    // Note: when old code will be removed, observability must be build within
+    // tokio context.
     let _guard = config.observability.build_observability()?;
 
     // Build L1 and L2 clients.
@@ -856,7 +858,7 @@ async fn main() -> anyhow::Result<()> {
         // We run the node from a different thread, since the current thread is in tokio context.
         std::thread::spawn(move || {
             let node =
-                ExternalNodeBuilder::new(config).build(opt.components.0.into_iter().collect())?;
+                ExternalNodeBuilder::new(config)?.build(opt.components.0.into_iter().collect())?;
             node.run()?;
             anyhow::Ok(())
         })

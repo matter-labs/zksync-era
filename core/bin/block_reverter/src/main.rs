@@ -106,21 +106,19 @@ async fn main() -> anyhow::Result<()> {
     let opts = Cli::parse();
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
 
-    let mut builder = zksync_vlog::ObservabilityBuilder::new()
-        .with_log_format(log_format)
-        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
+    let logs = zksync_vlog::Logs::try_from(observability_config.clone())
+        .context("logs")?
+        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.;
+    let sentry: Option<zksync_vlog::Sentry> =
+        TryFrom::try_from(observability_config.clone()).context("sentry")?;
+    let opentelemetry: Option<zksync_vlog::OpenTelemetry> =
+        TryFrom::try_from(observability_config.clone()).context("opentelemetry")?;
+    let _guard = zksync_vlog::ObservabilityBuilder::new()
+        .with_logs(Some(logs))
+        .with_sentry(sentry)
+        .with_opentelemetry(opentelemetry)
+        .build();
 
     let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
         let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;

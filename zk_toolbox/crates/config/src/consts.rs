@@ -1,5 +1,3 @@
-use types::ChainId;
-
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
@@ -35,7 +33,7 @@ pub(crate) const ECOSYSTEM_PATH: &str = "etc/ecosystem";
 /// Path to l1 contracts foundry folder inside zksync-era
 pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
 
-pub(crate) const ERA_CHAIN_ID: ChainId = ChainId(270);
+pub(crate) const ERA_CHAIN_ID: u32 = 270;
 
 pub(crate) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(crate) const BASE_PATH: &str = "m/44'/60'/0'";

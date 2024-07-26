@@ -54,18 +54,7 @@ impl Cli {
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
+    let _observability_guard = observability_config.install()?;
 
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     Cli::parse().run(&db_config)

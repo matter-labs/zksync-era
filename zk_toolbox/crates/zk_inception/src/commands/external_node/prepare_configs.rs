@@ -1,12 +1,14 @@
-use std::path::Path;
+use std::{path::Path, str::FromStr};
 
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig, traits::SaveConfigWithBasePath, ChainConfig, DatabaseSecrets,
-    EcosystemConfig, L1Secret, SecretsConfig,
+    external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
+    update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use xshell::Shell;
+use zksync_basic_types::url::SensitiveUrl;
+use zksync_config::configs::{DatabaseSecrets, L1Secrets};
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
@@ -48,30 +50,39 @@ fn prepare_configs(
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
-        l1_batch_commit_data_generator_mode: genesis
-            .l1_batch_commit_data_generator_mode
-            .unwrap_or_default(),
-        main_node_url: general.api.web3_json_rpc.http_url.clone(),
+        l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
+        main_node_url: SensitiveUrl::from_str(
+            &general
+                .api_config
+                .as_ref()
+                .context("api_config")?
+                .web3_json_rpc
+                .http_url,
+        )?,
         main_node_rate_limit_rps: None,
     };
     let mut general_en = general.clone();
-    general_en.update_ports(&general.ports_config().next_empty_ports_config())?;
+
+    update_ports(
+        &mut general_en,
+        &ports_config(&general)
+            .context("da")?
+            .next_empty_ports_config(),
+    )?;
     let secrets = SecretsConfig {
-        database: DatabaseSecrets {
-            server_url: args.db.full_url(),
+        consensus: None,
+        database: Some(DatabaseSecrets {
+            server_url: Some(args.db.full_url().into()),
             prover_url: None,
-            other: Default::default(),
-        },
-        l1: L1Secret {
-            l1_rpc_url: args.l1_rpc_url.clone(),
-            other: Default::default(),
-        },
-        other: Default::default(),
+            server_replica_url: None,
+        }),
+        l1: Some(L1Secrets {
+            l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
+        }),
     };
     secrets.save_with_base_path(shell, en_configs_path)?;
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
-    general_en.set_rocks_db_config(dirs)?;
-
+    set_rocks_db_config(&mut general_en, dirs)?;
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
 

@@ -100,48 +100,10 @@ fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            let mut configs =
-                decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                    .context("failed decoding general YAML config")?;
-            // Fallback to the consensus_config.yaml file.
-            // TODO: remove once we move the consensus config to general config on stage
-            if configs.consensus_config.is_none() {
-                configs.consensus_config =
-                    config::read_consensus_config().context("read_consensus_config()")?;
-            }
-            configs
+            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+                .context("failed decoding general YAML config")?
         }
     };
-
-    let observability_config = configs
-        .observability
-        .clone()
-        .context("observability config")?;
-
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(log_directives) = observability_config.log_directives {
-        builder = builder.with_log_directives(log_directives);
-    }
-
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
@@ -186,8 +148,18 @@ fn main() -> anyhow::Result<()> {
                 .context("failed decoding genesis YAML config")?
         }
     };
+    let observability_config = configs
+        .observability
+        .clone()
+        .context("observability config")?;
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets);
+    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+
+    let _observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = node.runtime_handle().enter();
+        observability_config.install()?
+    };
 
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.

@@ -12,7 +12,7 @@ use ethers::{
     utils::{hex, hex::ToHex},
 };
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum::Display;
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -62,16 +62,24 @@ impl ForgeScript {
         if self.args.resume {
             let mut args = args_no_resume.clone();
             args.push(ForgeScriptArg::Resume.to_string());
-            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}")).run();
+            let res = Cmd::new(cmd!(shell, "forge script {script_path} --legacy {args...}"))
+                .with_piped_std_err()
+                .run();
             if !res.resume_not_successful_because_has_not_began() {
                 return Ok(res?);
             }
         }
-        let res = Cmd::new(cmd!(
+        let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
-        ))
-        .run();
+        ));
+
+        if self.args.resume {
+            cmd = cmd.with_piped_std_err();
+        }
+
+        let res = cmd.run();
+        // We won't catch this error if resume is not set.
         if res.proposal_error() {
             return Ok(());
         }

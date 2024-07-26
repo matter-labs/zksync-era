@@ -1,6 +1,4 @@
-# Deeper Overview
-
-[Back to ToC](../../../README.md)
+# Proof System Deeper Overview
 
 The purpose of this section is to explain our new proof system from an engineering standpoint. We will examine the code
 examples and how the libraries communicate.
