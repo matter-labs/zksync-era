@@ -105,9 +105,7 @@ impl ChainConfig {
     }
 
     pub fn path_to_external_node_config(&self) -> PathBuf {
-        self.external_node_config_path
-            .clone()
-            .unwrap_or_else(|| self.configs.join(EN_CONFIG_FILE))
+        self.configs.join(EN_CONFIG_FILE)
     }
 
     pub fn path_to_genesis_config(&self) -> PathBuf {
