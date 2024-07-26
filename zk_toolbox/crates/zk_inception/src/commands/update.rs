@@ -359,4 +359,40 @@ mod tests {
             b.get("key3").unwrap().get("key4").unwrap()
         );
     }
+
+    #[test]
+    fn test_merge_yaml_a_has_different_value_and_b_has_extra_field_returns_diff() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            key5: value5
+            "#,
+        )
+        .unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        assert_eq!(diff.value_diff.len(), 1);
+        assert_eq!(
+            diff.value_diff
+                .get::<serde_yaml::Value>("key4".into())
+                .unwrap(),
+            b.get("key3").unwrap().get("key4").unwrap()
+        );
+        assert_eq!(diff.added_fields.len(), 1);
+        assert_eq!(
+            diff.added_fields.get::<String>("key5".into()).unwrap(),
+            b.get("key5").unwrap()
+        );
+    }
 }
