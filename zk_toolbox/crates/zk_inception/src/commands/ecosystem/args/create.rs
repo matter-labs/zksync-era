@@ -5,8 +5,7 @@ use clap::Parser;
 use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 use types::{L1Network, WalletCreation};
 use xshell::{cmd, Shell};
 
@@ -32,7 +31,9 @@ pub struct EcosystemCreateArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub chain: ChainCreateArgs,
-    #[clap(long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(
+        long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
+    )]
     pub start_containers: Option<bool>,
 }
 

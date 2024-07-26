@@ -1,9 +1,9 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::FileConfig;
+use crate::traits::ZkToolboxConfig;
 
-impl FileConfig for InitializeBridgeOutput {}
+impl ZkToolboxConfig for InitializeBridgeOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {

@@ -8,7 +8,7 @@ use crate::{
         initialize_bridges::output::InitializeBridgeOutput,
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -89,6 +89,8 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
+impl ZkToolboxConfig for ContractsConfig {}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
@@ -98,7 +100,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
 }
 
-impl FileConfig for EcosystemContracts {}
+impl ZkToolboxConfig for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

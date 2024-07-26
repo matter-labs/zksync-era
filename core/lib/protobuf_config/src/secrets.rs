@@ -41,15 +41,12 @@ impl ProtoRepr for proto::DatabaseSecrets {
             .map(str::parse::<SensitiveUrl>)
             .transpose()
             .context("master_url")?;
-        let mut server_replica_url = self
+        let server_replica_url = self
             .server_replica_url
             .as_deref()
             .map(str::parse::<SensitiveUrl>)
             .transpose()
             .context("replica_url")?;
-        if server_replica_url.is_none() {
-            server_replica_url.clone_from(&server_url)
-        }
         let prover_url = self
             .prover_url
             .as_deref()

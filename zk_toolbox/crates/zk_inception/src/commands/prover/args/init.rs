@@ -1,8 +1,7 @@
 use clap::{Parser, ValueEnum};
 use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 use xshell::Shell;
 
 use super::init_bellman_cuda::InitBellmanCudaArgs;
@@ -55,7 +54,7 @@ pub struct ProverInitArgs {
     pub setup_key_config: SetupKeyConfigTmp,
 }
 
-#[derive(Debug, Clone, ValueEnum, EnumIter, strum_macros::Display, PartialEq, Eq)]
+#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
 enum ProofStoreConfig {
     Local,

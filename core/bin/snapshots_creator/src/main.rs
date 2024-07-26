@@ -70,21 +70,9 @@ async fn main() -> anyhow::Result<()> {
     let observability_config = general_config
         .observability
         .context("observability config")?;
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
+    let _observability_guard = observability_config.install()?;
     let prometheus_exporter_task =
         maybe_enable_prometheus_metrics(general_config.prometheus_config, stop_receiver).await?;
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
     tracing::info!("Starting snapshots creator");
 
     let creator_config = general_config

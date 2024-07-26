@@ -9,6 +9,7 @@ pub use manipulations::*;
 pub use secrets::*;
 pub use wallet_creation::*;
 pub use wallets::*;
+pub use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 mod chain;
 mod consts;

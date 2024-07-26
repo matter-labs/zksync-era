@@ -27,7 +27,7 @@ impl DatabaseConfig {
     }
 
     /// Create a new `Db` instance from a URL.
-    pub fn from_url(url: Url) -> anyhow::Result<Self> {
+    pub fn from_url(url: &Url) -> anyhow::Result<Self> {
         let name = url
             .path_segments()
             .ok_or(anyhow!("Failed to parse database name from URL"))?
