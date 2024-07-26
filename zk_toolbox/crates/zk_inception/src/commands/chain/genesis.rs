@@ -16,7 +16,8 @@ use config::{
 };
 use types::ProverMode;
 use xshell::Shell;
-use zksync_config::configs::eth_sender::ProofSendingMode;
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
+use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
@@ -68,6 +69,18 @@ pub async fn genesis(
             .context("sender")?
             .proof_sending_mode = ProofSendingMode::OnlyRealProofs;
     }
+
+    if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+        general
+            .eth
+            .as_mut()
+            .context("eth")?
+            .sender
+            .as_mut()
+            .context("sender")?
+            .pubdata_sending_mode = PubdataSendingMode::Custom
+    }
+
     general.save_with_base_path(shell, &config.configs)?;
 
     let mut secrets = config.get_secrets_config()?;
