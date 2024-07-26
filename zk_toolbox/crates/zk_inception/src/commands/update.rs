@@ -39,10 +39,10 @@ impl ConfigDiff {
 
         if is_warning {
             logger::warn(msg);
-            logger::warn(&logger::object_to_string(&self.new_fields));
+            logger::warn(logger::object_to_string(&self.new_fields));
         } else {
             logger::info(msg);
-            logger::info(&logger::object_to_string(&self.new_fields));
+            logger::info(logger::object_to_string(&self.new_fields));
         }
     }
 }
