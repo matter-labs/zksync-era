@@ -1,16 +1,17 @@
+name: "testnet-node"
 version: "3.2"
 services:
   prometheus:
     image: prom/prometheus:v2.35.0
     volumes:
-      - testnet-prometheus-data:/prometheus
+      - prometheus-data:/prometheus
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     expose:
       - 9090
   grafana:
     image: grafana/grafana:9.3.6
     volumes:
-      - testnet-grafana-data:/var/lib/grafana
+      - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
     environment:
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
@@ -37,7 +38,7 @@ services:
     expose:
       - 5430
     volumes:
-      - testnet-postgres:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql/data
     healthcheck:
       interval: 1s
       timeout: 3s
@@ -53,11 +54,12 @@ services:
   # The secrets are generated iff the secrets file doesn't already exist.
   generate-secrets:
     image: "matterlabs/external-node:2.0-v24.12.0"
-    entrypoint: ["sh","/configs/gen.sh","/configs/testnet_consensus_secrets.yaml"]
+    entrypoint: ["/configs/generate_secrets.sh","/configs/testnet_consensus_secrets.yaml"]
     volumes:
-      - ./configs:/configs/
+      - ./configs:/configs
   external-node:
     image: "matterlabs/external-node:2.0-v24.12.0"
+    entrypoint: ["/usr/bin/entrypoint.sh","--enable-consensus"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,7 +71,8 @@ services:
       - "127.0.0.1:3061:3061"
       - "127.0.0.1:3081:3081"
     volumes:
-      - testnet-rocksdb:/db
+      - rocksdb:/db
+      - ./configs:/configs
     expose:
       - 3322
     environment:
@@ -97,7 +100,7 @@ services:
       EN_CONSENSUS_SECRETS_PATH: "/configs/testnet_consensus_secrets.yaml"
 
 volumes:
-  testnet-postgres: {}
-  testnet-rocksdb: {}
-  testnet-prometheus-data: {}
-  testnet-grafana-data: {}
+  postgres: {}
+  rocksdb: {}
+  prometheus-data: {}
+  grafana-data: {}
