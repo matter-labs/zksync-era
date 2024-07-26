@@ -1,6 +1,6 @@
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumIter;
+use strum::EnumIter;
 
 #[derive(
     Clone,
@@ -15,7 +15,7 @@ use strum_macros::EnumIter;
     Deserialize,
     ValueEnum,
     EnumIter,
-    strum_macros::Display,
+    strum::Display,
 )]
 pub enum WalletCreation {
     /// Load wallets from localhost mnemonic, they are funded for localhost env

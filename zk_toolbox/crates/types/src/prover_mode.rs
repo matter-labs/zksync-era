@@ -1,21 +1,11 @@
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumIter;
+use strum::EnumIter;
 
 #[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    Clone,
-    Copy,
-    ValueEnum,
-    EnumIter,
-    strum_macros::Display,
-    PartialEq,
-    Eq,
+    Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
 pub enum ProverMode {
     NoProofs,
     Gpu,
-    Cpu,
 }

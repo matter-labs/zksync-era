@@ -92,15 +92,19 @@ impl MainNodeBuilder {
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
         secrets: Secrets,
-    ) -> Self {
-        Self {
-            node: ZkStackServiceBuilder::new(),
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             configs,
             wallets,
             genesis_config,
             contracts_config,
             secrets,
-        }
+        })
+    }
+
+    pub fn runtime_handle(&self) -> tokio::runtime::Handle {
+        self.node.runtime_handle()
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -589,7 +593,7 @@ impl MainNodeBuilder {
             .add_query_eth_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
-        Ok(self.node.build()?)
+        Ok(self.node.build())
     }
 
     /// Builds the node with the specified components.
@@ -701,7 +705,7 @@ impl MainNodeBuilder {
                 }
             }
         }
-        Ok(self.node.build()?)
+        Ok(self.node.build())
     }
 }
 
