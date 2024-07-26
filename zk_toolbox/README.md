@@ -118,7 +118,7 @@ Make sure you have installed the following requirements:
 - [cmake](https://apt.kitware.com/)
 - [nvcc (CUDA toolkit)](https://developer.nvidia.com/cuda-downloads)
 
-Checkout [prover docs](https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_fri) for more info.
+Checkout [prover docs](https://github.com/matter-labs/zksync-era/blob/main/prover/docs/02_setup.md) for more info.
 
 #### Running the prover
 
