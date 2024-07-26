@@ -87,3 +87,9 @@ pub(crate) fn load_precompiles_contract() -> Contract {
         "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
     )
 }
+
+pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str =
+        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
