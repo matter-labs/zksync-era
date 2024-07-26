@@ -65,6 +65,17 @@ fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     ))
 }
 
+pub fn get_immutable_key(address: &Address, index: H256) -> H256 {
+    let padded_address = address_to_h256(address);
+
+    // keccak256(uint256(9) . keccak256(uint256(4) . uint256(1)))
+
+    let address_position =
+        keccak256(&[padded_address.as_bytes(), H256::zero().as_bytes()].concat());
+
+    H256(keccak256(&[index.as_bytes(), &address_position].concat()))
+}
+
 pub fn get_nonce_key(account: &Address) -> StorageKey {
     let nonce_manager = AccountTreeId::new(NONCE_HOLDER_ADDRESS);
 
@@ -92,6 +103,11 @@ pub fn get_system_context_key(key: H256) -> StorageKey {
 fn get_message_root_log_key(key: H256) -> StorageKey {
     let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
     StorageKey::new(message_root, key)
+}
+
+fn get_immutable_simulator_log_key(key: H256) -> StorageKey {
+    let immutable_simulator = AccountTreeId::new(IMMUTABLE_SIMULATOR_STORAGE_ADDRESS);
+    StorageKey::new(immutable_simulator, key)
 }
 
 pub fn get_is_account_key(account: &Address) -> StorageKey {
@@ -162,6 +178,13 @@ pub fn get_l2_message_root_init_logs() -> Vec<StorageLog> {
             "46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21",
         ),
     ];
+    let immutable_simulator_slot = StorageLog::new_write_log(
+        get_immutable_simulator_log_key(
+            H256::from_str("cb5ca2f778293159761b941dc7b8f7fd374e3632c39b35a0fd4b1aa20ed4a091")
+                .unwrap(),
+        ),
+        H256::from_str("0000000000000000000000000000000000000000000000000000000000010002").unwrap(),
+    );
 
     slots_values
         .into_iter()
@@ -171,6 +194,7 @@ pub fn get_l2_message_root_init_logs() -> Vec<StorageLog> {
 
             StorageLog::new_write_log(get_message_root_log_key(key), value)
         })
+        .chain(std::iter::once(immutable_simulator_slot))
         .collect()
 }
 
