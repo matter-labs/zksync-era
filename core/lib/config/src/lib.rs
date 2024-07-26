@@ -8,3 +8,6 @@ pub use crate::configs::{
 
 pub mod configs;
 pub mod testonly;
+
+#[cfg(feature = "observability_ext")]
+mod observability_ext;

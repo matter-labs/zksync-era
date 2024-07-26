@@ -22,10 +22,13 @@ tracing-subscriber = { workspace = true, features = [
     "json",
 ] }
 tracing-opentelemetry.workspace = true
+time.workspace = true
+thiserror.workspace = true
 sentry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-opentelemetry = { workspace = true, features = ["rt-tokio", "trace"] }
+opentelemetry = { workspace = true, features = ["trace"] }
+opentelemetry_sdk = { workspace = true, features = [ "rt-tokio" ] }
 opentelemetry-otlp = { workspace = true, features = [
     "http-proto",
     "reqwest-client",
@@ -33,3 +36,4 @@ opentelemetry-otlp = { workspace = true, features = [
 opentelemetry-semantic-conventions.workspace = true
 vise.workspace = true
 vise-exporter.workspace = true
+url.workspace = true
