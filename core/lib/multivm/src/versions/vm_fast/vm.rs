@@ -46,8 +46,9 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
-            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+            get_used_bootloader_memory_bytes, get_vm_hook_params_start_position,
+            get_vm_hook_position, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
+            VM_HOOK_PARAMS_COUNT,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
         L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
@@ -457,6 +458,7 @@ impl<S: ReadStorage> Vm<S> {
         inner.state.current_frame.sp = 0;
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION));
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -555,20 +557,20 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             }
         };
 
-        // FIXME: are statistics rolled back on halt as well?
         let pubdata_after = self.inner.world_diff.pubdata();
         VmExecutionResultAndLogs {
             result,
             logs,
+            // FIXME (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
-                contracts_used: 0,         // TODO
-                cycles_used: 0,            // TODO
-                gas_used: 0,               // TODO
-                gas_remaining: 0,          // TODO
-                computational_gas_used: 0, // TODO
-                total_log_queries: 0,      // TODO
+                contracts_used: 0,
+                cycles_used: 0,
+                gas_used: 0,
+                gas_remaining: 0,
+                computational_gas_used: 0,
+                total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: Default::default(), // TODO
+                circuit_statistic: Default::default(),
             },
             refunds,
         }

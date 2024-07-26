@@ -4,7 +4,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
 use zksync_types::{
-    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, H256, U256,
+    get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -84,7 +84,10 @@ fn test_code_oracle() {
 
     vm.vm.push_transaction(tx1);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "Transaction wasn't successful");
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful: {result:#?}"
+    );
 
     // Now, we ask for the same bytecode. We use to partially check whether the memory page with
     // the decommitted bytecode gets erased (it shouldn't).
@@ -104,17 +107,21 @@ fn test_code_oracle() {
     );
     vm.vm.push_transaction(tx2);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "Transaction wasn't successful");
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful: {result:#?}"
+    );
 }
 
 fn find_code_oracle_cost_log(
     precompiles_contract_address: Address,
     logs: &[StorageLogWithPreviousValue],
 ) -> &StorageLogWithPreviousValue {
-    let log = logs.iter().find(|log| {
-        *log.log.key.address() == precompiles_contract_address && *log.log.key.key() == H256::zero()
-    });
-    log.expect("no code oracle cost log")
+    logs.iter()
+        .find(|log| {
+            *log.log.key.address() == precompiles_contract_address && log.log.key.key().is_zero()
+        })
+        .expect("no code oracle cost log")
 }
 
 #[test]
