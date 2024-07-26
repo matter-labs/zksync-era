@@ -6,8 +6,9 @@ use std::{
 use common::logger;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
-use types::{ChainId, L1Network, ProverMode, WalletCreation};
+use types::{L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
@@ -17,7 +18,7 @@ use crate::{
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -32,7 +33,7 @@ struct EcosystemConfigInternal {
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
 }
@@ -48,7 +49,7 @@ pub struct EcosystemConfig {
     pub chains: PathBuf,
     pub config: PathBuf,
     pub default_chain: String,
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
@@ -89,6 +90,10 @@ impl ReadConfig for EcosystemConfig {
 impl FileConfigWithDefaultName for EcosystemConfig {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
+
+impl ZkToolboxConfig for EcosystemConfigInternal {}
+
+impl ZkToolboxConfig for EcosystemConfig {}
 
 impl EcosystemConfig {
     fn get_shell(&self) -> &Shell {
@@ -245,8 +250,8 @@ pub enum EcosystemConfigFromFileError {
     InvalidConfig { source: anyhow::Error },
 }
 
-pub fn get_default_era_chain_id() -> ChainId {
-    ERA_CHAIN_ID
+pub fn get_default_era_chain_id() -> L2ChainId {
+    L2ChainId::from(ERA_CHAIN_ID)
 }
 
 // Find file in all parents repository and return necessary path or an empty error if nothing has been found

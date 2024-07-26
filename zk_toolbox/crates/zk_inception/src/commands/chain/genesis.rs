@@ -9,12 +9,14 @@ use common::{
     spinner::Spinner,
 };
 use config::{
+    set_databases, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
     WalletsConfig,
 };
 use types::ProverMode;
 use xshell::Shell;
+use zksync_config::configs::eth_sender::ProofSendingMode;
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
@@ -55,14 +57,21 @@ pub async fn genesis(
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let mut general = config.get_general_config()?;
-    general.set_rocks_db_config(rocks_db)?;
+    set_rocks_db_config(&mut general, rocks_db)?;
     if config.prover_version != ProverMode::NoProofs {
-        general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
+        general
+            .eth
+            .as_mut()
+            .context("eth")?
+            .sender
+            .as_mut()
+            .context("sender")?
+            .proof_sending_mode = ProofSendingMode::OnlyRealProofs;
     }
     general.save_with_base_path(shell, &config.configs)?;
 
     let mut secrets = config.get_secrets_config()?;
-    secrets.set_databases(&args.server_db, &args.prover_db);
+    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
     secrets.save_with_base_path(shell, &config.configs)?;
 
     logger::note(

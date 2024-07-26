@@ -5,8 +5,8 @@ use config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
     EcosystemConfig,
 };
-use types::ChainId;
 use xshell::Shell;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
@@ -62,7 +62,7 @@ pub(crate) fn create_chain_inner(
     let chain_config = ChainConfig {
         id: chain_id,
         name: default_chain_name.clone(),
-        chain_id: ChainId::from(args.chain_id),
+        chain_id: L2ChainId::from(args.chain_id),
         prover_version: args.prover_version,
         l1_network: ecosystem_config.l1_network,
         link_to_code: ecosystem_config.link_to_code.clone(),
