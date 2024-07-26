@@ -1,9 +1,10 @@
 use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitDataGeneratorMode};
+use types::L1BatchCommitmentMode;
+use zksync_basic_types::L2ChainId;
 
-use crate::{traits::FileConfig, ChainConfig, ContractsConfig};
+use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {
@@ -14,6 +15,7 @@ struct Bridgehub {
 struct StateTransition {
     state_transition_proxy_addr: Address,
 }
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct DeployedAddresses {
     state_transition: StateTransition,
@@ -36,7 +38,7 @@ pub struct RegisterChainL1Config {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChainL1Config {
-    pub chain_chain_id: ChainId,
+    pub chain_chain_id: L2ChainId,
     pub base_token_addr: Address,
     pub bridgehub_create_new_chain_salt: u64,
     pub validium_mode: bool,
@@ -48,7 +50,7 @@ pub struct ChainL1Config {
     pub governance_min_delay: u64,
 }
 
-impl FileConfig for RegisterChainL1Config {}
+impl ZkToolboxConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {
@@ -80,7 +82,7 @@ impl RegisterChainL1Config {
                 // TODO verify
                 bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
                 validium_mode: chain_config.l1_batch_commit_data_generator_mode
-                    == L1BatchCommitDataGeneratorMode::Validium,
+                    == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
             },

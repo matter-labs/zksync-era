@@ -19,10 +19,12 @@ rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 thiserror.workspace = true
 types.workspace = true
 url.workspace = true
 xshell.workspace = true
-zksync_config.workspace = true
+
 zksync_protobuf_config.workspace = true
+zksync_protobuf.workspace = true
+zksync_config.workspace = true
+zksync_basic_types.workspace = true

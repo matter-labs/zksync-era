@@ -13,6 +13,7 @@ categories.workspace = true
 vise.workspace = true
 zksync_types.workspace = true
 zksync_prover_dal.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_env_config.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
