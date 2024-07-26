@@ -62,16 +62,13 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
                 }
             }
-            ExecutionOutput::Panic => {
-                // println!("ExecutionOutput::Panic");
-                ExecutionResult::Halt {
-                    reason: if self.inner.state.gas_left().unwrap() == 0 {
-                        Halt::BootloaderOutOfGas
-                    } else {
-                        Halt::VMPanic
-                    },
-                }
-            }
+            ExecutionOutput::Panic => ExecutionResult::Halt {
+                reason: if self.inner.state.gas_left().unwrap() == 0 {
+                    Halt::BootloaderOutOfGas
+                } else {
+                    Halt::VMPanic
+                },
+            },
         };
         (result, final_vm)
     }
@@ -130,7 +127,8 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
 
         let world_storage = World::new(storage.clone(), pre_contract_storage);
         let vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
-        Self {
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+        let mut mv = Self {
             inner: vm,
             suspended_at: 0,
             gas_for_account_validation: system_env
@@ -146,7 +144,10 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             batch_env,
             system_env,
             snapshots: Vec::new(),
-        }
+        };
+
+        mv.write_to_bootloader_heap(bootloader_memory);
+        mv
     }
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -217,15 +218,15 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
-        todo!()
+        self.bootloader_state.bootloader_memory()
     }
 
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        todo!()
+        self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        todo!()
+        self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
