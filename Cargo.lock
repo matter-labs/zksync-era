@@ -8936,6 +8936,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_dal",
  "zksync_health_check",
