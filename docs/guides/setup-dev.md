@@ -43,7 +43,7 @@ yarn set version 1.22.19
 # For running unit tests
 cargo install cargo-nextest
 # SQL tools
-cargo install sqlx-cli --version 0.7.4
+cargo install sqlx-cli --version 0.8.0
 
 # Foundry
 curl -L https://foundry.paradigm.xyz | bash
@@ -217,7 +217,7 @@ SQLx is a Rust library we use to interact with Postgres, and its CLI is used to 
 features of the library.
 
 ```bash
-cargo install --locked sqlx-cli --version 0.7.4
+cargo install --locked sqlx-cli --version 0.8.0
 ```
 
 ## Easier method using `nix`
