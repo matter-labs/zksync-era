@@ -1,4 +1,5 @@
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
+use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
     BasicWitnessInputProducer, BasicWitnessInputProducerIo, ConcurrentOutputHandlerFactoryTask,
@@ -18,7 +19,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerLayer {
-    basic_witness_input_producer_config: BasicWitnessInputProducerConfig,
+    config: BasicWitnessInputProducerConfig,
     zksync_network_id: L2ChainId,
 }
 
@@ -28,7 +29,7 @@ impl BasicWitnessInputProducerLayer {
         zksync_network_id: L2ChainId,
     ) -> Self {
         Self {
-            basic_witness_input_producer_config,
+            config: basic_witness_input_producer_config,
             zksync_network_id,
         }
     }
@@ -68,25 +69,29 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
             object_store,
         } = input;
 
+        // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
+        // catch up cache.
+        //
+        // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
+        // to DB for querying last processed batch and last ready to be loaded batch.
+        //
+        // `window_size` connections for `BasicWitnessInputProducer`
+        // as there can be multiple output handlers holding multi-second connections to process
+        // BWIP data.
+        let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
+
+        // We don't get the executor from the context because it would contain state keeper-specific settings.
+        let mut batch_executor = Box::new(MainBatchExecutor::new(false, false));
+        batch_executor.set_fast_vm_mode(self.config.experimental_vm.fast_vm_mode);
+
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
-            // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
-            // catch up cache.
-            //
-            // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
-            // to DB for querying last processed batch and last ready to be loaded batch.
-            //
-            // `window_size` connections for `BasicWitnessInputProducer`
-            // as there can be multiple output handlers holding multi-second connections to process
-            // BWIP data.
-            master_pool
-                .get_custom(self.basic_witness_input_producer_config.window_size + 2)
-                .await?,
+            connection_pool,
             object_store.0,
-            self.basic_witness_input_producer_config.db_path,
+            batch_executor,
+            self.config.db_path,
             self.zksync_network_id,
-            self.basic_witness_input_producer_config
-                .first_processed_batch,
-            self.basic_witness_input_producer_config.window_size,
+            self.config.first_processed_batch,
+            self.config.window_size,
         )
         .await?;
 
