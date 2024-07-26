@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import { getConfigPath } from 'utils/build/file-configs';
 
 export function setSnapshotRecovery(pathToHome: string, fileConfig: any, value: boolean) {
-    const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+    const generalConfigPath = getConfigPath({
+        pathToHome,
+        chain: fileConfig.chain,
+        configsFolder: 'configs/external_node',
+        config: 'general.yaml'
+    });
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
     // NOTE weak approach. It assumes the enabled property to be the first  within snapshot_recovery
     const regex = /(\bsnapshot_recovery:\s*\n\s*enabled:\s*)\w+/;
@@ -28,7 +33,12 @@ export function setRemovalDelaySec(pathToHome: string, fileConfig: any, value: n
 }
 
 function setPropertyInGeneralConfig(pathToHome: string, fileConfig: any, property: string, value: number) {
-    const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+    const generalConfigPath = getConfigPath({
+        pathToHome,
+        chain: fileConfig.chain,
+        configsFolder: 'configs/external_node',
+        config: 'general.yaml'
+    });
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
     const regex = new RegExp(`${property}:\\s*\\d+`, 'g');
     const newGeneralConfig = generalConfig.replace(regex, `${property}: ${value}`);
