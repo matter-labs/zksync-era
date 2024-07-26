@@ -28,7 +28,7 @@ async fn external_node_basics(components_str: &'static str) {
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(env.config);
+            let mut node = ExternalNodeBuilder::new(env.config)?;
             inject_test_layers(
                 &mut node,
                 env.sigint_receiver,
@@ -97,7 +97,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
 
     let mut node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(env.config);
+            let mut node = ExternalNodeBuilder::new(env.config)?;
             inject_test_layers(
                 &mut node,
                 env.sigint_receiver,
@@ -133,7 +133,7 @@ async fn running_tree_without_core_is_not_allowed() {
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(env.config);
+            let mut node = ExternalNodeBuilder::new(env.config)?;
             inject_test_layers(
                 &mut node,
                 env.sigint_receiver,
@@ -170,7 +170,7 @@ async fn running_tree_api_without_tree_is_not_allowed() {
 
     let node_handle = tokio::task::spawn_blocking(move || {
         std::thread::spawn(move || {
-            let mut node = ExternalNodeBuilder::new(env.config);
+            let mut node = ExternalNodeBuilder::new(env.config)?;
             inject_test_layers(
                 &mut node,
                 env.sigint_receiver,

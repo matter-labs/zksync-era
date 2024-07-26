@@ -13,7 +13,7 @@ publish = false
 [dependencies]
 zksync_dal.workspace = true
 zksync_env_config.workspace = true
-zksync_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_contract_verifier_lib.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_utils.workspace = true

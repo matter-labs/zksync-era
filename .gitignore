@@ -46,6 +46,7 @@ Cargo.lock
 !/etc/env/configs/stage-proofs.toml
 !/etc/env/configs/testnet.toml
 !/etc/env/configs/mainnet.toml
+!/etc/env/configs/prover-local.toml
 /etc/env/l1-inits
 !/etc/env/l1-inits/stage.env
 !/etc/env/l1-inits/stage_proofs.env

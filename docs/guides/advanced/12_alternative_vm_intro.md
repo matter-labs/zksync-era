@@ -2,8 +2,6 @@
 
 ## zkEVM clarifier
 
-[Back to ToC](../../specs/README.md)
-
 The ZKsync zkEVM plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
 execute code in Ethereum's state transition function. This STF needs a client to implement and run it. Ethereum has a
 multi-client philosophy, there are multiple clients, and they are written in Go, Rust, and other traditional programming

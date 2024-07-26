@@ -16,7 +16,7 @@ fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
 
     let initialization_result =
-        runtime.block_on(async { ZkStackServiceBuilder::new().build().unwrap_err() });
+        runtime.block_on(async { ZkStackServiceBuilder::new().unwrap_err() });
 
     assert_matches!(initialization_result, ZkStackServiceError::RuntimeDetected);
 }
@@ -43,7 +43,7 @@ impl WiringLayer for DefaultLayer {
 // `add_layer` should add multiple layers.
 #[test]
 fn test_add_layer() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer {
             name: "first_layer",
@@ -61,7 +61,7 @@ fn test_add_layer() {
 // `add_layer` should ignore already added layers.
 #[test]
 fn test_layers_are_unique() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer {
             name: "default_layer",
@@ -79,7 +79,7 @@ fn test_layers_are_unique() {
 // `ZkStack` Service's `run()` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
-    let empty_run_result = ZkStackServiceBuilder::new().build().unwrap().run();
+    let empty_run_result = ZkStackServiceBuilder::new().unwrap().build().run();
     assert_matches!(empty_run_result.unwrap_err(), ZkStackServiceError::NoTasks);
 }
 
@@ -103,10 +103,10 @@ impl WiringLayer for WireErrorLayer {
 // `ZkStack` Service's `run()` method has to take into account errors on wiring step.
 #[test]
 fn test_run_with_error_tasks() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
-    let result = zk_stack_service.build().unwrap().run();
+    let result = zk_stack_service.build().run();
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Wiring(_));
 }
 
@@ -151,9 +151,9 @@ impl Task for ErrorTask {
 // `ZkStack` Service's `run()` method has to take into account errors inside task execution.
 #[test]
 fn test_run_with_failed_tasks() {
-    let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new();
+    let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service.add_layer(TaskErrorLayer);
-    let result = zk_stack_service.build().unwrap().run();
+    let result = zk_stack_service.build().run();
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Task(_));
 }
 
@@ -235,7 +235,7 @@ fn test_task_run() {
     let successful_task_was_run = Arc::new(Mutex::new(false));
     let remaining_task_was_run = Arc::new(Mutex::new(false));
 
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
 
     zk_stack_service.add_layer(TasksLayer {
         successful_task_was_run: successful_task_was_run.clone(),
@@ -243,7 +243,7 @@ fn test_task_run() {
     });
 
     assert!(
-        zk_stack_service.build().unwrap().run().is_ok(),
+        zk_stack_service.build().run().is_ok(),
         "ZkStackServiceBuilder run finished with an error, but it shouldn't"
     );
     let res1 = *successful_task_was_run.lock().unwrap();
