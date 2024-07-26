@@ -37,8 +37,8 @@ fn main() -> anyhow::Result<()> {
 
     let prometheus_config = PrometheusConfig::from_env()?;
 
-    let mut builder = ZkStackServiceBuilder::new();
-    let mut builder_mut = builder
+    let mut builder = ZkStackServiceBuilder::new()?;
+    builder
         .add_layer(SigintHandlerLayer)
         .add_layer(TeeProverLayer::new(
             tee_prover_config.api_url,
@@ -50,9 +50,9 @@ fn main() -> anyhow::Result<()> {
     if let Some(gateway) = prometheus_config.gateway_endpoint() {
         let exporter_config =
             PrometheusExporterConfig::push(gateway, prometheus_config.push_interval());
-        builder_mut = builder_mut.add_layer(PrometheusExporterLayer(exporter_config));
+        builder.add_layer(PrometheusExporterLayer(exporter_config));
     }
 
-    builder_mut.build()?.run()?;
+    builder.build().run()?;
     Ok(())
 }

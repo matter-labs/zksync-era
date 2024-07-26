@@ -1,18 +1,17 @@
 use std::str::FromStr;
 
-use opentelemetry::{
-    sdk::{
-        propagation::TraceContextPropagator,
-        trace::{self, RandomIdGenerator, Sampler},
-        Resource,
-    },
-    KeyValue,
-};
+use opentelemetry::{trace::TracerProvider, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{
+    propagation::TraceContextPropagator,
+    trace::{RandomIdGenerator, Sampler},
+    Resource,
+};
 use opentelemetry_semantic_conventions::resource::{
     K8S_NAMESPACE_NAME, K8S_POD_NAME, SERVICE_NAME,
 };
 use tracing_subscriber::{registry::LookupSpan, EnvFilter, Layer};
+use url::Url;
 
 /// Information about the service.
 #[derive(Debug, Default)]
@@ -66,17 +65,17 @@ impl ServiceDescriptor {
     }
 
     fn into_otlp_resource(self) -> Resource {
-        let mut resource = vec![];
+        let mut attributes = vec![];
         if let Some(pod_name) = self.k8s_pod_name {
-            resource.push(KeyValue::new(K8S_POD_NAME, pod_name));
+            attributes.push(KeyValue::new(K8S_POD_NAME, pod_name));
         }
         if let Some(pod_namespace) = self.k8s_namespace_name {
-            resource.push(KeyValue::new(K8S_NAMESPACE_NAME, pod_namespace));
+            attributes.push(KeyValue::new(K8S_NAMESPACE_NAME, pod_namespace));
         }
         if let Some(service_name) = self.service_name {
-            resource.push(KeyValue::new(SERVICE_NAME, service_name));
+            attributes.push(KeyValue::new(SERVICE_NAME, service_name));
         }
-        Resource::new(resource)
+        Resource::new(attributes)
     }
 }
 
@@ -85,7 +84,7 @@ pub struct OpenTelemetry {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
     pub opentelemetry_level: OpenTelemetryLevel,
     /// Opentelemetry HTTP collector endpoint.
-    pub otlp_endpoint: String,
+    pub otlp_endpoint: Url,
     /// Information about service
     pub service: Option<ServiceDescriptor>,
 }
@@ -94,10 +93,12 @@ impl OpenTelemetry {
     pub fn new(
         opentelemetry_level: &str,
         otlp_endpoint: String,
-    ) -> Result<Self, OpenTelemetryLevelError> {
+    ) -> Result<Self, OpenTelemetryLayerError> {
         Ok(Self {
             opentelemetry_level: opentelemetry_level.parse()?,
-            otlp_endpoint,
+            otlp_endpoint: otlp_endpoint
+                .parse()
+                .map_err(|e| OpenTelemetryLayerError::InvalidUrl(otlp_endpoint, e))?,
             service: None,
         })
     }
@@ -123,31 +124,31 @@ impl OpenTelemetry {
             .add_directive("otel::tracing=trace".parse().unwrap())
             .add_directive("otel=debug".parse().unwrap());
 
-        let resource = self
-            .service
-            .unwrap_or_default()
-            .fill_from_env()
-            .into_otlp_resource();
+        let service = self.service.unwrap_or_default().fill_from_env();
+        let service_name = service
+            .service_name
+            .clone()
+            .unwrap_or_else(|| "zksync_vlog".to_string());
+        let resource = service.into_otlp_resource();
 
-        // We can't know if we will be running within tokio context, so we will spawn
-        // a separate thread for the exporter.
-        let runtime = opentelemetry::runtime::TokioCurrentThread;
+        let exporter = opentelemetry_otlp::new_exporter()
+            .http()
+            .with_endpoint(self.otlp_endpoint)
+            .build_span_exporter()
+            .expect("Failed to create OTLP exporter"); // URL is validated.
 
-        let tracer = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .http()
-                    .with_endpoint(self.otlp_endpoint),
-            )
-            .with_trace_config(
-                trace::config()
-                    .with_sampler(Sampler::AlwaysOn)
-                    .with_id_generator(RandomIdGenerator::default())
-                    .with_resource(resource),
-            )
-            .install_batch(runtime)
-            .unwrap();
+        let config = opentelemetry_sdk::trace::Config::default()
+            .with_id_generator(RandomIdGenerator::default())
+            .with_sampler(Sampler::AlwaysOn)
+            .with_resource(resource);
+
+        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
+            .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+            .with_config(config)
+            .build();
+
+        // TODO: Version and other metadata
+        let tracer = provider.tracer_builder(service_name).build();
 
         opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
         tracing_opentelemetry::layer()
@@ -168,13 +169,15 @@ pub enum OpenTelemetryLevel {
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum OpenTelemetryLevelError {
+pub enum OpenTelemetryLayerError {
     #[error("Invalid OpenTelemetry level format")]
     InvalidFormat,
+    #[error("Invalid URL: \"{0}\" - {1}")]
+    InvalidUrl(String, url::ParseError),
 }
 
 impl FromStr for OpenTelemetryLevel {
-    type Err = OpenTelemetryLevelError;
+    type Err = OpenTelemetryLayerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -182,7 +185,7 @@ impl FromStr for OpenTelemetryLevel {
             "info" => Ok(OpenTelemetryLevel::INFO),
             "debug" => Ok(OpenTelemetryLevel::DEBUG),
             "trace" => Ok(OpenTelemetryLevel::TRACE),
-            _ => Err(OpenTelemetryLevelError::InvalidFormat),
+            _ => Err(OpenTelemetryLayerError::InvalidFormat),
         }
     }
 }

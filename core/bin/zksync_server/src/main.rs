@@ -113,12 +113,6 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let observability_config = configs
-        .observability
-        .clone()
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
-
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
         Some(path) => {
@@ -162,8 +156,18 @@ fn main() -> anyhow::Result<()> {
                 .context("failed decoding genesis YAML config")?
         }
     };
+    let observability_config = configs
+        .observability
+        .clone()
+        .context("observability config")?;
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets);
+    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+
+    let _observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = node.runtime_handle().enter();
+        observability_config.install()?
+    };
 
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
