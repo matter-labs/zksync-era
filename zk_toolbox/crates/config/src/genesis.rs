@@ -1,34 +1,36 @@
-use ethers::types::{Address, H256};
-use serde::{Deserialize, Serialize};
-use types::{ChainId, L1BatchCommitDataGeneratorMode, ProtocolSemanticVersion};
+use std::path::Path;
 
-use crate::{consts::GENESIS_FILE, traits::FileConfigWithDefaultName, ChainConfig};
+use xshell::Shell;
+use zksync_basic_types::L1ChainId;
+pub use zksync_config::GenesisConfig;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GenesisConfig {
-    pub l2_chain_id: ChainId,
-    pub l1_chain_id: u32,
-    pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitDataGeneratorMode>,
-    pub bootloader_hash: H256,
-    pub default_aa_hash: H256,
-    pub fee_account: Address,
-    pub genesis_batch_commitment: H256,
-    pub genesis_rollup_leaf_index: u32,
-    pub genesis_root: H256,
-    pub genesis_protocol_version: u64,
-    pub genesis_protocol_semantic_version: ProtocolSemanticVersion,
-    #[serde(flatten)]
-    pub other: serde_json::Value,
-}
+use crate::{
+    consts::GENESIS_FILE,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    ChainConfig,
+};
 
-impl GenesisConfig {
-    pub fn update_from_chain_config(&mut self, config: &ChainConfig) {
-        self.l2_chain_id = config.chain_id;
-        self.l1_chain_id = config.l1_network.chain_id();
-        self.l1_batch_commit_data_generator_mode = Some(config.l1_batch_commit_data_generator_mode);
-    }
+pub fn update_from_chain_config(genesis: &mut GenesisConfig, config: &ChainConfig) {
+    genesis.l2_chain_id = config.chain_id;
+    genesis.l1_chain_id = L1ChainId(config.l1_network.chain_id());
+    genesis.l1_batch_commit_data_generator_mode = config.l1_batch_commit_data_generator_mode;
 }
 
 impl FileConfigWithDefaultName for GenesisConfig {
     const FILE_NAME: &'static str = GENESIS_FILE;
+}
+
+impl SaveConfig for GenesisConfig {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(self)?;
+        Ok(shell.write_file(path, bytes)?)
+    }
+}
+
+impl ReadConfig for GenesisConfig {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = shell.current_dir().join(path);
+        decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path, false)
+    }
 }

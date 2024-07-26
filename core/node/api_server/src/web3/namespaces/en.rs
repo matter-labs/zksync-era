@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
+use zksync_consensus_roles::attester;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
@@ -16,14 +17,20 @@ pub(crate) struct EnNamespace {
     state: RpcState,
 }
 
+fn to_l1_batch_number(n: attester::BatchNumber) -> anyhow::Result<L1BatchNumber> {
+    Ok(L1BatchNumber(
+        n.0.try_into().context("L1BatchNumber overflow")?,
+    ))
+}
+
 impl EnNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let Some(genesis) = storage
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(genesis) = conn
             .consensus_dal()
             .genesis()
             .await
@@ -34,6 +41,21 @@ impl EnNamespace {
         Ok(Some(en::ConsensusGenesis(
             zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
         )))
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn attestation_status_impl(&self) -> Result<en::AttestationStatus, Web3Error> {
+        Ok(en::AttestationStatus {
+            next_batch_to_attest: to_l1_batch_number(
+                self.state
+                    .acquire_connection()
+                    .await?
+                    .consensus_dal()
+                    .next_batch_to_attest()
+                    .await
+                    .context("next_batch_to_attest()")?,
+            )?,
+        })
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {

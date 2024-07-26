@@ -1,8 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
-use zksync_dal::{consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
@@ -115,35 +116,26 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().insert_batch_certificate()`.
+    /// Wrapper for `consensus_dal().insert_batch_certificate()`,
+    /// which additionally verifies that the batch hash matches the stored batch.
     pub async fn insert_batch_certificate(
         &mut self,
         ctx: &ctx::Ctx,
         cert: &attester::BatchQC,
     ) -> Result<(), InsertCertificateError> {
-        use crate::storage::consensus_dal::InsertCertificateError as E;
-
-        let l1_batch_number = L1BatchNumber(cert.message.number.0 as u32);
-
-        let Some(l1_batch) = self
-            .0
-            .blocks_dal()
-            .get_l1_batch_metadata(l1_batch_number)
+        use consensus_dal::InsertCertificateError as E;
+        let want_hash = self
+            .batch_hash(ctx, cert.message.number)
             .await
-            .map_err(E::Dal)?
-        else {
-            return Err(E::MissingPayload.into());
-        };
-
-        let l1_batch_info = StoredBatchInfo::from(&l1_batch);
-
-        if l1_batch_info.hash().0 != *cert.message.hash.0.as_bytes() {
+            .wrap("batch_hash()")?
+            .ok_or(E::MissingPayload)?;
+        if want_hash != cert.message.hash {
             return Err(E::PayloadMismatch.into());
         }
-
         Ok(ctx
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
-            .await??)
+            .await?
+            .map_err(E::Other)?)
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
@@ -164,6 +156,25 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().set_replica_state(state))
             .await?
             .context("sqlx")?)
+    }
+
+    /// Wrapper for `consensus_dal().batch_hash()`.
+    pub async fn batch_hash(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchHash>> {
+        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+        let Some(meta) = ctx
+            .wait(self.0.blocks_dal().get_l1_batch_metadata(n))
+            .await?
+            .context("get_l1_batch_metadata()")?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchHash(Keccak256::from_bytes(
+            StoredBatchInfo::from(&meta).hash().0,
+        ))))
     }
 
     /// Wrapper for `blocks_dal().get_l1_batch_metadata()`.

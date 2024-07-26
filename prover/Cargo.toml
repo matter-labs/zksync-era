@@ -47,7 +47,7 @@ serde_json = "1.0"
 sha3 = "0.10.8"
 sqlx = { version = "0.7.3", default-features = false }
 structopt = "0.3.26"
-strum = { version = "0.24" }
+strum = { version = "0.26" }
 tempfile = "3"
 tokio = "1"
 toml_edit = "0.14.4"

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use bigdecimal::Zero;
+use bigdecimal::Zero as _;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -378,9 +378,7 @@ impl ConsensusDal<'_, '_> {
     ) -> Result<(), InsertCertificateError> {
         use InsertCertificateError as E;
         let header = &cert.message.proposal;
-        let mut txn = self.storage.start_transaction().await?;
-        let want_payload = txn
-            .consensus_dal()
+        let want_payload = self
             .block_payload(cert.message.proposal.number)
             .await?
             .ok_or(E::MissingPayload)?;
@@ -394,28 +392,24 @@ impl ConsensusDal<'_, '_> {
             VALUES
                 ($1, $2)
             "#,
-            header.number.0 as i64,
+            i64::try_from(header.number.0).context("overflow")?,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_block_certificate")
         .report_latency()
-        .execute(&mut txn)
+        .execute(self.storage)
         .await?;
-        txn.commit().await.context("commit")?;
         Ok(())
     }
 
     /// Inserts a certificate for the L1 batch.
-    ///
-    /// Insertion is allowed even if it creates gaps in the L1 batch history.
-    ///
-    /// This method assumes that all payload validation has been carried out by the caller.
+    /// Noop if a certificate for the same L1 batch is already present.
+    /// No verification is performed - it cannot be performed due to circular dependency on
+    /// `zksync_l1_contract_interface`.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> Result<(), InsertCertificateError> {
-        let l1_batch_number = cert.message.number.0 as i64;
-
+    ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
             INSERT INTO
@@ -424,18 +418,17 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number,
+            i64::try_from(cert.message.number.0).context("overflow")?,
+            // Unwrap is ok, because serialization should always succeed.
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
         .execute(self.storage)
         .await?;
-
         if res.rows_affected().is_zero() {
-            tracing::debug!(l1_batch_number, "duplicate batch certificate");
+            tracing::debug!(l1_batch_number = ?cert.message.number, "duplicate batch certificate");
         }
-
         Ok(())
     }
 
@@ -443,7 +436,7 @@ impl ConsensusDal<'_, '_> {
     /// depending on the order in which votes have been collected over gossip by consensus.
     pub async fn get_last_batch_certificate_number(
         &mut self,
-    ) -> DalResult<Option<attester::BatchNumber>> {
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -457,9 +450,46 @@ impl ConsensusDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row
-            .number
-            .map(|number| attester::BatchNumber(number as u64)))
+        let Some(n) = row.number else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            n.try_into().context("overflow")?,
+        )))
+    }
+
+    /// Next batch that the attesters should vote for.
+    /// This is a main node only query.
+    /// ENs should call the attestation_status RPC of the main node.
+    pub async fn next_batch_to_attest(&mut self) -> anyhow::Result<attester::BatchNumber> {
+        // First batch that we don't have a certificate for.
+        if let Some(last) = self
+            .get_last_batch_certificate_number()
+            .await
+            .context("get_last_batch_certificate_number()")?
+        {
+            return Ok(last + 1);
+        }
+        // Otherwise start with the last sealed L1 batch.
+        // We don't want to backfill certificates for old batches.
+        // Note that there is a race condition in case the next
+        // batch is sealed before the certificate for the current
+        // last sealed batch is stored. This is only relevant
+        // for the first certificate though and anyway this is
+        // a test setup, so we are OK with that race condition.
+        if let Some(sealed) = self
+            .storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .context("get_sealed_l1_batch_number()")?
+        {
+            return Ok(attester::BatchNumber(sealed.0.into()));
+        }
+        // Otherwise start with 0.
+        // Note that main node doesn't start from snapshot
+        // and doesn't have prunning enabled.
+        Ok(attester::BatchNumber(0))
     }
 }
 

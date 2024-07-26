@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Context as _;
 use serde::Deserialize;
 use zksync_config::configs::GeneralConfig;
-use zksync_vlog::{prometheus::PrometheusExporterConfig, LogFormat};
+use zksync_vlog::{logs::LogFormat, prometheus::PrometheusExporterConfig};
 
 use super::{ConfigurationSource, Environment};
 
@@ -81,26 +81,24 @@ impl ObservabilityENConfig {
     }
 
     pub fn build_observability(&self) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
-        let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
-        if let Some(log_directives) = self.log_directives.clone() {
-            builder = builder.with_log_directives(log_directives)
-        };
+        let logs = zksync_vlog::Logs::from(self.log_format)
+            .with_log_directives(self.log_directives.clone());
+
         // Some legacy deployments use `unset` as an equivalent of `None`.
         let sentry_url = self.sentry_url.as_deref().filter(|&url| url != "unset");
-        if let Some(sentry_url) = sentry_url {
-            builder = builder
-                .with_sentry_url(sentry_url)
-                .context("Invalid Sentry URL")?
-                .with_sentry_environment(self.sentry_environment.clone());
-        }
-        let guard = builder.build();
-
-        // Report whether sentry is running after the logging subsystem was initialized.
-        if let Some(sentry_url) = sentry_url {
-            tracing::info!("Sentry configured with URL: {sentry_url}");
-        } else {
-            tracing::info!("No sentry URL was provided");
-        }
+        let sentry = sentry_url
+            .map(|url| {
+                anyhow::Ok(
+                    zksync_vlog::Sentry::new(url)
+                        .context("Invalid Sentry URL")?
+                        .with_environment(self.sentry_environment.clone()),
+                )
+            })
+            .transpose()?;
+        let guard = zksync_vlog::ObservabilityBuilder::new()
+            .with_logs(Some(logs))
+            .with_sentry(sentry)
+            .build();
         Ok(guard)
     }
 
