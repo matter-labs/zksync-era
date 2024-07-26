@@ -18,15 +18,16 @@ dependencies on your machine (don't worry about the Environment section for now)
 Install zk_inception from git:
 
 ```bash
-cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception --force
+cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor --force
 ```
 
 Manually building from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
 
 ```bash
-cd zk_toolbox
-cargo install --path ./crates/zk_inception --force --locked
+./bin/zkt
 ```
+
+This command will install `zk_inception` and `zk_supervisor` from the current repository
 
 ### Foundry Integration
 
