@@ -544,7 +544,7 @@ async fn generate_witness(
         .expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
-    let mut tree = PrecalculatedMerklePathsProvider::new(
+    let tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths_input,
         input.previous_block_hash.0,
     );
