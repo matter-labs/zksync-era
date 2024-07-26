@@ -19,27 +19,32 @@ use crate::messages::{
     MSG_ZKSYNC_UPDATED,
 };
 
+/// Holds the differences between two YAML configurations.
 #[derive(Default)]
 struct ConfigDiff {
-    pub value_diff: serde_yaml::Mapping,
-    pub added_fields: serde_yaml::Mapping,
+    /// Fields that have different values between the two configurations
+    /// This contains the new values
+    pub differing_values: serde_yaml::Mapping,
+
+    /// Fields that are present in the new configuration but not in the old one.
+    pub new_fields: serde_yaml::Mapping,
 }
 
 impl ConfigDiff {
     fn print(&self, msg: &str) {
-        if self.value_diff.is_empty() && self.added_fields.is_empty() {
+        if self.differing_values.is_empty() && self.new_fields.is_empty() {
             return;
         }
 
-        let mut diff = logger::object_to_string(&self.value_diff);
-        diff.push_str(&logger::object_to_string(&self.added_fields));
+        let mut diff = logger::object_to_string(&self.differing_values);
+        diff.push_str(&logger::object_to_string(&self.new_fields));
 
         logger::warn(msg);
         logger::warn(diff);
     }
 
-    fn reset_value_diff(&mut self) {
-        self.value_diff = serde_yaml::Mapping::new();
+    fn reset_differing_values(&mut self) {
+        self.differing_values = serde_yaml::Mapping::new();
     }
 }
 
@@ -89,12 +94,12 @@ fn save_updated_config(
     diff: ConfigDiff,
     msg: &str,
 ) -> anyhow::Result<()> {
-    if diff.added_fields.is_empty() {
+    if diff.new_fields.is_empty() {
         return Ok(());
     }
 
     logger::info(msg);
-    logger::info(logger::object_to_string(&diff.added_fields));
+    logger::info(logger::object_to_string(&diff.new_fields));
 
     let general_config = serde_yaml::to_string(&config)?;
     shell.write_file(path, general_config)?;
@@ -117,7 +122,7 @@ fn update_config(
         save_updated_config(&shell, chain_config, chain_config_path, diff, msg)?;
     } else {
         if ignore_updated_values {
-            diff.reset_value_diff();
+            diff.reset_differing_values();
         }
         diff.print(msg);
     }
@@ -204,13 +209,13 @@ fn merge_yaml_internal(
                     merge_yaml_internal(a.get_mut(&key).unwrap(), value, current_key, diff)?;
                 } else {
                     a.insert(key.clone(), value.clone());
-                    diff.added_fields.insert(current_key.into(), value);
+                    diff.new_fields.insert(current_key.into(), value);
                 }
             }
         }
         (a, b) => {
             if a != &b {
-                diff.value_diff.insert(current_key.into(), b);
+                diff.differing_values.insert(current_key.into(), b);
             }
         }
     }
@@ -246,8 +251,8 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b).unwrap();
-        assert!(diff.value_diff.is_empty());
-        assert!(diff.added_fields.is_empty());
+        assert!(diff.differing_values.is_empty());
+        assert!(diff.new_fields.is_empty());
     }
 
     #[test]
@@ -272,10 +277,10 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
-        assert!(diff.value_diff.is_empty());
-        assert_eq!(diff.added_fields.len(), 1);
+        assert!(diff.differing_values.is_empty());
+        assert_eq!(diff.new_fields.len(), 1);
         assert_eq!(
-            diff.added_fields.get::<String>("key5".into()).unwrap(),
+            diff.new_fields.get::<String>("key5".into()).unwrap(),
             b.clone().get("key5").unwrap()
         );
         assert_eq!(a.get("key5"), b.get("key5"));
@@ -303,8 +308,8 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b).unwrap();
-        assert!(diff.value_diff.is_empty());
-        assert!(diff.added_fields.is_empty());
+        assert!(diff.differing_values.is_empty());
+        assert!(diff.new_fields.is_empty());
     }
 
     #[test]
@@ -330,10 +335,10 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
-        assert_eq!(diff.value_diff.len(), 0);
-        assert_eq!(diff.added_fields.len(), 1);
+        assert_eq!(diff.differing_values.len(), 0);
+        assert_eq!(diff.new_fields.len(), 1);
         assert_eq!(
-            diff.added_fields.get::<String>("key6".into()).unwrap(),
+            diff.new_fields.get::<String>("key6".into()).unwrap(),
             b.clone().get("key6").unwrap()
         );
         assert_eq!(a.get("key6"), b.get("key6"));
@@ -360,9 +365,9 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
-        assert_eq!(diff.value_diff.len(), 1);
+        assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
-            diff.value_diff
+            diff.differing_values
                 .get::<serde_yaml::Value>("key3.key4".into())
                 .unwrap(),
             b.get("key3").unwrap().get("key4").unwrap()
@@ -391,16 +396,16 @@ mod tests {
         )
         .unwrap();
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
-        assert_eq!(diff.value_diff.len(), 1);
+        assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
-            diff.value_diff
+            diff.differing_values
                 .get::<serde_yaml::Value>("key3.key4".into())
                 .unwrap(),
             b.get("key3").unwrap().get("key4").unwrap()
         );
-        assert_eq!(diff.added_fields.len(), 1);
+        assert_eq!(diff.new_fields.len(), 1);
         assert_eq!(
-            diff.added_fields.get::<String>("key5".into()).unwrap(),
+            diff.new_fields.get::<String>("key5".into()).unwrap(),
             b.get("key5").unwrap()
         );
     }
