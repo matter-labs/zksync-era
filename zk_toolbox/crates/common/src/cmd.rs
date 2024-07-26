@@ -19,6 +19,8 @@ use crate::{
 pub struct Cmd<'a> {
     inner: xshell::Cmd<'a>,
     force_run: bool,
+    // For resume functionality we must pipe the output, otherwise it only shows less information
+    piped_std_err: bool,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -72,12 +74,18 @@ impl<'a> Cmd<'a> {
         Self {
             inner: cmd,
             force_run: false,
+            piped_std_err: false,
         }
     }
 
     /// Run the command printing the output to the console.
     pub fn with_force_run(mut self) -> Self {
         self.force_run = true;
+        self
+    }
+
+    pub fn with_piped_std_err(mut self) -> Self {
+        self.piped_std_err = true;
         self
     }
 
@@ -93,7 +101,7 @@ impl<'a> Cmd<'a> {
         let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            let output = run_low_level_process_command(self.inner.into())?;
+            let output = run_low_level_process_command(self.inner.into(), self.piped_std_err)?;
             if let Ok(data) = String::from_utf8(output.stderr.clone()) {
                 if !data.is_empty() {
                     logger::info(data)
@@ -152,9 +160,13 @@ fn check_output_status(command_text: &str, output: &std::process::Output) -> Cmd
     Ok(())
 }
 
-fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
+fn run_low_level_process_command(mut command: Command, piped_std_err: bool) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
-    command.stderr(Stdio::piped());
+    if piped_std_err {
+        command.stderr(Stdio::piped());
+    } else {
+        command.stderr(Stdio::inherit());
+    }
     let child = command.spawn()?;
     child.wait_with_output()
 }

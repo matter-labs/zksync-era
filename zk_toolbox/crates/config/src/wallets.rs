@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::WALLETS_FILE,
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,4 +60,6 @@ pub(crate) struct EthMnemonicConfig {
     pub(crate) base_path: String,
 }
 
-impl FileConfig for EthMnemonicConfig {}
+impl ZkToolboxConfig for EthMnemonicConfig {}
+
+impl ZkToolboxConfig for WalletsConfig {}
