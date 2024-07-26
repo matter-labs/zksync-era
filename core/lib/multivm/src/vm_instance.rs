@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
 use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
-use zksync_types::VmVersion;
+use zksync_types::vm::{FastVmMode, VmVersion};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
@@ -15,16 +14,6 @@ use crate::{
 };
 
 pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
-
-/// Mode in which to run the new fast VM implementation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FastVmMode {
-    /// Run only the new VM.
-    Isolated,
-    /// Run both the new and old VM and compare their outputs for each transaction execution.
-    Shadow,
-}
 
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {

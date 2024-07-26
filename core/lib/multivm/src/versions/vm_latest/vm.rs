@@ -3,7 +3,8 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    Transaction, VmVersion,
+    vm::VmVersion,
+    Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 

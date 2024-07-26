@@ -1,3 +1,7 @@
+//! Basic VM types that shared widely enough to not put them in the `multivm` crate.
+
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy)]
 pub enum VmVersion {
     M5WithoutRefunds,
@@ -19,4 +23,14 @@ impl VmVersion {
     pub const fn latest() -> VmVersion {
         Self::Vm1_5_0IncreasedBootloaderMemory
     }
+}
+
+/// Mode in which to run the new fast VM implementation.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FastVmMode {
+    /// Run only the new VM.
+    Isolated,
+    /// Run both the new and old VM and compare their outputs for each transaction execution.
+    Shadow,
 }

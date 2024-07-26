@@ -3,6 +3,7 @@
 use std::num::NonZeroU32;
 
 use serde::Deserialize;
+use zksync_basic_types::vm::FastVmMode;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ExperimentalDBConfig {
@@ -59,4 +60,10 @@ impl ExperimentalDBConfig {
     const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct ExperimentalVmConfig {
+    /// Operation mode for the new fast VM. `None` to disable the fast VM.
+    pub fast_vm_mode: Option<FastVmMode>,
 }

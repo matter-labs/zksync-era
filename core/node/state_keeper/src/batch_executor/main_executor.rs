@@ -14,11 +14,11 @@ use zksync_multivm::{
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
-    FastVmMode, MultiVMTracer, VmInstance,
+    MultiVMTracer, VmInstance,
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView};
-use zksync_types::{vm_trace::Call, Transaction};
+use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};

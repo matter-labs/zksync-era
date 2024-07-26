@@ -200,10 +200,8 @@ impl ExternalNodeBuilder {
             .optional
             .api_namespaces()
             .contains(&Namespace::Debug);
-        let mut main_node_batch_executor_builder_layer =
+        let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
-        main_node_batch_executor_builder_layer
-            .set_fast_vm_mode(self.config.experimental.state_keeper_fast_vm_mode);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: self

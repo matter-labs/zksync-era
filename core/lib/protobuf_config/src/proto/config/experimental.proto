@@ -18,3 +18,13 @@ message SnapshotRecovery {
   optional uint64 tree_recovery_parallel_persistence_buffer = 1;
   optional bool drop_storage_key_preimages = 2; // optional; false by default
 }
+
+enum FastVmMode {
+  SHADOW = 0;
+  ISOLATED = 1;
+}
+
+// Experimental VM configuration
+message Vm {
+  optional FastVmMode fast_vm_mode = 1; // optional; if not set, fast VM is not used
+}

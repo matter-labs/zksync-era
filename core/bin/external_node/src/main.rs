@@ -94,8 +94,7 @@ async fn build_state_keeper(
         stop_receiver_clone.changed().await?;
         result
     }));
-    let mut batch_executor = MainBatchExecutor::new(save_call_traces, true);
-    batch_executor.set_fast_vm_mode(config.experimental.state_keeper_fast_vm_mode);
+    let batch_executor = MainBatchExecutor::new(save_call_traces, true);
     let batch_executor: Box<dyn BatchExecutor> = Box::new(batch_executor);
 
     let io = ExternalIO::new(

@@ -49,3 +49,43 @@ impl ProtoRepr for proto::Db {
         }
     }
 }
+
+impl proto::FastVmMode {
+    fn new(source: configs::vm_runner::FastVmMode) -> Self {
+        use configs::vm_runner::FastVmMode as From;
+        match source {
+            From::Shadow => Self::Shadow,
+            From::Isolated => Self::Isolated,
+        }
+    }
+
+    fn parse(&self) -> configs::vm_runner::FastVmMode {
+        use configs::vm_runner::FastVmMode as To;
+        match self {
+            Self::Shadow => To::Shadow,
+            Self::Isolated => To::Isolated,
+        }
+    }
+}
+
+impl ProtoRepr for proto::Vm {
+    type Type = configs::ExperimentalVmConfig;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            fast_vm_mode: self
+                .fast_vm_mode
+                .map(proto::FastVmMode::try_from)
+                .transpose()?
+                .map(|mode| mode.parse()),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            fast_vm_mode: this
+                .fast_vm_mode
+                .map(|mode| proto::FastVmMode::new(mode).into()),
+        }
+    }
+}
