@@ -153,7 +153,7 @@ impl<S: ReadStorage> Vm<S> {
                             gas_spent_on_pubdata.as_u64(),
                             tx_gas_limit,
                             gas_per_pubdata_byte.low_u32(),
-                            pubdata_published - pubdata_before,
+                            pubdata_published.saturating_sub(pubdata_before),
                             self.bootloader_state
                                 .last_l2_block()
                                 .txs
