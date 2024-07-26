@@ -31,20 +31,18 @@ struct ConfigDiff {
 }
 
 impl ConfigDiff {
-    fn print(&self, msg: &str) {
-        if self.differing_values.is_empty() && self.new_fields.is_empty() {
+    fn print(&self, msg: &str, is_warning: bool) {
+        if self.new_fields.is_empty() {
             return;
         }
 
-        let mut diff = logger::object_to_string(&self.differing_values);
-        diff.push_str(&logger::object_to_string(&self.new_fields));
-
-        logger::warn(msg);
-        logger::warn(diff);
-    }
-
-    fn reset_differing_values(&mut self) {
-        self.differing_values = serde_yaml::Mapping::new();
+        if is_warning {
+            logger::warn(msg);
+            logger::warn(&logger::object_to_string(&self.new_fields));
+        } else {
+            logger::info(msg);
+            logger::info(&logger::object_to_string(&self.new_fields));
+        }
     }
 }
 
@@ -98,8 +96,7 @@ fn save_updated_config(
         return Ok(());
     }
 
-    logger::info(msg);
-    logger::info(logger::object_to_string(&diff.new_fields));
+    diff.print(msg, false);
 
     let general_config = serde_yaml::to_string(&config)?;
     shell.write_file(path, general_config)?;
@@ -111,20 +108,16 @@ fn update_config(
     shell: Shell,
     original_config_path: &Path,
     chain_config_path: &Path,
-    replace_config: bool,
-    ignore_updated_values: bool,
+    save_config: bool,
     msg: &str,
 ) -> anyhow::Result<()> {
     let original_config = serde_yaml::from_str(&shell.read_file(original_config_path)?)?;
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path)?)?;
-    let mut diff = merge_yaml(&mut chain_config, original_config)?;
-    if replace_config {
+    let diff = merge_yaml(&mut chain_config, original_config)?;
+    if save_config {
         save_updated_config(&shell, chain_config, chain_config_path, diff, msg)?;
     } else {
-        if ignore_updated_values {
-            diff.reset_differing_values();
-        }
-        diff.print(msg);
+        diff.print(msg, true);
     }
 
     Ok(())
@@ -144,7 +137,6 @@ fn update_chain(
         general,
         &chain.path_to_general_config(),
         true,
-        false,
         MSG_DIFF_GENERAL_CONFIG,
     )?;
 
@@ -153,7 +145,6 @@ fn update_chain(
         external_node,
         &chain.path_to_external_node_config(),
         true,
-        false,
         MSG_DIFF_EN_CONFIG,
     )?;
 
@@ -161,7 +152,6 @@ fn update_chain(
         shell.clone(),
         genesis,
         &chain.path_to_genesis_config(),
-        false,
         false,
         &msg_diff_genesis_config(&chain.name),
     )?;
@@ -171,7 +161,6 @@ fn update_chain(
         contracts,
         &chain.path_to_contracts_config(),
         false,
-        false,
         &msg_diff_contracts_config(&chain.name),
     )?;
 
@@ -180,7 +169,6 @@ fn update_chain(
         secrets,
         &chain.path_to_secrets_config(),
         false,
-        true,
         &msg_diff_secrets(&chain.name, &chain.path_to_secrets_config(), secrets),
     )?;
 
