@@ -631,7 +631,7 @@ impl EthTxManager {
     }
 
     #[tracing::instrument(skip_all, name = "EthTxManager::loop_iteration")]
-    async fn loop_iteration(
+    pub async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,

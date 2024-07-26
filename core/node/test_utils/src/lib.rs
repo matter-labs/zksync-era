@@ -17,6 +17,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
@@ -46,12 +47,29 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub fn create_l1_batch(number: u32) -> L1BatchHeader {
-    L1BatchHeader::new(
+    let mut header = L1BatchHeader::new(
         L1BatchNumber(number),
-        number.into(),
-        BaseSystemContractsHashes::default(),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
         ProtocolVersionId::latest(),
-    )
+    );
+    header.l1_tx_count = 3;
+    header.l2_tx_count = 5;
+    header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
+        shard_id: 0,
+        is_service: false,
+        tx_number_in_block: 2,
+        sender: Address::repeat_byte(2),
+        key: H256::repeat_byte(3),
+        value: H256::zero(),
+    }));
+    header.l2_to_l1_messages.push(vec![22; 22]);
+    header.l2_to_l1_messages.push(vec![33; 33]);
+
+    header
 }
 
 /// Creates metadata for an L1 batch with the specified number.
