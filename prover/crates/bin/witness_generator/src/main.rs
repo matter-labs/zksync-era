@@ -180,31 +180,31 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut tasks = Vec::new();
+    let prometheus_config = if use_push_gateway {
+        let prometheus_config = prometheus_config
+            .clone()
+            .context("prometheus config needed when use_push_gateway enabled")?;
+        PrometheusExporterConfig::push(
+            prometheus_config
+                .gateway_endpoint()
+                .context("gateway_endpoint needed when use_push_gateway enabled")?,
+            prometheus_config.push_interval(),
+        )
+    } else {
+        PrometheusExporterConfig::pull(prometheus_listener_port as u16)
+    };
+    let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
-    for (i, round) in rounds.iter().enumerate() {
+    let mut tasks = Vec::new();
+    tasks.push(tokio::spawn(prometheus_task));
+
+    for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
             round,
             opt.batch_size,
             &protocol_version
         );
-
-        let prometheus_config = if use_push_gateway {
-            let prometheus_config = prometheus_config
-                .clone()
-                .context("prometheus config needed when use_push_gateway enabled")?;
-            PrometheusExporterConfig::push(
-                prometheus_config
-                    .gateway_endpoint()
-                    .context("gateway_endpoint needed when use_push_gateway enabled")?,
-                prometheus_config.push_interval(),
-            )
-        } else {
-            // `u16` cast is safe since i is in range [0, 4)
-            PrometheusExporterConfig::pull(prometheus_listener_port + i as u16)
-        };
-        let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
@@ -276,7 +276,6 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        tasks.push(tokio::spawn(prometheus_task));
         tasks.push(tokio::spawn(witness_generator_task));
 
         tracing::info!(
@@ -284,7 +283,7 @@ async fn main() -> anyhow::Result<()> {
             round,
             started_at.elapsed()
         );
-        SERVER_METRICS.init_latency[&(*round).into()].set(started_at.elapsed());
+        SERVER_METRICS.init_latency[&round.into()].set(started_at.elapsed());
     }
 
     let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
