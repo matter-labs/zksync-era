@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::Context;
+use anyhow::{Context, Ok};
 use common::{
     git::{pull, submodule_update},
     logger,
@@ -12,6 +12,7 @@ use config::{
 };
 use xshell::Shell;
 
+use super::args::UpdateArgs;
 use crate::messages::{
     msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
     MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_GENERAL_CONFIG, MSG_INVALID_KEY_TYPE_ERR,
@@ -46,17 +47,13 @@ impl ConfigDiff {
     }
 }
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = EcosystemConfig::from_file(shell)?;
-    let link_to_code = ecosystem.link_to_code.clone();
 
-    let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
-    pull(shell, link_to_code.clone())?;
-    spinner.finish();
-    let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
-    submodule_update(shell, link_to_code.clone())?;
-    spinner.finish();
+    if !args.only_config {
+        update_repo(shell, &ecosystem)?;
+    }
 
     let general_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
     let external_node_config_path = ecosystem.get_default_configs_path().join(EN_CONFIG_FILE);
@@ -81,6 +78,19 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     }
 
     logger::outro(MSG_ZKSYNC_UPDATED);
+
+    Ok(())
+}
+
+fn update_repo(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+    let link_to_code = ecosystem.link_to_code.clone();
+
+    let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
+    pull(shell, link_to_code.clone())?;
+    spinner.finish();
+    let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
+    submodule_update(shell, link_to_code.clone())?;
+    spinner.finish();
 
     Ok(())
 }
