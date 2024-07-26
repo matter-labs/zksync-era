@@ -331,6 +331,8 @@ pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
     "Added the following fields to the general config:";
 pub(super) const MSG_DIFF_EN_CONFIG: &str =
     "Added the following fields to the external node config:";
+pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
+    "Added the following fields to the external node generalconfig:";
 pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {

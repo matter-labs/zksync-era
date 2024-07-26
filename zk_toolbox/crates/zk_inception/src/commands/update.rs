@@ -15,9 +15,9 @@ use xshell::Shell;
 use super::args::UpdateArgs;
 use crate::messages::{
     msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_GENERAL_CONFIG, MSG_INVALID_KEY_TYPE_ERR,
-    MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
-    MSG_ZKSYNC_UPDATED,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
+    MSG_DIFF_GENERAL_CONFIG, MSG_INVALID_KEY_TYPE_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER,
+    MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
 };
 
 /// Holds the differences between two YAML configurations.
@@ -181,6 +181,20 @@ fn update_chain(
         false,
         &msg_diff_secrets(&chain.name, &chain.path_to_secrets_config(), secrets),
     )?;
+
+    if let Some(external_node_config_path) = chain.external_node_config_path.clone() {
+        let external_node_general_config_path = external_node_config_path.join(GENERAL_FILE);
+        if !shell.path_exists(external_node_general_config_path.clone()) {
+            return Ok(());
+        }
+        update_config(
+            shell.clone(),
+            general,
+            &external_node_general_config_path,
+            true,
+            MSG_DIFF_EN_GENERAL_CONFIG,
+        )?;
+    }
 
     Ok(())
 }
