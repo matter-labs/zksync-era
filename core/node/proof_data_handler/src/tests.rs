@@ -180,6 +180,20 @@ async fn submit_tee_proof() {
         .unwrap();
 
     assert!(oldest_batch_number.is_none());
+
+    // there should be one TEE proof in the db now
+
+    let proof = proof_db_conn
+        .tee_proof_generation_dal()
+        .get_tee_proof(batch_number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(proof.signature.unwrap(), tee_proof_request.0.signature);
+    assert_eq!(proof.pubkey.unwrap(), tee_proof_request.0.pubkey);
+    assert_eq!(proof.proof.unwrap(), tee_proof_request.0.proof);
+    assert_eq!(proof.tee_type.unwrap(), tee_proof_request.0.tee_type);
 }
 
 // Mock SQL db with information about the status of the TEE proof generation
