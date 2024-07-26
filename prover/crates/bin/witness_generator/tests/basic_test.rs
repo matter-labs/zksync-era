@@ -60,7 +60,7 @@ async fn test_leaf_witness_gen() {
         .unwrap();
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_sync(job, Instant::now());
-    let aggregations = AggregationWrapper(artifacts.aggregations);
+    let aggregations = AggregationWrapper(artifacts.aggregations); // TODO check circuits as well
     compare_serialized(&expected_aggregation, &aggregations);
 }
 
@@ -103,6 +103,6 @@ async fn test_node_witness_gen() {
         .unwrap();
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_sync(job, Instant::now());
-    let aggregations = AggregationWrapper(artifacts.next_aggregations);
+    let aggregations = AggregationWrapper(artifacts.next_aggregations); // TODO check circuits as well
     compare_serialized(&expected_aggregation, &aggregations);
 }
