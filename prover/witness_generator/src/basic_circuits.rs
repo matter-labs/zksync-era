@@ -596,7 +596,7 @@ async fn generate_witness(
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
             storage_oracle,
-            &mut tree,
+            tree,
             path,
             eip_4844_blobs.blobs(),
             |circuit| {
