@@ -15,6 +15,13 @@ import {
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
+import {
+    setChunkSize,
+    setDataRetentionSec,
+    setRemovalDelaySec,
+    setSnapshotRecovery,
+    setTreeRecoveryParallelPersistenceBuffer
+} from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -110,6 +117,9 @@ describe('snapshot recovery', () => {
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             externalNodeUrl = 'http://127.0.0.1:3150';
             extNodeHealthUrl = 'http://127.0.0.1:3171/health';
+
+            setSnapshotRecovery(pathToHome, fileConfig, true);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
         } else {
             ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
             apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
@@ -132,6 +142,14 @@ describe('snapshot recovery', () => {
         if (externalNodeProcess) {
             await externalNodeProcess.stopAndWait('KILL');
             await externalNodeProcess.logs.close();
+        }
+
+        if (fileConfig.loadFromFile) {
+            setSnapshotRecovery(pathToHome, fileConfig, false);
+            setChunkSize(pathToHome, fileConfig, 10);
+            setDataRetentionSec(pathToHome, fileConfig, 3600);
+            setRemovalDelaySec(pathToHome, fileConfig, 60);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 1);
         }
     });
 
@@ -326,6 +344,13 @@ describe('snapshot recovery', () => {
             EN_PRUNING_CHUNK_SIZE: '1'
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
+
+        if (fileConfig.loadFromFile) {
+            setChunkSize(pathToHome, fileConfig, 1);
+            setDataRetentionSec(pathToHome, fileConfig, 0);
+            setRemovalDelaySec(pathToHome, fileConfig, 1);
+        }
+
         console.log('Starting EN with pruning params', pruningParams);
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
