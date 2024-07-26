@@ -55,20 +55,11 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     submodule_update(shell, link_to_code.clone())?;
     spinner.finish();
 
-    let general_config = serde_yaml::from_str(
-        &shell.read_file(ecosystem.get_default_configs_path().join(GENERAL_FILE))?,
-    )?;
-    let external_node_config = serde_yaml::from_str(
-        &shell.read_file(ecosystem.get_default_configs_path().join(EN_CONFIG_FILE))?,
-    )?;
-    let genesis_config = serde_yaml::from_str(
-        &shell.read_file(ecosystem.get_default_configs_path().join(GENESIS_FILE))?,
-    )?;
-    let contracts_config = serde_yaml::from_str(
-        &shell.read_file(ecosystem.get_default_configs_path().join(CONTRACTS_FILE))?,
-    )?;
+    let general_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
+    let external_node_config_path = ecosystem.get_default_configs_path().join(EN_CONFIG_FILE);
+    let genesis_config_path = ecosystem.get_default_configs_path().join(GENESIS_FILE);
+    let contracts_config_path = ecosystem.get_default_configs_path().join(CONTRACTS_FILE);
     let secrets_path = ecosystem.get_default_configs_path().join(SECRETS_FILE);
-    let secrets = serde_yaml::from_str(&shell.read_file(secrets_path.clone())?)?;
 
     for chain in ecosystem.list_of_chains() {
         logger::step(msg_updating_chain(&chain));
@@ -78,11 +69,10 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         update_chain(
             shell,
             &chain,
-            &general_config,
-            &external_node_config,
-            &genesis_config,
-            &contracts_config,
-            &secrets,
+            &general_config_path,
+            &external_node_config_path,
+            &genesis_config_path,
+            &contracts_config_path,
             &secrets_path,
         )?;
     }
@@ -144,59 +134,82 @@ fn save_updated_config(
     Ok(())
 }
 
+fn update_config(
+    shell: Shell,
+    original_config_path: &Path,
+    chain_config_path: &Path,
+    replace_config: bool,
+    ignore_updated_values: bool,
+    msg: &str,
+) -> anyhow::Result<()> {
+    let original_config = serde_yaml::from_str(&shell.read_file(original_config_path)?)?;
+    let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path)?)?;
+    let mut diff = merge_yaml(&mut chain_config, original_config)?;
+    if replace_config {
+        save_updated_config(&shell, chain_config, chain_config_path, diff, msg)?;
+    } else {
+        if ignore_updated_values {
+            diff.reset_value_diff();
+        }
+        diff.print(msg);
+    }
+
+    Ok(())
+}
+
 fn update_chain(
     shell: &Shell,
     chain: &ChainConfig,
-    general: &serde_yaml::Value,
-    external_node: &serde_yaml::Value,
-    genesis: &serde_yaml::Value,
-    contracts: &serde_yaml::Value,
-    secrets: &serde_yaml::Value,
-    secrets_path: &Path,
+    general: &Path,
+    external_node: &Path,
+    genesis: &Path,
+    contracts: &Path,
+    secrets: &Path,
 ) -> anyhow::Result<()> {
-    let current_general_config_path = chain.path_to_general_config();
-    let mut current_general_config =
-        serde_yaml::from_str(&shell.read_file(current_general_config_path.clone())?)?;
-    let diff = merge_yaml(&mut current_general_config, general.clone())?;
-    save_updated_config(
-        shell,
-        current_general_config,
-        &current_general_config_path,
-        diff,
+    update_config(
+        shell.clone(),
+        general,
+        &chain.path_to_general_config(),
+        true,
+        false,
         MSG_DIFF_GENERAL_CONFIG,
     )?;
 
-    let curret_external_node_config_path = chain.path_to_external_node_config();
-    let mut current_external_node_config =
-        serde_yaml::from_str(&shell.read_file(curret_external_node_config_path.clone())?)?;
-    let diff = merge_yaml(&mut current_external_node_config, external_node.clone())?;
-    save_updated_config(
-        shell,
-        current_external_node_config,
-        &curret_external_node_config_path,
-        diff,
+    update_config(
+        shell.clone(),
+        external_node,
+        &chain.path_to_external_node_config(),
+        true,
+        false,
         MSG_DIFF_EN_CONFIG,
     )?;
 
-    let mut current_genesis_config =
-        serde_yaml::from_str(&shell.read_file(chain.path_to_genesis_config())?)?;
-    let diff = merge_yaml(&mut current_genesis_config, genesis.clone())?;
-    diff.print(&msg_diff_genesis_config(&chain.name));
+    update_config(
+        shell.clone(),
+        genesis,
+        &chain.path_to_genesis_config(),
+        false,
+        false,
+        &msg_diff_genesis_config(&chain.name),
+    )?;
 
-    let mut current_contracts_config =
-        serde_yaml::from_str(&shell.read_file(chain.path_to_contracts_config())?)?;
-    let diff = merge_yaml(&mut current_contracts_config, contracts.clone())?;
-    diff.print(&msg_diff_contracts_config(&chain.name));
+    update_config(
+        shell.clone(),
+        contracts,
+        &chain.path_to_contracts_config(),
+        false,
+        false,
+        &msg_diff_contracts_config(&chain.name),
+    )?;
 
-    let mut current_secrets =
-        serde_yaml::from_str(&shell.read_file(chain.path_to_secrets_config())?)?;
-    let mut diff = merge_yaml(&mut current_secrets, secrets.clone())?;
-    diff.reset_value_diff(); // Values are expected to be different
-    diff.print(&msg_diff_secrets(
-        &chain.name,
+    update_config(
+        shell.clone(),
+        secrets,
         &chain.path_to_secrets_config(),
-        secrets_path,
-    ));
+        false,
+        true,
+        &msg_diff_secrets(&chain.name, &chain.path_to_secrets_config(), secrets),
+    )?;
 
     Ok(())
 }
