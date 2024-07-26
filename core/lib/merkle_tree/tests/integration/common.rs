@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
-use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
+use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_merkle_tree::{HashTree, TreeEntry, TreeInstruction};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 

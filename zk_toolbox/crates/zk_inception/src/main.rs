@@ -1,24 +1,26 @@
 use clap::{command, Parser, Subcommand};
+use commands::contract_verifier::ContractVerifierCommands;
 use common::{
-    check_prerequisites,
+    check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
+    error::log_error,
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands, prover::ProverCommands,
+    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
 mod commands;
-mod config_manipulations;
 mod consts;
 mod defaults;
-pub mod forge_utils;
+pub mod external_node;
 mod messages;
-pub mod server;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -32,18 +34,25 @@ struct Inception {
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
     /// Ecosystem related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "e")]
     Ecosystem(EcosystemCommands),
     /// Chain related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "c")]
     Chain(ChainCommands),
     /// Prover related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
+    // Run External Node
+    #[command(subcommand, alias = "en")]
+    ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
+    #[command(alias = "up")]
     Containers,
+    /// Run contract verifier
+    #[command(subcommand)]
+    ContractVerifier(ContractVerifierCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -75,27 +84,13 @@ async fn main() -> anyhow::Result<()> {
     init_global_config_inner(&shell, &inception_args.global)?;
 
     if !global_config().ignore_prerequisites {
-        check_prerequisites(&shell);
+        check_general_prerequisites(&shell);
     }
 
     match run_subcommand(inception_args, &shell).await {
         Ok(_) => {}
-        Err(e) => {
-            logger::error(e.to_string());
-
-            if e.chain().count() > 1 {
-                logger::error_note(
-                    "Caused by:",
-                    &e.chain()
-                        .skip(1)
-                        .enumerate()
-                        .map(|(i, cause)| format!("  {i}: {}", cause))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                );
-            }
-
-            logger::outro("Failed");
+        Err(error) => {
+            log_error(error);
             std::process::exit(1);
         }
     }
@@ -109,6 +104,12 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::ExternalNode(args) => {
+            commands::external_node::run(shell, args).await?
+        }
+        InceptionSubcommands::ContractVerifier(args) => {
+            commands::contract_verifier::run(shell, args).await?
+        }
     }
     Ok(())
 }

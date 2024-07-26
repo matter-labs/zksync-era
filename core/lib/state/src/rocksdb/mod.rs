@@ -400,7 +400,7 @@ impl RocksdbStorage {
 
     async fn apply_storage_logs(
         &mut self,
-        storage_logs: HashMap<StorageKey, H256>,
+        storage_logs: HashMap<H256, H256>,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let db = self.db.clone();
@@ -409,12 +409,13 @@ impl RocksdbStorage {
                 .await
                 .context("panicked processing storage logs")?;
 
-        let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = processed_logs
-            .into_iter()
-            .partition_map(|(key, StateValue { value, enum_index })| match enum_index {
-                Some(index) => Either::Left((key.hashed_key(), (value, index))),
-                None => Either::Right((key.hashed_key(), value)),
-            });
+        let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) =
+            processed_logs.into_iter().partition_map(
+                |(hashed_key, StateValue { value, enum_index })| match enum_index {
+                    Some(index) => Either::Left((hashed_key, (value, index))),
+                    None => Either::Right((hashed_key, value)),
+                },
+            );
         let keys_with_unknown_indices: Vec<_> = logs_with_unknown_indices
             .iter()
             .map(|&(key, _)| key)
@@ -440,8 +441,8 @@ impl RocksdbStorage {
         Ok(())
     }
 
-    fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
-        Self::read_state_value(&self.db, key.hashed_key()).map(|state_value| state_value.value)
+    fn read_value_inner(&self, hashed_key: H256) -> Option<StorageValue> {
+        Self::read_state_value(&self.db, hashed_key).map(|state_value| state_value.value)
     }
 
     fn read_state_value(
@@ -457,15 +458,20 @@ impl RocksdbStorage {
     /// Returns storage logs to apply.
     fn process_transaction_logs(
         db: &RocksDB<StateKeeperColumnFamily>,
-        updates: HashMap<StorageKey, H256>,
-    ) -> Vec<(StorageKey, StateValue)> {
-        let it = updates.into_iter().filter_map(move |(key, new_value)| {
-            if let Some(state_value) = Self::read_state_value(db, key.hashed_key()) {
-                Some((key, StateValue::new(new_value, state_value.enum_index)))
-            } else {
-                (!new_value.is_zero()).then_some((key, StateValue::new(new_value, None)))
-            }
-        });
+        updates: HashMap<H256, H256>,
+    ) -> Vec<(H256, StateValue)> {
+        let it = updates
+            .into_iter()
+            .filter_map(move |(hashed_key, new_value)| {
+                if let Some(state_value) = Self::read_state_value(db, hashed_key) {
+                    Some((
+                        hashed_key,
+                        StateValue::new(new_value, state_value.enum_index),
+                    ))
+                } else {
+                    (!new_value.is_zero()).then_some((hashed_key, StateValue::new(new_value, None)))
+                }
+            });
         it.collect()
     }
 
@@ -617,11 +623,12 @@ impl RocksdbStorage {
 
 impl ReadStorage for RocksdbStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        self.read_value_inner(key).unwrap_or_else(H256::zero)
+        self.read_value_inner(key.hashed_key())
+            .unwrap_or_else(H256::zero)
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.read_value_inner(key).is_none()
+        self.read_value_inner(key.hashed_key()).is_none()
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {

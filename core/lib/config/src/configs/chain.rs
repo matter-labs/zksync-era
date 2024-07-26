@@ -105,7 +105,12 @@ pub struct StateKeeperConfig {
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
     pub max_gas_per_batch: u64,
-    /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+    /// The maximum amount of pubdata that can be used by the batch.
+    /// This variable should not exceed:
+    /// - 128kb for calldata-based rollups
+    /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
+    /// - the DA layer's blob size limit for the DA layer-based validiums
+    /// - 100 MB for the object store-based or no-da validiums
     pub max_pubdata_per_batch: u64,
 
     /// The version of the fee model to use.
@@ -120,6 +125,12 @@ pub struct StateKeeperConfig {
     /// the recursion layers' circuits.
     pub max_circuits_per_batch: usize,
 
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads can be written asynchronously in VM runner instead.
+    /// By default, set to `true` as a temporary safety measure.
+    #[serde(default = "StateKeeperConfig::default_protective_reads_persistence_enabled")]
+    pub protective_reads_persistence_enabled: bool,
+
     // Base system contract hashes, required only for generating genesis config.
     // #PLA-811
     #[deprecated(note = "Use GenesisConfig::bootloader_hash instead")]
@@ -132,6 +143,10 @@ pub struct StateKeeperConfig {
 }
 
 impl StateKeeperConfig {
+    fn default_protective_reads_persistence_enabled() -> bool {
+        true
+    }
+
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
@@ -163,6 +178,7 @@ impl StateKeeperConfig {
             validation_computational_gas_limit: 300000,
             save_call_traces: true,
             max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
             bootloader_hash: None,
             default_aa_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,

@@ -40,7 +40,8 @@ message Web3JsonRpc {
   optional uint64 mempool_cache_size = 29; // optional
   repeated string whitelisted_tokens_for_aa = 30; // optional
   repeated MaxResponseSizeOverride max_response_body_size_overrides = 31;
-
+  repeated string api_namespaces = 32; // Optional, if empty all namespaces are available
+  optional bool extended_api_tracing = 33; // optional, default false
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
 }
 

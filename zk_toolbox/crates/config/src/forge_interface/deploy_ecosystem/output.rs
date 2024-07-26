@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ethers::types::{Address, H256};
+use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -85,7 +85,7 @@ pub struct TokenDeployErc20Output {
     pub symbol: String,
     pub decimals: u64,
     pub implementation: String,
-    pub mint: u64,
+    pub mint: U256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

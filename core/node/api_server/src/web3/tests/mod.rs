@@ -7,7 +7,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{
@@ -18,6 +17,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -73,13 +73,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 async fn setting_response_size_limits() {
     let mut rpc_module = RpcModule::new(());
     rpc_module
-        .register_method("test_limited", |params, _ctx| {
+        .register_method("test_limited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
         .unwrap();
     rpc_module
-        .register_method("test_unlimited", |params, _ctx| {
+        .register_method("test_unlimited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
@@ -954,7 +954,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_blockNumber");
         assert_eq!(calls[0].metadata.block_id, None);
         assert_eq!(calls[0].metadata.block_diff, None);
@@ -965,7 +965,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -978,7 +978,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -993,10 +993,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::MethodNotFound.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::MethodNotFound.code()));
         assert!(!calls[0].metadata.has_app_error);
 
         ClientT::request::<serde_json::Value, _>(&client, "eth_getBlockByNumber", rpc_params![0])
@@ -1005,10 +1002,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(!calls[0].metadata.has_app_error);
 
         // Check app-level error.
@@ -1022,10 +1016,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(calls[0].metadata.has_app_error);
 
         // Check batch RPC request.

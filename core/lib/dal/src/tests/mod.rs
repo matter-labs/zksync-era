@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
-    block::{L2BlockHasher, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -49,6 +49,17 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
     }
+}
+pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
+    L1BatchHeader::new(
+        L1BatchNumber(number),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
+        ProtocolVersionId::latest(),
+    )
 }
 
 pub(crate) fn mock_l2_transaction() -> L2Tx {
@@ -172,14 +183,14 @@ pub(crate) fn mock_vm_event(index: u8) -> VmEvent {
     }
 }
 
-pub(crate) fn mock_l2_to_l1_log() -> UserL2ToL1Log {
+pub(crate) fn create_l2_to_l1_log(tx_number_in_block: u16, index: u8) -> UserL2ToL1Log {
     UserL2ToL1Log(L2ToL1Log {
         shard_id: 0,
         is_service: false,
-        tx_number_in_block: 0,
-        sender: Address::repeat_byte(0),
-        key: H256::from_low_u64_be(0),
-        value: H256::repeat_byte(0),
+        tx_number_in_block,
+        sender: Address::repeat_byte(index),
+        key: H256::from_low_u64_be(u64::from(index)),
+        value: H256::repeat_byte(index),
     })
 }
 

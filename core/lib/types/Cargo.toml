@@ -1,6 +1,7 @@
 [package]
 name = "zksync_types"
-version = "0.1.0"
+description = "Shared ZKsync types"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -27,12 +28,14 @@ once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+bigdecimal.workspace = true
 strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
 prost.workspace = true
 itertools.workspace = true
+tracing.workspace = true
 
 # Crypto stuff
 secp256k1.workspace = true

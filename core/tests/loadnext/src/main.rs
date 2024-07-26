@@ -12,16 +12,16 @@ use loadnext::{
     executor::Executor,
     report_collector::LoadtestResult,
 };
-use prometheus_exporter::PrometheusExporterConfig;
 use tokio::sync::watch;
 use zksync_config::configs::api::PrometheusConfig;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // We don't want to introduce dependency on `zksync_env_config` in loadnext,
     // but we historically rely on the environment variables for the observability configuration,
     // so we load them directly here.
-    let log_format: vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
+    let log_format: zksync_vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
         .ok()
         .unwrap_or("plain".to_string())
         .parse()?;
@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
@@ -62,16 +62,15 @@ async fn main() -> anyhow::Result<()> {
     let mut executor = Executor::new(config, execution_config).await?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    if let Some(prometheus_config) = prometheus_config {
-        let exporter_config = PrometheusExporterConfig::push(
-            prometheus_config.gateway_endpoint(),
-            prometheus_config.push_interval(),
-        );
-
-        tracing::info!("Starting prometheus exporter with config {prometheus_config:?}");
-        tokio::spawn(exporter_config.run(stop_receiver));
-    } else {
-        tracing::info!("Starting without prometheus exporter");
+    match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
+        Some((Some(gateway_endpoint), push_interval)) => {
+            tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
+            let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
+            tokio::spawn(exporter_config.run(stop_receiver));
+        }
+        _ => {
+            tracing::info!("Starting without prometheus exporter");
+        }
     }
 
     let result = executor.start().await;

@@ -2,14 +2,14 @@ use std::{error::Error as StdError, fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::interface::{
-    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
-};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
-use zksync_state::ReadStorageFactory;
+use zksync_multivm::interface::{
+    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+};
+use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -229,6 +229,33 @@ impl BatchExecutorHandle {
         latency.observe();
         Ok(finished_batch)
     }
+
+    pub async fn finish_batch_with_cache(
+        mut self,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::FinishBatchWithCache(response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::FinishBatchWithCache]
+            .start();
+        let batch_with_cache = match response_receiver.await {
+            Ok(batch_with_cache) => batch_with_cache,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
+
+        self.handle.wait().await?;
+
+        latency.observe();
+        Ok(batch_with_cache)
+    }
 }
 
 #[derive(Debug)]
@@ -237,4 +264,5 @@ pub(super) enum Command {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    FinishBatchWithCache(oneshot::Sender<(FinishedL1Batch, StorageViewCache)>),
 }

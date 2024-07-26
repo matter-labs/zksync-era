@@ -1,6 +1,7 @@
 [package]
 name = "zksync_commitment_generator"
-version = "0.1.0"
+description = "ZKsync commitment generator"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -18,7 +19,7 @@ zksync_l1_contract_interface.workspace = true
 zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_contracts.workspace = true
-multivm.workspace = true
+zksync_multivm.workspace = true
 circuit_sequencer_api_1_4_0.workspace = true
 circuit_sequencer_api_1_4_1.workspace = true
 circuit_sequencer_api_1_5_0.workspace = true

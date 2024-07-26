@@ -47,10 +47,14 @@ impl fmt::Display for ConditionMock {
 
 #[async_trait]
 impl PruneCondition for ConditionMock {
+    fn metric_label(&self) -> &'static str {
+        "mock"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         self.is_batch_prunable_responses
             .get(&l1_batch_number)
-            .cloned()
+            .copied()
             .context("error!")
     }
 }

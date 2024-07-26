@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::OnceCell;
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc, watch},
+};
+use zksync_multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
@@ -10,11 +15,6 @@ use multivm::{
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
-};
-use once_cell::sync::OnceCell;
-use tokio::{
-    runtime::Handle,
-    sync::{mpsc, watch},
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView};
@@ -145,6 +145,15 @@ impl CommandReceiver {
                         .observe(metrics.time_spent_on_get_value);
                     EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                         .observe(metrics.time_spent_on_set_value);
+                    return;
+                }
+                Command::FinishBatchWithCache(resp) => {
+                    let vm_block_result = self.finish_batch(&mut vm);
+                    let cache = (*storage_view).borrow().cache();
+                    if resp.send((vm_block_result, cache)).is_err() {
+                        break;
+                    }
+
                     return;
                 }
             }
