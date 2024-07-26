@@ -939,7 +939,20 @@ version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45eda61fb4b476ceac2dad7aaf85ba4ed02fb834598dd7aafacebe405f2af612"
 dependencies = [
- "circuit_encodings 0.150.2-rc.1",
+ "circuit_encodings 0.150.2-rc.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "crossbeam 0.8.4",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "0.150.2-rc.1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
+dependencies = [
+ "circuit_encodings 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -988,6 +1001,17 @@ name = "circuit_encodings"
 version = "0.150.2-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4b69893ec5a2112430adaf8e29b52ea9ec4ef2d6663879f7cc279b4479a8880"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 0.150.0",
+ "zkevm_circuits 0.150.0",
+]
+
+[[package]]
+name = "circuit_encodings"
+version = "0.150.2-rc.1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "derivative",
  "serde",
@@ -1053,11 +1077,10 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.150.2-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "121470724079938b8f878e8a95f757d814624795c9a5ca69dd9dd782035fbe39"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "bellman_ce 0.7.0",
- "circuit_encodings 0.150.2-rc.1",
+ "circuit_encodings 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "derivative",
  "rayon",
  "serde",
@@ -4483,7 +4506,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "chrono",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "clap 4.5.4",
  "colored",
  "dialoguer",
@@ -5589,7 +5612,7 @@ dependencies = [
  "blake2 0.10.6",
  "boojum",
  "boojum-cuda",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "era_cudart",
  "era_cudart_sys",
@@ -6849,7 +6872,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "clap 4.5.4",
  "hex",
  "indicatif",
@@ -7612,11 +7635,10 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "0.150.2-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fdbf14a5793a23aec1b315680b152413a477c8243b7c23a9acf743471b313e4"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "bincode",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "circuit_sequencer_api 0.150.2-rc.1",
  "codegen",
  "crossbeam 0.8.4",
@@ -7958,8 +7980,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.150.2-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4672556b6bc06da9dcd38a607e139b8eb3083edfaabcd12981e8a62051ee1f81"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "boojum",
  "derivative",
@@ -8179,7 +8200,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "clap 4.5.4",
  "ctrlc",
  "futures 0.3.30",
@@ -8236,7 +8257,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -8447,7 +8468,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions 0.150.2-rc.1",
+ "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",

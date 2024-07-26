@@ -1055,8 +1055,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.150.2-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4b69893ec5a2112430adaf8e29b52ea9ec4ef2d6663879f7cc279b4479a8880"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "derivative",
  "serde",
@@ -1122,8 +1121,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.150.2-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "121470724079938b8f878e8a95f757d814624795c9a5ca69dd9dd782035fbe39"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#0bca3fe314cf56c8fa77e3f4eafb04b50eda30b6"
 dependencies = [
  "bellman_ce",
  "circuit_encodings 0.150.2-rc.1",

@@ -49,8 +49,8 @@ pub struct LeafAggregationArtifacts {
     pub aggregations: Vec<(
         u64,
         RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
     )>,
+    pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     #[allow(dead_code)]
     closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
 }
@@ -268,7 +268,7 @@ pub fn process_leaf_aggregation_job(
         job.closed_form_inputs.0,
     );
     let leaf_params = (circuit_id, job.leaf_params);
-    let (aggregations, closed_form_inputs) =
+    let (aggregations, recursive_circuits, closed_form_inputs) =
         create_leaf_witnesses(subsets, job.proofs, job.base_vk, leaf_params);
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
@@ -284,6 +284,7 @@ pub fn process_leaf_aggregation_job(
         circuit_id,
         block_number: job.block_number,
         aggregations,
+        recursive_circuits,
         closed_form_inputs,
     }
 }
@@ -385,13 +386,13 @@ async fn save_artifacts(
         artifacts.block_number,
         get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
         0,
-        artifacts.aggregations.clone(),
+        artifacts.aggregations,
         object_store,
     )
     .await;
     let circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
         artifacts.block_number,
-        artifacts.aggregations,
+        artifacts.recursive_circuits,
         AggregationRound::LeafAggregation,
         0,
         object_store,

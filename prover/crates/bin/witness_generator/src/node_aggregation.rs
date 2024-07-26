@@ -44,8 +44,8 @@ pub struct NodeAggregationArtifacts {
     pub next_aggregations: Vec<(
         u64,
         RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
     )>,
+    pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>
 }
 
 #[derive(Debug)]
@@ -61,8 +61,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
     depth: u16,
     aggregations: Vec<(
         u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
+        RecursionQueueSimulator<GoldilocksField>
     )>,
     proofs: Vec<ZkSyncRecursionLayerProof>,
     leaf_vk: ZkSyncRecursionLayerVerificationKey,
@@ -109,7 +108,7 @@ impl NodeAggregationWitnessGenerator {
             0 => job.leaf_vk,
             _ => job.node_vk,
         };
-        let next_aggregations = create_node_witnesses(
+        let (next_aggregations, recursive_circuits) = create_node_witnesses(
             job.aggregations,
             job.proofs,
             vk,
@@ -134,6 +133,7 @@ impl NodeAggregationWitnessGenerator {
             block_number: job.block_number,
             depth: job.depth + 1,
             next_aggregations,
+            recursive_circuits
         }
     }
 }
@@ -375,13 +375,13 @@ async fn save_artifacts(
         artifacts.block_number,
         artifacts.circuit_id,
         artifacts.depth,
-        artifacts.next_aggregations.clone(),
+        artifacts.next_aggregations,
         object_store,
     )
     .await;
     let circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
         artifacts.block_number,
-        artifacts.next_aggregations,
+        artifacts.recursive_circuits,
         AggregationRound::NodeAggregation,
         artifacts.depth,
         object_store,
