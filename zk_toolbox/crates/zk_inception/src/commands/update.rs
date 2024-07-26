@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use common::{
     git::{pull, submodule_update},
     logger,
@@ -196,15 +196,13 @@ fn merge_yaml_internal(
     match (a, b) {
         (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
             for (key, value) in b {
-                let current_key = if let serde_yaml::Value::String(k) = &key {
-                    if current_key.is_empty() {
-                        k.clone()
-                    } else {
-                        format!("{}.{}", current_key, k)
-                    }
+                let k = key.as_str().context(MSG_INVALID_KEY_TYPE_ERR)?.to_string();
+                let current_key = if current_key.is_empty() {
+                    k.clone()
                 } else {
-                    bail!(MSG_INVALID_KEY_TYPE_ERR);
+                    format!("{}.{}", current_key, k)
                 };
+
                 if a.contains_key(&key) {
                     merge_yaml_internal(a.get_mut(&key).unwrap(), value, current_key, diff)?;
                 } else {
@@ -250,9 +248,19 @@ mod tests {
             "#,
         )
         .unwrap();
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+        key1: value1
+        key2: value2
+        key3:
+            key4: value4
+        "#,
+        )
+        .unwrap();
         let diff = super::merge_yaml(&mut a, b).unwrap();
         assert!(diff.differing_values.is_empty());
         assert!(diff.new_fields.is_empty());
+        assert_eq!(a, expected);
     }
 
     #[test]
@@ -276,6 +284,18 @@ mod tests {
             "#,
         )
         .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
         assert!(diff.differing_values.is_empty());
         assert_eq!(diff.new_fields.len(), 1);
@@ -283,7 +303,7 @@ mod tests {
             diff.new_fields.get::<String>("key5".into()).unwrap(),
             b.clone().get("key5").unwrap()
         );
-        assert_eq!(a.get("key5"), b.get("key5"));
+        assert_eq!(a, expected);
     }
 
     #[test]
@@ -307,9 +327,22 @@ mod tests {
             "#,
         )
         .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+
         let diff = super::merge_yaml(&mut a, b).unwrap();
         assert!(diff.differing_values.is_empty());
         assert!(diff.new_fields.is_empty());
+        assert_eq!(a, expected);
     }
 
     #[test]
@@ -334,6 +367,19 @@ mod tests {
             "#,
         )
         .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            key6: value6
+            "#,
+        )
+        .unwrap();
+
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
         assert_eq!(diff.differing_values.len(), 0);
         assert_eq!(diff.new_fields.len(), 1);
@@ -341,7 +387,7 @@ mod tests {
             diff.new_fields.get::<String>("key6".into()).unwrap(),
             b.clone().get("key6").unwrap()
         );
-        assert_eq!(a.get("key6"), b.get("key6"));
+        assert_eq!(a, expected);
     }
 
     #[test]
@@ -364,6 +410,17 @@ mod tests {
             "#,
         )
         .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
         assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
@@ -372,6 +429,7 @@ mod tests {
                 .unwrap(),
             b.get("key3").unwrap().get("key4").unwrap()
         );
+        assert_eq!(a, expected);
     }
 
     #[test]
@@ -395,6 +453,18 @@ mod tests {
             "#,
         )
         .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            key5: value5
+            "#,
+        )
+        .unwrap();
+
         let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
         assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
@@ -408,5 +478,6 @@ mod tests {
             diff.new_fields.get::<String>("key5".into()).unwrap(),
             b.get("key5").unwrap()
         );
+        assert_eq!(a, expected);
     }
 }
