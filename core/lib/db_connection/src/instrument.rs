@@ -310,26 +310,6 @@ impl<'a> Instrumented<'a, ()> {
         }
     }
 
-    /// Wraps a provided argument validation error. It is assumed that the returned error
-    /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
-    #[must_use]
-    pub fn arg_error<E>(&self, arg_name: &str, err: E) -> DalError
-    where
-        E: Into<anyhow::Error>,
-    {
-        let err: anyhow::Error = err.into();
-        let err = err.context(format!("failed validating query argument `{arg_name}`"));
-        let err = DalRequestError::new(
-            sqlx::Error::Decode(err.into()),
-            self.data.name,
-            self.data.location,
-        )
-        .with_args(self.data.args.to_owned());
-
-        self.data.observe_error(&err);
-        err.into()
-    }
-
     /// Wraps a provided application-level data constraint error. It is assumed that the returned error
     /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
     #[must_use]
@@ -525,5 +505,31 @@ mod tests {
             .fetch_optional(&mut conn)
             .await
             .unwrap();
+    }
+}
+
+pub trait DalContext<T> {
+    /// Wraps a provided argument validation error. It is assumed that the returned error
+    /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
+    fn arg<Q>(self, i: &Instrumented<Q>, arg_name: &'static str) -> DalResult<T>;
+}
+
+impl<T,E> DalContext<T> for Result<T,E> where
+  E: Into<anyhow::Error>
+{
+    fn arg<Q>(self, i: &Instrumented<Q>, arg_name: &'static str) -> DalResult<T> {
+        self.map_err(|err| {
+            let err: anyhow::Error = err.into();
+            let err = err.context(format!("failed validating query argument `{arg_name}`"));
+            let err = DalRequestError::new(
+                sqlx::Error::Encode(err.into()),
+                i.data.name,
+                i.data.location,
+            )
+            .with_args(i.data.args.to_owned());
+
+            i.data.observe_error(&err);
+            err.into()
+        })
     }
 }
