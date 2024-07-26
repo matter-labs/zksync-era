@@ -1,5 +1,23 @@
 # Changelog
 
+## [24.12.0](https://github.com/matter-labs/zksync-era/compare/core-v24.11.0...core-v24.12.0) (2024-07-25)
+
+
+### Features
+
+* add general config and secrets opts to snapshot creator ([#2471](https://github.com/matter-labs/zksync-era/issues/2471)) ([0f475c9](https://github.com/matter-labs/zksync-era/commit/0f475c949a28c4602539b4d75ee79e605f44e2de))
+* Update to consensus 0.1.0-rc.4 (BFT-486) ([#2475](https://github.com/matter-labs/zksync-era/issues/2475)) ([ff6b10c](https://github.com/matter-labs/zksync-era/commit/ff6b10c4a994cf70297a034202bcb55152748cba))
+
+
+### Bug Fixes
+
+* consensus secrets generator ([#2484](https://github.com/matter-labs/zksync-era/issues/2484)) ([dea6969](https://github.com/matter-labs/zksync-era/commit/dea6969d1b67c54a0985278de68a8d50f1084dc1))
+
+
+### Performance Improvements
+
+* writing tx to bootloader memory is no longer quadratic ([#2479](https://github.com/matter-labs/zksync-era/issues/2479)) ([1c443e5](https://github.com/matter-labs/zksync-era/commit/1c443e5ecfd000279830262a4a35cbc83a9aacec))
+
 ## [24.11.0](https://github.com/matter-labs/zksync-era/compare/core-v24.10.0...core-v24.11.0) (2024-07-23)
 
 

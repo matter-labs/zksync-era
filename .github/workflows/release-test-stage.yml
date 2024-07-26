@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   changed_files:
-    runs-on: [matterlabs-default-infra-runners]
+    runs-on: ubuntu-latest
     name: Test changed-files
     outputs:
       core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
@@ -116,3 +116,6 @@ jobs:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
