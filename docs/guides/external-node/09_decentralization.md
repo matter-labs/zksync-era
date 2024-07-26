@@ -19,8 +19,8 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 
 > [!NOTE]
 >
-> The minimal supported server version for this is [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
-
+> The minimal supported server version for this is
+> [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
 
 ### Generating secrets
 
