@@ -35,8 +35,6 @@ pub fn pull(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     let res = Cmd::new(cmd!(shell, "git rev-parse --abbrev-ref HEAD")).run_with_output()?;
     let current_branch = String::from_utf8(res.stdout)?;
     let current_branch = current_branch.trim_end();
-    dbg!(&current_branch);
-
     Cmd::new(cmd!(shell, "git pull origin {current_branch}")).run()?;
     Ok(())
 }
