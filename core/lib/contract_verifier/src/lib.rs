@@ -527,12 +527,10 @@ impl JobProcessor for ContractVerifier {
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
-            let config: ContractVerifierConfig =
-                ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
             let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;
-            let verification_result = Self::verify(&mut connection, job, config).await;
+            let verification_result = Self::verify(&mut connection, job, self.config.clone()).await;
             Self::process_result(&mut connection, job_id, verification_result).await;
 
             API_CONTRACT_VERIFIER_METRICS
