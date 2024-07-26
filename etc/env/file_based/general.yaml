@@ -63,7 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
-    api_namespaces: [ eth,net,web3,zks,pubsub,debug ]
+    api_namespaces: [eth,net,web3,zks,pubsub,debug]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
@@ -130,7 +130,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1 ]
+    aggregated_proof_sizes: [1]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -343,9 +343,9 @@ protective_reads_writer:
   first_processed_batch: 0
 
 basic_witness_input_producer:
-    db_path: "./db/main/basic_witness_input_producer"
-    window_size: 3
-    first_processed_batch: 0
+  db_path: "./db/main/basic_witness_input_producer"
+  window_size: 3
+  first_processed_batch: 0
 
 snapshot_recovery:
   enabled: false
@@ -369,3 +369,8 @@ core_object_store:
   file_backed:
     file_backed_base_path: artifacts
   max_retries: 10
+
+da_dispatcher:
+  polling_interval_ms: 5000
+  max_rows_to_dispatch: 100
+  max_retries: 5
