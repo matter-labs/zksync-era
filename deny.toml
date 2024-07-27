@@ -6,9 +6,7 @@ vulnerability = "deny"
 unmaintained = "warn"
 yanked = "warn"
 notice = "warn"
-ignore = [
-    "RUSTSEC-2023-0018",
-]
+ignore = []
 
 [licenses]
 unlicensed = "deny"
@@ -30,7 +28,7 @@ allow-osi-fsf-free = "neither"
 default = "deny"
 confidence-threshold = 0.8
 exceptions = [
-  { name = "ring", allow = ["OpenSSL"] },
+    { name = "ring", allow = ["OpenSSL"] },
 ]
 unused-allowed-license = "allow"
 

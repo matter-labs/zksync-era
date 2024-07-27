@@ -1,5 +1,53 @@
 # Changelog
 
+## [24.12.0](https://github.com/matter-labs/zksync-era/compare/core-v24.11.0...core-v24.12.0) (2024-07-25)
+
+
+### Features
+
+* add general config and secrets opts to snapshot creator ([#2471](https://github.com/matter-labs/zksync-era/issues/2471)) ([0f475c9](https://github.com/matter-labs/zksync-era/commit/0f475c949a28c4602539b4d75ee79e605f44e2de))
+* Update to consensus 0.1.0-rc.4 (BFT-486) ([#2475](https://github.com/matter-labs/zksync-era/issues/2475)) ([ff6b10c](https://github.com/matter-labs/zksync-era/commit/ff6b10c4a994cf70297a034202bcb55152748cba))
+
+
+### Bug Fixes
+
+* consensus secrets generator ([#2484](https://github.com/matter-labs/zksync-era/issues/2484)) ([dea6969](https://github.com/matter-labs/zksync-era/commit/dea6969d1b67c54a0985278de68a8d50f1084dc1))
+
+
+### Performance Improvements
+
+* writing tx to bootloader memory is no longer quadratic ([#2479](https://github.com/matter-labs/zksync-era/issues/2479)) ([1c443e5](https://github.com/matter-labs/zksync-era/commit/1c443e5ecfd000279830262a4a35cbc83a9aacec))
+
+## [24.11.0](https://github.com/matter-labs/zksync-era/compare/core-v24.10.0...core-v24.11.0) (2024-07-23)
+
+
+### Features
+
+* add revert tests (external node) to zk_toolbox ([#2408](https://github.com/matter-labs/zksync-era/issues/2408)) ([3fbbee1](https://github.com/matter-labs/zksync-era/commit/3fbbee10be99e8c5a696bfd50d81230141bccbf4))
+* add state override for gas estimates ([#1358](https://github.com/matter-labs/zksync-era/issues/1358)) ([761bda1](https://github.com/matter-labs/zksync-era/commit/761bda19844fb3935f8a57c47df39010f88ef9dc))
+* added consensus_config to general config ([#2462](https://github.com/matter-labs/zksync-era/issues/2462)) ([c5650a4](https://github.com/matter-labs/zksync-era/commit/c5650a4f1747f59d7a2d4e1986a91ae3fa7d75b0))
+* added key generation command to EN ([#2461](https://github.com/matter-labs/zksync-era/issues/2461)) ([9861415](https://github.com/matter-labs/zksync-era/commit/986141562646c4d96dca205593e48e4d8df46fba))
+* remove leftovers after BWIP ([#2456](https://github.com/matter-labs/zksync-era/issues/2456)) ([990676c](https://github.com/matter-labs/zksync-era/commit/990676c5f84afd2ff8cd337f495c82e8d1f305a4))
+
+## [24.10.0](https://github.com/matter-labs/zksync-era/compare/core-v24.9.0...core-v24.10.0) (2024-07-22)
+
+
+### Features
+
+* Add blob size metrics ([#2411](https://github.com/matter-labs/zksync-era/issues/2411)) ([41c535a](https://github.com/matter-labs/zksync-era/commit/41c535af2bcc72000116277d5dd9e04b5c0b2372))
+* **en:** Switch EN to use node framework ([#2427](https://github.com/matter-labs/zksync-era/issues/2427)) ([0cee530](https://github.com/matter-labs/zksync-era/commit/0cee530b2f2e8304b7e20a093a32abe116463b57))
+* **eth-sender:** add early return in sending new transactions to not spam logs with errors ([#2425](https://github.com/matter-labs/zksync-era/issues/2425)) ([192f2a3](https://github.com/matter-labs/zksync-era/commit/192f2a374d83eaecb52f198fdcfa615262378530))
+* **eth-watch:** Integrate decentralized upgrades ([#2401](https://github.com/matter-labs/zksync-era/issues/2401)) ([5a48e10](https://github.com/matter-labs/zksync-era/commit/5a48e1026260024c6ae2b4d1100ee9b798a83e8d))
+* L1 batch signing (BFT-474) ([#2414](https://github.com/matter-labs/zksync-era/issues/2414)) ([ab699db](https://github.com/matter-labs/zksync-era/commit/ab699dbe8cffa8bd291d6054579061b47fd4aa0e))
+* **prover:** Make it possible to run prover out of GCP ([#2448](https://github.com/matter-labs/zksync-era/issues/2448)) ([c9da549](https://github.com/matter-labs/zksync-era/commit/c9da5497e2aa9d85f204ab7b74fefcfe941793ff))
+* **zk_toolbox:** Small adjustment for zk toolbox ([#2424](https://github.com/matter-labs/zksync-era/issues/2424)) ([ce43c42](https://github.com/matter-labs/zksync-era/commit/ce43c422fddccfe88c07ee22a2b8726dd0bd5f61))
+
+
+### Bug Fixes
+
+* **eth-sender:** add bump of min 10% when resending txs to avoid "replacement transaction underpriced" ([#2422](https://github.com/matter-labs/zksync-era/issues/2422)) ([a7bcf5d](https://github.com/matter-labs/zksync-era/commit/a7bcf5d7f75eb45384312d7c97f25a50a91e7a31))
+* Set attesters in Connection::adjust_genesis (BFT-489) ([#2429](https://github.com/matter-labs/zksync-era/issues/2429)) ([ca4cb3c](https://github.com/matter-labs/zksync-era/commit/ca4cb3cba04757dc1760397c667a838931cd2d11))
+
 ## [24.9.0](https://github.com/matter-labs/zksync-era/compare/core-v24.8.0...core-v24.9.0) (2024-07-10)
 
 

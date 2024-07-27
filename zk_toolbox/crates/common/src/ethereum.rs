@@ -13,7 +13,7 @@ use crate::wallets::Wallet;
 pub fn create_ethers_client(
     private_key: H256,
     l1_rpc: String,
-    chain_id: Option<u32>,
+    chain_id: Option<u64>,
 ) -> anyhow::Result<SignerMiddleware<Provider<Http>, ethers::prelude::Wallet<SigningKey>>> {
     let mut wallet = LocalWallet::from_bytes(private_key.as_bytes())?;
     if let Some(chain_id) = chain_id {
@@ -27,7 +27,7 @@ pub async fn distribute_eth(
     main_wallet: Wallet,
     addresses: Vec<Address>,
     l1_rpc: String,
-    chain_id: u32,
+    chain_id: u64,
     amount: u128,
 ) -> anyhow::Result<()> {
     let client = create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?;

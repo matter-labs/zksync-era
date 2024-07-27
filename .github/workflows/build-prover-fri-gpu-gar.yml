@@ -2,6 +2,13 @@ name: Build Prover FRI GPU with builtin setup data
 
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Commit sha or git tag for Docker tag"
@@ -29,6 +36,10 @@ jobs:
         run: |
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
 
+      -  name: Auth Docker hub registry
+         run: |
+           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to us-central1 GAR
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
@@ -44,10 +55,9 @@ jobs:
         with:
           context: docker/prover-gpu-fri-gar
           build-args: |
-            PROVER_IMAGE=${{ inputs.image_tag_suffix }}
+            PROVER_IMAGE=${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
           push: true
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
       - name: Login to Asia GAR
@@ -56,9 +66,6 @@ jobs:
 
       - name: Build and push to Asia GAR
         run: |
-          docker buildx imagetools create \
-            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
@@ -69,9 +76,6 @@ jobs:
 
       - name: Build and push to Europe GAR
         run: |
-          docker buildx imagetools create \
-            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}

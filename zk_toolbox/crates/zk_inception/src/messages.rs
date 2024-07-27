@@ -36,6 +36,13 @@ pub(super) const MSG_ECOSYSTEM_ALREADY_EXISTS_ERR: &str = "Ecosystem already exi
 pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem configuration";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code already";
+pub(super) const MSG_NOT_MAIN_REPO_OR_FORK_ERR: &str =
+    "It's not a zkSync Era main repository or fork";
+pub(super) const MSG_CONFIRM_STILL_USE_FOLDER: &str = "Do you still want to use this folder?";
+
+pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
+    format!("Path to zkSync Era repo does not exist: {path:?}")
+}
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
@@ -122,6 +129,8 @@ pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
 
 /// Chain genesis related messages
+pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
+pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
@@ -309,4 +318,45 @@ pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
 
 pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
     format!("Downloading {} {} binary", name, version)
+}
+
+/// Update related messages
+
+pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
+pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
+pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
+pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
+pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
+pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
+    "Added the following fields to the general config:";
+pub(super) const MSG_DIFF_EN_CONFIG: &str =
+    "Added the following fields to the external node config:";
+pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
+    "Added the following fields to the external node generalconfig:";
+pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
+
+pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_secrets(
+    chain: &str,
+    current_secrets_path: &Path,
+    era_secret_path: &Path,
+) -> String {
+    format!(
+        "Found differences between chain {chain} and era secrets configs. Consider updating the chain {chain} secrets config at {current_secrets_path:?} using the file {era_secret_path:?} as reference. Diff:"
+    )
+}
+
+pub(super) fn msg_updating_chain(chain: &str) -> String {
+    format!("Updating chain: {}", chain)
 }

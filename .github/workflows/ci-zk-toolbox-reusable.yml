@@ -1,6 +1,13 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
 
 env:
   CLICOLOR: 1
@@ -9,6 +16,9 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build:
     runs-on: [matterlabs-ci-runner]
@@ -24,6 +34,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -72,7 +83,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -102,11 +113,22 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
-      - name: Run external node server
+      - name: Init external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
           ci_run zk_inception external-node init --ignore-prerequisites
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
+            
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
+  
+      - name: Run external node server
+        run: |
           ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
           ci_run sleep 5
 
@@ -117,6 +139,10 @@ jobs:
       - name: Run revert tests
         run: |
           ci_run zk_supervisor test revert --ignore-prerequisites --verbose
+
+      - name: Run revert tests (external node)
+        run: |
+          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose
 
       - name: Show server.log logs
         if: always()

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumIter};
 
 use crate::{
     ethabi,
@@ -6,7 +7,7 @@ use crate::{
     U256,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, EnumIter, Display)]
 pub enum L1BatchCommitmentMode {
     #[default]
     Rollup,

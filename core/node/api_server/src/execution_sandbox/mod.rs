@@ -27,6 +27,7 @@ use super::tx_sender::MultiVMBaseSystemContracts;
 mod apply;
 mod error;
 mod execute;
+mod storage;
 pub mod testonly;
 #[cfg(test)]
 mod tests;

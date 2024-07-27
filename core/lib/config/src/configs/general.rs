@@ -2,6 +2,7 @@ use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
@@ -17,7 +18,7 @@ use crate::{
     SnapshotsCreatorConfig,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneralConfig {
     pub postgres_config: Option<PostgresConfig>,
     pub api_config: Option<ApiConfig>,
@@ -48,4 +49,5 @@ pub struct GeneralConfig {
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub consensus_config: Option<ConsensusConfig>,
 }

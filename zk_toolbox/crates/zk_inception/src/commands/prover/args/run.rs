@@ -13,7 +13,7 @@ pub struct ProverRunArgs {
 }
 
 #[derive(
-    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, Copy, strum_macros::Display,
+    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, Copy, strum::Display,
 )]
 pub enum ProverComponent {
     #[strum(to_string = "Gateway")]
@@ -34,9 +34,7 @@ pub struct WitnessGeneratorArgs {
     pub round: Option<WitnessGeneratorRound>,
 }
 
-#[derive(
-    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum_macros::Display,
-)]
+#[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
 pub enum WitnessGeneratorRound {
     #[strum(to_string = "All rounds")]
     AllRounds,
