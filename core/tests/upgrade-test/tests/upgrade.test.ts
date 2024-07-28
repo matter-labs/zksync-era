@@ -8,7 +8,13 @@ import { BytesLike } from '@ethersproject/bytes';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { BigNumberish } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { runServerInBackground } from './utils';
+import {
+    runServerInBackground,
+    setAggregatedBlockExecuteDeadline,
+    setAggregatedBlockProveDeadline,
+    setBlockCommitDeadlineMs,
+    setEthSenderSenderAggregatedBlockCommitDeadline
+} from './utils';
 import path from 'path';
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -99,6 +105,14 @@ describe('Upgrade test', function () {
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
+
+        if (fileConfig.loadFromFile) {
+            setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
+            setAggregatedBlockProveDeadline(pathToHome, fileConfig, 1);
+            setAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 1);
+            setBlockCommitDeadlineMs(pathToHome, fileConfig, 2000);
+        }
+
         // Run server in background.
         runServerInBackground({
             components: serverComponents,
@@ -318,6 +332,11 @@ describe('Upgrade test', function () {
     });
 
     after('Try killing server', async () => {
+        setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
+        setAggregatedBlockProveDeadline(pathToHome, fileConfig, 1);
+        setAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 1);
+        setBlockCommitDeadlineMs(pathToHome, fileConfig, 2000);
+
         try {
             await utils.exec('pkill zksync_server');
         } catch (_) {}
