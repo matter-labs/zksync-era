@@ -104,6 +104,10 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose
 
+      - name: Build contracts
+        run: |
+          ci_run zk_inception contract build
+
       - name: Run server
         run: |
           ci_run zk_inception server --ignore-prerequisites &>server.log &
