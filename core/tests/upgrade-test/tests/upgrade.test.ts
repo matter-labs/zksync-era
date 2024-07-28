@@ -57,18 +57,24 @@ describe('Upgrade test', function () {
     let forceDeployBytecode: string;
     let logs: fs.WriteStream;
 
-    let ethProvider: string;
+    let ethProviderAddress: string | undefined;
+    let contractsL2DefaultUpgradeAddr: string;
 
     before('Create test wallet', async () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
 
-            ethProvider = secretsConfig.l1.l1_rpc_url;
+            ethProviderAddress = secretsConfig.l1.l1_rpc_url;
+            contractsL2DefaultUpgradeAddr = '0x0000000000000000000000000000000000000000';
+            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = '0x0000000000000000000000000000000000000000';
+            process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
         } else {
-            ethProvider = process.env.CHAIN_ETH_NETWORK || 'localhost';
+            ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
+            contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
         }
 
-        tester = await Tester.init(ethProvider);
+        const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
+        tester = await Tester.init(network, ethProviderAddress);
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
@@ -201,9 +207,11 @@ describe('Upgrade test', function () {
             input: '0x'
         };
 
-        const delegateTo = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
         const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
-        const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [delegateTo, delegateCalldata]);
+        const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [
+            contractsL2DefaultUpgradeAddr,
+            delegateCalldata
+        ]);
 
         const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
             govWallet,
