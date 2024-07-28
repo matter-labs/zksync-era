@@ -1,5 +1,5 @@
 use clap::{command, Parser, Subcommand};
-use commands::contract_verifier::ContractVerifierCommands;
+use commands::{contract::ContractCommands, contract_verifier::ContractVerifierCommands};
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -53,6 +53,9 @@ pub enum InceptionSubcommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
+    /// Manage contracts
+    #[command(subcommand)]
+    Contract(ContractCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -110,6 +113,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
+        InceptionSubcommands::Contract(args) => commands::contract::run(shell, args).await?,
     }
     Ok(())
 }
