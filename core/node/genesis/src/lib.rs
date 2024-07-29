@@ -5,9 +5,9 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, GENESIS_UPGRADE_EVENT};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;

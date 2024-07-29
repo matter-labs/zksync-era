@@ -1,8 +1,6 @@
 use zksync_config::{ContractsConfig, EthWatchConfig};
 use zksync_contracts::{chain_admin_contract, governance_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_mini_merkle_tree::SyncMerkleTree;
-use zksync_types::{ethabi::Contract, l1::L1Tx, Address};
 
 use crate::{
     implementations::resources::{
