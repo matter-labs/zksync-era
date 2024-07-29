@@ -190,8 +190,16 @@ fn main() -> anyhow::Result<()> {
 
     if opt.clear_l1_txs_history {
         println!("Clearing L1 txs history!");
-        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
-        futures::executor::block_on(delete_l1_txs_history(&database_secrets))?;
+
+        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+
+        tokio_runtime.block_on(async move {
+            let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+            delete_l1_txs_history(&database_secrets).await.unwrap();
+        });
+
         println!("Complete!");
         return Ok(());
     }
