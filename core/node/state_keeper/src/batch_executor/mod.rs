@@ -21,6 +21,7 @@ use crate::{
 pub mod main_executor;
 #[cfg(test)]
 mod tests;
+mod traits;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
