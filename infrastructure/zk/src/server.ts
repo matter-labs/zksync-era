@@ -14,15 +14,8 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (rebuildTree || components || useNodeFramework) {
         options += ' --';
     }
-    if (rebuildTree) {
-        clean('db');
-        options += ' --rebuild-tree';
-    }
     if (components) {
         options += ` --components=${components}`;
-    }
-    if (useNodeFramework) {
-        options += ' --use-node-framework';
     }
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
@@ -78,11 +71,9 @@ export async function genesisFromBinary() {
 export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
-    .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
-    .option('--use-node-framework', 'use node framework for server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {

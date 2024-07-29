@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::{mpsc, watch};
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -17,7 +17,7 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_object_store::{MockObjectStore, ObjectStore};
-use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+use zksync_prover_interface::inputs::WitnessInputMerklePaths;
 use zksync_storage::RocksDB;
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
@@ -57,18 +57,21 @@ pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
         include_indices_and_filters_in_block_cache: false,
         memtable_capacity: 16 << 20,            // 16 MiB
         stalled_writes_timeout: Duration::ZERO, // writes should never be stalled in tests
+        sealed_batches_have_protective_reads: true,
         recovery: MetadataCalculatorRecoveryConfig::default(),
     }
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn genesis_creation() {
+async fn genesis_creation(sealed_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, _) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     run_calculator(calculator).await;
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool, sealed_protective_reads).await;
 
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(tree) = tree else {
@@ -100,11 +103,12 @@ async fn low_level_genesis_creation() {
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
 
-#[test_casing(8, Product(([1, 4, 7, 9], [false, true])))]
+#[test_casing(16, Product(([1, 4, 7, 9], [false, true], [false, true])))]
 #[tokio::test]
 async fn tree_truncation_on_l1_batch_divergence(
     last_common_l1_batch: u32,
     overwrite_tree_data: bool,
+    sealed_protective_reads: bool,
 ) {
     const INITIAL_BATCH_COUNT: usize = 10;
 
@@ -113,7 +117,8 @@ async fn tree_truncation_on_l1_batch_divergence(
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
     run_calculator(calculator).await;
 
@@ -137,7 +142,8 @@ async fn tree_truncation_on_l1_batch_divergence(
         }
     }
 
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(mut tree) = tree else {
         panic!("Unexpected tree state: {tree:?}");
@@ -154,9 +160,12 @@ async fn tree_truncation_on_l1_batch_divergence(
     assert_eq!(tree.next_l1_batch_number(), last_common_l1_batch + 1);
 }
 
-#[test_casing(4, [1, 4, 6, 7])]
+#[test_casing(8, Product(([1, 4, 6, 7], [false, true])))]
 #[tokio::test]
-async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch: u32) {
+async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(
+    retained_l1_batch: u32,
+    sealed_protective_reads: bool,
+) {
     const INITIAL_BATCH_COUNT: usize = 10;
     const LAST_COMMON_L1_BATCH: L1BatchNumber = L1BatchNumber(6);
 
@@ -164,7 +173,8 @@ async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
     run_calculator(calculator).await;
 
@@ -186,7 +196,8 @@ async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch
             .unwrap();
     }
 
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(mut tree) = tree else {
         panic!("Unexpected tree state: {tree:?}");
@@ -221,28 +232,30 @@ async fn tree_truncation_on_l1_batch_divergence_in_pruned_tree(retained_l1_batch
     }
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn basic_workflow() {
+async fn basic_workflow(sealed_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (calculator, object_store) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, object_store) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, 1).await;
     let merkle_tree_hash = run_calculator(calculator).await;
 
     // Check the hash against the reference.
-    let expected_tree_hash = expected_tree_hash(&pool).await;
+    let expected_tree_hash = expected_tree_hash(&pool, sealed_protective_reads).await;
     assert_eq!(merkle_tree_hash, expected_tree_hash);
 
-    let job: PrepareBasicCircuitsJob = object_store.get(L1BatchNumber(1)).await.unwrap();
+    let job: WitnessInputMerklePaths = object_store.get(L1BatchNumber(1)).await.unwrap();
     assert!(job.next_enumeration_index() > 0);
     let merkle_paths: Vec<_> = job.clone().into_merkle_paths().collect();
     assert!(!merkle_paths.is_empty() && merkle_paths.len() <= 100);
     // ^ The exact values depend on ops in genesis block
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool, sealed_protective_reads).await;
     let tree = calculator.create_tree().await.unwrap();
     let GenericAsyncTree::Ready(tree) = tree else {
         panic!("Unexpected tree state: {tree:?}");
@@ -250,16 +263,25 @@ async fn basic_workflow() {
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(2));
 }
 
-async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
+async fn expected_tree_hash(pool: &ConnectionPool<Core>, sealed_protective_reads: bool) -> H256 {
     let mut storage = pool.connection().await.unwrap();
-    let sealed_l1_batch_number = storage
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
-        .await
-        .unwrap()
-        .expect("No L1 batches in Postgres");
+    let processed_l1_batch_number = if sealed_protective_reads {
+        storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .unwrap()
+            .expect("No L1 batches in Postgres")
+    } else {
+        storage
+            .vm_runner_dal()
+            .get_protective_reads_latest_processed_batch()
+            .await
+            .unwrap()
+            .unwrap_or_default()
+    };
     let mut all_logs = vec![];
-    for i in 0..=sealed_l1_batch_number.0 {
+    for i in 0..=processed_l1_batch_number.0 {
         let logs =
             L1BatchWithLogs::new(&mut storage, L1BatchNumber(i), MerkleTreeMode::Lightweight)
                 .await
@@ -271,12 +293,14 @@ async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn status_receiver_has_correct_states() {
+async fn status_receiver_has_correct_states(sealed_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
-    let (mut calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (mut calculator, _) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let tree_health_check = calculator.tree_health_check();
     assert_eq!(tree_health_check.name(), "tree");
     let health = tree_health_check.check_health().await;
@@ -324,19 +348,22 @@ async fn status_receiver_has_correct_states() {
         .unwrap();
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn multi_l1_batch_workflow() {
+async fn multi_l1_batch_workflow(sealed_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, _) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, 1).await;
     let root_hash = run_calculator(calculator).await;
 
     // Collect the same logs in multiple L1 batches
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (calculator, object_store) = setup_calculator(temp_dir.path(), pool.clone()).await;
+    let (calculator, object_store) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, 10).await;
     let multi_block_root_hash = run_calculator(calculator).await;
     assert_eq!(multi_block_root_hash, root_hash);
@@ -344,7 +371,7 @@ async fn multi_l1_batch_workflow() {
     let mut prev_index = None;
     for l1_batch_number in 1..=10 {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let job: PrepareBasicCircuitsJob = object_store.get(l1_batch_number).await.unwrap();
+        let job: WitnessInputMerklePaths = object_store.get(l1_batch_number).await.unwrap();
         let next_enumeration_index = job.next_enumeration_index();
         let merkle_paths: Vec<_> = job.into_merkle_paths().collect();
         assert!(!merkle_paths.is_empty() && merkle_paths.len() <= 10);
@@ -360,16 +387,62 @@ async fn multi_l1_batch_workflow() {
     }
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn running_metadata_calculator_with_additional_blocks() {
+async fn error_on_pruned_next_l1_batch(sealed_protective_reads: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let (calculator, _) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
+    reset_db_state(&pool, 1).await;
+    run_calculator(calculator).await;
+
+    // Add some new blocks to the storage and mock their partial pruning.
+    let mut storage = pool.connection().await.unwrap();
+    let new_logs = gen_storage_logs(100..200, 10);
+    extend_db_state(&mut storage, new_logs).await;
+    storage
+        .pruning_dal()
+        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    // Sanity check: there should be no pruned batch headers.
+    let next_l1_batch_header = storage
+        .blocks_dal()
+        .get_l1_batch_header(L1BatchNumber(2))
+        .await
+        .unwrap();
+    assert!(next_l1_batch_header.is_none());
+
+    let (calculator, _) =
+        setup_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = calculator.run(stop_receiver).await.unwrap_err();
+    let err = format!("{err:#}");
+    assert!(
+        err.contains("L1 batch #2, next to be processed by the tree, is pruned"),
+        "{err}"
+    );
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn running_metadata_calculator_with_additional_blocks(sealed_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, 5).await;
     run_calculator(calculator).await;
 
-    let mut calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let mut calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
@@ -405,7 +478,7 @@ async fn running_metadata_calculator_with_additional_blocks() {
         .unwrap();
 
     // Switch to the full tree. It should pick up from the same spot and result in the same tree root hash.
-    let (calculator, _) = setup_calculator(temp_dir.path(), pool).await;
+    let (calculator, _) = setup_calculator(temp_dir.path(), pool, true).await;
     let root_hash_for_full_tree = run_calculator(calculator).await;
     assert_eq!(root_hash_for_full_tree, updated_root_hash);
 }
@@ -418,9 +491,17 @@ async fn shutting_down_calculator() {
         create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
 
-    let calculator =
-        setup_calculator_with_options(&merkle_tree_config, &operation_config, pool.clone(), None)
-            .await;
+    let calculator = setup_calculator_with_options(
+        &merkle_tree_config,
+        &operation_config,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
+        pool.clone(),
+        None,
+    )
+    .await;
 
     reset_db_state(&pool, 5).await;
 
@@ -437,10 +518,12 @@ async fn shutting_down_calculator() {
 async fn test_postgres_backup_recovery(
     sleep_between_batches: bool,
     insert_batch_without_metadata: bool,
+    sealed_protective_reads: bool,
 ) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, 5).await;
     run_calculator(calculator).await;
 
@@ -461,11 +544,22 @@ async fn test_postgres_backup_recovery(
             .insert_mock_l1_batch(batch_without_metadata)
             .await
             .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_without_metadata.number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_without_metadata.number)
+            .await
+            .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
     }
     drop(storage);
 
-    let mut calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let mut calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
@@ -484,6 +578,14 @@ async fn test_postgres_backup_recovery(
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
             .insert_mock_l1_batch(batch_header)
+            .await
+            .unwrap();
+        txn.vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_header.number)
+            .await
+            .unwrap();
+        txn.vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_header.number)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -512,30 +614,38 @@ async fn test_postgres_backup_recovery(
         .unwrap();
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn postgres_backup_recovery() {
-    test_postgres_backup_recovery(false, false).await;
+async fn postgres_backup_recovery(sealed_protective_reads: bool) {
+    test_postgres_backup_recovery(false, false, sealed_protective_reads).await;
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn postgres_backup_recovery_with_delay_between_batches() {
-    test_postgres_backup_recovery(true, false).await;
+async fn postgres_backup_recovery_with_delay_between_batches(sealed_protective_reads: bool) {
+    test_postgres_backup_recovery(true, false, sealed_protective_reads).await;
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn postgres_backup_recovery_with_excluded_metadata() {
-    test_postgres_backup_recovery(false, true).await;
+async fn postgres_backup_recovery_with_excluded_metadata(sealed_protective_reads: bool) {
+    test_postgres_backup_recovery(false, true, sealed_protective_reads).await;
 }
 
 pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: ConnectionPool<Core>,
+    sealed_protective_reads: bool,
 ) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
     let store = MockObjectStore::arc();
     let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
         &operation_manager,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: sealed_protective_reads,
+            ..Default::default()
+        },
         pool,
         Some(store.clone()),
     )
@@ -546,9 +656,20 @@ pub(crate) async fn setup_calculator(
 async fn setup_lightweight_calculator(
     db_path: &Path,
     pool: ConnectionPool<Core>,
+    sealed_protective_reads: bool,
 ) -> MetadataCalculator {
     let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
-    setup_calculator_with_options(&db_config, &operation_config, pool, None).await
+    setup_calculator_with_options(
+        &db_config,
+        &operation_config,
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: sealed_protective_reads,
+            ..Default::default()
+        },
+        pool,
+        None,
+    )
+    .await
 }
 
 fn create_config(
@@ -570,6 +691,7 @@ fn create_config(
 async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
     operation_config: &OperationsManagerConfig,
+    state_keeper_config: &StateKeeperConfig,
     pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
@@ -581,8 +703,11 @@ async fn setup_calculator_with_options(
     }
     drop(storage);
 
-    let calculator_config =
-        MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
+    let calculator_config = MetadataCalculatorConfig::for_main_node(
+        merkle_tree_config,
+        operation_config,
+        state_keeper_config,
+    );
     MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
@@ -634,6 +759,11 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usi
     storage
         .blocks_dal()
         .delete_initial_writes(L1BatchNumber(0))
+        .await
+        .unwrap();
+    storage
+        .vm_runner_dal()
+        .delete_protective_reads(L1BatchNumber(0))
         .await
         .unwrap();
 
@@ -690,6 +820,16 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .mark_l2_blocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_processing(batch_number)
+            .await
+            .unwrap();
+        storage
+            .vm_runner_dal()
+            .mark_protective_reads_batch_as_completed(batch_number)
+            .await
+            .unwrap();
         insert_initial_writes_for_batch(storage, batch_number).await;
     }
 }
@@ -700,7 +840,7 @@ async fn insert_initial_writes_for_batch(
 ) {
     let written_non_zero_slots: Vec<_> = connection
         .storage_logs_dal()
-        .get_touched_slots_for_l1_batch(l1_batch_number)
+        .get_touched_slots_for_executed_l1_batch(l1_batch_number)
         .await
         .unwrap()
         .into_iter()
@@ -720,6 +860,7 @@ async fn insert_initial_writes_for_batch(
         .into_iter()
         .sorted()
         .filter(|key| !pre_written_slots.contains(&key.hashed_key()))
+        .map(|key| key.hashed_key())
         .collect();
     connection
         .storage_logs_dedup_dal()
@@ -814,6 +955,11 @@ async fn remove_l1_batches(
         .delete_initial_writes(last_l1_batch_to_keep)
         .await
         .unwrap();
+    storage
+        .vm_runner_dal()
+        .delete_protective_reads(last_l1_batch_to_keep)
+        .await
+        .unwrap();
     batch_headers
 }
 
@@ -905,9 +1051,12 @@ async fn deduplication_works_as_expected() {
     }
 }
 
-#[test_casing(3, [3, 5, 8])]
+#[test_casing(6, Product(([3, 5, 8], [false, true])))]
 #[tokio::test]
-async fn l1_batch_divergence_entire_workflow(last_common_l1_batch: u32) {
+async fn l1_batch_divergence_entire_workflow(
+    last_common_l1_batch: u32,
+    sealed_protective_reads: bool,
+) {
     const INITIAL_BATCH_COUNT: usize = 10;
 
     assert!((last_common_l1_batch as usize) < INITIAL_BATCH_COUNT);
@@ -915,7 +1064,8 @@ async fn l1_batch_divergence_entire_workflow(last_common_l1_batch: u32) {
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     reset_db_state(&pool, INITIAL_BATCH_COUNT).await;
     run_calculator(calculator).await;
 
@@ -924,9 +1074,10 @@ async fn l1_batch_divergence_entire_workflow(last_common_l1_batch: u32) {
     // Extend the state with new L1 batches.
     let logs = gen_storage_logs(100..200, 5);
     extend_db_state(&mut storage, logs).await;
-    let expected_root_hash = expected_tree_hash(&pool).await;
+    let expected_root_hash = expected_tree_hash(&pool, sealed_protective_reads).await;
 
-    let calculator = setup_lightweight_calculator(temp_dir.path(), pool.clone()).await;
+    let calculator =
+        setup_lightweight_calculator(temp_dir.path(), pool.clone(), sealed_protective_reads).await;
     let final_root_hash = run_calculator(calculator).await;
     assert_eq!(final_root_hash, expected_root_hash);
 }

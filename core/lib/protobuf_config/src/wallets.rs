@@ -66,12 +66,20 @@ impl ProtoRepr for proto::Wallets {
                 .as_ref()
                 .map(|blob| proto::PrivateKeyWallet {
                     address: Some(format!("{:?}", blob.address())),
-                    private_key: Some(format!("{:?}", blob.private_key())),
+                    private_key: Some(hex::encode(
+                        blob.private_key().expose_secret().secret_bytes(),
+                    )),
                 });
             (
                 Some(proto::PrivateKeyWallet {
                     address: Some(format!("{:?}", eth_sender.operator.address())),
-                    private_key: Some(format!("{:?}", eth_sender.operator.private_key())),
+                    private_key: Some(hex::encode(
+                        eth_sender
+                            .operator
+                            .private_key()
+                            .expose_secret()
+                            .secret_bytes(),
+                    )),
                 }),
                 blob,
             )

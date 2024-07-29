@@ -152,7 +152,7 @@ impl<S: ReadStorage> Vm<S> {
                             gas_spent_on_pubdata.as_u64(),
                             tx_gas_limit,
                             gas_per_pubdata_byte.low_u32(),
-                            pubdata_published - pubdata_before,
+                            pubdata_published.saturating_sub(pubdata_before),
                             self.bootloader_state
                                 .last_l2_block()
                                 .txs
@@ -184,8 +184,7 @@ impl<S: ReadStorage> Vm<S> {
                     assert!(fp.offset == 0);
 
                     let return_data = self.inner.state.heaps[fp.memory_page]
-                        .read_range_big_endian(fp.start..fp.start + fp.length)
-                        .to_vec();
+                        .read_range_big_endian(fp.start..fp.start + fp.length);
 
                     last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
@@ -420,8 +419,7 @@ impl<S: ReadStorage> Vm<S> {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn get_decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
+    pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
         self.inner.world_diff.decommitted_hashes()
     }
 }
@@ -504,75 +502,76 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
             track_refunds = true;
-            // Create a snapshot to roll back the bootloader call frame on halt.
-            self.make_snapshot();
         }
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
-        if matches!(execution_mode, VmExecutionMode::OneTx) {
-            if matches!(result, ExecutionResult::Halt { .. }) {
-                // Only `Halt`ed executions need a rollback; `Revert`s are correctly handled by the bootloader
-                // so the bootloader / system contract state should be persisted.
-                self.rollback_to_the_latest_snapshot();
-            } else {
-                self.pop_snapshot_no_rollback();
-            }
-        }
+        let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
+            && matches!(result, ExecutionResult::Halt { .. });
 
-        let events = merge_events(
-            self.inner.world_diff.events_after(&start),
-            self.batch_env.number,
-        );
-        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
-            .into_iter()
-            .map(Into::into)
-            .map(UserL2ToL1Log)
-            .collect();
-        let pubdata_after = self.inner.world_diff.pubdata();
-
-        VmExecutionResultAndLogs {
-            result,
-            logs: VmExecutionLogs {
-                storage_logs: self
-                    .inner
-                    .world_diff
-                    .get_storage_changes_after(&start)
-                    .map(|((address, key), change)| StorageLogWithPreviousValue {
-                        log: StorageLog {
-                            key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                            value: u256_to_h256(change.after),
-                            kind: if change.is_initial {
-                                StorageLogKind::InitialWrite
-                            } else {
-                                StorageLogKind::RepeatedWrite
-                            },
+        // If the execution is halted, the VM changes are expected to be rolled back by the caller.
+        // Earlier VMs return empty execution logs in this case, so we follow this behavior.
+        let logs = if ignore_world_diff {
+            VmExecutionLogs::default()
+        } else {
+            let storage_logs = self
+                .inner
+                .world_diff
+                .get_storage_changes_after(&start)
+                .map(|((address, key), change)| StorageLogWithPreviousValue {
+                    log: StorageLog {
+                        key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                        value: u256_to_h256(change.after),
+                        kind: if change.is_initial {
+                            StorageLogKind::InitialWrite
+                        } else {
+                            StorageLogKind::RepeatedWrite
                         },
-                        previous_value: u256_to_h256(change.before.unwrap_or_default()),
-                    })
-                    .collect(),
+                    },
+                    previous_value: u256_to_h256(change.before.unwrap_or_default()),
+                })
+                .collect();
+            let events = merge_events(
+                self.inner.world_diff.events_after(&start),
+                self.batch_env.number,
+            );
+            let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+                .into_iter()
+                .map(Into::into)
+                .map(UserL2ToL1Log)
+                .collect();
+            let system_l2_to_l1_logs = self
+                .inner
+                .world_diff
+                .l2_to_l1_logs_after(&start)
+                .iter()
+                .map(|x| x.glue_into())
+                .collect();
+            VmExecutionLogs {
+                storage_logs,
                 events,
                 user_l2_to_l1_logs,
-                system_l2_to_l1_logs: self
-                    .inner
-                    .world_diff
-                    .l2_to_l1_logs_after(&start)
-                    .iter()
-                    .map(|x| x.glue_into())
-                    .collect(),
+                system_l2_to_l1_logs,
                 total_log_queries_count: 0, // This field is unused
-            },
+            }
+        };
+
+        let pubdata_after = self.inner.world_diff.pubdata();
+        VmExecutionResultAndLogs {
+            result,
+            logs,
+            // FIXME (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
-                contracts_used: 0,         // TODO
-                cycles_used: 0,            // TODO
-                gas_used: 0,               // TODO
-                gas_remaining: 0,          // TODO
-                computational_gas_used: 0, // TODO
-                total_log_queries: 0,      // TODO
+                contracts_used: 0,
+                cycles_used: 0,
+                gas_used: 0,
+                gas_remaining: 0,
+                computational_gas_used: 0,
+                total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: Default::default(), // TODO
+                circuit_statistic: Default::default(),
             },
             refunds,
         }
@@ -613,8 +612,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        // TODO fill all fields
-        let events = merge_events(self.inner.world_diff.events(), self.batch_env.number);
+        let world_diff = &self.inner.world_diff;
+        let events = merge_events(world_diff.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
@@ -624,9 +623,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_logs: self
-                .inner
-                .world_diff
+            deduplicated_storage_logs: world_diff
                 .get_storage_changes()
                 .map(|((address, key), (_, value))| StorageLog {
                     key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
@@ -634,17 +631,15 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
-            used_contract_hashes: vec![],
-            system_logs: self
-                .inner
-                .world_diff
+            used_contract_hashes: self.decommitted_hashes().collect(),
+            system_logs: world_diff
                 .l2_to_l1_logs()
                 .iter()
                 .map(|x| x.glue_into())
                 .collect(),
             user_l2_to_l1_logs,
-            storage_refunds: vec![],
-            pubdata_costs: vec![],
+            storage_refunds: world_diff.storage_refunds().to_vec(),
+            pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
 

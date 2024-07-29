@@ -63,7 +63,6 @@ pub async fn create_state_keeper(
         mempool_config.delay_interval(),
         l2chain_id,
     )
-    .await
     .expect("Failed initializing main node I/O for state keeper");
 
     let sealer = SequencerSealer::new(state_keeper_config);

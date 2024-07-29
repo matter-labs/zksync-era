@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use multivm::{interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT};
 use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
+use zksync_multivm::{
+    interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -195,6 +197,7 @@ impl DebugNamespace {
                 block_args,
                 self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
+                None,
             )
             .await?;
 

@@ -12,15 +12,14 @@ use config::{
         initialize_bridges::{input::InitializeBridgeInput, output::InitializeBridgeOutput},
         script_params::INITIALIZE_BRIDGES_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, EcosystemConfig,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::{cmd, Shell};
 
 use crate::{
-    config_manipulations::update_l2_shared_bridge,
-    forge_utils::{check_the_balance, fill_forge_private_key},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_INITIALIZING_BRIDGES_SPINNER},
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -30,8 +29,17 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
+    let mut contracts = chain_config.get_contracts_config()?;
     let spinner = Spinner::new(MSG_INITIALIZING_BRIDGES_SPINNER);
-    initialize_bridges(shell, &chain_config, &ecosystem_config, args).await?;
+    initialize_bridges(
+        shell,
+        &chain_config,
+        &ecosystem_config,
+        &mut contracts,
+        args,
+    )
+    .await?;
+    contracts.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
 
     Ok(())
@@ -41,6 +49,7 @@ pub async fn initialize_bridges(
     shell: &Shell,
     chain_config: &ChainConfig,
     ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
@@ -74,11 +83,11 @@ pub async fn initialize_bridges(
         INITIALIZE_BRIDGES_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
 
-    update_l2_shared_bridge(shell, chain_config, &output)?;
+    contracts_config.set_l2_shared_bridge(&output)?;
     Ok(())
 }
 
 fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Cmd::new(cmd!(shell, "yarn l2 build")).run()
+    Ok(Cmd::new(cmd!(shell, "yarn l2 build")).run()?)
 }

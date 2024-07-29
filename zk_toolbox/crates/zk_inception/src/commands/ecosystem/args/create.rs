@@ -1,19 +1,23 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use anyhow::bail;
 use clap::Parser;
-use common::{slugify, Prompt, PromptConfirm, PromptSelect};
+use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use types::{L1Network, WalletCreation};
+use xshell::{cmd, Shell};
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},
     messages::{
+        msg_path_to_zksync_does_not_exist_err, MSG_CONFIRM_STILL_USE_FOLDER,
         MSG_ECOSYSTEM_NAME_PROMPT, MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT,
         MSG_LINK_TO_CODE_HELP, MSG_LINK_TO_CODE_PROMPT, MSG_LINK_TO_CODE_SELECTION_CLONE,
-        MSG_LINK_TO_CODE_SELECTION_PATH, MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP,
-        MSG_START_CONTAINERS_PROMPT,
+        MSG_LINK_TO_CODE_SELECTION_PATH, MSG_NOT_MAIN_REPO_OR_FORK_ERR,
+        MSG_REPOSITORY_ORIGIN_PROMPT, MSG_START_CONTAINERS_HELP, MSG_START_CONTAINERS_PROMPT,
     },
 };
 
@@ -33,18 +37,27 @@ pub struct EcosystemCreateArgs {
 }
 
 impl EcosystemCreateArgs {
-    pub fn fill_values_with_prompt(mut self) -> EcosystemCreateArgsFinal {
+    pub fn fill_values_with_prompt(mut self, shell: &Shell) -> EcosystemCreateArgsFinal {
         let mut ecosystem_name = self
             .ecosystem_name
             .unwrap_or_else(|| Prompt::new(MSG_ECOSYSTEM_NAME_PROMPT).ask());
-        ecosystem_name = slugify(&ecosystem_name);
+        ecosystem_name = slugify!(&ecosystem_name, separator = "_");
 
         let link_to_code = self.link_to_code.unwrap_or_else(|| {
             let link_to_code_selection =
                 PromptSelect::new(MSG_REPOSITORY_ORIGIN_PROMPT, LinkToCodeSelection::iter()).ask();
             match link_to_code_selection {
                 LinkToCodeSelection::Clone => "".to_string(),
-                LinkToCodeSelection::Path => Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask(),
+                LinkToCodeSelection::Path => {
+                    let mut path: String = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
+                    if let Err(err) = check_link_to_code(shell, &path) {
+                        logger::warn(err);
+                        if !PromptConfirm::new(MSG_CONFIRM_STILL_USE_FOLDER).ask() {
+                            path = pick_new_link_to_code(shell);
+                        }
+                    }
+                    path
+                }
             }
         });
 
@@ -101,6 +114,43 @@ impl std::fmt::Display for LinkToCodeSelection {
         match self {
             LinkToCodeSelection::Clone => write!(f, "{MSG_LINK_TO_CODE_SELECTION_CLONE}"),
             LinkToCodeSelection::Path => write!(f, "{MSG_LINK_TO_CODE_SELECTION_PATH}"),
+        }
+    }
+}
+
+fn check_link_to_code(shell: &Shell, path: &str) -> anyhow::Result<()> {
+    let path = Path::new(path);
+    if !shell.path_exists(path) {
+        bail!(msg_path_to_zksync_does_not_exist_err(
+            path.to_str().unwrap()
+        ));
+    }
+
+    let _guard = shell.push_dir(path);
+    let out = String::from_utf8(
+        Cmd::new(cmd!(shell, "git remote -v"))
+            .run_with_output()?
+            .stdout,
+    )?;
+
+    if !out.contains("matter-labs/zksync-era") {
+        bail!(MSG_NOT_MAIN_REPO_OR_FORK_ERR);
+    }
+
+    Ok(())
+}
+
+fn pick_new_link_to_code(shell: &Shell) -> String {
+    let link_to_code: String = Prompt::new(MSG_LINK_TO_CODE_PROMPT).ask();
+    match check_link_to_code(shell, &link_to_code) {
+        Ok(_) => link_to_code,
+        Err(err) => {
+            logger::warn(err);
+            if !PromptConfirm::new(MSG_CONFIRM_STILL_USE_FOLDER).ask() {
+                pick_new_link_to_code(shell)
+            } else {
+                link_to_code
+            }
         }
     }
 }

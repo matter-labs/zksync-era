@@ -4,7 +4,7 @@
 //! as well as contracts/SystemConfig.json
 //!
 
-use multivm::utils::get_bootloader_encoding_space;
+use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, ProtocolVersionId, U256};
 
 use crate::utils::{

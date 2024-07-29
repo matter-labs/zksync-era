@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_state_keeper::{
@@ -21,6 +20,7 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use super::{
     client::MainNodeClient,
@@ -43,18 +43,13 @@ pub struct ExternalIO {
 }
 
 impl ExternalIO {
-    pub async fn new(
+    pub fn new(
         pool: ConnectionPool<Core>,
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.connection_tagged("sync_layer").await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
-            .await
-            .context("failed initializing L1 batch params provider")?;
-        drop(storage);
-
+        let l1_batch_params_provider = L1BatchParamsProvider::new();
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -137,6 +132,10 @@ impl StateKeeperIO for ExternalIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+        self.l1_batch_params_provider
+            .initialize(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current L2 block number {}",
             cursor.l1_batch,

@@ -11,7 +11,7 @@ pub(crate) struct TeeVerifierInputProducerMetrics {
     pub process_batch_time: Histogram<Duration>,
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     pub upload_input_time: Histogram<Duration>,
-    pub block_number_processed: Gauge,
+    pub block_number_processed: Gauge<u64>,
 }
 
 #[vise::register]

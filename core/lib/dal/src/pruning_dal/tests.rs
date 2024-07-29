@@ -1,22 +1,18 @@
 use std::ops;
 
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection::Connection;
 use zksync_types::{
-    block::L1BatchHeader,
-    fee::TransactionExecutionMetrics,
-    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::IncludedTxLocation,
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, StorageLog, H256,
+    fee::TransactionExecutionMetrics, tx::IncludedTxLocation, AccountTreeId, Address,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey,
+    StorageLog, H256,
 };
 
 use super::*;
 use crate::{
     storage_logs_dal::DbStorageLog,
     tests::{
-        create_l2_block_header, mock_execution_result, mock_l2_to_l1_log, mock_l2_transaction,
-        mock_vm_event,
+        create_l1_batch_header, create_l2_block_header, create_l2_to_l1_log, mock_execution_result,
+        mock_l2_transaction, mock_vm_event,
     },
     ConnectionPool, Core, CoreDal,
 };
@@ -44,16 +40,16 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         tx_index_in_l2_block: 0,
         tx_initiator_address: Address::default(),
     };
-    let first_logs = [mock_l2_to_l1_log(), mock_l2_to_l1_log()];
+    let first_logs = [create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 0)];
     let second_location = IncludedTxLocation {
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
         tx_initiator_address: Address::default(),
     };
     let second_logs = vec![
-        mock_l2_to_l1_log(),
-        mock_l2_to_l1_log(),
-        mock_l2_to_l1_log(),
+        create_l2_to_l1_log(0, 0),
+        create_l2_to_l1_log(0, 0),
+        create_l2_to_l1_log(0, 0),
     ];
     let all_logs = vec![
         (first_location, first_logs.iter().collect()),
@@ -89,25 +85,10 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
 }
 
 async fn insert_l1_batch(conn: &mut Connection<'_, Core>, l1_batch_number: L1BatchNumber) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        100,
-        BaseSystemContractsHashes {
-            bootloader: H256::repeat_byte(1),
-            default_aa: H256::repeat_byte(42),
-        },
-        ProtocolVersionId::latest(),
-    );
+    let mut header = create_l1_batch_header(*l1_batch_number);
     header.l1_tx_count = 3;
     header.l2_tx_count = 5;
-    header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
-        shard_id: 0,
-        is_service: false,
-        tx_number_in_block: 2,
-        sender: Address::repeat_byte(2),
-        key: H256::repeat_byte(3),
-        value: H256::zero(),
-    }));
+    header.l2_to_l1_logs.push(create_l2_to_l1_log(2, 2));
     header.l2_to_l1_messages.push(vec![22; 22]);
     header.l2_to_l1_messages.push(vec![33; 33]);
 

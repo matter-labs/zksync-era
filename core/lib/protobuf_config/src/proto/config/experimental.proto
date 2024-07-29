@@ -8,4 +8,13 @@ package zksync.config.experimental;
 message DB {
   optional uint64 state_keeper_db_block_cache_capacity_mb = 1; // MB; required
   optional uint32 state_keeper_db_max_open_files = 2; // optional
+  optional bool reads_persistence_enabled = 3;
+  optional uint64 processing_delay_ms = 4;
+  optional bool include_indices_and_filters_in_block_cache = 5;
+}
+
+// Experimental part of the Snapshot recovery configuration.
+message SnapshotRecovery {
+  optional uint64 tree_recovery_parallel_persistence_buffer = 1;
+  optional bool drop_storage_key_preimages = 2; // optional; false by default
 }

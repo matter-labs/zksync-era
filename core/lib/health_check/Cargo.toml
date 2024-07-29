@@ -1,6 +1,7 @@
 [package]
 name = "zksync_health_check"
-version = "0.1.0"
+description = "Health checks library"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

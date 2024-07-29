@@ -45,17 +45,35 @@ pub struct StorageView<S> {
     storage_handle: S,
     // Used for caching and to get the list/count of modified keys
     modified_storage_keys: HashMap<StorageKey, StorageValue>,
-    // Used purely for caching
-    read_storage_keys: HashMap<StorageKey, StorageValue>,
-    // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
-    initial_writes_cache: HashMap<StorageKey, bool>,
+    cache: StorageViewCache,
     metrics: StorageViewMetrics,
 }
 
+/// `StorageViewCache` is a struct for caching storage reads and `contains_key()` checks.
+#[derive(Debug, Default, Clone)]
+pub struct StorageViewCache {
+    // Used purely for caching
+    read_storage_keys: HashMap<StorageKey, StorageValue>,
+    // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
+    initial_writes: HashMap<StorageKey, bool>,
+}
+
+impl StorageViewCache {
+    /// Returns the read storage keys.
+    pub fn read_storage_keys(&self) -> HashMap<StorageKey, StorageValue> {
+        self.read_storage_keys.clone()
+    }
+
+    /// Returns the initial writes.
+    pub fn initial_writes(&self) -> HashMap<StorageKey, bool> {
+        self.initial_writes.clone()
+    }
+}
+
 impl<S> StorageView<S> {
-    /// Returns the modified storage keys
-    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
-        &self.modified_storage_keys
+    /// Returns the underlying storage cache.
+    pub fn cache(&self) -> StorageViewCache {
+        self.cache.clone()
     }
 }
 
@@ -90,8 +108,10 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         Self {
             storage_handle,
             modified_storage_keys: HashMap::new(),
-            read_storage_keys: HashMap::new(),
-            initial_writes_cache: HashMap::new(),
+            cache: StorageViewCache {
+                read_storage_keys: HashMap::new(),
+                initial_writes: HashMap::new(),
+            },
             metrics: StorageViewMetrics::default(),
         }
     }
@@ -102,10 +122,10 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         let cached_value = self
             .modified_storage_keys
             .get(key)
-            .or_else(|| self.read_storage_keys.get(key));
+            .or_else(|| self.cache.read_storage_keys.get(key));
         cached_value.copied().unwrap_or_else(|| {
             let value = self.storage_handle.read_value(key);
-            self.read_storage_keys.insert(*key, value);
+            self.cache.read_storage_keys.insert(*key, value);
             self.metrics.time_spent_on_storage_missed += started_at.elapsed();
             self.metrics.storage_invocations_missed += 1;
             value
@@ -114,8 +134,8 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
 
     fn cache_size(&self) -> usize {
         self.modified_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
-            + self.initial_writes_cache.len() * mem::size_of::<(StorageKey, bool)>()
-            + self.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
+            + self.cache.initial_writes.len() * mem::size_of::<(StorageKey, bool)>()
+            + self.cache.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
     }
 
     /// Returns the current metrics.
@@ -153,11 +173,11 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     /// Only keys contained in the underlying storage will return `false`. If a key was
     /// inserted using [`Self::set_value()`], it will still return `true`.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
+        if let Some(&is_write_initial) = self.cache.initial_writes.get(key) {
             is_write_initial
         } else {
             let is_write_initial = self.storage_handle.is_write_initial(key);
-            self.initial_writes_cache.insert(*key, is_write_initial);
+            self.cache.initial_writes.insert(*key, is_write_initial);
             is_write_initial
         }
     }
@@ -173,7 +193,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
-        &self.read_storage_keys
+        &self.cache.read_storage_keys
     }
 
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
@@ -204,8 +224,8 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 }
 
-/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any caching
-/// or modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes and cache.
+/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any
+/// modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes.
 #[derive(Debug)]
 pub struct ImmutableStorageView<S>(StoragePtr<StorageView<S>>);
 
@@ -216,24 +236,31 @@ impl<S: ReadStorage> ImmutableStorageView<S> {
     }
 }
 
+// All methods other than `read_value()` do not read back modified storage slots, so we proxy them as-is.
 impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        self.0.borrow_mut().storage_handle.read_value(key)
+        let started_at = Instant::now();
+        let mut this = self.0.borrow_mut();
+        let cached_value = this.read_storage_keys().get(key);
+        cached_value.copied().unwrap_or_else(|| {
+            let value = this.storage_handle.read_value(key);
+            this.cache.read_storage_keys.insert(*key, value);
+            this.metrics.time_spent_on_storage_missed += started_at.elapsed();
+            this.metrics.storage_invocations_missed += 1;
+            value
+        })
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        self.0.borrow_mut().storage_handle.is_write_initial(key)
+        self.0.borrow_mut().is_write_initial(key)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.0.borrow_mut().storage_handle.load_factory_dep(hash)
+        self.0.borrow_mut().load_factory_dep(hash)
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.0
-            .borrow_mut()
-            .storage_handle
-            .get_enumeration_index(key)
+        self.0.borrow_mut().get_enumeration_index(key)
     }
 }
 
@@ -284,5 +311,24 @@ mod test {
         assert_eq!(metrics.storage_invocations_missed, 2);
         assert_eq!(metrics.get_value_storage_invocations, 3);
         assert_eq!(metrics.set_value_storage_invocations, 2);
+    }
+
+    #[test]
+    fn immutable_storage_view() {
+        let account: AccountTreeId = AccountTreeId::new(Address::from([0xfe; 20]));
+        let key = H256::from_low_u64_be(61);
+        let value = H256::from_low_u64_be(73);
+        let key = StorageKey::new(account, key);
+
+        let mut raw_storage = InMemoryStorage::default();
+        raw_storage.set_value(key, value);
+        let storage_view = StorageView::new(raw_storage).to_rc_ptr();
+        let mut immutable_view = ImmutableStorageView::new(storage_view.clone());
+
+        let new_value = H256::repeat_byte(0x11);
+        let prev_value = storage_view.borrow_mut().set_value(key, new_value);
+        assert_eq!(prev_value, value);
+
+        assert_eq!(immutable_view.read_value(&key), value);
     }
 }

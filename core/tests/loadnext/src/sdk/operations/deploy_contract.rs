@@ -155,7 +155,7 @@ where
         );
         self.wallet
             .provider
-            .estimate_fee(l2_tx.into())
+            .estimate_fee(l2_tx.into(), None)
             .await
             .map_err(Into::into)
     }

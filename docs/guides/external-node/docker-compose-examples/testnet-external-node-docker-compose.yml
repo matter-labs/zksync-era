@@ -74,6 +74,7 @@ services:
       EN_MAIN_NODE_URL: https://sepolia.era.zksync.dev
       EN_L1_CHAIN_ID: 11155111
       EN_L2_CHAIN_ID: 300
+      # EN_PRUNING_ENABLED: true
 
       EN_STATE_CACHE_PATH: "./db/ext-node/state_keeper"
       EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"

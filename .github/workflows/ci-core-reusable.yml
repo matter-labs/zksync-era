@@ -1,6 +1,13 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
     inputs:
       compilers:
         description: "JSON of required compilers and their versions"
@@ -12,6 +19,9 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   unit-tests:
     runs-on: [matterlabs-ci-runner]
 
@@ -26,6 +36,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -79,6 +90,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Loadtest configuration
         run: |
@@ -135,7 +147,7 @@ jobs:
         base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -151,6 +163,7 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
@@ -205,7 +218,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server --use-node-framework --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier
@@ -230,9 +243,10 @@ jobs:
           fi
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
           ETH_CLIENT_WEB3_URL="http://reth:8545" \
-          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,ETH_CLIENT_WEB3_URL" \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test snapshot-recovery-test
 
       - name: Genesis recovery test
@@ -287,6 +301,10 @@ jobs:
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
 
+      - name: Show fee-projection.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
       - name: Show sccache logs
         if: always()
         run: |
@@ -304,7 +322,7 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:
@@ -321,6 +339,7 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |

@@ -10,6 +10,9 @@ max_pubdata_per_batch=100000
 fee_model_version="V2"
 l1_batch_commit_data_generator_mode="Validium"
 
+[eth_sender]
+sender_pubdata_sending_mode="Custom"
+
 # This override will be removed soon but it is needed for now.
 [eth_sender.gas_adjuster]
 max_blob_base_fee=0

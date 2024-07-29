@@ -6,17 +6,18 @@ use axum::{
     response::Response,
     Router,
 };
-use hyper::body::HttpBody;
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use serde_json::json;
 use tower::ServiceExt;
 use zksync_basic_types::U256;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, CoreDal};
+use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_object_store::MockObjectStore;
-use zksync_prover_interface::{api::SubmitTeeProofRequest, inputs::PrepareBasicCircuitsJob};
-use zksync_tee_verifier::TeeVerifierInput;
+use zksync_prover_interface::{
+    api::SubmitTeeProofRequest,
+    inputs::{TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths},
+};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
 
 use crate::create_proof_processing_router;
@@ -32,8 +33,8 @@ async fn request_tee_proof_inputs() {
     // prepare a sample mocked TEE verifier input
 
     let batch_number = L1BatchNumber::from(1);
-    let tvi = TeeVerifierInput::new(
-        PrepareBasicCircuitsJob::new(0),
+    let tvi = V1TeeVerifierInput::new(
+        WitnessInputMerklePaths::new(0),
         vec![],
         L1BatchEnv {
             previous_batch_hash: Some(H256([1; 32])),
@@ -69,6 +70,7 @@ async fn request_tee_proof_inputs() {
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
     );
+    let tvi = TeeVerifierInput::V1(tvi);
 
     // populate mocked object store with a single batch blob
 
@@ -107,12 +109,10 @@ async fn request_tee_proof_inputs() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let json = json
-        .get("Success")
-        .expect("Unexpected response format")
-        .clone();
     let deserialized: TeeVerifierInput = serde_json::from_value(json).unwrap();
 
     assert_eq!(tvi, deserialized);
@@ -133,7 +133,8 @@ async fn submit_tee_proof() {
     let tee_proof_request_str = r#"{
         "signature": [ 0, 1, 2, 3, 4 ],
         "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ]
+        "proof": [ 10, 11, 12, 13, 14 ],
+        "tee_type": "Sgx"
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();

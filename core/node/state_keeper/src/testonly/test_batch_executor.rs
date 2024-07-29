@@ -13,12 +13,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use multivm::{
+use tokio::sync::{mpsc, watch, watch::Receiver};
+use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use tokio::sync::{mpsc, watch, watch::Receiver};
-use zksync_contracts::BaseSystemContracts;
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_types::{
@@ -30,7 +30,9 @@ use crate::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
-    testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
+    testonly::{
+        default_vm_batch_result, storage_view_cache, successful_exec, BASE_SYSTEM_CONTRACTS,
+    },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
@@ -271,7 +273,7 @@ pub(crate) fn successful_exec_with_metrics(
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        reason: multivm::interface::Halt::InnerTxError,
+        reason: zksync_multivm::interface::Halt::InnerTxError,
     }
 }
 
@@ -499,6 +501,9 @@ impl TestBatchExecutor {
                     resp.send(default_vm_batch_result()).unwrap();
                     return;
                 }
+                Command::FinishBatchWithCache(resp) => resp
+                    .send((default_vm_batch_result(), storage_view_cache()))
+                    .unwrap(),
             }
         }
     }
@@ -827,6 +832,9 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
+                    Command::FinishBatchWithCache(resp) => resp
+                        .send((default_vm_batch_result(), storage_view_cache()))
+                        .unwrap(),
                 }
             }
             anyhow::Ok(())

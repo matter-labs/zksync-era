@@ -5,27 +5,31 @@ use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
+    server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{ChainConfig, EcosystemConfig};
+use config::{
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
+    WalletsConfig,
+};
+use types::ProverMode;
 use xshell::Shell;
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    config_manipulations::{update_database_secrets, update_general_config},
+    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_COMPLETED,
-        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
-        MSG_INITIALIZING_SERVER_DATABASE, MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
+        MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
+        MSG_RECREATE_ROCKS_DB_ERRROR, MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
         MSG_STARTING_GENESIS_SPINNER,
     },
-    server::{RunServer, ServerMode},
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
-
-const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
-const PROVER_MIGRATIONS: &str = "prover/prover_dal/migrations";
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
@@ -46,12 +50,20 @@ pub async fn genesis(
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    // Clean the rocksdb
-    shell.remove_path(&config.rocks_db_path)?;
     shell.create_dir(&config.rocks_db_path)?;
 
-    update_general_config(shell, config)?;
-    update_database_secrets(shell, config, &args.server_db, &args.prover_db)?;
+    let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
+        .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
+    let mut general = config.get_general_config()?;
+    general.set_rocks_db_config(rocks_db)?;
+    if config.prover_version != ProverMode::NoProofs {
+        general.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS".to_string();
+    }
+    general.save_with_base_path(shell, &config.configs)?;
+
+    let mut secrets = config.get_secrets_config()?;
+    secrets.set_databases(&args.server_db, &args.prover_db);
+    secrets.save_with_base_path(shell, &config.configs)?;
 
     logger::note(
         MSG_SELECTED_CONFIG,
@@ -127,6 +139,17 @@ async fn initialize_databases(
 }
 
 fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = RunServer::new(None, chain_config);
-    server.run(shell, ServerMode::Genesis)
+    let server = Server::new(None, chain_config.link_to_code.clone());
+    server
+        .run(
+            shell,
+            ServerMode::Genesis,
+            GenesisConfig::get_path_with_base_path(&chain_config.configs),
+            WalletsConfig::get_path_with_base_path(&chain_config.configs),
+            GeneralConfig::get_path_with_base_path(&chain_config.configs),
+            SecretsConfig::get_path_with_base_path(&chain_config.configs),
+            ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            vec![],
+        )
+        .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }

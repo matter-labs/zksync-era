@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use criterion::black_box;
-use vm_benchmark_harness::{
+use zksync_vm_benchmark_harness::{
     cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, BenchmarkingVm,
 };
 

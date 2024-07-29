@@ -5,16 +5,41 @@ use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
     },
-    precondition::Precondition,
-    service::{ServiceContext, StopReceiver},
-    task::TaskId,
+    service::StopReceiver,
+    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
+/// Wiring layer for chain ID validation precondition for external node.
+/// Ensures that chain IDs are consistent locally, on main node, and on L1.
+///
+/// ## Requests resources
+///
+/// - `EthInterfaceResource`
+/// - `MainNodeClientResource
+///
+/// ## Adds preconditions
+///
+/// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
     l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub eth_client: EthInterfaceResource,
+    pub main_node_client: MainNodeClientResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: ValidateChainIdsTask,
 }
 
 impl ValidateChainIdsLayer {
@@ -28,13 +53,16 @@ impl ValidateChainIdsLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ValidateChainIdsLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "validate_chain_ids_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let EthInterfaceResource(query_client) = context.get_resource().await?;
-        let MainNodeClientResource(main_node_client) = context.get_resource().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let EthInterfaceResource(query_client) = input.eth_client;
+        let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let task = ValidateChainIdsTask::new(
             self.l1_chain_id,
@@ -43,19 +71,21 @@ impl WiringLayer for ValidateChainIdsLayer {
             main_node_client,
         );
 
-        context.add_precondition(Box::new(task));
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 
 #[async_trait::async_trait]
-impl Precondition for ValidateChainIdsTask {
+impl Task for ValidateChainIdsTask {
+    fn kind(&self) -> TaskKind {
+        TaskKind::Precondition
+    }
+
     fn id(&self) -> TaskId {
         "validate_chain_ids".into()
     }
 
-    async fn check(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         (*self).run_once(stop_receiver.0).await
     }
 }
