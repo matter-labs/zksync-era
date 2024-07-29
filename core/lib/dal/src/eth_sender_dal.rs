@@ -56,6 +56,55 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
+    pub async fn get_eth_txs_history_entries_max_id(&mut self) -> usize {
+        sqlx::query!(
+            r#"
+            SELECT
+                MAX(id)
+            FROM
+                eth_txs_history
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .max
+        .unwrap()
+        .try_into()
+        .unwrap()
+    }
+
+    pub async fn get_last_sent_eth_tx_hash(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        op_type: AggregatedActionType,
+    ) -> Option<TxHistory> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                eth_commit_tx_id,
+                eth_prove_tx_id,
+                eth_execute_tx_id
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap();
+        let eth_tx_id = match op_type {
+            AggregatedActionType::Commit => row.eth_commit_tx_id,
+            AggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+            AggregatedActionType::Execute => row.eth_execute_tx_id,
+        }
+        .unwrap() as u32;
+        self.get_last_sent_eth_tx(eth_tx_id).await.unwrap()
+    }
+
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
         struct EthTxRow {
             number: i64,

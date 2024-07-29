@@ -106,12 +106,12 @@ impl MockEthereumInner {
         self.block_number += confirmations;
         let nonce = self.current_nonce;
         self.current_nonce += 1;
-        tracing::info!("Executing tx with hash {tx_hash:?}");
+        tracing::info!("Executing tx with hash {tx_hash:?}, success: {success}, current nonce: {}, confirmations: {confirmations}", self.current_nonce);
         let tx_nonce = self.sent_txs[&tx_hash].nonce;
 
         if non_ordering_confirmations {
             if tx_nonce >= nonce {
-                self.current_nonce = tx_nonce;
+                self.current_nonce = tx_nonce + 1;
             }
         } else {
             assert_eq!(tx_nonce, nonce, "nonce mismatch");

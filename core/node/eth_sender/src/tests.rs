@@ -4,6 +4,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     block::L1BatchHeader,
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
@@ -101,76 +102,32 @@ async fn confirm_many(
     )
     .await;
 
-    let mut hashes = vec![];
+    let mut l1_batches = vec![];
 
-    for number in 0..5 {
-        TestL1Batch::sealed(&mut tester).await;
-        //tester.seal_l1_batch().await;
-
-        let tx = tester
-            .aggregator
-            .save_eth_tx(
-                &mut tester.conn.connection().await.unwrap(),
-                &get_dummy_operation(number),
-                false,
-            )
-            .await?;
-        let hash = tester
-            .manager
-            .send_eth_tx(
-                &mut tester.conn.connection().await.unwrap(),
-                &tx,
-                0,
-                tester.get_block_numbers().await.latest,
-            )
-            .await?;
-        hashes.push(hash);
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    for _ in 1..6 {
+        let l1_batch = TestL1Batch::sealed(&mut tester).await;
+        l1_batch.save_commit_tx(&mut tester).await;
+        l1_batches.push(l1_batch);
     }
+    tester.run_eth_sender_tx_manager_iteration().await;
 
     // check that we sent something
-    assert_eq!(tester.gateway.sent_tx_count(), 5);
-    assert_eq!(
-        tester
-            .storage()
-            .await
-            .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
-            .await
-            .unwrap()
-            .len(),
-        5
-    );
+    tester.assert_just_sent_tx_count_equals(5).await;
 
-    for hash in hashes {
-        tester
-            .gateway
-            .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    for l1_batch in l1_batches {
+        l1_batch.execute_commit_tx(&mut tester).await;
     }
 
-    let to_resend = tester
-        .manager
-        .monitor_inflight_transactions_single_operator(
-            &mut tester.conn.connection().await.unwrap(),
-            tester.get_block_numbers().await,
-            OperatorType::NonBlob,
-        )
-        .await?;
+    tester.run_eth_sender_tx_manager_iteration().await;
 
-    // check that transaction is marked as accepted
-    assert_eq!(
-        tester
-            .storage()
-            .await
-            .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
-            .await
-            .unwrap()
-            .len(),
-        0
-    );
+    // check that all transactions are marked as accepted
+    tester.assert_inflight_txs_count_equals(0).await;
 
     // also check that we didn't try to resend it
-    assert!(to_resend.is_none());
+    tester.assert_just_sent_tx_count_equals(0).await;
 
     Ok(())
 }
@@ -309,72 +266,33 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     )
     .await;
 
-    TestL1Batch::sealed(&mut tester).await;
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    let l1_batch = TestL1Batch::sealed(&mut tester).await;
+    l1_batch.save_commit_tx(&mut tester).await;
 
-    let tx = tester
-        .aggregator
-        .save_eth_tx(
-            &mut tester.conn.connection().await.unwrap(),
-            &get_dummy_operation(0),
-            false,
-        )
-        .await
-        .unwrap();
-
-    let hash = tester
-        .manager
-        .send_eth_tx(
-            &mut tester.conn.connection().await.unwrap(),
-            &tx,
-            0,
-            tester.get_block_numbers().await.latest,
-        )
-        .await
-        .unwrap();
+    tester.run_eth_sender_tx_manager_iteration().await;
 
     // check that we sent something and stored it in the db
-    assert_eq!(tester.gateway.sent_tx_count(), 1);
-    assert_eq!(
-        tester
-            .storage()
-            .await
-            .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
-            .await
-            .unwrap()
-            .len(),
-        1
-    );
+    tester.assert_just_sent_tx_count_equals(1).await;
+    tester.assert_inflight_txs_count_equals(1).await;
 
     // mine the transaction but don't have enough confirmations yet
     tester
-        .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
-
-    let to_resend = tester
-        .manager
-        .monitor_inflight_transactions_single_operator(
-            &mut tester.conn.connection().await.unwrap(),
-            tester.get_block_numbers().await,
-            OperatorType::NonBlob,
+        .execute_tx(
+            l1_batch.number,
+            AggregatedActionType::Commit,
+            true,
+            // we use -2 as running eth_sender iteration implicitly advances block number by 1
+            EthSenderTester::WAIT_CONFIRMATIONS - 2,
         )
-        .await?;
+        .await;
+    tester.run_eth_sender_tx_manager_iteration().await;
 
     // check that transaction is still considered in-flight
-    assert_eq!(
-        tester
-            .storage()
-            .await
-            .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
-            .await
-            .unwrap()
-            .len(),
-        1
-    );
+    tester.assert_inflight_txs_count_equals(1).await;
 
     // also check that we didn't try to resend it
-    assert!(to_resend.is_none());
+    tester.assert_just_sent_tx_count_equals(0).await;
 
     Ok(())
 }
@@ -392,71 +310,32 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
     )
     .await;
 
-    let mut hashes = vec![];
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
 
-    for number in 0..3 {
-        TestL1Batch::sealed(&mut tester).await;
-        let tx = tester
-            .aggregator
-            .save_eth_tx(
-                &mut tester.conn.connection().await.unwrap(),
-                &get_dummy_operation(number),
-                false,
-            )
-            .await
-            .unwrap();
+    let first_batch = TestL1Batch::sealed(&mut tester).await;
+    let second_batch = TestL1Batch::sealed(&mut tester).await;
+    let third_batch = TestL1Batch::sealed(&mut tester).await;
+    let fourth_batch = TestL1Batch::sealed(&mut tester).await;
 
-        let hash = tester
-            .manager
-            .send_eth_tx(
-                &mut tester.conn.connection().await.unwrap(),
-                &tx,
-                0,
-                tester.get_block_numbers().await.latest,
-            )
-            .await
-            .unwrap();
+    first_batch.save_commit_tx(&mut tester).await;
+    second_batch.save_commit_tx(&mut tester).await;
+    third_batch.save_commit_tx(&mut tester).await;
+    fourth_batch.save_commit_tx(&mut tester).await;
 
-        hashes.push(hash);
-    }
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // we should have sent transactions for all batches for the first time
+    tester.assert_just_sent_tx_count_equals(4).await;
 
-    // check that we sent something
-    assert_eq!(tester.gateway.sent_tx_count(), 3);
+    first_batch.execute_commit_tx(&mut tester).await;
+    second_batch.execute_commit_tx(&mut tester).await;
 
-    // mined & confirmed
-    tester
-        .gateway
-        .execute_tx(hashes[0], true, EthSenderTester::WAIT_CONFIRMATIONS);
-    // mined but not confirmed
-    tester
-        .gateway
-        .execute_tx(hashes[1], true, EthSenderTester::WAIT_CONFIRMATIONS - 1);
-
-    let (to_resend, _) = tester
-        .manager
-        .monitor_inflight_transactions_single_operator(
-            &mut tester.conn.connection().await.unwrap(),
-            tester.get_block_numbers().await,
-            OperatorType::NonBlob,
-        )
-        .await?
-        .expect("we should be trying to resend the last tx");
-
+    tester.run_eth_sender_tx_manager_iteration().await;
     // check that last 2 transactions are still considered in-flight
-    assert_eq!(
-        tester
-            .storage()
-            .await
-            .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
-            .await
-            .unwrap()
-            .len(),
-        2
-    );
+    tester.assert_inflight_txs_count_equals(2).await;
 
-    // last sent transaction has nonce == 2, because they start from 0
-    assert_eq!(to_resend.nonce.0, 2);
+    //We should have resent only first not-mined transaction
+    third_batch.assert_commit_tx_just_sent(&mut tester).await;
+    tester.assert_just_sent_tx_count_equals(1).await;
 
     Ok(())
 }
@@ -478,14 +357,45 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
     let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
     let first_batch = TestL1Batch::sealed(&mut tester).await;
 
-    let hash = first_batch.commit(&mut tester, false).await;
+    first_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
 
-    // fail this tx
-    tester
-        .gateway
-        .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS);
+    first_batch.fail_commit_tx(&mut tester).await;
+
     tester.run_eth_sender_tx_manager_iteration().await;
 }
+
+// #[test_log::test(tokio::test)]
+// async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
+//     let mut tester = EthSenderTester::new(
+//         ConnectionPool::<Core>::test_pool().await,
+//         vec![100; 100],
+//         true,
+//         true,
+//         L1BatchCommitmentMode::Rollup,
+//     )
+//     .await;
+//
+//     let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
+//     let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
+//     let second_l1_batch = TestL1Batch::sealed(&mut tester).await;
+//
+//     first_l1_batch.save_commit_tx(&mut tester).await;
+//     second_l1_batch.save_commit_tx(&mut tester).await;
+//     tester.run_eth_sender_tx_manager_iteration().await;
+//     // first iteration sends two commit txs for the first time
+//     tester.assert_just_sent_tx_count_equals(2).await;
+//
+//     first_l1_batch.save_prove_tx(&mut tester).await;
+//     first_l1_batch.execute_commit_tx(&mut tester).await;
+//     tester.run_eth_sender_tx_manager_iteration().await;
+//     // second iteration sends first_batch prove tx and resends second_batch commit tx
+//     tester.assert_just_sent_tx_count_equals(2).await;
+//
+//     tester.run_eth_sender_tx_manager_iteration().await;
+//     // we should resend both of those transactions here as they use different operators
+//     tester.assert_just_sent_tx_count_equals(2).await;
+// }
 
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
@@ -563,11 +473,14 @@ async fn skipped_l1_batch_at_the_start(
     let third_l1_batch = TestL1Batch::sealed(&mut tester).await;
     let fourth_l1_batch = TestL1Batch::sealed(&mut tester).await;
 
-    // DO NOT CONFIRM THIRD BLOCK
-    let third_l1_batch_commit_tx_hash = third_l1_batch.commit(&mut tester, false).await;
-    third_l1_batch.prove(&mut tester, true).await;
+    // DO NOT CONFIRM PROVE TXS
+    third_l1_batch.commit(&mut tester, true).await;
     fourth_l1_batch.commit(&mut tester, true).await;
-    fourth_l1_batch.prove(&mut tester, true).await;
+    third_l1_batch.prove(&mut tester, false).await;
+    fourth_l1_batch.prove(&mut tester, false).await;
+
+    //sanity check, 2 commit txs are still in-flight
+    tester.assert_inflight_txs_count_equals(2).await;
 
     let l1_batches = tester
         .storage()
@@ -578,7 +491,7 @@ async fn skipped_l1_batch_at_the_start(
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
 
-    tester.confirm_tx(third_l1_batch_commit_tx_hash).await;
+    third_l1_batch.execute_prove_tx(&mut tester).await;
     let l1_batches = tester
         .storage()
         .await
@@ -619,8 +532,8 @@ async fn skipped_l1_batch_in_the_middle(
     let fourth_l1_batch = TestL1Batch::sealed(&mut tester).await;
 
     // DO NOT CONFIRM THIRD BLOCK
-    let third_l1_batch_commit_tx_hash = third_l1_batch.commit(&mut tester, false).await;
-    third_l1_batch.prove(&mut tester, true).await;
+    third_l1_batch.commit(&mut tester, true).await;
+    third_l1_batch.prove(&mut tester, false).await;
     fourth_l1_batch.commit(&mut tester, true).await;
     fourth_l1_batch.prove(&mut tester, true).await;
 
@@ -635,7 +548,7 @@ async fn skipped_l1_batch_in_the_middle(
     assert_eq!(l1_batches.len(), 3);
     assert_eq!(l1_batches[0].header.number.0, 2);
 
-    tester.confirm_tx(third_l1_batch_commit_tx_hash).await;
+    third_l1_batch.execute_commit_tx(&mut tester).await;
     let l1_batches = tester
         .storage()
         .await
