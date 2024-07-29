@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt,
+};
 
 use anyhow::Context as _;
 use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
@@ -286,6 +289,21 @@ impl DivergenceErrors {
             "final_state.system_logs",
             &main.system_logs,
             &shadow.system_logs,
+        );
+        self.check_match(
+            "final_state.storage_refunds",
+            &main.storage_refunds,
+            &shadow.storage_refunds,
+        );
+        self.check_match(
+            "final_state.pubdata_costs",
+            &main.pubdata_costs,
+            &shadow.pubdata_costs,
+        );
+        self.check_match(
+            "final_state.used_contract_hashes",
+            &main.used_contract_hashes.iter().collect::<HashSet<_>>(),
+            &shadow.used_contract_hashes.iter().collect::<HashSet<_>>(),
         );
 
         let main_deduplicated_logs = Self::gather_logs(&main.deduplicated_storage_logs);
