@@ -487,12 +487,13 @@ async fn generate_witness(
 
     // Future which receives circuits and saves them async.
     let circuit_receiver_handle = async {
+        let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
+
         while let Some(circuit) = circuit_receiver
             .recv()
             .instrument(tracing::info_span!("wait_for_circuit"))
             .await
         {
-            let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
             let sequence = circuit_sequence.fetch_add(1, Ordering::SeqCst);
             let object_store = object_store.clone();
             let semaphore = semaphore.clone();
