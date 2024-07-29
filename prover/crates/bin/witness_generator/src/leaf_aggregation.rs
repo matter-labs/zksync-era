@@ -46,10 +46,7 @@ use crate::{
 pub struct LeafAggregationArtifacts {
     circuit_id: u8,
     block_number: L1BatchNumber,
-    pub aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-    )>,
+    pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     #[allow(dead_code)]
     closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,

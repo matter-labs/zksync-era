@@ -78,12 +78,7 @@ impl StoredObject for ClosedFormInputWrapper {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct AggregationWrapper(
-    pub  Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-    )>,
-);
+pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
 
 impl StoredObject for AggregationWrapper {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
@@ -173,10 +168,7 @@ pub async fn save_node_aggregations_artifacts(
     block_number: L1BatchNumber,
     circuit_id: u8,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>
-    )>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     object_store: &dyn ObjectStore,
 ) -> String {
     let key = AggregationsKey {

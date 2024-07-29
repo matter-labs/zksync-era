@@ -41,11 +41,8 @@ pub struct NodeAggregationArtifacts {
     circuit_id: u8,
     block_number: L1BatchNumber,
     depth: u16,
-    pub next_aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-    )>,
-    pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>
+    pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
+    pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
 }
 
 #[derive(Debug)]
@@ -59,10 +56,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
     circuit_id: u8,
     block_number: L1BatchNumber,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>
-    )>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     proofs: Vec<ZkSyncRecursionLayerProof>,
     leaf_vk: ZkSyncRecursionLayerVerificationKey,
     node_vk: ZkSyncRecursionLayerVerificationKey,
@@ -133,7 +127,7 @@ impl NodeAggregationWitnessGenerator {
             block_number: job.block_number,
             depth: job.depth + 1,
             next_aggregations,
-            recursive_circuits
+            recursive_circuits,
         }
     }
 }
