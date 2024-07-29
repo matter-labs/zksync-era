@@ -43,12 +43,14 @@ type InitSetupOptions = {
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
+    shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
     runObservability,
-    deploymentMode
+    deploymentMode,
+    shouldCheckPostgres
 }: InitSetupOptions): Promise<void> => {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
@@ -72,9 +74,9 @@ const initSetup = async ({
     ]);
 };
 
-const initDatabase = async (): Promise<void> => {
+const initDatabase = async (shouldCheck: boolean = true): Promise<void> => {
     await announced('Drop postgres db', db.drop({ core: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }, shouldCheck));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 };
@@ -155,7 +157,8 @@ export const initDevCmdAction = async ({
     baseTokenName,
     runObservability,
     validiumMode,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    shouldCheckPostgres,
 }: InitDevCmdActionOptions): Promise<void> => {
     if (localLegacyBridgeTesting) {
         await makeEraChainIdSameAsCurrent();
@@ -165,7 +168,8 @@ export const initDevCmdAction = async ({
         skipEnvSetup,
         skipSubmodulesCheckout,
         runObservability,
-        deploymentMode
+        deploymentMode,
+        shouldCheckPostgres
     });
     if (!skipVerifier) {
         await deployVerifier();
@@ -228,7 +232,8 @@ export const initHyperCmdAction = async ({
             skipEnvSetup: false,
             skipSubmodulesCheckout: false,
             runObservability,
-            deploymentMode
+            deploymentMode,
+            shouldCheckPostgres: true,
         });
     }
     await initDatabase();
@@ -250,6 +255,11 @@ export const initCommand = new Command('init')
     .option(
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
+    )
+    .option(
+        '--should-check-postgres',
+        'Whether to perform cargo sqlx prepare --check during database setup',
+        true
     )
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
