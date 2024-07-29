@@ -3,6 +3,7 @@ use std::sync::Arc;
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_test_account::Account;
 use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
 
@@ -516,4 +517,46 @@ async fn catchup_rocksdb_cache() {
     let mut executor = tester.create_batch_executor(StorageType::Rocksdb).await;
     let res = executor.execute_tx(tx).await.unwrap();
     assert_rejected(&res);
+}
+
+#[tokio::test]
+async fn transaction_with_large_packable_bytecode() {
+    const BYTECODE_LEN: usize = 350_016 + 32; // +32 to ensure validity of the bytecode
+
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool);
+
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    // Produces bytecode consisting of 2 distinct 4-byte chunks (i.e., well compressable).
+    let mut bytecode = Vec::with_capacity(BYTECODE_LEN);
+    while bytecode.len() < BYTECODE_LEN {
+        bytecode.extend_from_slice(&[(bytecode.len() % 8) as u8; 4]);
+    }
+
+    // With bytecode compression, the transaction uses ~13M gas; w/o it, it would use ~28M.
+    let tx = alice.execute_with_factory_deps(vec![bytecode], 20_000_000);
+    let res = executor.execute_tx(tx).await.unwrap();
+    if let TxExecutionResult::Success {
+        tx_result,
+        compressed_bytecodes,
+        ..
+    } = &res
+    {
+        assert_matches!(tx_result.result, ExecutionResult::Success { .. });
+        assert_eq!(compressed_bytecodes.len(), 1);
+        assert_eq!(compressed_bytecodes[0].original.len(), BYTECODE_LEN);
+        let compressed_len = compressed_bytecodes[0].compressed.len();
+        assert!(compressed_len < BYTECODE_LEN);
+    } else {
+        panic!("unexpected tx execution result: {res:#?}");
+    }
+
+    executor.finish_batch().await.unwrap();
 }

@@ -35,15 +35,13 @@ impl<S: ReadStorage> VmTrackingSnapshots<S> {
 }
 
 impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
-    fn inspect_transaction_without_compression(
+    fn inspect_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> VmTransactionOutput {
         self.assert_not_too_many_snapshots();
-        let output = self
-            .inner
-            .inspect_transaction_without_compression(tx, trace_calls);
+        let output = self.inner.inspect_transaction(tx, trace_calls);
         self.assert_not_too_many_snapshots();
         output
     }

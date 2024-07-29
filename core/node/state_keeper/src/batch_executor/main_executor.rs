@@ -173,7 +173,7 @@ impl CommandReceiver {
         let vm_output = if self.optional_bytecode_compression {
             vm.inspect_transaction_with_optional_compression(tx.clone(), self.trace_calls)
         } else {
-            vm.inspect_transaction_without_compression(tx.clone(), self.trace_calls)
+            vm.inspect_transaction(tx.clone(), self.trace_calls)
         };
         latency.observe();
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();

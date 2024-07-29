@@ -81,7 +81,7 @@ pub(super) struct VmTransactionError {
 pub(super) trait BatchVm {
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
-    fn inspect_transaction_without_compression(
+    fn inspect_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -144,7 +144,7 @@ fn inspect_transaction<S: ReadStorage>(
 }
 
 impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
-    fn inspect_transaction_without_compression(
+    fn inspect_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -155,7 +155,7 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
         // Save pre-execution VM snapshot.
         self.make_snapshot();
 
-        inspect_transaction(self, tx, trace_calls, false)
+        inspect_transaction(self, tx, trace_calls, true)
             .unwrap_or_else(VmTransactionOutput::from_err)
     }
 

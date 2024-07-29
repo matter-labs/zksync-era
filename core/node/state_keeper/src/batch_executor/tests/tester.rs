@@ -345,6 +345,12 @@ pub trait AccountLoadNextExecutable {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction;
+    /// Returns an `execute` transaction with the specified factory deps and gas limit.
+    fn execute_with_factory_deps(
+        &mut self,
+        factory_deps: Vec<Vec<u8>>,
+        gas_limit: u32,
+    ) -> Transaction;
     /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
     /// Increments the account nonce.
     fn loadnext_custom_gas_call(
@@ -370,14 +376,10 @@ impl AccountLoadNextExecutable for Account {
         testonly::l1_transaction(self, serial_id)
     }
 
-    /// Returns a valid `execute` transaction.
-    /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction {
         self.execute_with_gas_limit(1_000_000)
     }
 
-    /// Returns a transaction to the loadnext contract with custom amount of write requests.
-    /// Increments the account nonce.
     fn loadnext_custom_writes_call(
         &mut self,
         address: Address,
@@ -412,14 +414,26 @@ impl AccountLoadNextExecutable for Account {
         )
     }
 
-    /// Returns a valid `execute` transaction.
-    /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
         testonly::l2_transaction(self, gas_limit)
     }
 
-    /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
-    /// Increments the account nonce.
+    fn execute_with_factory_deps(
+        &mut self,
+        factory_deps: Vec<Vec<u8>>,
+        gas_limit: u32,
+    ) -> Transaction {
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: self.address,
+                calldata: vec![],
+                value: 0.into(),
+                factory_deps,
+            },
+            Some(testonly::fee(gas_limit)),
+        )
+    }
+
     fn loadnext_custom_gas_call(
         &mut self,
         address: Address,
