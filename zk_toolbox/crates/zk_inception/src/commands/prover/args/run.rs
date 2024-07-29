@@ -66,7 +66,7 @@ impl WitnessVectorGeneratorArgs {
 
         let threads = self
             .threads
-            .unwrap_or_else(|| Prompt::new(MSG_THREADS_PROMPT).ask());
+            .unwrap_or_else(|| Prompt::new(MSG_THREADS_PROMPT).default("1").ask());
 
         Ok(Self {
             threads: Some(threads),
