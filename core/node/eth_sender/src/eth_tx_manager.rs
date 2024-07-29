@@ -556,7 +556,7 @@ impl EthTxManager {
                     new_eth_tx.len()
                 );
             } else {
-                tracing::info!("No new {operator_type:?} transactions to send");
+                tracing::debug!("No new {operator_type:?} transactions to send");
             }
             for tx in new_eth_tx {
                 let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
@@ -600,7 +600,7 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
-        tracing::info!("Loop iteration at block {}", l1_block_numbers.latest);
+        tracing::debug!("Loop iteration at block {}", l1_block_numbers.latest);
         // We can treat those two operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction
