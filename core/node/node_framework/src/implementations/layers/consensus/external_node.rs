@@ -122,7 +122,7 @@ impl Task for ExternalNodeTask {
             // `run_external_node` might return an error or panic,
             // in which case we need to return immediately,
             // rather than wait for the `stop_receiver`.
-            let _ = sync::wait_for(ctx, &mut stop_receiver.0, |stop| *stop).await?;
+            let _ = sync::wait_for(ctx, &mut stop_receiver.0, |stop| *stop).await;
             Ok(())
         })
         .await

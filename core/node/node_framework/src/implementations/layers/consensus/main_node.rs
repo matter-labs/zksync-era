@@ -84,7 +84,9 @@ impl Task for MainNodeConsensusTask {
             // `run_main_node` might return an error or panic,
             // in which case we need to return immediately,
             // rather than wait for the `stop_receiver`.
-            let _ = sync::wait_for(ctx, &mut stop_receiver.0, |stop| *stop).await?;
+            // We ignore the `Canceled` error and return `Ok()` instead,
+            // because cancellation is expected.
+            let _ = sync::wait_for(ctx, &mut stop_receiver.0, |stop| *stop).await;
             Ok(())
         })
         .await
