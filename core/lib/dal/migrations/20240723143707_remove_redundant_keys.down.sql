@@ -1,7 +1,7 @@
-ALTER TABLE protocol_versions ADD COLUMN IF NOT EXISTS recursion_node_level_vk_hash;
-ALTER TABLE protocol_versions ADD COLUMN IF NOT EXISTS recursion_leaf_level_vk_hash;
-ALTER TABLE protocol_versions ADD COLUMN IF NOT EXISTS recursion_circuits_set_vks_hash;
+ALTER TABLE protocol_versions ALTER COLUMN recursion_node_level_vk_hash SET NOT NULL;
+ALTER TABLE protocol_versions ALTER COLUMN recursion_leaf_level_vk_hash SET NOT NULL;
+ALTER TABLE protocol_versions ALTER COLUMN recursion_circuits_set_vks_hash SET NOT NULL;
 
-ALTER TABLE protocol_patches ADD COLUMN IF NOT EXISTS recursion_node_level_vk_hash;
-ALTER TABLE protocol_patches ADD COLUMN IF NOT EXISTS recursion_leaf_level_vk_hash;
-ALTER TABLE protocol_patches ADD COLUMN IF NOT EXISTS recursion_circuits_set_vks_hash;
+ALTER TABLE protocol_patches ALTER COLUMN recursion_node_level_vk_hash SET NOT NULL;
+ALTER TABLE protocol_patches ALTER COLUMN recursion_leaf_level_vk_hash SET NOT NULL;
+ALTER TABLE protocol_patches ALTER COLUMN recursion_circuits_set_vks_hash SET NOT NULL;
