@@ -9,6 +9,7 @@ use zksync_consensus_roles::{
     attester, validator,
     validator::testonly::{Setup, SetupSpec},
 };
+use zksync_dal::consensus_dal::AttestationStatus;
 use zksync_consensus_storage::BlockStore;
 use zksync_node_sync::MainNodeClient;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
@@ -681,21 +682,30 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
+        // TODO: actually spawn the server which will initialize genesis.
+
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         let api = validator.connect(ctx).await?;
+        let fetch_status = || async {
+            let s = api.fetch_attestation_status().await?.context("no status available")?;
+            let s : AttestationStatus = zksync_protobuf::serde::deserialize(&s.0).context("deserialize()")?;
+            anyhow::Ok(s)
+        };
+
 
         // If the main node has no L1 batch certificates,
-        // the first one to sign should be `last_sealed_batch`.
+        // then the first one to sign should be the batch with the `genesis.first_block`.
+        // TODO:
         validator_pool
             .wait_for_batch(ctx, validator.last_sealed_batch())
             .await?;
-        let status = api.fetch_attestation_status().await?;
-        assert_eq!(status.next_batch_to_attest, validator.last_sealed_batch());
+        let status = fetch_status().await?;
+        assert_eq!(status.next_batch_to_attest, attester::BatchNumber(validator.last_sealed_batch().0.into()));
 
         // Insert a cert, then check again.
         validator_pool
-            .wait_for_batch(ctx, status.next_batch_to_attest)
+            .wait_for_batch(ctx, testonly::cast_batch(status.next_batch_to_attest)?)
             .await?;
         {
             let mut conn = validator_pool.connection(ctx).await?;
@@ -709,11 +719,8 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
                 .await
                 .context("insert_batch_certificate()")?;
         }
-        let want = status.next_batch_to_attest + 1;
-        let got = api
-            .fetch_attestation_status()
-            .await
-            .context("fetch_attestation_status()")?;
+        let want = status.next_batch_to_attest.next();
+        let got = fetch_status().await?;
         assert_eq!(want, got.next_batch_to_attest);
 
         Ok(())

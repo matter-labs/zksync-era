@@ -40,7 +40,7 @@ pub trait EnNamespace {
     /// This is a temporary RPC used for testing L1 batch signing
     /// by consensus attesters.
     #[method(name = "attestationStatus")]
-    async fn attestation_status(&self) -> RpcResult<en::AttestationStatus>;
+    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]

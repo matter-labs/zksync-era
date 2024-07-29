@@ -14,7 +14,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester,validator};
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -52,6 +52,10 @@ use crate::{
     en,
     storage::ConnectionPool,
 };
+
+pub fn cast_batch(n: attester::BatchNumber) -> anyhow::Result<L1BatchNumber> {
+    Ok(L1BatchNumber(n.0.try_into().context("overflow")?))
+}
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
