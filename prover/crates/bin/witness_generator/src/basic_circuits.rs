@@ -1,7 +1,10 @@
 use std::{
     collections::{hash_map::DefaultHasher, HashSet},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::Instant,
 };
 
@@ -116,7 +119,7 @@ impl BasicWitnessGenerator {
             block_number.0
         );
 
-        Some(process_basic_circuits_job(&*object_store, started_at, block_number, job).await)
+        Some(process_basic_circuits_job(object_store, started_at, block_number, job).await)
     }
 }
 
@@ -246,7 +249,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn process_basic_circuits_job(
-    object_store: &dyn ObjectStore,
+    object_store: Arc<dyn ObjectStore>,
     started_at: Instant,
     block_number: L1BatchNumber,
     job: WitnessInputData,
@@ -350,8 +353,8 @@ async fn save_recursion_queue(
     block_number: L1BatchNumber,
     circuit_id: u8,
     recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
-    closed_form_inputs: &[ClosedFormInputCompactFormWitness<GoldilocksField>],
-    object_store: &dyn ObjectStore,
+    closed_form_inputs: Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String, usize) {
     let key = ClosedFormInputKey {
         block_number,
@@ -381,7 +384,7 @@ type Witness = (
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn generate_witness(
     block_number: L1BatchNumber,
-    object_store: &dyn ObjectStore,
+    object_store: Arc<dyn ObjectStore>,
     input: WitnessInputData,
 ) -> Witness {
     let bootloader_contents = expand_bootloader_contents(
@@ -407,7 +410,10 @@ async fn generate_witness(
 
     let make_circuits_span = tracing::info_span!("make_circuits");
     let make_circuits_span_copy = make_circuits_span.clone();
-    let make_circuits = tokio::task::spawn_blocking(move || {
+    // Blocking call from harness that does the CPU heavy lifting.
+    // Provides circuits and recursion queue via callback functions and returns scheduler witnesses.
+    // Circuits are "streamed" one by one as they're being generated.
+    let make_circuits_handle = tokio::task::spawn_blocking(move || {
         let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
 
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
@@ -446,43 +452,87 @@ async fn generate_witness(
             |circuit| {
                 let parent_span = span.clone();
                 tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
-                    circuit_sender.blocking_send(circuit).unwrap();
+                    circuit_sender.blocking_send(circuit).expect("failed to send circuit from harness");
                 });
             },
-            |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
+            |a, b, c| {
+                queue_sender
+                    .blocking_send((a as u8, b, c))
+                    .expect("failed to send recursion queue from harness")
+            },
         );
         (scheduler_witness, block_witness)
     })
     .instrument(make_circuits_span);
 
-    let mut circuit_urls = vec![];
-    let mut recursion_urls = vec![];
+    let mut save_circuit_handles = vec![];
 
-    let mut circuits_present = HashSet::<u8>::new();
+    // Ordering determines how we compose the circuit proofs in Leaf Aggregation Round.
+    // Sequence is used to determine circuit ordering (the sequencing of instructions) .
+    // If the order is tampered with, proving will fail (as the proof would be computed for a different sequence of instruction).
+    let circuit_sequence = AtomicUsize::new(0);
 
     let save_circuits_span = tracing::info_span!("save_circuits");
-    let save_circuits = async {
-        loop {
-            tokio::select! {
-                Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")) => {
-                    circuits_present.insert(circuit.numeric_circuit_type());
-                    circuit_urls.push(
-                        save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
-                    );
-                }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv().instrument(tracing::info_span!("wait_for_queue")) => {
-                    let urls = save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store).await;
-                    recursion_urls.push(urls);
-                }
-                else => break,
-            };
+
+    // Future which receives circuits and saves them async.
+    let circuit_receiver_handle = async {
+        while let Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")).await {
+            let sequence = circuit_sequence.fetch_add(1, Ordering::SeqCst);
+            let object_store = object_store.clone();
+            save_circuit_handles.push(tokio::task::spawn(save_circuit(
+                block_number,
+                circuit,
+                sequence,
+                object_store,
+            )));
         }
     }.instrument(save_circuits_span);
 
-    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits,);
+    let mut save_queue_handles = vec![];
+
+    let save_queues_span = tracing::info_span!("save_queues");
+
+    // Future which receives recursion queues and saves them async.
+    let queue_receiver_handle = async {
+        while let Some((circuit_id, queue, inputs)) = queue_receiver.recv().instrument(tracing::info_span!("wait_for_queue")).await {
+            let object_store = object_store.clone();
+            save_queue_handles.push(tokio::task::spawn(save_recursion_queue(
+                block_number,
+                circuit_id,
+                queue,
+                inputs,
+                object_store,
+            )));
+        }
+    }.instrument(save_queues_span);
+
+    let (witnesses, _, _) = tokio::join!(
+        make_circuits_handle,
+        circuit_receiver_handle,
+        queue_receiver_handle
+    );
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
-    recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
+    let mut circuit_urls = vec![];
+    let mut recursion_urls = vec![];
+
+    // Harness returns recursion queues for all circuits, but for proving only the queues that have circuits matter.
+    // `circuits_present` stores which circuits exist and is used to filter queues in `recursion_urls` later.
+    let mut circuits_present = HashSet::<u8>::new();
+
+    for task in save_circuit_handles {
+        let (circuit_id, circuit_url) = task.await.expect("failed to save circuit");
+        circuit_urls.push((circuit_id, circuit_url));
+        circuits_present.insert(circuit_id);
+    }
+
+    for task in save_queue_handles {
+        let (circuit_id, blob_url, basic_circuit_count) =
+            task.await.expect("failed to save recursion queue");
+        if circuits_present.contains(&circuit_id) {
+            recursion_urls.push((circuit_id, blob_url, basic_circuit_count));
+        }
+    }
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;
