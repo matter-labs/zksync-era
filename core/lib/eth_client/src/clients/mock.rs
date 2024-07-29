@@ -33,7 +33,6 @@ impl From<Vec<u8>> for MockTx {
         let tx: Vec<u8> = if is_eip4844 {
             // decoding rlp-encoded length
             let len = raw_tx[2] as usize * 256 + raw_tx[3] as usize - 2;
-            tracing::info!(len);
             raw_tx[3..3 + len].to_vec()
         } else {
             raw_tx

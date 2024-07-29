@@ -49,7 +49,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
 pub fn create_l1_batch(number: u32) -> L1BatchHeader {
     let mut header = L1BatchHeader::new(
         L1BatchNumber(number),
-        100,
+        number.into(),
         BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(42),
