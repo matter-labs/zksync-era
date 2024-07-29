@@ -9,6 +9,8 @@ import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { BigNumberish } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import {
+    Contracts,
+    initContracts,
     runServerInBackground,
     setAggregatedBlockExecuteDeadline,
     setAggregatedBlockProveDeadline,
@@ -20,31 +22,7 @@ import path from 'path';
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
-const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
-
-const L1_DEFAULT_UPGRADE_ABI = new ethers.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
-);
-const GOVERNANCE_ABI = new ethers.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
-);
-const ADMIN_FACET_ABI = new ethers.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
-);
-const CHAIN_ADMIN_ABI = new ethers.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
-);
-const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.Interface(
-    require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
-);
-const COMPLEX_UPGRADER_ABI = new ethers.Interface(
-    require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
-);
-const COUNTER_BYTECODE =
-    require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`).deployedBytecode;
-const STATE_TRANSITON_MANAGER = new ethers.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
-);
+const contracts: Contracts = initContracts(fileConfig.loadFromFile);
 
 let serverComponents = ['api', 'tree', 'eth', 'state_keeper', 'commitment_generator', 'da_dispatcher'];
 
@@ -135,11 +113,11 @@ describe('Upgrade test', function () {
         }
 
         const stmAddr = await mainContract.getStateTransitionManager();
-        const stmContract = new ethers.Contract(stmAddr, STATE_TRANSITON_MANAGER, tester.syncWallet.providerL1);
+        const stmContract = new ethers.Contract(stmAddr, contracts.stateTransitonManager, tester.syncWallet.providerL1);
         const governanceAddr = await stmContract.owner();
-        governanceContract = new ethers.Contract(governanceAddr, GOVERNANCE_ABI, tester.syncWallet.providerL1);
+        governanceContract = new ethers.Contract(governanceAddr, contracts.governanceAbi, tester.syncWallet.providerL1);
         const chainAdminAddr = await mainContract.getAdmin();
-        chainAdminContract = new ethers.Contract(chainAdminAddr, CHAIN_ADMIN_ABI, tester.syncWallet.providerL1);
+        chainAdminContract = new ethers.Contract(chainAdminAddr, contracts.chainAdminAbi, tester.syncWallet.providerL1);
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
@@ -211,7 +189,7 @@ describe('Upgrade test', function () {
 
     step('Schedule governance call', async () => {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
-        forceDeployBytecode = COUNTER_BYTECODE;
+        forceDeployBytecode = contracts.counterBytecode;
 
         const forceDeployment: ForceDeployment = {
             bytecodeHash: ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode)),
@@ -221,8 +199,10 @@ describe('Upgrade test', function () {
             input: '0x'
         };
 
-        const delegateCalldata = L2_FORCE_DEPLOY_UPGRADER_ABI.encodeFunctionData('forceDeploy', [[forceDeployment]]);
-        const data = COMPLEX_UPGRADER_ABI.encodeFunctionData('upgrade', [
+        const delegateCalldata = contracts.l2ForceDeployUpgraderAbi.encodeFunctionData('forceDeploy', [
+            [forceDeployment]
+        ]);
+        const data = contracts.complexUpgraderAbi.encodeFunctionData('upgrade', [
             contractsL2DefaultUpgradeAddr,
             delegateCalldata
         ]);
@@ -471,7 +451,7 @@ async function prepareUpgradeCalldata(
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
 
     params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
-    const upgradeInitData = L1_DEFAULT_UPGRADE_ABI.encodeFunctionData('upgrade', [
+    const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
         [
             params.l2ProtocolUpgradeTx,
             params.factoryDeps,
@@ -494,7 +474,7 @@ async function prepareUpgradeCalldata(
     };
 
     // Prepare calldata for upgrading STM
-    const stmUpgradeCalldata = STATE_TRANSITON_MANAGER.encodeFunctionData('setNewVersionUpgrade', [
+    const stmUpgradeCalldata = contracts.stateTransitonManager.encodeFunctionData('setNewVersionUpgrade', [
         upgradeParam,
         oldProtocolVersion,
         // The protocol version will not have any deadline in this upgrade
@@ -503,12 +483,12 @@ async function prepareUpgradeCalldata(
     ]);
 
     // Execute this upgrade on a specific chain under this STM.
-    const chainUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('upgradeChainFromVersion', [
+    const chainUpgradeCalldata = contracts.adminFacetAbi.encodeFunctionData('upgradeChainFromVersion', [
         oldProtocolVersion,
         upgradeParam
     ]);
     // Set timestamp for upgrade on a specific chain under this STM.
-    const setTimestampCalldata = CHAIN_ADMIN_ABI.encodeFunctionData('setUpgradeTimestamp', [
+    const setTimestampCalldata = contracts.chainAdminAbi.encodeFunctionData('setUpgradeTimestamp', [
         newProtocolVersion,
         params.upgradeTimestamp
     ]);
@@ -540,13 +520,13 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
     };
 
     // Get transaction data of the `scheduleTransparent`
-    const scheduleTransparentOperation = GOVERNANCE_ABI.encodeFunctionData('scheduleTransparent', [
+    const scheduleTransparentOperation = contracts.governanceAbi.encodeFunctionData('scheduleTransparent', [
         governanceOperation,
         0 // delay
     ]);
 
     // Get transaction data of the `execute`
-    const executeOperation = GOVERNANCE_ABI.encodeFunctionData('execute', [governanceOperation]);
+    const executeOperation = contracts.governanceAbi.encodeFunctionData('execute', [governanceOperation]);
 
     return {
         scheduleTransparentOperation,

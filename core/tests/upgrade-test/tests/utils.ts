@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import * as fs from 'fs';
 import { background } from 'utils';
 import { getConfigPath } from 'utils/build/file-configs';
@@ -50,4 +51,75 @@ function setPropertyInGeneralConfig(pathToHome: string, fileConfig: any, propert
     const newGeneralConfig = generalConfig.replace(regex, `${property}: ${value}`);
 
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
+}
+
+export interface Contracts {
+    l1DefaultUpgradeAbi: any;
+    governanceAbi: any;
+    adminFacetAbi: any;
+    chainAdminAbi: any;
+    l2ForceDeployUpgraderAbi: any;
+    complexUpgraderAbi: any;
+    counterBytecode: any;
+    stateTransitonManager: any;
+}
+
+export function initContracts(zkToolbox: boolean): Contracts {
+    if (zkToolbox) {
+        const CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts`;
+        return {
+            l1DefaultUpgradeAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
+            ),
+            governanceAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/Governance.sol/Governance.json`).abi
+            ),
+            adminFacetAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IAdmin.sol/IAdmin.json`).abi
+            ),
+            chainAdminAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainAdmin.sol/ChainAdmin.json`).abi
+            ),
+            l2ForceDeployUpgraderAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+            ),
+            complexUpgraderAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+            ),
+            counterBytecode:
+                require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                    .deployedBytecode,
+            stateTransitonManager: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`).abi
+            )
+        };
+    } else {
+        const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
+        return {
+            l1DefaultUpgradeAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
+            ),
+            governanceAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
+            ),
+            adminFacetAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-interfaces/IAdmin.sol/IAdmin.json`).abi
+            ),
+            chainAdminAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
+            ),
+            l2ForceDeployUpgraderAbi: new ethers.Interface(
+                require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+            ),
+            complexUpgraderAbi: new ethers.Interface(
+                require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+            ),
+            counterBytecode:
+                require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                    .deployedBytecode,
+            stateTransitonManager: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
+            )
+        };
+    }
 }
