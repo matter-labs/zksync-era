@@ -72,13 +72,13 @@ pub(super) struct VmTransactionError {
     tx_result: Box<VmExecutionResultAndLogs>,
 }
 
-/// Object-safe version of `VmInterface`.
+/// Object-safe version of `VmInterface` used for batch execution.
 ///
 /// # Invariants
 ///
 /// - Transaction inspection methods must create a VM snapshot before the execution, and must not roll back these snapshots.
-///
-pub(super) trait VmWithCallTracing {
+/// - All rollbacks happen via `rollback_last_transaction`.
+pub(super) trait BatchVm {
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
     fn inspect_transaction_without_compression(
@@ -143,7 +143,7 @@ fn inspect_transaction<S: ReadStorage>(
     })
 }
 
-impl<S: ReadStorage> VmWithCallTracing for VmInstance<S, HistoryEnabled> {
+impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
     fn inspect_transaction_without_compression(
         &mut self,
         tx: Transaction,
@@ -213,19 +213,19 @@ pub(super) trait BatchVmFactory<S>: fmt::Debug + Send + Sync {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
-    ) -> Box<dyn VmWithCallTracing + 'a>
+    ) -> Box<dyn BatchVm + 'a>
     where
         S: 'a;
 }
 
-/// Default VM factory.
+/// Default VM factory creating `VmInstance`s.
 impl<S: ReadStorage> BatchVmFactory<S> for () {
     fn create_vm<'a>(
         &self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
-    ) -> Box<dyn VmWithCallTracing + 'a>
+    ) -> Box<dyn BatchVm + 'a>
     where
         S: 'a,
     {

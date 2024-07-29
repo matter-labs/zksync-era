@@ -8,11 +8,11 @@ use tokio::{
 };
 use zksync_multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory, StoragePtr, StorageView};
-use zksync_types::Transaction;
+use zksync_state::{PgOrRocksdbStorage, ReadStorage, ReadStorageFactory, StoragePtr, StorageView};
+use zksync_types::{L1BatchNumber, Transaction};
 
 use super::{
-    traits::{TraceCalls, VmWithCallTracing},
+    traits::{BatchVm, TraceCalls},
     BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult,
 };
 use crate::{
@@ -20,11 +20,14 @@ use crate::{
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
 
+/// Concrete trait object for the [`BatchVmFactory`] used in [`MainBatchExecutor`].
+pub(super) type DynVmFactory = dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>;
+
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug)]
 pub struct MainBatchExecutor {
-    vm_factory: Arc<dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>>,
+    vm_factory: Arc<DynVmFactory>,
     trace_calls: TraceCalls,
     /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
     /// For new blocks, bytecode compression is mandatory -- if bytecode compression is not supported,
@@ -47,6 +50,11 @@ impl MainBatchExecutor {
             optional_bytecode_compression,
         }
     }
+
+    #[cfg(test)]
+    pub(super) fn set_vm_factory(&mut self, vm_factory: Arc<DynVmFactory>) {
+        self.vm_factory = vm_factory;
+    }
 }
 
 #[async_trait]
@@ -62,21 +70,22 @@ impl BatchExecutor for MainBatchExecutor {
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = CommandReceiver {
-            vm_factory: self.vm_factory.clone(),
             trace_calls: self.trace_calls,
             optional_bytecode_compression: self.optional_bytecode_compression,
             commands: commands_receiver,
         };
+        let vm_factory = self.vm_factory.clone();
 
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
+            let l1_batch_number = l1_batch_params.number;
             if let Some(storage) = Handle::current()
-                .block_on(
-                    storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
-                )
+                .block_on(storage_factory.access_storage(&stop_receiver, l1_batch_number - 1))
                 .context("failed accessing state keeper storage")?
             {
-                executor.run(storage, l1_batch_params, system_env);
+                let storage_view = StorageView::new(storage).to_rc_ptr();
+                let vm = vm_factory.create_vm(l1_batch_params, system_env, storage_view.clone());
+                executor.run(storage_view, l1_batch_number, vm);
             } else {
                 tracing::info!("Interrupted while trying to access state keeper storage");
             }
@@ -94,32 +103,20 @@ impl BatchExecutor for MainBatchExecutor {
 /// be constructed.
 #[derive(Debug)]
 struct CommandReceiver {
-    vm_factory: Arc<dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>>,
     trace_calls: TraceCalls,
     optional_bytecode_compression: bool,
     commands: mpsc::Receiver<Command>,
 }
 
 impl CommandReceiver {
-    pub(super) fn run(
-        self,
-        secondary_storage: PgOrRocksdbStorage,
-        l1_batch_params: L1BatchEnv,
-        system_env: SystemEnv,
-    ) {
-        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
-        let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
-        let vm = self
-            .vm_factory
-            .create_vm(l1_batch_params, system_env, storage_view.clone());
-        self.process_commands(vm, storage_view);
-    }
-
-    fn process_commands(
+    fn run<S: ReadStorage>(
         mut self,
-        mut vm: Box<dyn VmWithCallTracing + '_>,
-        storage_view: StoragePtr<StorageView<PgOrRocksdbStorage<'_>>>,
+        storage_view: StoragePtr<StorageView<S>>,
+        l1_batch_number: L1BatchNumber,
+        mut vm: Box<dyn BatchVm + '_>,
     ) {
+        tracing::info!("Starting executing L1 batch #{l1_batch_number}");
+
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
@@ -170,7 +167,7 @@ impl CommandReceiver {
         tracing::info!("State keeper exited with an unfinished L1 batch");
     }
 
-    fn execute_tx(&self, tx: &Transaction, vm: &mut dyn VmWithCallTracing) -> TxExecutionResult {
+    fn execute_tx(&self, tx: &Transaction, vm: &mut dyn BatchVm) -> TxExecutionResult {
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();
         let vm_output = if self.optional_bytecode_compression {
@@ -185,13 +182,13 @@ impl CommandReceiver {
         vm_output.into_tx_result(tx)
     }
 
-    fn rollback_last_tx(&self, vm: &mut dyn VmWithCallTracing) {
+    fn rollback_last_tx(&self, vm: &mut dyn BatchVm) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_last_transaction();
         latency.observe();
     }
 
-    fn finish_batch(&self, vm: &mut dyn VmWithCallTracing) -> FinishedL1Batch {
+    fn finish_batch(&self, vm: &mut dyn BatchVm) -> FinishedL1Batch {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
