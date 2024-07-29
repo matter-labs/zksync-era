@@ -63,7 +63,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
-    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
     } else {
         // This is the scenario of either the first L2 block ever or
