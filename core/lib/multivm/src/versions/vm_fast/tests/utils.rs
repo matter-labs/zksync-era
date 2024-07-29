@@ -120,3 +120,9 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
         "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
     )
 }
+
+pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str =
+        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
