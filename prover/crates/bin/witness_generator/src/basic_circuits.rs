@@ -461,7 +461,9 @@ async fn generate_witness(
             |circuit| {
                 let parent_span = span.clone();
                 tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
-                    circuit_sender.blocking_send(circuit).expect("failed to send circuit from harness");
+                    circuit_sender
+                        .blocking_send(circuit)
+                        .expect("failed to send circuit from harness");
                 });
             },
             |a, b, c| {
@@ -485,8 +487,12 @@ async fn generate_witness(
 
     // Future which receives circuits and saves them async.
     let circuit_receiver_handle = async {
-        while let Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")).await {
-        let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
+        while let Some(circuit) = circuit_receiver
+            .recv()
+            .instrument(tracing::info_span!("wait_for_circuit"))
+            .await
+        {
+            let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
             let sequence = circuit_sequence.fetch_add(1, Ordering::SeqCst);
             let object_store = object_store.clone();
             let semaphore = semaphore.clone();
@@ -498,7 +504,8 @@ async fn generate_witness(
                 save_circuit(block_number, circuit, sequence, object_store).await
             }));
         }
-    }.instrument(save_circuits_span);
+    }
+    .instrument(save_circuits_span);
 
     let mut save_queue_handles = vec![];
 
@@ -506,7 +513,11 @@ async fn generate_witness(
 
     // Future which receives recursion queues and saves them async.
     let queue_receiver_handle = async {
-        while let Some((circuit_id, queue, inputs)) = queue_receiver.recv().instrument(tracing::info_span!("wait_for_queue")).await {
+        while let Some((circuit_id, queue, inputs)) = queue_receiver
+            .recv()
+            .instrument(tracing::info_span!("wait_for_queue"))
+            .await
+        {
             let object_store = object_store.clone();
             save_queue_handles.push(tokio::task::spawn(save_recursion_queue(
                 block_number,
@@ -516,7 +527,8 @@ async fn generate_witness(
                 object_store,
             )));
         }
-    }.instrument(save_queues_span);
+    }
+    .instrument(save_queues_span);
 
     let (witnesses, _, _) = tokio::join!(
         make_circuits_handle,
