@@ -1,7 +1,12 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{
+    attester,
+    attester::{AttesterCommittee, BatchNumber},
+    validator,
+    validator::ValidatorCommittee,
+};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -136,6 +141,23 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await?
             .map_err(E::Other)?)
+    }
+
+    /// Wrapper for `consensus_dal().insert_batch_committees()`.
+    pub async fn insert_batch_committees(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: BatchNumber,
+        validator_committee: ValidatorCommittee,
+        attester_committee: AttesterCommittee,
+    ) -> ctx::Result<()> {
+        ctx.wait(self.0.consensus_dal().insert_batch_committees(
+            number,
+            validator_committee,
+            attester_committee,
+        ))
+        .await??;
+        Ok(())
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
@@ -337,6 +359,18 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().batch_certificate(number))
             .await?
             .context("batch_certificate()")?)
+    }
+
+    /// Wrapper for `consensus_dal().batch_committees()`.
+    pub async fn batch_committees(
+        &mut self,
+        ctx: &ctx::Ctx,
+        batch_number: attester::BatchNumber,
+    ) -> ctx::Result<Option<(validator::ValidatorCommittee, attester::AttesterCommittee)>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_committees(batch_number))
+            .await?
+            .context("batch_committees()")?)
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

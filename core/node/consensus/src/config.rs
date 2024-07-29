@@ -10,7 +10,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{attester, node, validator, validator::Signature};
 
 fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())
@@ -63,6 +63,7 @@ impl GenesisSpec {
                 Ok(validator::WeightedValidator {
                     key: Text::new(&v.key.0).decode().context("key").context(i)?,
                     weight: v.weight,
+                    pop: Signature::decode(Text::new("")).unwrap(), // TODO(moshababo): implement
                 })
             })
             .collect::<anyhow::Result<_>>()

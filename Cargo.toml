@@ -211,16 +211,16 @@ zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "0.150.0" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.4"
-zksync_consensus_bft = "=0.1.0-rc.4"
-zksync_consensus_crypto = "=0.1.0-rc.4"
-zksync_consensus_executor = "=0.1.0-rc.4"
-zksync_consensus_network = "=0.1.0-rc.4"
-zksync_consensus_roles = "=0.1.0-rc.4"
-zksync_consensus_storage = "=0.1.0-rc.4"
-zksync_consensus_utils = "=0.1.0-rc.4"
-zksync_protobuf = "=0.1.0-rc.4"
-zksync_protobuf_build = "=0.1.0-rc.4"
+zksync_concurrency = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_bft = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_crypto = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_executor = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_network = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_roles = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_storage = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_consensus_utils = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_protobuf = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
+zksync_protobuf_build = { git = "https://github.com/matter-labs/era-consensus.git", branch = "update_committee_types" }
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

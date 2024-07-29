@@ -1,12 +1,18 @@
 use anyhow::Context as _;
 use bigdecimal::Zero as _;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{
+    attester,
+    attester::{AttesterCommittee, BatchNumber},
+    validator,
+    validator::{ValidatorCommittee, WeightedValidator},
+};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::ProtoFmt;
 use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::Payload;
@@ -317,7 +323,39 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        Ok(Some(zksync_protobuf::serde::deserialize(
+            row.certificate.unwrap(),
+        )?))
+    }
+
+    pub async fn batch_committees(
+        &mut self,
+        batch_number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<(validator::ValidatorCommittee, attester::AttesterCommittee)>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                validator_committee,
+                attester_committee
+            FROM
+                l1_batches_consensus
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(batch_number.0)?
+        )
+        .instrument("batch_committees")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some((
+            zksync_protobuf::serde::deserialize(row.validator_committee.unwrap())?,
+            zksync_protobuf::serde::deserialize(row.attester_committee.unwrap())?,
+        )))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -402,6 +440,48 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_batch_committees(
+        &mut self,
+        number: BatchNumber,
+        validator_committee: ValidatorCommittee,
+        attester_committee: AttesterCommittee,
+    ) -> anyhow::Result<()> {
+        let res = sqlx::query!(
+            r#"
+            INSERT INTO
+                l1_batches_consensus (
+                    l1_batch_number,
+                    certificate,
+                    validator_committee,
+                    attester_committee,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, NULL, $2, $3, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
+            UPDATE
+            SET
+                validator_committee = EXCLUDED.validator_committee,
+                attester_committee = EXCLUDED.attester_committee,
+                updated_at = NOW();
+            "#,
+            i64::try_from(number.0).context("overflow")?.into(),
+            zksync_protobuf::serde::serialize(&validator_committee, serde_json::value::Serializer)
+                .unwrap(),
+            zksync_protobuf::serde::serialize(&attester_committee, serde_json::value::Serializer)
+                .unwrap(),
+        )
+        .instrument("insert_batch_committees")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        if res.rows_affected().is_zero() {
+            tracing::debug!(l1_batch_number = ?number, "duplicate batch certificate");
+        }
+        Ok(())
+    }
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// No verification is performed - it cannot be performed due to circular dependency on
@@ -413,10 +493,21 @@ impl ConsensusDal<'_, '_> {
         let res = sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
+                l1_batches_consensus (
+                    l1_batch_number,
+                    certificate,
+                    validator_committee,
+                    attester_committee,
+                    created_at,
+                    updated_at
+                )
             VALUES
-                ($1, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, NULL, NULL, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
+            UPDATE
+            SET
+                certificate = EXCLUDED.certificate,
+                updated_at = NOW();
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.

@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use zksync_basic_types::{
-    ethabi::Bytes,
-    web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
-};
+use zksync_basic_types::web3::contract::{Detokenize, Tokenize};
 use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
 use zksync_contracts::consensus_l2_contracts;
 use zksync_node_api_server::{
@@ -22,6 +19,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::types::H160;
 
+use super::{CommitteeAttester, CommitteeValidator};
 use crate::storage::ConnectionPool;
 
 /// A struct for reading data from consensus L2 contracts.
@@ -194,7 +192,7 @@ impl VMReader {
             enforced_base_fee: None,
         };
         self.tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, None)
             .await
             .unwrap()
     }
@@ -215,80 +213,5 @@ impl VMReader {
             vec![],
             Default::default(),
         )
-    }
-}
-
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub struct CommitteeValidator {
-    pub node_owner: Address,
-    pub weight: usize,
-    pub pub_key: Vec<u8>,
-    pub pop: Vec<u8>,
-}
-
-impl Detokenize for CommitteeValidator {
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
-        Ok(Self {
-            node_owner: H160::from_token(
-                tokens
-                    .get(0)
-                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
-                    .clone(),
-            )?,
-            weight: U256::from_token(
-                tokens
-                    .get(1)
-                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
-                    .clone(),
-            )?
-            .as_usize(),
-            pub_key: Bytes::from_token(
-                tokens
-                    .get(2)
-                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
-                    .clone(),
-            )?,
-            pop: Bytes::from_token(
-                tokens
-                    .get(3)
-                    .ok_or_else(|| Error::Other("tokens[3] missing".to_string()))?
-                    .clone(),
-            )?,
-        })
-    }
-}
-
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub struct CommitteeAttester {
-    pub weight: usize,
-    pub node_owner: Address,
-    pub pub_key: Vec<u8>,
-}
-
-impl Detokenize for CommitteeAttester {
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
-        Ok(Self {
-            weight: U256::from_token(
-                tokens
-                    .get(0)
-                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
-                    .clone(),
-            )?
-            .as_usize(),
-            node_owner: H160::from_token(
-                tokens
-                    .get(1)
-                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
-                    .clone(),
-            )?,
-            pub_key: Bytes::from_token(
-                tokens
-                    .get(2)
-                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
-                    .clone(),
-            )?,
-        })
     }
 }
