@@ -12,4 +12,4 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2024-05-07 && \
     rustup default nightly-2024-05-07
 
-RUN cargo install sqlx-cli --version 0.7.3
+RUN cargo install sqlx-cli --version 0.8.0
