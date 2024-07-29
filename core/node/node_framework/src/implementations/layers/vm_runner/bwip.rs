@@ -24,12 +24,9 @@ pub struct BasicWitnessInputProducerLayer {
 }
 
 impl BasicWitnessInputProducerLayer {
-    pub fn new(
-        basic_witness_input_producer_config: BasicWitnessInputProducerConfig,
-        zksync_network_id: L2ChainId,
-    ) -> Self {
+    pub fn new(config: BasicWitnessInputProducerConfig, zksync_network_id: L2ChainId) -> Self {
         Self {
-            config: basic_witness_input_producer_config,
+            config,
             zksync_network_id,
         }
     }
