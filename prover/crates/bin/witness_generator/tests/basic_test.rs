@@ -59,7 +59,7 @@ async fn test_leaf_witness_gen() {
         .await
         .unwrap();
 
-    let artifacts = LeafAggregationWitnessGenerator::process_job_sync(job, Instant::now());
+    let artifacts = LeafAggregationWitnessGenerator::process_job_sync(job, Instant::now(), object_store.clone()).await;
     let aggregations = AggregationWrapper(artifacts.aggregations); // TODO check circuits as well
     compare_serialized(&expected_aggregation, &aggregations);
 }

@@ -200,7 +200,7 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "=0
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "=0.140.0" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "=0.141.0" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "=0.142.0" }
-circuit_sequencer_api_1_5_0 = { git = "https://github.com/matter-labs/era-zkevm_test_harness", branch="vv-optimize-lwg-nwg", package = "circuit_sequencer_api"}
+circuit_sequencer_api_1_5_0 = { git = "https://github.com/matter-labs/era-zkevm_test_harness", branch="vv-optimize-lwg-nwg-stream", package = "circuit_sequencer_api"}
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
 kzg = { package = "zksync_kzg", version = "=0.150.2-rc.1" }
 zk_evm = { version = "=0.133.0" }

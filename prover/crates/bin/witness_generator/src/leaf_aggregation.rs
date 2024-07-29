@@ -2,9 +2,10 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use tracing::Instrument;
 use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use zkevm_test_harness::{
-    witness::recursive_aggregation::{compute_leaf_params, create_leaf_witnesses},
+    witness::recursive_aggregation::{compute_leaf_params, create_leaf_witness, split_reqursion_queue},
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
@@ -13,13 +14,10 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            base_layer::{
-                ZkSyncBaseLayerClosedFormInput, ZkSyncBaseLayerProof,
+        circuit_definitions::base_layer::{
+                ZkSyncBaseLayerClosedFormInput,
                 ZkSyncBaseLayerVerificationKey,
             },
-            recursion_layer::ZkSyncRecursiveLayerCircuit,
-        },
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
@@ -47,7 +45,7 @@ pub struct LeafAggregationArtifacts {
     circuit_id: u8,
     block_number: L1BatchNumber,
     pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    pub recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
+    pub circuit_ids_and_urls: Vec<(u8, String)>,
     #[allow(dead_code)]
     closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
 }
@@ -62,7 +60,7 @@ pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
     pub(crate) block_number: L1BatchNumber,
     pub(crate) closed_form_inputs: ClosedFormInputWrapper,
-    pub(crate) proofs: Vec<ZkSyncBaseLayerProof>,
+    pub(crate) proofs_ids: Vec<u32>,
     pub(crate) base_vk: ZkSyncBaseLayerVerificationKey,
     pub(crate) leaf_params: RecursionLeafParametersWitness<GoldilocksField>,
 }
@@ -90,9 +88,10 @@ impl LeafAggregationWitnessGenerator {
         }
     }
 
-    pub fn process_job_sync(
+    pub async fn process_job_sync(
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
+        object_store: Arc<dyn ObjectStore>
     ) -> LeafAggregationArtifacts {
         tracing::info!(
             "Starting witness generation of type {:?} for block {} with circuit {}",
@@ -100,7 +99,7 @@ impl LeafAggregationWitnessGenerator {
             leaf_job.block_number.0,
             leaf_job.circuit_id,
         );
-        process_leaf_aggregation_job(started_at, leaf_job)
+        process_leaf_aggregation_job(started_at, leaf_job, object_store).await
     }
 }
 
@@ -148,10 +147,12 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || {
+        let object_store = self.object_store.clone();
+        tokio::task::spawn(async move {
             let block_number = job.block_number;
-            let _span = tracing::info_span!("leaf_aggregation", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
+            Ok(Self::process_job_sync(job, started_at, object_store)
+            .instrument(tracing::info_span!("leaf_aggregation", %block_number))
+            .await)
         })
     }
 
@@ -212,7 +213,6 @@ pub async fn prepare_leaf_aggregation_job(
 ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let closed_form_input = get_artifacts(&metadata, object_store).await;
-    let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
@@ -230,15 +230,6 @@ pub async fn prepare_leaf_aggregation_job(
     let leaf_vk = keystore
         .load_recursive_layer_verification_key(leaf_circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type()")?;
-    let mut base_proofs = vec![];
-    for wrapper in proofs {
-        match wrapper {
-            FriProofWrapper::Base(base_proof) => base_proofs.push(base_proof),
-            FriProofWrapper::Recursive(_) => {
-                anyhow::bail!("Expected only base proofs for leaf agg {}", metadata.id);
-            }
-        }
-    }
     let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
 
     WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
@@ -248,25 +239,92 @@ pub async fn prepare_leaf_aggregation_job(
         circuit_id: metadata.circuit_id,
         block_number: metadata.block_number,
         closed_form_inputs: closed_form_input,
-        proofs: base_proofs,
+        proofs_ids: metadata.prover_job_ids_for_proofs,
         base_vk,
         leaf_params,
     })
 }
 
-pub fn process_leaf_aggregation_job(
+const QUEUES_CHUNK_SIZE: usize = 10;
+
+pub async fn process_leaf_aggregation_job(
     started_at: Instant,
     job: LeafAggregationWitnessGeneratorJob,
+    object_store: Arc<dyn ObjectStore>,
 ) -> LeafAggregationArtifacts {
+    let mut proof_ids_iter = job.proofs_ids.into_iter();
+
     let circuit_id = job.circuit_id;
-    let subsets = (
-        circuit_id as u64,
-        job.closed_form_inputs.1,
-        job.closed_form_inputs.0,
-    );
     let leaf_params = (circuit_id, job.leaf_params);
-    let (aggregations, recursive_circuits, closed_form_inputs) =
-        create_leaf_witnesses(subsets, job.proofs, job.base_vk, leaf_params);
+
+    let mut circuit_ids_and_urls = vec![];
+
+    let aggregations = {
+        let queues = split_reqursion_queue(job.closed_form_inputs.1);
+        let amount_of_queues = queues.len();
+        let mut queues_it = queues.iter();
+
+        let amount_of_chunks = (amount_of_queues + QUEUES_CHUNK_SIZE - 1) / QUEUES_CHUNK_SIZE;
+
+        for _ in 0..amount_of_chunks {
+            let queues: Vec<_> = (&mut queues_it).take(QUEUES_CHUNK_SIZE).collect();
+            let mut proofs_for_queues = vec![];
+
+            for queue in queues.iter() {
+                let proofs_ids: Vec<_> = (&mut proof_ids_iter)
+                    .take(queue.num_items as usize)
+                    .collect();
+                let proofs = load_proofs_for_job_ids(&proofs_ids, &*object_store).await;
+                let mut base_proofs = vec![];
+                for wrapper in proofs {
+                    match wrapper {
+                        FriProofWrapper::Base(base_proof) => base_proofs.push(base_proof),
+                        FriProofWrapper::Recursive(_) => {
+                            panic!(
+                                "Expected only base proofs for leaf agg {} {}",
+                                job.circuit_id, job.block_number
+                            );
+                        }
+                    }
+                }
+                proofs_for_queues.push(base_proofs);
+            }
+
+            let mut recursive_circuits = vec![];
+
+            for (queue, proofs) in queues.into_iter().zip(proofs_for_queues) {
+                let (_, circuit) = create_leaf_witness(
+                    circuit_id.into(),
+                    queue.clone(),
+                    proofs,
+                    &job.base_vk,
+                    &leaf_params,
+                );
+
+                recursive_circuits.push(circuit);
+            }
+
+            let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
+                job.block_number,
+                recursive_circuits,
+                AggregationRound::LeafAggregation,
+                0,
+                &*object_store,
+                None,
+            )
+            .await;
+
+            circuit_ids_and_urls.extend(new_circuit_ids_and_urls);
+        }
+
+        let mut aggregations = vec![];
+        for queue in queues {
+            aggregations.push((circuit_id as u64, queue));
+        }
+
+        aggregations
+    };
+
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
@@ -281,8 +339,8 @@ pub fn process_leaf_aggregation_job(
         circuit_id,
         block_number: job.block_number,
         aggregations,
-        recursive_circuits,
-        closed_form_inputs,
+        circuit_ids_and_urls,
+        closed_form_inputs: job.closed_form_inputs.0,
     }
 }
 
@@ -387,20 +445,11 @@ async fn save_artifacts(
         object_store,
     )
     .await;
-    let circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
-        artifacts.block_number,
-        artifacts.recursive_circuits,
-        AggregationRound::LeafAggregation,
-        0,
-        object_store,
-        None,
-    )
-    .await;
     WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
 
     BlobUrls {
-        circuit_ids_and_urls,
+        circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
         aggregations_urls,
     }
 }
