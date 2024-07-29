@@ -189,7 +189,7 @@ async function configExternalNode() {
     await compileConfig('ext-node');
     setEnv('ext-node');
     console.log(`Setting up postgres (${cmd('zk db setup')})`);
-    await setupDb({ prover: false, core: true });
+    await setupDb({ prover: false, core: true }, false);
 
     console.log(`${success('Everything done!')} You can now run your external node using ${cmd('zk external-node')}`);
     await runEnIfAskedTo();

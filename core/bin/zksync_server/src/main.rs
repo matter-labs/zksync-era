@@ -25,7 +25,7 @@ use zksync_core_leftovers::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_eth_client::clients::Client;
+use zksync_eth_client::clients::{Client, L1};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -232,7 +232,7 @@ fn run_genesis_if_needed(
                 .context("genesis_init")?;
 
             let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
-            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
+            let query_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .for_network(genesis.l1_chain_id.into())
                 .build();

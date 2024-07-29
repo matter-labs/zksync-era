@@ -1,10 +1,10 @@
 use zksync_types::{
     api::{
-        Block, BlockId, BlockIdVariant, BlockNumber, Log, Transaction, TransactionId,
+        Block, BlockId, BlockIdVariant, BlockNumber, FeeHistory, Log, Transaction, TransactionId,
         TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::{Bytes, FeeHistory, Index, SyncState},
+    web3::{Bytes, Index, SyncState},
     Address, H256, U256, U64,
 };
 use zksync_web3_decl::{

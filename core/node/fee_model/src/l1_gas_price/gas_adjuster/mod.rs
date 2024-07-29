@@ -7,9 +7,9 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::EthInterface;
-use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256};
-use zksync_web3_decl::client::{DynClient, L1};
+use zksync_eth_client::{BaseFees, EnrichedClientResult, EthInterface, ZkSyncInterface};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
@@ -17,6 +17,114 @@ use super::L1TxParamsProvider;
 mod metrics;
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug)]
+pub enum GasAdjusterClient {
+    L1(Box<DynClient<L1>>),
+    L2(Box<DynClient<L2>>),
+}
+
+struct GasAdjusterFee {
+    pub base_fee_per_gas: u64,
+    pub base_fee_per_blob_gas: U256,
+    pub l2_pubdata_price: U256,
+}
+
+impl GasAdjusterClient {
+    pub fn from_l1(inner: Box<DynClient<L1>>) -> Self {
+        Self::L1(inner)
+    }
+
+    pub fn is_l1(&self) -> bool {
+        matches!(self, Self::L1(_))
+    }
+
+    pub fn from_l2(inner: Box<DynClient<L2>>) -> Self {
+        Self::L2(inner)
+    }
+
+    pub fn is_l2(&self) -> bool {
+        matches!(self, Self::L2(_))
+    }
+}
+
+impl From<Box<DynClient<L1>>> for GasAdjusterClient {
+    fn from(inner: Box<DynClient<L1>>) -> Self {
+        Self::L1(inner)
+    }
+}
+
+impl From<Box<DynClient<L2>>> for GasAdjusterClient {
+    fn from(inner: Box<DynClient<L2>>) -> Self {
+        Self::L2(inner)
+    }
+}
+
+macro_rules! relay {
+    ($self:ident, $method:ident $(, $args:expr)*) => {
+        match $self {
+            GasAdjusterClient::L1(inner) => inner.$method($($args),*),
+            GasAdjusterClient::L2(inner) => inner.$method($($args),*),
+        }
+    };
+}
+
+impl GasAdjusterClient {
+    fn for_component(self, name: &'static str) -> Self {
+        match self {
+            GasAdjusterClient::L1(inner) => GasAdjusterClient::L1(inner.for_component(name)),
+            GasAdjusterClient::L2(inner) => GasAdjusterClient::L2(inner.for_component(name)),
+        }
+    }
+
+    // fn assert_l2_mode(l2_mode: bool) {
+    //     match self {
+    //         GasAdjusterClient::L1(_) => {
+    //             assert!(!l2_mode, "L2 mode is enabled, but L1 client is used");
+    //         }
+    //         GasAdjusterClient::L2(_) => {
+    //             assert!(l2_mode, "L2 mode is disabled, but L2 client is used");
+    //         }
+    //     }
+    // }
+
+    async fn block_number(&self) -> EnrichedClientResult<U64> {
+        relay!(self, block_number).await
+    }
+
+    async fn base_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<GasAdjusterFee>> {
+        match self {
+            GasAdjusterClient::L1(inner) => {
+                let base_fees = inner.base_fee_history(upto_block, block_count).await?;
+                Ok(base_fees
+                    .into_iter()
+                    .map(|fee| GasAdjusterFee {
+                        base_fee_per_gas: fee.base_fee_per_gas,
+                        base_fee_per_blob_gas: fee.base_fee_per_blob_gas,
+                        // We formally provide it, but we wont use it.
+                        l2_pubdata_price: U256::zero(),
+                    })
+                    .collect())
+            }
+            GasAdjusterClient::L2(inner) => {
+                let base_fees = inner.l2_fee_history(upto_block, block_count).await?;
+                Ok(base_fees
+                    .into_iter()
+                    .map(|fee| GasAdjusterFee {
+                        base_fee_per_gas: fee.base_fee_per_gas,
+                        // We formally provide it, but we wont use it.
+                        base_fee_per_blob_gas: U256::zero(),
+                        l2_pubdata_price: fee.pubdata_price,
+                    })
+                    .collect())
+            }
+        }
+    }
+}
 
 /// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
 /// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
@@ -27,31 +135,49 @@ pub struct GasAdjuster {
     // Type for blob base fee is chosen to be `U256`.
     // In practice, it's very unlikely to overflow `u64` (if `blob_base_fee_statistics` = 10 ^ 18, then price for one blob is 2 ^ 17 ETH).
     // But it's still possible and code shouldn't panic if that happens. One more argument is that geth uses big int type for blob prices.
+    //
+    // Note, that for L2-based chains it will contains only zeroes.
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
+    // Note, that for L1-based chains the following field contains only zeroes.
+    pub(super) l2_pubdata_price_statistics: GasStatistics<U256>,
+
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    eth_client: Box<DynClient<L1>>,
+    client: GasAdjusterClient,
     commitment_mode: L1BatchCommitmentMode,
 }
 
 impl GasAdjuster {
     pub async fn new(
-        eth_client: Box<DynClient<L1>>,
+        client: GasAdjusterClient,
         config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
-        let eth_client = eth_client.for_component("gas_adjuster");
+        // A runtime check to ensure consistent config.
+        if config.l2_mode.unwrap_or_default() {
+            assert!(client.is_l2(), "Must be L2 client in L2 mode");
+
+            assert!(
+                matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
+                "Only relayed L2 calldata is available for L2 mode"
+            );
+        } else {
+            assert!(client.is_l1(), "Must be L1 client in L1 mode");
+
+            assert!(
+                !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
+                "Relayed L2 calldata is only available in L2 mode"
+            );
+        }
+
+        let client = client.for_component("gas_adjuster");
 
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
-        let current_block = eth_client
-            .block_number()
-            .await?
-            .as_usize()
-            .saturating_sub(1);
-        let fee_history = eth_client
+        let current_block = client.block_number().await?.as_usize().saturating_sub(1);
+        let fee_history = client
             .base_fee_history(current_block, config.max_base_fee_samples)
             .await?;
 
@@ -67,12 +193,19 @@ impl GasAdjuster {
             fee_history.iter().map(|fee| fee.base_fee_per_blob_gas),
         );
 
+        let l2_pubdata_price_statistics = GasStatistics::new(
+            config.num_samples_for_blob_base_fee_estimate,
+            current_block,
+            fee_history.iter().map(|fee| fee.l2_pubdata_price),
+        );
+
         Ok(Self {
             base_fee_statistics,
             blob_base_fee_statistics,
+            l2_pubdata_price_statistics,
             config,
             pubdata_sending_mode,
-            eth_client,
+            client,
             commitment_mode,
         })
     }
@@ -84,7 +217,7 @@ impl GasAdjuster {
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
         let current_block = self
-            .eth_client
+            .client
             .block_number()
             .await?
             .as_usize()
@@ -94,23 +227,23 @@ impl GasAdjuster {
 
         if current_block > last_processed_block {
             let n_blocks = current_block - last_processed_block;
-            let base_fees = self
-                .eth_client
+            let fee_data = self
+                .client
                 .base_fee_history(current_block, n_blocks)
                 .await?;
 
             // We shouldn't rely on L1 provider to return consistent results, so we check that we have at least one new sample.
-            if let Some(current_base_fee_per_gas) = base_fees.last().map(|fee| fee.base_fee_per_gas)
+            if let Some(current_base_fee_per_gas) = fee_data.last().map(|fee| fee.base_fee_per_gas)
             {
                 METRICS
                     .current_base_fee_per_gas
                     .set(current_base_fee_per_gas);
             }
             self.base_fee_statistics
-                .add_samples(base_fees.iter().map(|fee| fee.base_fee_per_gas));
+                .add_samples(fee_data.iter().map(|fee| fee.base_fee_per_gas));
 
             if let Some(current_blob_base_fee) =
-                base_fees.last().map(|fee| fee.base_fee_per_blob_gas)
+                fee_data.last().map(|fee| fee.base_fee_per_blob_gas)
             {
                 // Blob base fee overflows `u64` only in very extreme cases.
                 // It doesn't worth to observe exact value with metric because anyway values that can be used
@@ -124,7 +257,22 @@ impl GasAdjuster {
                 }
             }
             self.blob_base_fee_statistics
-                .add_samples(base_fees.iter().map(|fee| fee.base_fee_per_blob_gas));
+                .add_samples(fee_data.iter().map(|fee| fee.base_fee_per_blob_gas));
+
+            if let Some(current_l2_pubdata_price) = fee_data.last().map(|fee| fee.l2_pubdata_price)
+            {
+                // L2 pubdata price overflows `u64` only in very extreme cases.
+                // TODO: decide wether we can display such values
+                if current_l2_pubdata_price > U256::from(u64::MAX) {
+                    tracing::error!("Failed to report current_l2_pubdata_price = {current_l2_pubdata_price}, it exceeds u64::MAX");
+                } else {
+                    METRICS
+                        .current_l2_pubdata_price
+                        .set(current_l2_pubdata_price.as_u64());
+                }
+            }
+            self.l2_pubdata_price_statistics
+                .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
         }
         Ok(())
     }
@@ -206,6 +354,9 @@ impl GasAdjuster {
                 // Fix this when we have a better understanding of dynamic pricing for custom DA layers.
                 // GitHub issue: https://github.com/matter-labs/zksync-era/issues/2105
                 0
+            }
+            PubdataSendingMode::RelayedL2Calldata => {
+                self.l2_pubdata_price_statistics.median().as_u64()
             }
         }
     }

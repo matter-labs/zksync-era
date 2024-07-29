@@ -154,6 +154,23 @@ pub trait EthInterface: Sync + Send {
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
 }
 
+/// Information about the base fees provided by the L1 client.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct L2Fees {
+    pub base_fee_per_gas: u64,
+    pub pubdata_price: U256,
+}
+
+#[async_trait]
+pub trait ZkSyncInterface: Sync + Send {
+    /// Returns vector of pubdata prices (in wei) for a zkSync-based network.
+    async fn l2_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<L2Fees>>;
+}
+
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///

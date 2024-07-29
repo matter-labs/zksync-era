@@ -6,6 +6,7 @@ use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
+use crate::l1_gas_price::GasAdjusterClient;
 
 /// Check that we compute the median correctly
 #[test]
@@ -76,9 +77,10 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
         max_blob_base_fee: None,
+        l2_mode: None,
     };
     let adjuster = GasAdjuster::new(
-        Box::new(eth_client.clone().into_client()),
+        GasAdjusterClient::from_l1(Box::new(eth_client.clone().into_client())),
         config,
         PubdataSendingMode::Calldata,
         commitment_mode,

@@ -2,7 +2,10 @@
 
 use std::fmt;
 
-pub use self::{gas_adjuster::GasAdjuster, main_node_fetcher::MainNodeFeeParamsFetcher};
+pub use self::{
+    gas_adjuster::{GasAdjuster, GasAdjusterClient},
+    main_node_fetcher::MainNodeFeeParamsFetcher,
+};
 
 mod gas_adjuster;
 mod main_node_fetcher;

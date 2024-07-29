@@ -204,7 +204,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
         } else {
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
-                (L1BatchCommitmentMode::Validium, PubdataDA::Calldata) => self
+                (
+                    L1BatchCommitmentMode::Validium,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => self
                     .l1_batch_with_metadata
                     .metadata
                     .state_diff_hash
@@ -224,7 +227,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     vec![PUBDATA_SOURCE_CUSTOM]
                 }
 
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Calldata) => {
+                (
+                    L1BatchCommitmentMode::Rollup,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
                     let pubdata = self.pubdata_input();
 
                     let header = compose_header_for_l1_commit_rollup(

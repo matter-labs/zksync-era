@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
+    api::{BlockId, BlockIdVariant, BlockNumber, FeeHistory, Transaction, TransactionVariant},
     transaction_request::CallRequest,
     Address, H256,
 };
@@ -10,8 +10,7 @@ use zksync_types::{
 use crate::{
     client::{ForNetwork, L2},
     types::{
-        Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
-        U256, U64,
+        Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64,
     },
 };
 

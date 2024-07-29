@@ -2,14 +2,19 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
-use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
+use zksync_types::{web3, Address, L1ChainId, L2BlockNumber, H256, U256, U64};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
-use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
+use super::{
+    decl::{L1EthNamespaceClient, L2EthNamespaceClient, L2ZksNamespaceClient},
+    Method, COUNTERS, LATENCIES,
+};
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
-    BaseFees, EthInterface, RawTransactionBytes,
+    BaseFees, EthInterface, L2Fees, RawTransactionBytes, ZkSyncInterface,
 };
+
+const FEE_HISTORY_MAX_REQUEST_CHUNK: usize = 1024;
 
 #[async_trait]
 impl<T> EthInterface for T
@@ -79,16 +84,6 @@ where
         upto_block: usize,
         block_count: usize,
     ) -> EnrichedClientResult<Vec<BaseFees>> {
-        // Non-panicking conversion to u64.
-        fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
-            u64::try_from(value).map_err(|_| {
-                let err = ClientError::Custom(format!("{tag} value does not fit in u64"));
-                EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
-            })
-        }
-
-        const MAX_REQUEST_CHUNK: usize = 1024;
-
         COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
         let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
         let mut history = Vec::with_capacity(block_count);
@@ -97,8 +92,8 @@ where
         // Here we are requesting `fee_history` from blocks
         // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
         // starting from the oldest block.
-        for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
-            let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
+        for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+            let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
 
             let fee_history = self
@@ -352,4 +347,72 @@ where
         latency.observe();
         Ok(block)
     }
+}
+
+#[async_trait::async_trait]
+impl<T> ZkSyncInterface for T
+where
+    T: L2EthNamespaceClient + L2ZksNamespaceClient + fmt::Debug + Send + Sync,
+{
+    async fn l2_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<L2Fees>> {
+        COUNTERS.call[&(Method::L2FeeHistory, self.component())].inc();
+        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+        let mut history = Vec::with_capacity(block_count);
+        let from_block = upto_block.saturating_sub(block_count);
+
+        // Here we are requesting `fee_history` from blocks
+        // `(from_block; upto_block)` in chunks of size `FEE_HISTORY_MAX_REQUEST_CHUNK`
+        // starting from the oldest block.
+        for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+            let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+            let chunk_size = chunk_end - chunk_start;
+
+            let fee_history = self
+                .fee_history(
+                    U64::from(chunk_size),
+                    web3::BlockNumber::from(chunk_end),
+                    None,
+                )
+                .rpc_context("fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("block", &chunk_end)
+                .await?;
+
+            // Check that the lengths are the same.
+            if fee_history.base_fee_per_gas.len() != fee_history.pubdata_price.len() {
+                tracing::error!(
+                    "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
+                    fee_history.base_fee_per_gas.len(),
+                    fee_history.pubdata_price.len()
+                );
+            }
+
+            for (base, pubdata_price) in fee_history
+                .base_fee_per_gas
+                .into_iter()
+                .zip(fee_history.pubdata_price)
+            {
+                let fees = L2Fees {
+                    base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                    pubdata_price,
+                };
+                history.push(fees)
+            }
+        }
+
+        latency.observe();
+        Ok(history)
+    }
+}
+
+/// Non-panicking conversion to u64.
+fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
+    u64::try_from(value).map_err(|_| {
+        let err = ClientError::Custom(format!("{tag} value does not fit in u64"));
+        EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
+    })
 }

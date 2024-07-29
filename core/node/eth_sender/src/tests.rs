@@ -12,7 +12,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::SyncMerkleTree;
-use zksync_node_fee_model::l1_gas_price::GasAdjuster;
+use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
@@ -163,7 +163,7 @@ impl EthSenderTester {
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                Box::new(gateway.clone().into_client()),
+                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
