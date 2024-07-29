@@ -103,7 +103,7 @@ RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
     rustup default stable
 
-RUN cargo install --version=0.7.3 sqlx-cli
+RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries

@@ -9,7 +9,10 @@ use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    consts::{CONFIG_NAME, GENERAL_FILE, L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE},
+    consts::{
+        CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
+        L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
+    },
     create_localhost_wallets,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
@@ -99,6 +102,18 @@ impl ChainConfig {
 
     pub fn path_to_general_config(&self) -> PathBuf {
         self.configs.join(GENERAL_FILE)
+    }
+
+    pub fn path_to_external_node_config(&self) -> PathBuf {
+        self.configs.join(EN_CONFIG_FILE)
+    }
+
+    pub fn path_to_genesis_config(&self) -> PathBuf {
+        self.configs.join(GENESIS_FILE)
+    }
+
+    pub fn path_to_contracts_config(&self) -> PathBuf {
+        self.configs.join(CONTRACTS_FILE)
     }
 
     pub fn path_to_secrets_config(&self) -> PathBuf {
