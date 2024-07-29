@@ -1,5 +1,10 @@
 FROM ubuntu:20.04@sha256:3246518d9735254519e1b2ff35f95686e4a5011c90c85344c1f38df7bae9dd37 as base
 
+# Link Docker Image with repository
+# https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
+LABEL org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
+
 WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
 

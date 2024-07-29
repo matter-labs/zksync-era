@@ -1,6 +1,11 @@
 # Building solidity from sources so binary is available for any architecture
 FROM debian:bookworm as solidity-builder
 
+# Link Docker Image with repository
+# https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
+LABEL org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
+
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
     build-essential \
