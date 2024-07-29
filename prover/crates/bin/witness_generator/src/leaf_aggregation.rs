@@ -93,6 +93,10 @@ impl LeafAggregationWitnessGenerator {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %leaf_job.block_number, circuit_id = %leaf_job.circuit_id)
+    )]
     pub fn process_job_sync(
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
@@ -151,11 +155,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("leaf_aggregation", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
-        })
+        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
     }
 
     async fn save_result(
@@ -209,6 +209,10 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 pub async fn prepare_leaf_aggregation_job(
     metadata: LeafAggregationJobMetadata,
     object_store: &dyn ObjectStore,
@@ -257,6 +261,10 @@ pub async fn prepare_leaf_aggregation_job(
     })
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+)]
 pub fn process_leaf_aggregation_job(
     started_at: Instant,
     job: LeafAggregationWitnessGeneratorJob,
@@ -288,6 +296,10 @@ pub fn process_leaf_aggregation_job(
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit_id)
+)]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -362,6 +374,10 @@ async fn update_database(
     transaction.commit().await.unwrap();
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 async fn get_artifacts(
     metadata: &LeafAggregationJobMetadata,
     object_store: &dyn ObjectStore,
@@ -376,6 +392,10 @@ async fn get_artifacts(
         .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key))
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+)]
 async fn save_artifacts(
     artifacts: LeafAggregationArtifacts,
     object_store: &dyn ObjectStore,

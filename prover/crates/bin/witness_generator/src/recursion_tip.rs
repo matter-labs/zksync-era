@@ -92,6 +92,10 @@ impl RecursionTipWitnessGenerator {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number)
+    )]
     pub fn process_job_sync(
         job: RecursionTipWitnessGeneratorJob,
         started_at: Instant,
@@ -191,13 +195,13 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         job: RecursionTipWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
-        tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("recursion_tip", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
-        })
+        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job_id)
+    )]
     async fn save_result(
         &self,
         job_id: L1BatchNumber,
@@ -272,6 +276,10 @@ impl JobProcessor for RecursionTipWitnessGenerator {
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %l1_batch_number)
+)]
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
     final_node_proof_job_ids: Vec<(u8, u32)>,
