@@ -1,16 +1,24 @@
-use std::num::NonZeroU64;
+use std::{
+    cmp::{max, min},
+    num::NonZeroU64,
+};
 
 use async_trait::async_trait;
 use rand::Rng;
+use tokio::sync::RwLock;
 use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::PriceAPIClient;
 
-// Struct for a a forced price "client" (conversion ratio is always a configured "forced" ratio).
-#[derive(Debug, Clone)]
+const VARIATION_RANGE: f64 = 0.2; //20%
+const NEXT_VALUE_VARIATION_RANGE: f64 = 0.03; //3%
+
+// Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
+#[derive(Debug)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
+    previousNumerator: RwLock<NonZeroU64>,
     fluctuation: Option<u32>,
 }
 
@@ -36,6 +44,7 @@ impl ForcedPriceClient {
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             },
+            previousNumerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
             fluctuation,
         }
     }
@@ -43,28 +52,33 @@ impl ForcedPriceClient {
 
 #[async_trait]
 impl PriceAPIClient for ForcedPriceClient {
-    // Returns a ratio which is 10% higher or lower than the configured forced ratio.
+    /// Returns a ratio which is 10% higher or lower than the configured forced ratio,
+    /// but not different more than 3% than the last value
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        if let Some(x) = self.fluctuation {
-            if x != 0 {
-                let mut rng = rand::thread_rng();
+        let mut previousNumerator = self.previousNumerator.write().await;
+        let mut rng = rand::thread_rng();
+        let numerator_range = (
+            max(
+                (self.ratio.numerator.get() as f64 * (1.0 - VARIATION_RANGE)).round() as u64,
+                (previousNumerator.get() as f64 * (1.0 - NEXT_VALUE_VARIATION_RANGE)).round()
+                    as u64,
+            ),
+            min(
+                (self.ratio.numerator.get() as f64 * (1.0 + VARIATION_RANGE)).round() as u64,
+                (previousNumerator.get() as f64 * (1.0 + NEXT_VALUE_VARIATION_RANGE)).round()
+                    as u64,
+            ),
+        );
 
-                let mut adjust_range = |value: NonZeroU64| {
-                    let value_f64 = value.get() as f64;
-                    let min = (value_f64 * (1.0 - x as f64 / 100.0)).round() as u64;
-                    let max = (value_f64 * (1.0 + x as f64 / 100.0)).round() as u64;
-                    rng.gen_range(min..=max)
-                };
-                let new_numerator = adjust_range(self.ratio.numerator);
-                let new_denominator = adjust_range(self.ratio.denominator);
+        let new_numerator = NonZeroU64::new(rng.gen_range(numerator_range.0..=numerator_range.1))
+            .unwrap_or(self.ratio.numerator);
+        let adjusted_ratio = BaseTokenAPIRatio {
+            numerator: new_numerator,
+            denominator: self.ratio.denominator,
+            ratio_timestamp: chrono::Utc::now(),
+        };
+        *previousNumerator = new_numerator;
 
-                return Ok(BaseTokenAPIRatio {
-                    numerator: NonZeroU64::new(new_numerator).unwrap_or(self.ratio.numerator),
-                    denominator: NonZeroU64::new(new_denominator).unwrap_or(self.ratio.denominator),
-                    ratio_timestamp: chrono::Utc::now(),
-                });
-            }
-        }
-        Ok(self.ratio)
+        Ok(adjusted_ratio)
     }
 }
