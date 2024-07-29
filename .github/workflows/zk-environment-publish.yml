@@ -1,10 +1,5 @@
 name: Publish zk-environment Docker images
 
-# Needed to push to Gihub Package Registry
-permissions:
-  packages: write
-  contents: read
-
 on:
   # Workflow dispatch, to allow building and pushing new environments.
   # It will NOT mark them as latest.
@@ -71,6 +66,10 @@ jobs:
   zk_environment:
     # Build and push new environment, if workflow dispatch is requested.
     if: ${{ (needs.changed_files.outputs.zk_environment == 'true') || (github.event_name == 'workflow_dispatch') }}
+    # Needed to push to Gihub Package Registry
+    permissions:
+      packages: write
+      contents: read
     needs: [changed_files, get_short_sha]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
@@ -125,6 +124,10 @@ jobs:
   zk_environment_multiarch_manifest:
     # We'll update the 'latest' tag, only on environments generated from 'main'.
     if: needs.changed_files.outputs.zk_environment == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Needed to push to Gihub Package Registry
+    permissions:
+      packages: write
+      contents: read
     needs: [changed_files, get_short_sha, zk_environment]
     runs-on: ubuntu-latest
     steps:
@@ -180,6 +183,10 @@ jobs:
           done
 
   zk_environment_cuda:
+    # Needed to push to Gihub Package Registry
+    permissions:
+      packages: write
+      contents: read
     needs: changed_files
     runs-on: [matterlabs-ci-runner]
     strategy:
