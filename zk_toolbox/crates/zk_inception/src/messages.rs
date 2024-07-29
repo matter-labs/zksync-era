@@ -319,3 +319,44 @@ pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
 pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
     format!("Downloading {} {} binary", name, version)
 }
+
+/// Update related messages
+
+pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
+pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
+pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
+pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
+pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
+pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
+    "Added the following fields to the general config:";
+pub(super) const MSG_DIFF_EN_CONFIG: &str =
+    "Added the following fields to the external node config:";
+pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
+    "Added the following fields to the external node generalconfig:";
+pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
+
+pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_secrets(
+    chain: &str,
+    current_secrets_path: &Path,
+    era_secret_path: &Path,
+) -> String {
+    format!(
+        "Found differences between chain {chain} and era secrets configs. Consider updating the chain {chain} secrets config at {current_secrets_path:?} using the file {era_secret_path:?} as reference. Diff:"
+    )
+}
+
+pub(super) fn msg_updating_chain(chain: &str) -> String {
+    format!("Updating chain: {}", chain)
+}
