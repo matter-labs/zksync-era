@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -9,7 +9,7 @@ use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter, GetLogsFilter,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
         L1BatchDetails, L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion, StorageProof,
         TransactionDetails,
     },
@@ -338,8 +338,7 @@ impl ZksNamespace {
 
         // For now it is always 0
         let aggregated_root = batch_meta.metadata.aggregation_root;
-        let final_root =
-            zksync_crypto::hasher::keccak::KeccakHasher.compress(&root, &aggregated_root);
+        let final_root = KeccakHasher.compress(&root, &aggregated_root);
         proof.push(aggregated_root);
 
         println!("Trying to get the final proof! {}", l1_batch_number);

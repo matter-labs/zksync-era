@@ -22,7 +22,7 @@ use zksync_config::{
     SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    delete_l1_txs_history, genesis_init, is_genesis_needed,
+    delete_l1_txs_history,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
@@ -157,6 +157,15 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
+    // FIXME: don't merge this into prod
+    if opt.clear_l1_txs_history {
+        println!("Clearing L1 txs history!");
+        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
+        futures::executor::block_on(delete_l1_txs_history(&database_secrets))?;
+        println!("Complete!");
+        return Ok(());
+    }
+
     let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
 
     let _observability_guard = {
@@ -168,14 +177,6 @@ fn main() -> anyhow::Result<()> {
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
         node.only_genesis()?.run()?;
-        return Ok(());
-    }
-
-    if opt.clear_l1_txs_history {
-        println!("Clearing L1 txs history!");
-        let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
-        futures::executor::block_on(delete_l1_txs_history(&database_secrets))?;
-        println!("Complete!");
         return Ok(());
     }
 

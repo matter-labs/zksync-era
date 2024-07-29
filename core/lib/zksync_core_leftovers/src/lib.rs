@@ -2,27 +2,13 @@
 
 use std::str::FromStr;
 
+use anyhow::Context;
 use tokio::sync::oneshot;
 
+use zksync_config::configs::DatabaseSecrets;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+
 pub mod temp_config_store;
-
-/// Inserts the initial information about ZKsync tokens into the database.
-pub async fn genesis_init(
-    genesis_config: GenesisConfig,
-    database_secrets: &DatabaseSecrets,
-) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
-    let mut storage = pool.connection().await.context("connection()")?;
-
-    let params = GenesisParams::load_genesis_params(genesis_config)?;
-    ensure_genesis_state(&mut storage, &params).await?;
-
-    Ok(())
-}
 
 /// Clear L1 txs history. FIXME don't include it in the main branch
 pub async fn delete_l1_txs_history(database_secrets: &DatabaseSecrets) -> anyhow::Result<()> {

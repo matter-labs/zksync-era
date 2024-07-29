@@ -8,8 +8,8 @@ use crate::{
         pools::{MasterPool, PoolResource},
         priority_merkle_tree::PriorityTreeResource,
     },
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 #[derive(Debug)]
@@ -25,17 +25,30 @@ impl PriorityTreeLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub priority_tree: PriorityTreeResource,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for PriorityTreeLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "priority_tree_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let connection_pool = context.get_resource::<PoolResource<MasterPool>>()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let connection_pool = input.master_pool.get().await.unwrap();
         let priority_op_hashes = connection_pool
-            .get()
-            .await?
             .connection()
             .await
             .context("priority_merkle_tree")?
@@ -45,7 +58,8 @@ impl WiringLayer for PriorityTreeLayer {
             .context("get_l1_transactions_hashes")?;
         let priority_tree: SyncMerkleTree<L1Tx> =
             SyncMerkleTree::from_hashes(priority_op_hashes.into_iter(), None);
-        context.insert_resource(PriorityTreeResource(priority_tree))?;
-        Ok(())
+        Ok(Output {
+            priority_tree: PriorityTreeResource(priority_tree),
+        })
     }
 }
