@@ -158,7 +158,7 @@ export const initDevCmdAction = async ({
     runObservability,
     validiumMode,
     localLegacyBridgeTesting,
-    shouldCheckPostgres,
+    shouldCheckPostgres
 }: InitDevCmdActionOptions): Promise<void> => {
     if (localLegacyBridgeTesting) {
         await makeEraChainIdSameAsCurrent();
@@ -233,7 +233,7 @@ export const initHyperCmdAction = async ({
             skipSubmodulesCheckout: false,
             runObservability,
             deploymentMode,
-            shouldCheckPostgres: true,
+            shouldCheckPostgres: true
         });
     }
     await initDatabase();
@@ -256,11 +256,7 @@ export const initCommand = new Command('init')
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
-    .option(
-        '--should-check-postgres',
-        'Whether to perform cargo sqlx prepare --check during database setup',
-        true
-    )
+    .option('--should-check-postgres', 'Whether to perform cargo sqlx prepare --check during database setup', true)
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 

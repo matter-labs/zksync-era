@@ -17,7 +17,7 @@ const reinitDevCmdAction = async (): Promise<void> => {
         // TODO(EVM-573): support Validium mode
         runObservability: true,
         deploymentMode: DeploymentMode.Rollup,
-        shouldCheckPostgres: false,
+        shouldCheckPostgres: false
     });
 };
 
