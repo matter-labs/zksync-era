@@ -63,7 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
-    api_namespaces: [eth,net,web3,zks,pubsub,debug]
+    api_namespaces: [en,eth,net,web3,zks,pubsub,debug]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
@@ -153,8 +153,8 @@ snapshot_creator:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  concurrent_queries_count: 1
-  storage_logs_chunk_size: 2
+  concurrent_queries_count: 25
+  storage_logs_chunk_size: 1000000
 
 
 prover:
@@ -349,6 +349,10 @@ basic_witness_input_producer:
 
 snapshot_recovery:
   enabled: false
+  object_store:
+    max_retries: 100
+    file_backed:
+      file_backed_base_path: artifacts
   postgres:
     max_concurrency: 10
   tree:
