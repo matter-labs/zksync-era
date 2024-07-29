@@ -128,8 +128,15 @@ impl dyn ObjectStore + '_ {
     ///
     /// Returns an error if an object with the `key` does not exist, cannot be accessed,
     /// or cannot be deserialized.
+    #[tracing::instrument(
+        name = "ObjectStore::get",
+        skip_all,
+        fields(key) // Will be recorded within the function.
+    )]
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
+        // Record the key for tracing.
+        tracing::Span::current().record("key", &key.as_str());
         let bytes = self.get_raw(V::BUCKET, &key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
@@ -140,6 +147,11 @@ impl dyn ObjectStore + '_ {
     ///
     /// Returns an error if an object with the `encoded_key` does not exist, cannot be accessed,
     /// or cannot be deserialized.
+    #[tracing::instrument(
+        name = "ObjectStore::get_by_encoded_key",
+        skip_all,
+        fields(key = %encoded_key)
+    )]
     pub async fn get_by_encoded_key<V: StoredObject>(
         &self,
         encoded_key: String,
@@ -154,12 +166,19 @@ impl dyn ObjectStore + '_ {
     /// # Errors
     ///
     /// Returns an error if serialization or the insertion / replacement operation fails.
+    #[tracing::instrument(
+        name = "ObjectStore::put",
+        skip_all,
+        fields(key) // Will be recorded within the function.
+    )]
     pub async fn put<V: StoredObject>(
         &self,
         key: V::Key<'_>,
         value: &V,
     ) -> Result<String, ObjectStoreError> {
         let key = V::encode_key(key);
+        // Record the key for tracing.
+        tracing::Span::current().record("key", &key.as_str());
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
         self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
@@ -170,8 +189,15 @@ impl dyn ObjectStore + '_ {
     /// # Errors
     ///
     /// Returns I/O errors specific to the storage.
+    #[tracing::instrument(
+        name = "ObjectStore::put",
+        skip_all,
+        fields(key) // Will be recorded within the function.
+    )]
     pub async fn remove<V: StoredObject>(&self, key: V::Key<'_>) -> Result<(), ObjectStoreError> {
         let key = V::encode_key(key);
+        // Record the key for tracing.
+        tracing::Span::current().record("key", &key.as_str());
         self.remove_raw(V::BUCKET, &key).await
     }
 

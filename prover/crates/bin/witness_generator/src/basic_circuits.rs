@@ -185,6 +185,7 @@ impl JobProcessor for BasicWitnessGenerator {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(l1_batch = %job_id))]
     async fn save_result(
         &self,
         job_id: L1BatchNumber,
@@ -243,7 +244,7 @@ impl JobProcessor for BasicWitnessGenerator {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     started_at: Instant,
@@ -268,6 +269,7 @@ async fn process_basic_circuits_job(
     }
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -305,6 +307,7 @@ async fn update_database(
         .await;
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
@@ -313,6 +316,7 @@ async fn get_artifacts(
     BasicWitnessGeneratorJob { block_number, job }
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn save_scheduler_artifacts(
     block_number: L1BatchNumber,
     scheduler_partial_input: SchedulerCircuitInstanceWitness<
@@ -341,6 +345,7 @@ async fn save_scheduler_artifacts(
     object_store.put(block_number, &wrapper).await.unwrap()
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
 async fn save_recursion_queue(
     block_number: L1BatchNumber,
     circuit_id: u8,
@@ -362,11 +367,7 @@ async fn save_recursion_queue(
     (circuit_id, blob_url, basic_circuit_count)
 }
 
-async fn generate_witness(
-    block_number: L1BatchNumber,
-    object_store: &dyn ObjectStore,
-    input: WitnessInputData,
-) -> (
+type Witness = (
     Vec<(u8, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
@@ -375,7 +376,14 @@ async fn generate_witness(
         GoldilocksExt2,
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
-) {
+);
+
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+async fn generate_witness(
+    block_number: L1BatchNumber,
+    object_store: &dyn ObjectStore,
+    input: WitnessInputData,
+) -> Witness {
     let bootloader_contents = expand_bootloader_contents(
         &input.vm_run_data.initial_heap_content,
         input.vm_run_data.protocol_version,
@@ -462,7 +470,10 @@ async fn generate_witness(
         }
     };
 
-    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
+    let (witnesses, ()) = tokio::join!(
+        make_circuits.instrument(tracing::info_span!("make_circuits")),
+        save_circuits.instrument(tracing::info_span!("save_circuits")),
+    );
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));

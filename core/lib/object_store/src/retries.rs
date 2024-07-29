@@ -19,7 +19,11 @@ enum Request<'a> {
 }
 
 impl Request<'_> {
-    #[tracing::instrument(skip(f))] // output request and store as a part of structured logs
+    #[tracing::instrument(
+        name = "object_store::Request::retry",
+        skip(f), // output request and store as a part of structured logs
+        fields(retries) // Will be recorded before returning from the function
+    )]
     async fn retry<T, Fut, F>(
         self,
         store: &impl fmt::Debug,
@@ -32,13 +36,13 @@ impl Request<'_> {
     {
         let mut retries = 1;
         let mut backoff_secs = 1;
-        loop {
+        let result = loop {
             match f().await {
-                Ok(result) => return Ok(result),
+                Ok(result) => break Ok(result),
                 Err(err) if err.is_transient() => {
                     if retries > max_retries {
                         tracing::warn!(%err, "Exhausted {max_retries} retries performing request; returning last error");
-                        return Err(err);
+                        break Err(err);
                     }
                     tracing::info!(%err, "Failed request, retries: {retries}/{max_retries}");
                     retries += 1;
@@ -50,10 +54,12 @@ impl Request<'_> {
                 }
                 Err(err) => {
                     tracing::warn!(%err, "Failed request with a fatal error");
-                    return Err(err);
+                    break Err(err);
                 }
             }
-        }
+        };
+        tracing::Span::current().record("retries", retries);
+        result
     }
 }
 

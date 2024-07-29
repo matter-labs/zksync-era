@@ -93,6 +93,10 @@ impl NodeAggregationWitnessGenerator {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+    )]
     pub fn process_job_sync(
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
@@ -182,13 +186,13 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("node_aggregation", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
-        })
+        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+    )]
     async fn save_result(
         &self,
         job_id: u32,
@@ -233,6 +237,10 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 pub async fn prepare_job(
     metadata: NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
@@ -284,6 +292,10 @@ pub async fn prepare_job(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit_id)
+)]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -351,6 +363,10 @@ async fn update_database(
     transaction.commit().await.unwrap();
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 async fn get_artifacts(
     metadata: &NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
@@ -366,6 +382,10 @@ async fn get_artifacts(
         .unwrap_or_else(|_| panic!("node aggregation job artifacts missing: {:?}", key))
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+)]
 async fn save_artifacts(
     artifacts: NodeAggregationArtifacts,
     object_store: &dyn ObjectStore,
