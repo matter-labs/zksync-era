@@ -15,6 +15,7 @@ use circuit_definitions::{
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
+use tokio::sync::Semaphore;
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
@@ -55,6 +56,14 @@ use crate::{
         SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
 };
+
+// This value corresponds to the maximum number of circuits kept in memory at any given time.
+// 500 was picked as a mid-ground between allowing enough circuits in flight to speed up circuit generation,
+// whilst keeping memory as low as possible. At the moment, max size of a circuit is ~50MB.
+// This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
+// Maximum theoretic extra memory consumed is up to 25GB, but in reality, worse case scenarios are closer to 5GB.
+// During normal operations (> P95), this will incur an overhead of ~100MB.
+const MAX_IN_FLIGHT_CIRCUITS: usize = 500;
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
@@ -477,14 +486,17 @@ async fn generate_witness(
     // Future which receives circuits and saves them async.
     let circuit_receiver_handle = async {
         while let Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")).await {
+        let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
             let sequence = circuit_sequence.fetch_add(1, Ordering::SeqCst);
             let object_store = object_store.clone();
-            save_circuit_handles.push(tokio::task::spawn(save_circuit(
-                block_number,
-                circuit,
-                sequence,
-                object_store,
-            )));
+            let semaphore = semaphore.clone();
+            save_circuit_handles.push(tokio::task::spawn(async move {
+                let _permit = semaphore
+                    .acquire()
+                    .await
+                    .expect("failed to get permit for running save circuit task");
+                save_circuit(block_number, circuit, sequence, object_store).await
+            }));
         }
     }.instrument(save_circuits_span);
 
