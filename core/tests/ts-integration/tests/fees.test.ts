@@ -143,6 +143,32 @@ testFees('Test fees', () => {
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
+    test.only('Test gas price expected value', async () => {
+        const receiver = ethers.Wallet.createRandom().address;
+        const l1GasPrice = 100_000_000_000n; /// set to 100 gwei
+        await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
+
+        const receipt = await (
+            await alice.sendTransaction({
+                to: receiver,
+                value: BigInt(1)
+            })
+        ).wait();
+
+        const expectedETHGasPrice = 100_000_000;
+        const expectedCustomGasPrice = expectedETHGasPrice * 3.14;
+
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        if (isETHBasedChain) {
+            expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
+        } else {
+            // We need some tolerance here, becouse base token "forced" price provider has 10% randomness in its price
+            expect(receipt.gasPrice).toBeGreaterThan(expectedCustomGasPrice * 0.85);
+            expect(receipt.gasPrice).toBeLessThan(expectedCustomGasPrice * 1.15);
+        }
+    });
+
     test('Test gas consumption under large L1 gas price', async () => {
         if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
