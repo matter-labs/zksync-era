@@ -312,10 +312,12 @@ describe('Upgrade test', function () {
     });
 
     after('Try killing server', async () => {
-        setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
-        setAggregatedBlockProveDeadline(pathToHome, fileConfig, 10);
-        setAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
-        setBlockCommitDeadlineMs(pathToHome, fileConfig, 2500);
+        if (fileConfig.loadFromFile) {
+            setEthSenderSenderAggregatedBlockCommitDeadline(pathToHome, fileConfig, 1);
+            setAggregatedBlockProveDeadline(pathToHome, fileConfig, 10);
+            setAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
+            setBlockCommitDeadlineMs(pathToHome, fileConfig, 2500);
+        }
 
         try {
             await utils.exec('pkill zksync_server');
