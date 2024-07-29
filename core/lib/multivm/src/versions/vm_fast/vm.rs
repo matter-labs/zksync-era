@@ -63,16 +63,17 @@ pub struct Vm<S> {
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
-
     pub(crate) bootloader_state: BootloaderState,
-
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
-
     snapshots: Vec<VmSnapshot>,
 }
 
 impl<S: ReadStorage> Vm<S> {
+    pub(crate) fn snapshot_count(&self) -> usize {
+        self.snapshots.len()
+    }
+
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,

@@ -20,6 +20,17 @@ pub struct ShadowVm<S, T> {
     shadow: vm_fast::Vm<ImmutableStorageView<S>>,
 }
 
+impl<S, T> ShadowVm<S, T>
+where
+    S: ReadStorage,
+    T: VmFactory<StorageView<S>>,
+{
+    #[doc(hidden)] // used in batch executor tests
+    pub fn snapshot_count(&self) -> usize {
+        self.shadow.snapshot_count()
+    }
+}
+
 impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
 where
     S: ReadStorage,

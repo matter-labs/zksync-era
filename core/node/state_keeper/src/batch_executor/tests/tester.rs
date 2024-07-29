@@ -34,7 +34,7 @@ use super::{
     StorageType,
 };
 use crate::{
-    batch_executor::{BatchExecutorHandle, TxExecutionResult},
+    batch_executor::{main_executor::DynVmFactory, BatchExecutorHandle, TxExecutionResult},
     testonly,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{default_l1_batch_env, default_system_env},
@@ -139,6 +139,25 @@ impl Tester {
                 .await
             }
         }
+    }
+
+    pub(super) async fn create_batch_executor_with_vm_factory(
+        &mut self,
+        vm_factory: Arc<DynVmFactory>,
+    ) -> BatchExecutorHandle {
+        let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
+        batch_executor.set_vm_factory(vm_factory);
+
+        let (l1_batch_env, system_env) = self.default_batch_params();
+        let storage_factory = Arc::new(RocksdbFactory::new(
+            self.pool(),
+            self.state_keeper_db_path(),
+        ));
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        batch_executor
+            .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)
+            .await
+            .expect("Batch executor was interrupted")
     }
 
     async fn create_batch_executor_inner(
