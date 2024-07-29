@@ -10,7 +10,7 @@ use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
-    instrument::{InstrumentExt, Instrumented, DalContext},
+    instrument::{DalContext, InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
 use zksync_types::{
@@ -455,15 +455,11 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                         AND eth_commit_tx_id IS NULL
                     "#,
-                    i32::try_from(eth_tx_id).arg(&i,"eth_tx_id")?,
+                    i32::try_from(eth_tx_id).arg(&i, "eth_tx_id")?,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
                 );
-                let result = i
-                    .clone()
-                    .with(query)
-                    .execute(self.storage)
-                    .await?;
+                let result = i.clone().with(query).execute(self.storage).await?;
 
                 if result.rows_affected() == 0 {
                     let err = i.constraint_error(anyhow::format_err!(
@@ -570,11 +566,11 @@ impl BlocksDal<'_, '_> {
             .collect::<Vec<Vec<u8>>>();
         let pubdata_input = header.pubdata_input.clone();
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
-            .arg(&i,"initial_bootloader_contents")?;
+            .arg(&i, "initial_bootloader_contents")?;
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
-            .arg(&i,"header.used_contract_hashes")?;
-        let storage_refunds: Vec<i64> = storage_refunds.iter().map(|x|(*x).into()).collect();
-        let pubdata_costs: Vec<i64> = pubdata_costs.iter().map(|x|(*x).into()).collect();
+            .arg(&i, "header.used_contract_hashes")?;
+        let storage_refunds: Vec<i64> = storage_refunds.iter().map(|x| (*x).into()).collect();
+        let pubdata_costs: Vec<i64> = pubdata_costs.iter().map(|x| (*x).into()).collect();
 
         let query = sqlx::query!(
             r#"
@@ -652,20 +648,16 @@ impl BlocksDal<'_, '_> {
         );
 
         let mut transaction = self.storage.start_transaction().await?;
-        i
-            .with(query)
-            .execute(&mut transaction)
-            .await?;
+        i.with(query).execute(&mut transaction).await?;
         transaction.commit().await
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
-        let i = Instrumented::new("insert_l2_block")
-            .with_arg("number", &l2_block_header.number);
+        let i = Instrumented::new("insert_l2_block").with_arg("number", &l2_block_header.number);
 
         let base_fee_per_gas = BigDecimal::from_u64(l2_block_header.base_fee_per_gas)
-            .ok_or_else(||anyhow::format_err!("doesn't fit in u64"))
-            .arg(&i,"header.base_fee_per_gas")?;
+            .ok_or_else(|| anyhow::format_err!("doesn't fit in u64"))
+            .arg(&i, "header.base_fee_per_gas")?;
 
         let query = sqlx::query!(
             r#"
@@ -713,15 +705,18 @@ impl BlocksDal<'_, '_> {
                 )
             "#,
             i64::from(l2_block_header.number.0),
-            i64::try_from(l2_block_header.timestamp).arg(&i,"timestamp")?,
+            i64::try_from(l2_block_header.timestamp).arg(&i, "timestamp")?,
             l2_block_header.hash.as_bytes(),
             i32::from(l2_block_header.l1_tx_count),
             i32::from(l2_block_header.l2_tx_count),
             l2_block_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
-            i64::try_from(l2_block_header.batch_fee_input.l1_gas_price()).arg(&i,"l1_gas_price")?,
-            i64::try_from(l2_block_header.batch_fee_input.fair_l2_gas_price()).arg(&i,"fair_l2_gas_price")?,
-            i64::try_from(l2_block_header.gas_per_pubdata_limit).arg(&i,"gas_per_pubdata_limit")?,
+            i64::try_from(l2_block_header.batch_fee_input.l1_gas_price())
+                .arg(&i, "l1_gas_price")?,
+            i64::try_from(l2_block_header.batch_fee_input.fair_l2_gas_price())
+                .arg(&i, "fair_l2_gas_price")?,
+            i64::try_from(l2_block_header.gas_per_pubdata_limit)
+                .arg(&i, "gas_per_pubdata_limit")?,
             l2_block_header
                 .base_system_contracts_hashes
                 .bootloader
@@ -732,8 +727,9 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             l2_block_header.protocol_version.map(|v| v as i32),
             i64::from(l2_block_header.virtual_blocks),
-            i64::try_from(l2_block_header.batch_fee_input.fair_pubdata_price()).arg(&i,"fair_pubdata_price")?,
-            i64::try_from(l2_block_header.gas_limit).arg(&i,"gas_limit")?,
+            i64::try_from(l2_block_header.batch_fee_input.fair_pubdata_price())
+                .arg(&i, "fair_pubdata_price")?,
+            i64::try_from(l2_block_header.gas_limit).arg(&i, "gas_limit")?,
         );
         i.with(query).execute(self.storage).await?;
         Ok(())
@@ -2216,8 +2212,7 @@ impl BlocksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         tree_writes: Vec<TreeWrite>,
     ) -> DalResult<()> {
-        let i =
-            Instrumented::new("set_tree_writes").with_arg("l1_batch_number", &l1_batch_number);
+        let i = Instrumented::new("set_tree_writes").with_arg("l1_batch_number", &l1_batch_number);
         let tree_writes = bincode::serialize(&tree_writes).arg(&i, "tree_writes")?;
 
         let query = sqlx::query!(

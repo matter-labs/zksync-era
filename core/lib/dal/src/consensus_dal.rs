@@ -5,7 +5,7 @@ use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
-    instrument::{InstrumentExt, Instrumented, DalContext},
+    instrument::{DalContext, InstrumentExt, Instrumented},
 };
 use zksync_types::L2BlockNumber;
 
@@ -325,11 +325,10 @@ impl ConsensusDal<'_, '_> {
         &mut self,
         numbers: std::ops::Range<validator::BlockNumber>,
     ) -> DalResult<Vec<Payload>> {
-        let i = Instrumented::new("block_payloads")
-            .with_arg("numbers", &numbers);
+        let i = Instrumented::new("block_payloads").with_arg("numbers", &numbers);
         let numbers = std::ops::Range {
-            start: L2BlockNumber(numbers.start.0.try_into().arg(&i,"start")?),
-            end: L2BlockNumber(numbers.end.0.try_into().arg(&i,"end")?),
+            start: L2BlockNumber(numbers.start.0.try_into().arg(&i, "start")?),
+            end: L2BlockNumber(numbers.end.0.try_into().arg(&i, "end")?),
         };
 
         let blocks = self
