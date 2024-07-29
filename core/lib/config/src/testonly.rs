@@ -298,9 +298,9 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmConfig {
         configs::ExperimentalVmConfig {
             fast_vm_mode: match rng.gen_range(0..3) {
-                0 => None,
-                1 => Some(FastVmMode::Isolated),
-                _ => Some(FastVmMode::Shadow),
+                0 => FastVmMode::Old,
+                1 => FastVmMode::New,
+                _ => FastVmMode::Shadow,
             },
         }
     }

@@ -49,11 +49,11 @@ pub(super) struct TestConfig {
     pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) fast_vm_mode: Option<FastVmMode>,
+    pub(super) fast_vm_mode: FastVmMode,
 }
 
 impl TestConfig {
-    pub(super) fn new(fast_vm_mode: Option<FastVmMode>) -> Self {
+    pub(super) fn new(fast_vm_mode: FastVmMode) -> Self {
         let config = StateKeeperConfig::for_tests();
 
         Self {
@@ -77,7 +77,7 @@ pub(super) struct Tester {
 }
 
 impl Tester {
-    pub(super) fn new(pool: ConnectionPool<Core>, fast_vm_mode: Option<FastVmMode>) -> Self {
+    pub(super) fn new(pool: ConnectionPool<Core>, fast_vm_mode: FastVmMode) -> Self {
         Self::with_config(pool, TestConfig::new(fast_vm_mode))
     }
 
@@ -453,7 +453,7 @@ impl StorageSnapshot {
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
-        let mut tester = Tester::new(connection_pool.clone(), None);
+        let mut tester = Tester::new(connection_pool.clone(), FastVmMode::Old);
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 

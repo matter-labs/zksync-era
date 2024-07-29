@@ -26,11 +26,14 @@ impl VmVersion {
 }
 
 /// Mode in which to run the new fast VM implementation.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FastVmMode {
-    /// Run only the new VM.
-    Isolated,
+    /// Run only the old VM.
+    #[default]
+    Old,
+    /// Run only the new Vm.
+    New,
     /// Run both the new and old VM and compare their outputs for each transaction execution.
     Shadow,
 }

@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use anyhow::Context as _;
+use zksync_basic_types::vm::FastVmMode;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
@@ -54,16 +55,18 @@ impl proto::FastVmMode {
     fn new(source: configs::vm_runner::FastVmMode) -> Self {
         use configs::vm_runner::FastVmMode as From;
         match source {
+            From::Old => Self::Old,
+            From::New => Self::New,
             From::Shadow => Self::Shadow,
-            From::Isolated => Self::Isolated,
         }
     }
 
     fn parse(&self) -> configs::vm_runner::FastVmMode {
         use configs::vm_runner::FastVmMode as To;
         match self {
+            Self::Old => To::Old,
+            Self::New => To::New,
             Self::Shadow => To::Shadow,
-            Self::Isolated => To::Isolated,
         }
     }
 }
@@ -77,15 +80,13 @@ impl ProtoRepr for proto::Vm {
                 .fast_vm_mode
                 .map(proto::FastVmMode::try_from)
                 .transpose()?
-                .map(|mode| mode.parse()),
+                .map_or_else(FastVmMode::default, |mode| mode.parse()),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            fast_vm_mode: this
-                .fast_vm_mode
-                .map(|mode| proto::FastVmMode::new(mode).into()),
+            fast_vm_mode: Some(proto::FastVmMode::new(this.fast_vm_mode).into()),
         }
     }
 }

@@ -20,8 +20,9 @@ message SnapshotRecovery {
 }
 
 enum FastVmMode {
-  SHADOW = 0;
-  ISOLATED = 1;
+  OLD = 0;
+  NEW = 1;
+  SHADOW = 2;
 }
 
 // Experimental VM configuration

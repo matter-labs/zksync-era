@@ -39,7 +39,7 @@ pub struct MainBatchExecutor {
     /// that in cases where the node is expected to process any transactions processed by the sequencer
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
-    fast_vm_mode: Option<FastVmMode>,
+    fast_vm_mode: FastVmMode,
 }
 
 impl MainBatchExecutor {
@@ -47,14 +47,14 @@ impl MainBatchExecutor {
         Self {
             save_call_traces,
             optional_bytecode_compression,
-            fast_vm_mode: None,
+            fast_vm_mode: FastVmMode::Old,
         }
     }
 
-    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: Option<FastVmMode>) {
-        if let Some(mode) = fast_vm_mode {
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        if !matches!(fast_vm_mode, FastVmMode::Old) {
             tracing::warn!(
-                "Running new VM with mode {mode:?}; this can lead to incorrect node behavior"
+                "Running new VM with mode {fast_vm_mode:?}; this can lead to incorrect node behavior"
             );
         }
         self.fast_vm_mode = fast_vm_mode;
@@ -108,7 +108,7 @@ impl BatchExecutor for MainBatchExecutor {
 struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
-    fast_vm_mode: Option<FastVmMode>,
+    fast_vm_mode: FastVmMode,
     commands: mpsc::Receiver<Command>,
 }
 

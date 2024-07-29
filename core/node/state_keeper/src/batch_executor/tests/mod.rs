@@ -43,13 +43,12 @@ impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
 }
 
-const FAST_VM_MODES: [Option<FastVmMode>; 3] =
-    [None, Some(FastVmMode::Shadow), Some(FastVmMode::Isolated)];
+const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
 #[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
 #[tokio::test]
-async fn execute_l2_tx(storage_type: StorageType, vm_mode: Option<FastVmMode>) {
+async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let mut tester = Tester::new(connection_pool, vm_mode);
@@ -106,7 +105,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
     }
     let snapshot = storage_snapshot.recover(&connection_pool).await;
 
-    let mut tester = Tester::new(connection_pool, None);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
     let mut executor = tester
         .recover_batch_executor_custom(&storage_type, &snapshot)
         .await;
@@ -122,7 +121,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
 /// Checks that we can successfully execute a single L1 tx in batch executor.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_l1_tx(vm_mode: Option<FastVmMode>) {
+async fn execute_l1_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -145,7 +144,7 @@ async fn execute_l1_tx(vm_mode: Option<FastVmMode>) {
 /// Checks that we can successfully execute a single L2 tx and a single L1 tx in batch executor.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_l2_and_l1_txs(vm_mode: Option<FastVmMode>) {
+async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -171,7 +170,7 @@ async fn execute_l2_and_l1_txs(vm_mode: Option<FastVmMode>) {
 /// Checks that we can successfully rollback the transaction and execute it once again.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn rollback(vm_mode: Option<FastVmMode>) {
+async fn rollback(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -218,7 +217,7 @@ async fn rollback(vm_mode: Option<FastVmMode>) {
 /// Checks that incorrect transactions are marked as rejected.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn reject_tx(vm_mode: Option<FastVmMode>) {
+async fn reject_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -238,7 +237,7 @@ async fn reject_tx(vm_mode: Option<FastVmMode>) {
 /// When processed in the bootloader, no more than 80M gas can be used within the execution context.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn too_big_gas_limit(vm_mode: Option<FastVmMode>) {
+async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -259,7 +258,7 @@ async fn too_big_gas_limit(vm_mode: Option<FastVmMode>) {
 /// Checks that we can't execute the same transaction twice.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn tx_cant_be_reexecuted(vm_mode: Option<FastVmMode>) {
+async fn tx_cant_be_reexecuted(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -282,7 +281,7 @@ async fn tx_cant_be_reexecuted(vm_mode: Option<FastVmMode>) {
 /// Checks that we can deploy and call the loadnext contract.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn deploy_and_call_loadtest(vm_mode: Option<FastVmMode>) {
+async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -313,7 +312,7 @@ async fn deploy_and_call_loadtest(vm_mode: Option<FastVmMode>) {
 /// Checks that a tx that is reverted by the VM still can be included into a batch.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_reverted_tx(vm_mode: Option<FastVmMode>) {
+async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -344,7 +343,7 @@ async fn execute_reverted_tx(vm_mode: Option<FastVmMode>) {
 /// a batch with different operations, both successful and not.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_realistic_scenario(vm_mode: Option<FastVmMode>) {
+async fn execute_realistic_scenario(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let mut bob = Account::random();
@@ -406,7 +405,7 @@ async fn execute_realistic_scenario(vm_mode: Option<FastVmMode>) {
 /// Checks that we handle the bootloader out of gas error on execution phase.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn bootloader_out_of_gas_for_any_tx(vm_mode: Option<FastVmMode>) {
+async fn bootloader_out_of_gas_for_any_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -437,7 +436,7 @@ async fn bootloader_tip_out_of_gas() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let mut tester = Tester::new(connection_pool, None);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
@@ -462,7 +461,7 @@ async fn bootloader_tip_out_of_gas() {
                 - 10,
         ),
         validation_computational_gas_limit: u32::MAX,
-        fast_vm_mode: None,
+        fast_vm_mode: FastVmMode::Old,
     });
 
     let mut second_executor = tester
@@ -479,7 +478,7 @@ async fn catchup_rocksdb_cache() {
     let mut alice = Account::random();
     let mut bob = Account::random();
 
-    let mut tester = Tester::new(connection_pool, None);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
 
     tester.genesis().await;
     tester.fund(&[alice.address(), bob.address()]).await;

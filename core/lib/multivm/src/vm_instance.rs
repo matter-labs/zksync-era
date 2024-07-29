@@ -253,19 +253,19 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        mode: Option<FastVmMode>,
+        mode: FastVmMode,
     ) -> Self {
         let vm_version = system_env.version.into();
         match vm_version {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => match mode {
-                Some(FastVmMode::Isolated) => {
+                FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
+                FastVmMode::New => {
                     let storage = ImmutableStorageView::new(storage_view);
                     Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
                 }
-                Some(FastVmMode::Shadow) => {
+                FastVmMode::Shadow => {
                     Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
                 }
-                None => Self::new(l1_batch_env, system_env, storage_view),
             },
             _ => Self::new(l1_batch_env, system_env, storage_view),
         }

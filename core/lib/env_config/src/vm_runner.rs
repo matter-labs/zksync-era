@@ -44,14 +44,11 @@ mod tests {
         assert_eq!(config.db_path, "/db/bwip");
         assert_eq!(config.window_size, 50);
         assert_eq!(config.first_processed_batch, L1BatchNumber(123));
-        assert_eq!(
-            config.experimental_vm.fast_vm_mode,
-            Some(FastVmMode::Shadow)
-        );
+        assert_eq!(config.experimental_vm.fast_vm_mode, FastVmMode::Shadow);
 
         lock.remove_env(&["VM_RUNNER_BWIP_EXPERIMENTAL_VM_FAST_VM_MODE"]);
 
         let config = BasicWitnessInputProducerConfig::from_env().unwrap();
-        assert_eq!(config.experimental_vm.fast_vm_mode, None);
+        assert_eq!(config.experimental_vm.fast_vm_mode, FastVmMode::Old);
     }
 }

@@ -64,6 +64,7 @@ impl ExperimentalDBConfig {
 
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct ExperimentalVmConfig {
-    /// Operation mode for the new fast VM. `None` to disable the fast VM.
-    pub fast_vm_mode: Option<FastVmMode>,
+    /// Operation mode for the new fast VM.
+    #[serde(default)]
+    pub fast_vm_mode: FastVmMode,
 }
