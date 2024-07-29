@@ -88,7 +88,7 @@ impl LeafAggregationWitnessGenerator {
         }
     }
 
-    pub async fn process_job_sync(
+    pub async fn process_job_impl(
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
         object_store: Arc<dyn ObjectStore>
@@ -150,7 +150,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         let object_store = self.object_store.clone();
         tokio::task::spawn(async move {
             let block_number = job.block_number;
-            Ok(Self::process_job_sync(job, started_at, object_store)
+            Ok(Self::process_job_impl(job, started_at, object_store)
             .instrument(tracing::info_span!("leaf_aggregation", %block_number))
             .await)
         })
@@ -259,7 +259,11 @@ pub async fn process_leaf_aggregation_job(
 
     let mut circuit_ids_and_urls = vec![];
 
-    let aggregations = {
+    let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
+
+    let object_store_arc = object_store.clone();
+
+    let make_circuits = tokio::task::spawn(async move {
         let queues = split_reqursion_queue(job.closed_form_inputs.1);
         let amount_of_queues = queues.len();
         let mut queues_it = queues.iter();
@@ -274,7 +278,7 @@ pub async fn process_leaf_aggregation_job(
                 let proofs_ids: Vec<_> = (&mut proof_ids_iter)
                     .take(queue.num_items as usize)
                     .collect();
-                let proofs = load_proofs_for_job_ids(&proofs_ids, &*object_store).await;
+                let proofs = load_proofs_for_job_ids(&proofs_ids, &*object_store_arc).await;
                 let mut base_proofs = vec![];
                 for wrapper in proofs {
                     match wrapper {
@@ -304,17 +308,7 @@ pub async fn process_leaf_aggregation_job(
                 recursive_circuits.push(circuit);
             }
 
-            let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
-                job.block_number,
-                recursive_circuits,
-                AggregationRound::LeafAggregation,
-                0,
-                &*object_store,
-                None,
-            )
-            .await;
-
-            circuit_ids_and_urls.extend(new_circuit_ids_and_urls);
+            circuit_sender.send(recursive_circuits).await.unwrap();
         }
 
         let mut aggregations = vec![];
@@ -323,7 +317,30 @@ pub async fn process_leaf_aggregation_job(
         }
 
         aggregations
+    });
+
+    let save_circuits = async {
+        loop {
+            tokio::select! {
+                Some(recursive_circuits) = circuit_receiver.recv() => {
+                    let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
+                        job.block_number,
+                        recursive_circuits,
+                        AggregationRound::LeafAggregation,
+                        0,
+                        &*object_store,
+                        None,
+                    )
+                    .await;
+        
+                    circuit_ids_and_urls.extend(new_circuit_ids_and_urls);
+                }
+                else => break,
+            };
+        }
     };
+
+    let (aggregations, ()) = tokio::join!(make_circuits, save_circuits);
 
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
@@ -338,7 +355,7 @@ pub async fn process_leaf_aggregation_job(
     LeafAggregationArtifacts {
         circuit_id,
         block_number: job.block_number,
-        aggregations,
+        aggregations: aggregations.unwrap(),
         circuit_ids_and_urls,
         closed_form_inputs: job.closed_form_inputs.0,
     }
