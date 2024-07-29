@@ -16,6 +16,8 @@ pub struct L1BatchProofForL1 {
 /// A "final" TEE proof that can be sent to the L1 contract.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchTeeProofForL1 {
+    // ID of the proof in the database to distinguish between different proofs for the same batch
+    pub proof_id: i64,
     // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
     pub signature: Vec<u8>,
     // pubkey used for signature verification; each key pair is attested by the TEE attestation

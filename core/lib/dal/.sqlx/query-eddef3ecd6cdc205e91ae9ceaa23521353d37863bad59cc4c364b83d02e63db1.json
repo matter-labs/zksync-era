@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                tee_proofs (l1_batch_number, tee_type, created_at)\n            VALUES\n                ($1, $2, NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eddef3ecd6cdc205e91ae9ceaa23521353d37863bad59cc4c364b83d02e63db1"
+}

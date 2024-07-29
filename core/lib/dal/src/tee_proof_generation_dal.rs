@@ -1,130 +1,101 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
 use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{InstrumentExt, Instrumented},
+    connection::Connection, error::DalResult, instrument::Instrumented,
     utils::pg_interval_from_duration,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::Core;
+use crate::{
+    models::storage_tee_proof::{StorageTeeProof, TmpStorageTeeProof},
+    Core,
+};
 
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProof {
-    // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
-    pub signature: Option<Vec<u8>>,
-    // pubkey used for signature verification; each key pair is attested by the TEE attestation
-    // stored in the db
-    pub pubkey: Option<Vec<u8>>,
-    // data that was signed
-    pub proof: Option<Vec<u8>>,
-    // type of TEE used for attestation
-    pub tee_type: Option<TeeType>,
-}
-
-#[derive(Debug, EnumString, Display)]
-enum TeeProofGenerationJobStatus {
-    #[strum(serialize = "ready_to_be_proven")]
-    ReadyToBeProven,
-    #[strum(serialize = "picked_by_prover")]
-    PickedByProver,
-    #[strum(serialize = "generated")]
-    Generated,
-    #[strum(serialize = "skipped")]
-    Skipped,
-}
-
 impl TeeProofGenerationDal<'_, '_> {
-    pub async fn get_next_block_to_be_proven(
+    pub async fn get_next_batch_to_be_proven(
         &mut self,
+        tee_type: TeeType,
         processing_timeout: Duration,
-    ) -> DalResult<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<(i64, L1BatchNumber)>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let query = sqlx::query!(
             r#"
-            UPDATE tee_proof_generation_details
+            UPDATE tee_proofs
             SET
-                status = 'picked_by_prover',
-                updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
-                l1_batch_number = (
+                id = (
                     SELECT
-                        proofs.l1_batch_number
+                        proofs.id
                     FROM
-                        tee_proof_generation_details AS proofs
+                        tee_proofs AS proofs
                         JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
                     WHERE
                         inputs.status = 'Successful'
+                        AND proofs.tee_type = $1
                         AND (
-                            proofs.status = 'ready_to_be_proven'
-                            OR (
-                                proofs.status = 'picked_by_prover'
-                                AND proofs.prover_taken_at < NOW() - $1::INTERVAL
-                            )
+                            proofs.prover_taken_at IS NULL
+                            OR proofs.prover_taken_at < NOW() - $2::INTERVAL
                         )
                     ORDER BY
-                        l1_batch_number ASC
+                        tee_proofs.l1_batch_number ASC,
+                        proofs.prover_taken_at ASC NULLS FIRST
                     LIMIT
                         1
                     FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
-                tee_proof_generation_details.l1_batch_number
+                tee_proofs.id,
+                tee_proofs.l1_batch_number
             "#,
+            &tee_type.to_string(),
             &processing_timeout,
         );
-        let batch_number = Instrumented::new("get_next_block_to_be_proven")
+        let batch_number = Instrumented::new("get_next_batch_to_be_proven")
+            .with_arg("tee_type", &tee_type)
             .with_arg("processing_timeout", &processing_timeout)
             .with(query)
             .fetch_optional(self.storage)
             .await?
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+            .map(|row| (row.id as i64, L1BatchNumber(row.l1_batch_number as u32)));
 
         Ok(batch_number)
     }
 
     pub async fn save_proof_artifacts_metadata(
         &mut self,
-        block_number: L1BatchNumber,
-        signature: &[u8],
+        proof_id: i64,
         pubkey: &[u8],
+        signature: &[u8],
         proof: &[u8],
-        tee_type: TeeType,
     ) -> DalResult<()> {
         let query = sqlx::query!(
             r#"
-            UPDATE tee_proof_generation_details
+            UPDATE tee_proofs
             SET
-                status = 'generated',
-                signature = $1,
-                pubkey = $2,
+                pubkey = $1,
+                signature = $2,
                 proof = $3,
-                tee_type = $4,
-                updated_at = NOW()
+                proved_at = NOW()
             WHERE
-                l1_batch_number = $5
+                id = $4
             "#,
-            signature,
             pubkey,
+            signature,
             proof,
-            tee_type.to_string(),
-            i64::from(block_number.0)
+            proof_id
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
-            .with_arg("signature", &signature)
             .with_arg("pubkey", &pubkey)
+            .with_arg("signature", &signature)
             .with_arg("proof", &proof)
-            .with_arg("tee_type", &tee_type);
+            .with_arg("proof_id", &proof_id);
         let result = instrumentation
             .clone()
             .with(query)
@@ -132,7 +103,8 @@ impl TeeProofGenerationDal<'_, '_> {
             .await?;
         if result.rows_affected() == 0 {
             let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Updating TEE proof for a non-existent batch number is not allowed"
+                "Updating TEE proof for a non-existent ID {} is not allowed",
+                proof_id
             ));
             return Err(err);
         }
@@ -142,39 +114,52 @@ impl TeeProofGenerationDal<'_, '_> {
 
     pub async fn insert_tee_proof_generation_job(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
+        tee_type: TeeType,
     ) -> DalResult<()> {
-        let block_number = i64::from(block_number.0);
-        sqlx::query!(
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
             r#"
             INSERT INTO
-                tee_proof_generation_details (l1_batch_number, status, created_at, updated_at)
+                tee_proofs (l1_batch_number, tee_type, created_at)
             VALUES
-                ($1, 'ready_to_be_proven', NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, NOW())
             "#,
-            block_number,
-        )
-        .instrument("create_tee_proof_generation_details")
-        .with_arg("l1_batch_number", &block_number)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
+            batch_number,
+            tee_type.to_string(),
+        );
+        let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
+            .with_arg("l1_batch_number", &batch_number)
+            .with_arg("tee_type", &tee_type);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Unable to insert TEE proof for {}, {}",
+                batch_number,
+                tee_type
+            ));
+            return Err(err);
+        }
 
         Ok(())
     }
 
+    #[cfg(test)]
     pub async fn get_oldest_unpicked_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let query = sqlx::query!(
             r#"
             SELECT
                 proofs.l1_batch_number
             FROM
-                tee_proof_generation_details AS proofs
+                tee_proofs AS proofs
                 JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
                 inputs.status = 'Successful'
-                AND proofs.status = 'ready_to_be_proven'
+                AND proofs.prover_taken_at IS NULL
             ORDER BY
                 proofs.l1_batch_number ASC
             LIMIT
@@ -220,38 +205,49 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_tee_proof(
+    pub async fn get_tee_proofs(
         &mut self,
-        block_number: L1BatchNumber,
-    ) -> DalResult<Option<TeeProof>> {
-        let query = sqlx::query!(
+        batch_number: L1BatchNumber,
+        tee_type: Option<TeeType>,
+    ) -> DalResult<Vec<StorageTeeProof>> {
+        let query = format!(
             r#"
             SELECT
-                signature,
-                pubkey,
-                proof,
-                tee_type
+                tp.id,
+                tp.pubkey,
+                tp.signature,
+                tp.proof,
+                tp.proved_at,
+                ta.attestation
             FROM
-                tee_proof_generation_details
+                tee_proofs tp
+            LEFT JOIN
+                tee_attestations ta ON tp.pubkey = ta.pubkey
             WHERE
-                l1_batch_number = $1
+                tp.l1_batch_number = {}
+                {}
+            ORDER BY tp.id
             "#,
-            i64::from(block_number.0)
+            i64::from(batch_number.0),
+            tee_type.map_or_else(String::new, |tt| format!("AND tp.tee_type = '{}'", tt))
         );
-        let proof = Instrumented::new("get_tee_proof")
-            .with_arg("l1_batch_number", &block_number)
-            .with(query)
-            .fetch_optional(self.storage)
-            .await?
-            .map(|row| TeeProof {
-                signature: row.signature,
-                pubkey: row.pubkey,
-                proof: row.proof,
-                tee_type: row
-                    .tee_type
-                    .map(|tt| tt.parse::<TeeType>().expect("Invalid TEE type")),
-            });
 
-        Ok(proof)
+        let proofs: Vec<StorageTeeProof> = sqlx::query_as(&query)
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row: TmpStorageTeeProof| StorageTeeProof {
+                l1_batch_number: batch_number,
+                tee_type,
+                pubkey: row.pubkey,
+                signature: row.signature,
+                proof: row.proof,
+                attestation: row.attestation,
+                proved_at: row.proved_at,
+            })
+            .collect();
+
+        Ok(proofs)
     }
 }

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_proofs\n            SET\n                prover_taken_at = NOW()\n            WHERE\n                id = (\n                    SELECT\n                        proofs.id\n                    FROM\n                        tee_proofs AS proofs\n                        JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number\n                    WHERE\n                        inputs.status = 'Successful'\n                        AND proofs.tee_type = $1\n                        AND (\n                            proofs.prover_taken_at IS NULL\n                            OR proofs.prover_taken_at < NOW() - $2::INTERVAL\n                        )\n                    ORDER BY\n                        tee_proofs.l1_batch_number ASC,\n                        proofs.prover_taken_at ASC NULLS FIRST\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                tee_proofs.id,\n                tee_proofs.l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "94eefcf763d8a4bc6a6c1860be17042743766d7fc2c231bb699bef005b81a7fc"
+}

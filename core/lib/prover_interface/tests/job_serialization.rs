@@ -167,6 +167,7 @@ fn test_proof_request_serialization() {
 #[test]
 fn test_tee_proof_request_serialization() {
     let tee_proof_str = r#"{
+        "proof_id": 0,
         "signature": [ 0, 1, 2, 3, 4 ],
         "pubkey": [ 5, 6, 7, 8, 9 ],
         "proof": [ 10, 11, 12, 13, 14 ],
@@ -174,6 +175,7 @@ fn test_tee_proof_request_serialization() {
     }"#;
     let tee_proof_result = serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_str).unwrap();
     let tee_proof_expected = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
+        proof_id: 0,
         signature: vec![0, 1, 2, 3, 4],
         pubkey: vec![5, 6, 7, 8, 9],
         proof: vec![10, 11, 12, 13, 14],

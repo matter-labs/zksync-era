@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                proofs.l1_batch_number\n            FROM\n                tee_proofs AS proofs\n                JOIN tee_verifier_input_producer_jobs AS inputs\n                ON proofs.l1_batch_number = inputs.l1_batch_number\n            WHERE\n                inputs.status = 'Successful'\n                AND proofs.prover_taken_at IS NULL\n            ORDER BY\n                proofs.l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "184573db68b82c15ad5a647b4784b4a0c11d0a45774fade80e88cb902104fe28"
+}
