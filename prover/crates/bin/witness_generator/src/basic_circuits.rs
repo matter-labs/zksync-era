@@ -405,7 +405,11 @@ async fn generate_witness(
     let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
+    let make_circuits_span = tracing::info_span!("make_circuits");
+    let make_circuits_span_copy = make_circuits_span.clone();
     let make_circuits = tokio::task::spawn_blocking(move || {
+        let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
+
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
@@ -440,40 +444,42 @@ async fn generate_witness(
             path,
             input.eip_4844_blobs.blobs(),
             |circuit| {
-                circuit_sender.blocking_send(circuit).unwrap();
+                let parent_span = span.clone();
+                tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
+                    circuit_sender.blocking_send(circuit).unwrap();
+                });
             },
             |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
         );
         (scheduler_witness, block_witness)
-    });
+    })
+    .instrument(make_circuits_span);
 
     let mut circuit_urls = vec![];
     let mut recursion_urls = vec![];
 
     let mut circuits_present = HashSet::<u8>::new();
 
+    let save_circuits_span = tracing::info_span!("save_circuits");
     let save_circuits = async {
         loop {
             tokio::select! {
-                Some(circuit) = circuit_receiver.recv() => {
+                Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")) => {
                     circuits_present.insert(circuit.numeric_circuit_type());
                     circuit_urls.push(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
                 }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
-                    save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
-                        .await,
-                ),
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv().instrument(tracing::info_span!("wait_for_queue")) => {
+                    let urls = save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store).await;
+                    recursion_urls.push(urls);
+                }
                 else => break,
             };
         }
-    };
+    }.instrument(save_circuits_span);
 
-    let (witnesses, ()) = tokio::join!(
-        make_circuits.instrument(tracing::info_span!("make_circuits")),
-        save_circuits.instrument(tracing::info_span!("save_circuits")),
-    );
+    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits,);
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));
