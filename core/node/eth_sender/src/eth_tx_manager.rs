@@ -413,7 +413,7 @@ impl EthTxManager {
                 self.fail_tx(storage, tx, tx_status).await;
             }
         } else {
-            tracing::debug!(
+            tracing::trace!(
                 "Transaction {} with id {} is not yet finalized: block in receipt {receipt_block_number}, finalized block {finalized_block}",
                 tx_status.tx_hash,
                 tx.id,
