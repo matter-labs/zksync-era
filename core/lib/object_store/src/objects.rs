@@ -136,7 +136,7 @@ impl dyn ObjectStore + '_ {
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
         // Record the key for tracing.
-        tracing::Span::current().record("key", &key.as_str());
+        tracing::Span::current().record("key", key.as_str());
         let bytes = self.get_raw(V::BUCKET, &key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
@@ -178,7 +178,7 @@ impl dyn ObjectStore + '_ {
     ) -> Result<String, ObjectStoreError> {
         let key = V::encode_key(key);
         // Record the key for tracing.
-        tracing::Span::current().record("key", &key.as_str());
+        tracing::Span::current().record("key", key.as_str());
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
         self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
@@ -197,7 +197,7 @@ impl dyn ObjectStore + '_ {
     pub async fn remove<V: StoredObject>(&self, key: V::Key<'_>) -> Result<(), ObjectStoreError> {
         let key = V::encode_key(key);
         // Record the key for tracing.
-        tracing::Span::current().record("key", &key.as_str());
+        tracing::Span::current().record("key", key.as_str());
         self.remove_raw(V::BUCKET, &key).await
     }
 

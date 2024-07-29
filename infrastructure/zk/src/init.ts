@@ -43,14 +43,12 @@ type InitSetupOptions = {
     skipSubmodulesCheckout: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
-    shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
     runObservability,
-    deploymentMode,
-    shouldCheckPostgres
+    deploymentMode
 }: InitSetupOptions): Promise<void> => {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
@@ -147,6 +145,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     baseTokenName?: string;
     validiumMode?: boolean;
     localLegacyBridgeTesting?: boolean;
+    shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
@@ -168,8 +167,7 @@ export const initDevCmdAction = async ({
         skipEnvSetup,
         skipSubmodulesCheckout,
         runObservability,
-        deploymentMode,
-        shouldCheckPostgres
+        deploymentMode
     });
     if (!skipVerifier) {
         await deployVerifier();
@@ -178,7 +176,7 @@ export const initDevCmdAction = async ({
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
-    await initDatabase();
+    await initDatabase(shouldCheckPostgres);
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
@@ -232,8 +230,7 @@ export const initHyperCmdAction = async ({
             skipEnvSetup: false,
             skipSubmodulesCheckout: false,
             runObservability,
-            deploymentMode,
-            shouldCheckPostgres: true
+            deploymentMode
         });
     }
     await initDatabase();
