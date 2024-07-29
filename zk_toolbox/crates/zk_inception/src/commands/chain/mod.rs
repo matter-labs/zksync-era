@@ -27,10 +27,10 @@ pub enum ChainCommands {
     /// Initialize bridges on l2
     #[command(alias = "bridge")]
     InitializeBridges(ForgeScriptArgs),
-    /// Initialize bridges on l2
+    /// Deploy all l2 contracts
     #[command(alias = "l2")]
     DeployL2Contracts(ForgeScriptArgs),
-    /// Initialize bridges on l2
+    /// Deploy Default Upgrader
     Upgrader(ForgeScriptArgs),
     /// Initialize bridges on l2
     #[command(alias = "paymaster")]
