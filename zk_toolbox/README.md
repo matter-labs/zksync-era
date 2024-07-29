@@ -32,7 +32,8 @@ This command will install `zk_inception` and `zk_supervisor` from the current re
 ### Foundry Integration
 
 Foundry is utilized for deploying smart contracts. For commands related to deployment, you can pass flags for Foundry
-integration.
+integration. For using this flags, you have to pass `-a` and then the corresponding flag. e.g
+`-a --gas-estimate-multiplier=500`
 
 ### Ecosystem
 
