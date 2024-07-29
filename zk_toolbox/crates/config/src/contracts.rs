@@ -8,7 +8,7 @@ use crate::{
         initialize_bridges::output::InitializeBridgeOutput,
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -72,6 +72,7 @@ impl ContractsConfig {
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
+        self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 
     pub fn set_l2_shared_bridge(
@@ -88,6 +89,8 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
+impl ZkToolboxConfig for ContractsConfig {}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
@@ -97,7 +100,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
 }
 
-impl FileConfig for EcosystemContracts {}
+impl ZkToolboxConfig for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {
@@ -117,6 +120,8 @@ pub struct L1Contracts {
     pub default_upgrade_addr: Address,
     pub diamond_proxy_addr: Address,
     pub governance_addr: Address,
+    #[serde(default)]
+    pub chain_admin_addr: Address,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,

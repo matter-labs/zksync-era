@@ -123,7 +123,6 @@ impl StateKeeperHandles {
             Box::new(main_node_client),
             L2ChainId::default(),
         )
-        .await
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
@@ -235,7 +234,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
         &[&extract_tx_hashes(&actions)],
     )
     .await;
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 1)
@@ -321,7 +320,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         &[&extract_tx_hashes(&actions)],
     )
     .await;
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 1)
@@ -412,8 +411,14 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = MockMainNodeClient::default();
     let state_keeper = StateKeeperHandles::new(pool, client, action_queue, &[&tx_hashes]).await;
-    actions_sender.push_actions(first_l2_block_actions).await;
-    actions_sender.push_actions(second_l2_block_actions).await;
+    actions_sender
+        .push_actions(first_l2_block_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(second_l2_block_actions)
+        .await
+        .unwrap();
     // Wait until both L2 blocks are sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 2)
@@ -495,7 +500,7 @@ async fn test_external_io_recovery(
         number: snapshot.l2_block_number + 3,
     };
     let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealL2Block];
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 3)
         .await;
@@ -585,9 +590,18 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         &[&[first_tx_hash], &[second_tx_hash]],
     )
     .await;
-    actions_sender.push_actions(first_l1_batch_actions).await;
-    actions_sender.push_actions(fictive_l2_block_actions).await;
-    actions_sender.push_actions(second_l1_batch_actions).await;
+    actions_sender
+        .push_actions(first_l1_batch_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(fictive_l2_block_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(second_l1_batch_actions)
+        .await
+        .unwrap();
 
     let hash_task = tokio::spawn(mock_l1_batch_hash_computation(
         pool.clone(),

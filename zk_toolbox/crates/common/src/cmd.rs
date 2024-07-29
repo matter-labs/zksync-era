@@ -1,5 +1,6 @@
 use std::{
     ffi::OsStr,
+    fmt::{Display, Formatter},
     io,
     process::{Command, Output, Stdio},
     string::FromUtf8Error,
@@ -18,13 +19,24 @@ use crate::{
 pub struct Cmd<'a> {
     inner: xshell::Cmd<'a>,
     force_run: bool,
+    // For resume functionality we must pipe the output, otherwise it only shows less information
+    piped_std_err: bool,
 }
 
 #[derive(thiserror::Error, Debug)]
-#[error("Cmd error: {source} {stderr:?}")]
 pub struct CmdError {
-    stderr: Option<String>,
-    source: anyhow::Error,
+    pub stderr: Option<String>,
+    pub source: anyhow::Error,
+}
+
+impl Display for CmdError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut data = format!("{}", &self.source);
+        if let Some(stderr) = &self.stderr {
+            data = format!("{data}\n{stderr}");
+        }
+        write!(f, "{}", data)
+    }
 }
 
 impl From<xshell::Error> for CmdError {
@@ -62,12 +74,18 @@ impl<'a> Cmd<'a> {
         Self {
             inner: cmd,
             force_run: false,
+            piped_std_err: false,
         }
     }
 
     /// Run the command printing the output to the console.
     pub fn with_force_run(mut self) -> Self {
         self.force_run = true;
+        self
+    }
+
+    pub fn with_piped_std_err(mut self) -> Self {
+        self.piped_std_err = true;
         self
     }
 
@@ -83,7 +101,13 @@ impl<'a> Cmd<'a> {
         let output = if global_config().verbose || self.force_run {
             logger::debug(format!("Running: {}", self.inner));
             logger::new_empty_line();
-            run_low_level_process_command(self.inner.into())?
+            let output = run_low_level_process_command(self.inner.into(), self.piped_std_err)?;
+            if let Ok(data) = String::from_utf8(output.stderr.clone()) {
+                if !data.is_empty() {
+                    logger::info(data)
+                }
+            }
+            output
         } else {
             // Command will be logged manually.
             self.inner.set_quiet(true);
@@ -136,9 +160,13 @@ fn check_output_status(command_text: &str, output: &std::process::Output) -> Cmd
     Ok(())
 }
 
-fn run_low_level_process_command(mut command: Command) -> io::Result<Output> {
+fn run_low_level_process_command(mut command: Command, piped_std_err: bool) -> io::Result<Output> {
     command.stdout(Stdio::inherit());
-    command.stderr(Stdio::piped());
+    if piped_std_err {
+        command.stderr(Stdio::piped());
+    } else {
+        command.stderr(Stdio::inherit());
+    }
     let child = command.spawn()?;
     child.wait_with_output()
 }

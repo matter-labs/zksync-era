@@ -21,6 +21,7 @@ pub enum EcosystemCommands {
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
     /// Change the default chain
+    #[command(alias = "cd")]
     ChangeDefaultChain(ChangeDefaultChain),
 }
 

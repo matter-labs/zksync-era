@@ -35,6 +35,7 @@ jobs:
       #     touch .env
       #     echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
       #     echo $(pwd)/bin >> $GITHUB_PATH
+      #     docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       # - name: init
       #   run: |

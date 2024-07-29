@@ -161,6 +161,7 @@ impl GenesisParams {
     }
 }
 
+#[derive(Debug)]
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,
@@ -278,6 +279,10 @@ pub async fn insert_genesis_batch(
         commitment: block_commitment.hash().commitment,
         rollup_last_leaf_index,
     })
+}
+
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
 }
 
 pub async fn ensure_genesis_state(
@@ -428,14 +433,10 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
-    let mut storage = pool.connection().await?;
-
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
 

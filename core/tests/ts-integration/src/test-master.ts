@@ -5,6 +5,7 @@ import { claimEtherBack } from './context-owner';
 import { RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
 import { isNetworkLocal } from 'utils';
+import { bigIntReviver } from './helpers';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -19,7 +20,7 @@ export class TestMaster {
 
     private readonly env: TestEnvironment;
     readonly reporter: Reporter;
-    private readonly l1Provider: ethers.providers.JsonRpcProvider;
+    private readonly l1Provider: ethers.JsonRpcProvider;
     private readonly l2Provider: zksync.Provider;
 
     private readonly mainWallet: zksync.Wallet;
@@ -35,7 +36,7 @@ export class TestMaster {
             throw new Error('Test context was not initialized; unable to load context environment variable');
         }
 
-        const context = JSON.parse(contextStr) as TestContext;
+        const context = JSON.parse(contextStr, bigIntReviver) as TestContext;
         this.env = context.environment;
         this.reporter = new Reporter();
 
@@ -52,7 +53,7 @@ export class TestMaster {
         if (!suiteWalletPK) {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
-        this.l1Provider = new ethers.providers.JsonRpcProvider(this.env.l1NodeUrl);
+        this.l1Provider = new ethers.JsonRpcProvider(this.env.l1NodeUrl);
         this.l2Provider = new RetryProvider(
             {
                 url: this.env.l2NodeUrl,

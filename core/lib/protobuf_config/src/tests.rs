@@ -39,6 +39,21 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);
     test_encode_all_formats::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
     test_encode_all_formats::<ReprConv<proto::observability::Observability>>(rng);
+    test_encode_all_formats::<ReprConv<proto::wallets::Wallets>>(rng);
+    test_encode_all_formats::<ReprConv<proto::genesis::Genesis>>(rng);
+    test_encode_all_formats::<ReprConv<proto::en::ExternalNode>>(rng);
+    test_encode_all_formats::<ReprConv<proto::da_dispatcher::DataAvailabilityDispatcher>>(rng);
+    test_encode_all_formats::<ReprConv<proto::vm_runner::ProtectiveReadsWriter>>(rng);
+    test_encode_all_formats::<ReprConv<proto::vm_runner::BasicWitnessInputProducer>>(rng);
+    test_encode_all_formats::<ReprConv<proto::commitment_generator::CommitmentGenerator>>(rng);
+    test_encode_all_formats::<ReprConv<proto::snapshot_recovery::Postgres>>(rng);
+    test_encode_all_formats::<ReprConv<proto::snapshot_recovery::SnapshotRecovery>>(rng);
+    test_encode_all_formats::<ReprConv<proto::pruning::Pruning>>(rng);
+    test_encode_all_formats::<ReprConv<proto::base_token_adjuster::BaseTokenAdjuster>>(rng);
+    test_encode_all_formats::<ReprConv<proto::external_price_api_client::ExternalPriceApiClient>>(
+        rng,
+    );
+    test_encode_all_formats::<ReprConv<proto::general::GeneralConfig>>(rng);
 }
 
 #[test]

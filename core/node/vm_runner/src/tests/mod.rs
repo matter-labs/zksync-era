@@ -55,6 +55,14 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         Ok(io.current + io.max)
     }
 
+    async fn mark_l1_batch_as_processing(
+        &self,
+        _conn: &mut Connection<'_, Core>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn mark_l1_batch_as_completed(
         &self,
         _conn: &mut Connection<'_, Core>,

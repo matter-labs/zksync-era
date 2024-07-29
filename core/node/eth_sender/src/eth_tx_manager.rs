@@ -586,8 +586,23 @@ impl EthTxManager {
                 .await
                 .unwrap();
 
+            if !new_eth_tx.is_empty() {
+                tracing::info!(
+                    "Sending {} {operator_type:?} new transactions",
+                    new_eth_tx.len()
+                );
+            } else {
+                tracing::trace!("No new transactions to send");
+            }
             for tx in new_eth_tx {
-                let _ = self.send_eth_tx(storage, &tx, 0, current_block).await;
+                let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
+                // If one of the transactions doesn't succeed, this means we should return
+                // as new transactions have increasing nonces, so they will also result in an error
+                // about gapped nonces
+                if result.is_err() {
+                    tracing::info!("Skipping sending rest of new transactions because of error");
+                    break;
+                }
             }
         }
     }

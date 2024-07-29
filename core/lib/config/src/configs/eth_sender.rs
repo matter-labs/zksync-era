@@ -160,7 +160,7 @@ impl SenderConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, Default)]
 pub struct GasAdjusterConfig {
     /// Priority Fee to be used by GasAdjuster
     pub default_priority_fee_per_gas: u64,

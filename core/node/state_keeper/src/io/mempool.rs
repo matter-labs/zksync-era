@@ -93,6 +93,10 @@ impl StateKeeperIO for MempoolIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+        self.l1_batch_params_provider
+            .initialize(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
@@ -420,7 +424,7 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
 }
 
 impl MempoolIO {
-    pub async fn new(
+    pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool<Core>,
@@ -429,12 +433,6 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.connection_tagged("state_keeper").await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
-            .await
-            .context("failed initializing L1 batch params provider")?;
-        drop(storage);
-
         Ok(Self {
             mempool,
             pool,
@@ -442,7 +440,7 @@ impl MempoolIO {
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            l1_batch_params_provider,
+            l1_batch_params_provider: L1BatchParamsProvider::new(),
             fee_account,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
