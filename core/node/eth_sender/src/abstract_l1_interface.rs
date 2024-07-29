@@ -96,7 +96,7 @@ impl RealL1Interface {
     }
 
     pub(crate) fn query_client_for_operator(&self, operator_type: OperatorType) -> &DynClient<L1> {
-        if operator_type == OperatorType::NonBlob {
+        if operator_type == OperatorType::Blob {
             self.ethereum_gateway_blobs().unwrap().as_ref()
         } else {
             self.ethereum_gateway().as_ref()

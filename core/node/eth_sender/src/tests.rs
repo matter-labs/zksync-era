@@ -365,37 +365,37 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
     tester.run_eth_sender_tx_manager_iteration().await;
 }
 
-// #[test_log::test(tokio::test)]
-// async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
-//     let mut tester = EthSenderTester::new(
-//         ConnectionPool::<Core>::test_pool().await,
-//         vec![100; 100],
-//         true,
-//         true,
-//         L1BatchCommitmentMode::Rollup,
-//     )
-//     .await;
-//
-//     let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
-//     let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
-//     let second_l1_batch = TestL1Batch::sealed(&mut tester).await;
-//
-//     first_l1_batch.save_commit_tx(&mut tester).await;
-//     second_l1_batch.save_commit_tx(&mut tester).await;
-//     tester.run_eth_sender_tx_manager_iteration().await;
-//     // first iteration sends two commit txs for the first time
-//     tester.assert_just_sent_tx_count_equals(2).await;
-//
-//     first_l1_batch.save_prove_tx(&mut tester).await;
-//     first_l1_batch.execute_commit_tx(&mut tester).await;
-//     tester.run_eth_sender_tx_manager_iteration().await;
-//     // second iteration sends first_batch prove tx and resends second_batch commit tx
-//     tester.assert_just_sent_tx_count_equals(2).await;
-//
-//     tester.run_eth_sender_tx_manager_iteration().await;
-//     // we should resend both of those transactions here as they use different operators
-//     tester.assert_just_sent_tx_count_equals(2).await;
-// }
+#[test_log::test(tokio::test)]
+async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
+
+    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
+    let second_l1_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_l1_batch.save_commit_tx(&mut tester).await;
+    second_l1_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // first iteration sends two commit txs for the first time
+    tester.assert_just_sent_tx_count_equals(2).await;
+
+    first_l1_batch.save_prove_tx(&mut tester).await;
+    first_l1_batch.execute_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // second iteration sends first_batch prove tx and resends second_batch commit tx
+    tester.assert_just_sent_tx_count_equals(2).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // we should resend both of those transactions here as they use different operators
+    tester.assert_just_sent_tx_count_equals(2).await;
+}
 
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
