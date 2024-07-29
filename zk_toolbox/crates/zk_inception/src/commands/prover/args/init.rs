@@ -74,6 +74,15 @@ enum InternalCloudType {
     Local,
 }
 
+impl From<InternalCloudType> for CloudType {
+    fn from(cloud_type: InternalCloudType) -> Self {
+        match cloud_type {
+            InternalCloudType::GCP => CloudType::GCP,
+            InternalCloudType::Local => CloudType::Local,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
 pub struct ProofStorageGCSTmp {
     #[clap(long)]
@@ -170,7 +179,7 @@ impl ProverInitArgs {
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
-        let cloud_type = self.get_cloud_type_with_prompt()?;
+        let cloud_type = self.get_cloud_type_with_prompt();
 
         Ok(ProverInitArgsFinal {
             proof_store,
@@ -424,14 +433,11 @@ impl ProverInitArgs {
         self.bellman_cuda_config.clone().fill_values_with_prompt()
     }
 
-    fn get_cloud_type_with_prompt(&self) -> anyhow::Result<CloudType> {
+    fn get_cloud_type_with_prompt(&self) -> CloudType {
         let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
             PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudType::iter()).ask()
         });
 
-        match cloud_type {
-            InternalCloudType::GCP => Ok(CloudType::GCP),
-            InternalCloudType::Local => Ok(CloudType::Local),
-        }
+        cloud_type.into()
     }
 }
