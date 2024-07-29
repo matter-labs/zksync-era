@@ -30,6 +30,11 @@ impl ProofGenDataFetcher {
 }
 
 impl ProofGenDataFetcher {
+    #[tracing::instrument(
+        name = "ProofGenDataFetcher::save_proof_gen_data",
+        skip_all,
+        fields(l1_batch = %data.l1_batch_number)
+    )]
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let store = &*self.0.blob_store;
         let witness_inputs = store

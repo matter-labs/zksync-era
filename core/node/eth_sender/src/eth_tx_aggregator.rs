@@ -340,7 +340,7 @@ impl EthTxAggregator {
         Ok(vk_hash)
     }
 
-    #[tracing::instrument(skip(self, storage))]
+    #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
