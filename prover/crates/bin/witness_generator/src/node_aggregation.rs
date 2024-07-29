@@ -375,6 +375,7 @@ async fn save_artifacts(
     .await;
     let circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
         artifacts.block_number,
+        0,
         artifacts.recursive_circuits,
         AggregationRound::NodeAggregation,
         artifacts.depth,

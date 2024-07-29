@@ -139,6 +139,7 @@ pub async fn save_circuit(
 
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
+    sequence_number_offset: usize,
     recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
     depth: u16,
@@ -150,7 +151,7 @@ pub async fn save_recursive_layer_prover_input_artifacts(
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
             block_number,
-            sequence_number,
+            sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,
             depth,
