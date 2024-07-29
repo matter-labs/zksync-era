@@ -312,10 +312,10 @@ async fn deploy_ecosystem_inner(
         .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast();
 
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
+    // if config.l1_network == L1Network::Localhost {
+    //     // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
+    //     forge = forge.with_slow();
+    // }
 
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
