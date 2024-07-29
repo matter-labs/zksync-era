@@ -1,7 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
-    args::UpdateArgs,
-    {contract::ContractCommands, contract_verifier::ContractVerifierCommands},
+    args::UpdateArgs, contract::ContractCommands, contract_verifier::ContractVerifierCommands,
 };
 use common::{
     check_general_prerequisites,
