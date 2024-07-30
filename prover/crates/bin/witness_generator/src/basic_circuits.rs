@@ -521,6 +521,8 @@ async fn generate_witness(
     let save_queues_span = tracing::info_span!("save_queues");
 
     // Future which receives recursion queues and saves them async.
+    // Note that this section needs no semaphore as there's # of circuit ids (16) queues at most.
+    // All queues combined are < 10MB.
     let queue_receiver_handle = async {
         while let Some((circuit_id, queue, inputs)) = queue_receiver
             .recv()
