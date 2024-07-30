@@ -1,8 +1,5 @@
 use anyhow::Context;
-use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    L1BatchNumber, H256, U256,
-};
+use zksync_basic_types::{protocol_version::L1VerifierConfig, L1BatchNumber, H256, U256};
 use zksync_config::{
     configs::{DatabaseSecrets, L1Secrets},
     ContractsConfig, PostgresConfig,
@@ -77,14 +74,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let node_verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
         .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
-        .call(&query_client)
-        .await?;
-
-    let node_verifier_params: VerifierParams = CallFunctionArgs::new("getVerifierParams", ())
-        .for_contract(
-            contracts_config.diamond_proxy_addr,
-            &helper::hyperchain_contract(),
-        )
         .call(&query_client)
         .await?;
 
