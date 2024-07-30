@@ -222,7 +222,7 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),
             prometheus_listener_port: this.prometheus_listener_port.map(|x| x.into()),
-            max_circuits_in_flight: Some(this.max_circuits_in_flight as u32),
+            max_circuits_in_flight: Some(this.max_circuits_in_flight as u64),
         }
     }
 }
