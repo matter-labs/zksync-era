@@ -3,12 +3,21 @@ mod processor;
 
 use std::{net::SocketAddr, sync::Arc};
 
+use anyhow::Context;
+use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
+use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_prover_interface::api::{
+    ProofGenerationDataRequest, SubmitProofRequest, VerifyProofRequest,
+};
+
+use crate::processor::Processor;
 
 pub async fn run_server(
-    config: ProofDataHandlerConfig,
+    config: ProverApiConfig,
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
@@ -16,7 +25,7 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting external prover API server on {bind_address}");
-    let app = create_proof_processing_router(blob_store, connection_pool, config, commitment_mode);
+    let app = create_router(blob_store, connection_pool, commitment_mode, config);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -32,4 +41,41 @@ pub async fn run_server(
         .context("External prover API server failed")?;
     tracing::info!("External prover API server shut down");
     Ok(())
+}
+
+async fn create_router(
+    blob_store: Arc<dyn ObjectStore>,
+    connection_pool: ConnectionPool<Core>,
+    commitment_mode: L1BatchCommitmentMode,
+    config: ProverApiConfig,
+) -> Router {
+    let mut processor = Processor::new(
+        blob_store.clone(),
+        connection_pool.clone(),
+        commitment_mode,
+        L1BatchNumber(config.last_available_batch),
+    );
+    let verify_proof_processor = processor.clone();
+    let mut router = Router::new()
+        .route(
+            "/proof_generation_data",
+            post(
+                // we use post method because the returned data is not idempotent,
+                // i.e we return different result on each call.
+                move |payload: Json<ProofGenerationDataRequest>| async move {
+                    processor.get_proof_generation_data(payload).await
+                },
+            ),
+        )
+        .route(
+            "/verify_proof/:l1_batch_number",
+            post(
+                move |l1_batch_number: Path<u32>, payload: Json<VerifyProofRequest>| async move {
+                    verify_proof_processor
+                        .verify_proof(l1_batch_number, payload)
+                        .await
+                },
+            ),
+        );
+    router
 }

@@ -111,13 +111,86 @@ impl RequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, RequestProcessorError> {
-        proof_generation_data_for_existing_batch_impl(
-            self.blob_store.clone(),
-            self.pool.clone(),
-            self.commitment_mode,
+        let vm_run_data: VMRunWitnessInputData = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+        let merkle_paths: WitnessInputMerklePaths = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+
+        // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
+        let mut conn = self
+            .pool
+            .connection()
+            .await
+            .map_err(RequestProcessorError::Dal)?;
+
+        let previous_batch_metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .expect("No metadata for previous batch");
+
+        let header = conn
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
+
+        let minor_version = header.protocol_version.unwrap();
+        let protocol_version = conn
+            .protocol_versions_dal()
+            .get_protocol_version_with_latest_patch(minor_version)
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .unwrap_or_else(|| {
+                panic!("Missing l1 verifier info for protocol version {minor_version}")
+            });
+
+        let batch_header = conn
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
+
+        let eip_4844_blobs = match self.commitment_mode {
+            L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
+            L1BatchCommitmentMode::Rollup => {
+                let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
+                    panic!(
+                        "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+                    )
+                });
+                Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
+            }
+        };
+
+        let blob = WitnessInputData {
+            vm_run_data,
+            merkle_paths,
+            eip_4844_blobs,
+            previous_batch_metadata: L1BatchMetadataHashes {
+                root_hash: previous_batch_metadata.metadata.root_hash,
+                meta_hash: previous_batch_metadata.metadata.meta_parameters_hash,
+                aux_hash: previous_batch_metadata.metadata.aux_data_hash,
+            },
+        };
+
+        METRICS.observe_blob_sizes(&blob);
+
+        Ok(ProofGenerationData {
             l1_batch_number,
-        )
-        .await
+            witness_input_data: blob,
+            protocol_version: protocol_version.version,
+            l1_verifier_config: protocol_version.l1_verifier_config,
+        })
     }
 
     pub(crate) async fn submit_proof(
@@ -225,85 +298,4 @@ impl RequestProcessor {
 
         Ok(Json(SubmitProofResponse::Success))
     }
-}
-
-pub async fn proof_generation_data_for_existing_batch_impl(
-    blob_store: Arc<dyn ObjectStore>,
-    connection_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
-    l1_batch_number: L1BatchNumber,
-) -> Result<ProofGenerationData, RequestProcessorError> {
-    let vm_run_data: VMRunWitnessInputData = blob_store
-        .get(l1_batch_number)
-        .await
-        .map_err(RequestProcessorError::ObjectStore)?;
-    let merkle_paths: WitnessInputMerklePaths = blob_store
-        .get(l1_batch_number)
-        .await
-        .map_err(RequestProcessorError::ObjectStore)?;
-
-    // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
-    let mut conn = connection_pool
-        .connection()
-        .await
-        .map_err(RequestProcessorError::Dal)?;
-
-    let previous_batch_metadata = conn
-        .blocks_dal()
-        .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
-        .await
-        .map_err(RequestProcessorError::Dal)?
-        .expect("No metadata for previous batch");
-
-    let header = conn
-        .blocks_dal()
-        .get_l1_batch_header(l1_batch_number)
-        .await
-        .map_err(RequestProcessorError::Dal)?
-        .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
-
-    let minor_version = header.protocol_version.unwrap();
-    let protocol_version = conn
-        .protocol_versions_dal()
-        .get_protocol_version_with_latest_patch(minor_version)
-        .await
-        .map_err(RequestProcessorError::Dal)?
-        .unwrap_or_else(|| panic!("Missing l1 verifier info for protocol version {minor_version}"));
-
-    let batch_header = conn
-        .blocks_dal()
-        .get_l1_batch_header(l1_batch_number)
-        .await
-        .map_err(RequestProcessorError::Dal)?
-        .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
-
-    let eip_4844_blobs = match commitment_mode {
-        L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
-        L1BatchCommitmentMode::Rollup => {
-            let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
-                panic!("expected pubdata, but it is not available for batch {l1_batch_number:?}")
-            });
-            Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
-        }
-    };
-
-    let blob = WitnessInputData {
-        vm_run_data,
-        merkle_paths,
-        eip_4844_blobs,
-        previous_batch_metadata: L1BatchMetadataHashes {
-            root_hash: previous_batch_metadata.metadata.root_hash,
-            meta_hash: previous_batch_metadata.metadata.meta_parameters_hash,
-            aux_hash: previous_batch_metadata.metadata.aux_data_hash,
-        },
-    };
-
-    METRICS.observe_blob_sizes(&blob);
-
-    Ok(ProofGenerationData {
-        l1_batch_number,
-        witness_input_data: blob,
-        protocol_version: protocol_version.version,
-        l1_verifier_config: protocol_version.l1_verifier_config,
-    })
 }

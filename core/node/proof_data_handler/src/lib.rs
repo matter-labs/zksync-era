@@ -14,8 +14,6 @@ use zksync_prover_interface::api::{
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
 
-pub use crate::request_processor::proof_generation_data_for_existing_batch_impl;
-
 #[cfg(test)]
 mod tests;
 

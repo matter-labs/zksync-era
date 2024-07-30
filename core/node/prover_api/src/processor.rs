@@ -1,13 +1,21 @@
 use std::sync::Arc;
 
-use axum::Json;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
+use axum::{extract::Path, Json};
+use zksync_basic_types::{
+    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
+};
 use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
-use zksync_proof_data_handler::proof_generation_data_for_existing_batch_impl;
-use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+use zksync_object_store::{bincode, ObjectStore};
+use zksync_prover_interface::{
+    api::{
+        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+        SubmitProofRequest, VerifyProofRequest,
+    },
+    inputs::{
+        L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
+    },
+    outputs::L1BatchProofForL1,
 };
 
 use crate::error::ProcessorError;
@@ -15,23 +23,23 @@ use crate::error::ProcessorError;
 pub(crate) struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProverApiConfig,
     commitment_mode: L1BatchCommitmentMode,
+    last_available_batch_number: L1BatchNumber,
     last_available_batch_data: Option<Box<ProofGenerationData>>,
 }
 
 impl Processor {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProverApiConfig,
         commitment_mode: L1BatchCommitmentMode,
+        last_available_batch_number: L1BatchNumber,
     ) -> Self {
         Self {
             blob_store,
             pool,
-            config,
             commitment_mode,
+            last_available_batch_number,
             last_available_batch_data: None,
         }
     }
@@ -51,7 +59,7 @@ impl Processor {
             .proof_generation_dal()
             .get_available_batch()
             .await?
-            .unwrap_or(L1BatchNumber(self.config.last_available_batch));
+            .unwrap_or(self.last_available_batch_number);
 
         if let Some(data) = &self.last_available_batch_data {
             if data.l1_batch_number == l1_batch_number {
@@ -61,16 +69,13 @@ impl Processor {
             }
         }
 
-        let proof_generation_data = proof_generation_data_for_existing_batch_impl(
-            self.blob_store.clone(),
-            self.pool.clone(),
-            self.commitment_mode,
-            l1_batch_number,
-        )
-        .await;
+        let proof_generation_data = self
+            .proof_generation_data_for_existing_batch(l1_batch_number)
+            .await;
 
         match proof_generation_data {
             Ok(data) => {
+                self.last_available_batch_number = l1_batch_number;
                 self.last_available_batch_data = Some(Box::new(data.clone()));
                 Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
                     data,
@@ -80,11 +85,112 @@ impl Processor {
         }
     }
 
+    #[tracing::instrument(skip(self))]
+    async fn proof_generation_data_for_existing_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<ProofGenerationData, ProcessorError> {
+        let vm_run_data: VMRunWitnessInputData = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(ProcessorError::ObjectStore)?;
+        let merkle_paths: WitnessInputMerklePaths = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(ProcessorError::ObjectStore)?;
+
+        // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
+        let mut conn = self.pool.connection().await.map_err(ProcessorError::Dal)?;
+
+        let previous_batch_metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
+            .await
+            .map_err(ProcessorError::Dal)?
+            .expect("No metadata for previous batch");
+
+        let header = conn
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(ProcessorError::Dal)?
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
+
+        let minor_version = header.protocol_version.unwrap();
+        let protocol_version = conn
+            .protocol_versions_dal()
+            .get_protocol_version_with_latest_patch(minor_version)
+            .await
+            .map_err(ProcessorError::Dal)?
+            .unwrap_or_else(|| {
+                panic!("Missing l1 verifier info for protocol version {minor_version}")
+            });
+
+        let batch_header = conn
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await
+            .map_err(ProcessorError::Dal)?
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
+
+        let eip_4844_blobs = match self.commitment_mode {
+            L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
+            L1BatchCommitmentMode::Rollup => {
+                let blobs = batch_header.pubdata_input.as_deref().unwrap_or_else(|| {
+                    panic!(
+                        "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+                    )
+                });
+                Eip4844Blobs::decode(blobs).expect("failed to decode EIP-4844 blobs")
+            }
+        };
+
+        let blob = WitnessInputData {
+            vm_run_data,
+            merkle_paths,
+            eip_4844_blobs,
+            previous_batch_metadata: L1BatchMetadataHashes {
+                root_hash: previous_batch_metadata.metadata.root_hash,
+                meta_hash: previous_batch_metadata.metadata.meta_parameters_hash,
+                aux_hash: previous_batch_metadata.metadata.aux_data_hash,
+            },
+        };
+
+        Ok(ProofGenerationData {
+            l1_batch_number,
+            witness_input_data: blob,
+            protocol_version: protocol_version.version,
+            l1_verifier_config: protocol_version.l1_verifier_config,
+        })
+    }
+
     pub(crate) async fn verify_proof(
         &self,
-        proof: Vec<u8>,
-        l1_batch_number: L1BatchNumber,
+        Path(l1_batch_number): Path<u32>,
+        Json(payload): Json<VerifyProofRequest>,
     ) -> Result<(), ProcessorError> {
-        unimplemented!()
+        tracing::info!(
+            "Received request to verify proof for batch: {}",
+            l1_batch_number
+        );
+
+        let serialized_proof = bincode::serialize(&payload.0)?;
+        let expected_proof = bincode::serialize(
+            &self
+                .blob_store
+                .get::<L1BatchProofForL1>((
+                    L1BatchNumber(l1_batch_number),
+                    payload.0.protocol_version,
+                ))
+                .await?,
+        )?;
+
+        if serialized_proof != expected_proof {
+            return Err(ProcessorError::InvalidProof);
+        }
+
+        Ok(())
     }
 }

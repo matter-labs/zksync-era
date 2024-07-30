@@ -9305,14 +9305,15 @@ dependencies = [
 name = "zksync_prover_api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "bincode",
  "tokio",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_dal",
  "zksync_object_store",
- "zksync_proof_data_handler",
  "zksync_prover_interface",
 ]
 
