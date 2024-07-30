@@ -43,18 +43,35 @@ describe('Upgrade test', function () {
 
     let ethProviderAddress: string | undefined;
     let contractsL2DefaultUpgradeAddr: string;
+    let deployerAddress: string;
+    let complexUpgraderAddress: string;
+    let govWalletHD: ethers.HDNodeWallet;
 
     before('Create test wallet', async () => {
         if (fileConfig.loadFromFile) {
+            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const walletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             contractsL2DefaultUpgradeAddr = '0x0000000000000000000000000000000000000000';
             process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = '0x0000000000000000000000000000000000000000';
             process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
+            forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
+            deployerAddress = '0x0000000000000000000000000000000000008007';
+            complexUpgraderAddress = contractsConfig.l2.default_l2_upgrader;
+            govWalletHD = ethers.HDNodeWallet.fromSeed(walletConfig.governor.private_key) as ethers.HDNodeWallet;
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
             contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
+            forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
+            deployerAddress = '0x0000000000000000000000000000000000008007';
+            complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
+
+            let govMnemonic = ethers.Mnemonic.fromPhrase(
+                require('../../../../etc/test_config/constant/eth.json').mnemonic
+            );
+            govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
         }
 
         const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
@@ -62,10 +79,6 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
-        const govMnemonic = ethers.Mnemonic.fromPhrase(
-            require('../../../../etc/test_config/constant/eth.json').mnemonic
-        );
-        const govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
         govWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
     });
 
@@ -188,7 +201,6 @@ describe('Upgrade test', function () {
     });
 
     step('Schedule governance call', async () => {
-        forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
         forceDeployBytecode = contracts.counterBytecode;
 
         const forceDeployment: ForceDeployment = {
@@ -213,8 +225,8 @@ describe('Upgrade test', function () {
             {
                 l2ProtocolUpgradeTx: {
                     txType: 254,
-                    from: '0x0000000000000000000000000000000000008007', // FORCE_DEPLOYER address
-                    to: '0x000000000000000000000000000000000000800f', // ComplexUpgrader address
+                    from: deployerAddress, // FORCE_DEPLOYER address
+                    to: complexUpgraderAddress, // ComplexUpgrader address
                     gasLimit: process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!,
                     gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
                     maxFeePerGas: 0,
