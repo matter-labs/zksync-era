@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                base_fee_per_gas, gas_per_pubdata_limit\n            FROM\n                miniblocks\n            WHERE\n                number <= $1\n            ORDER BY\n                number DESC\n            LIMIT\n                $2\n            ",
+  "query": "\n            SELECT\n                base_fee_per_gas,\n                gas_per_pubdata_limit\n            FROM\n                miniblocks\n            WHERE\n                number <= $1\n            ORDER BY\n                number DESC\n            LIMIT\n                $2\n            ",
   "describe": {
     "columns": [
       {
@@ -25,5 +25,5 @@
       false
     ]
   },
-  "hash": "2df517d376de6401a7fbf90dd9b5b16e8c5e3e3d768dc3d10eedbf6d157c2df0"
+  "hash": "089698a00ecc3affc2a39e4b779be1aff592a9f2f102adafba99e1138fb7a6df"
 }

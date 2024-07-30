@@ -623,6 +623,7 @@ impl EthTxAggregator {
                 self.ignore_db_nonce_0 = false;
                 self.base_nonce
             } else {
+                self.ignore_db_nonce_0 = false;
                 db_nonce.max(self.base_nonce)
             }
         } else if self.ignore_db_nonce_1 && no_unsent_txs {
@@ -630,6 +631,7 @@ impl EthTxAggregator {
             self.base_nonce_custom_commit_sender
                 .expect("custom base nonce is expected to be initialized; qed")
         } else {
+            self.ignore_db_nonce_1 = false;
             db_nonce.max(
                 self.base_nonce_custom_commit_sender
                     .expect("custom base nonce is expected to be initialized; qed"),
