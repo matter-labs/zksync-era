@@ -251,14 +251,11 @@ pub async fn prepare_leaf_aggregation_job(
     })
 }
 
-// The number of recursive circuits processed in one chunk.
-// Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
-// So one chunk of recursive circuits with QUEUES_CHUNK_SIZE == 10 should use ~320 MB of RAM + some overhead during serialization.
-const QUEUES_CHUNK_SIZE: usize = 10;
-// The number of chunks to be processed in parallel.
+// The number of leaf circuits to be processed in parallel.
 // Allows us to easily adjust the balance between processing speed and memory usage.
-// See the comment on QUEUES_CHUNK_SIZE to estimate memory usage.
-const MAX_IN_FLIGHT_QUEUES_CHUNKS: usize = 10;
+// Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
+// So processing of MAX_IN_FLIGHT_CIRCUITS == 100  should use ~3200 MB of RAM + some overhead during serialization.
+const MAX_IN_FLIGHT_CIRCUITS: usize = 100;
 
 #[tracing::instrument(
     skip_all,
@@ -280,36 +277,24 @@ pub async fn process_leaf_aggregation_job(
 
     let mut proof_ids_iter = job.proofs_ids.into_iter();
     let mut proofs_ids = vec![];
-    for chunk in queues.chunks(QUEUES_CHUNK_SIZE) {
-        let mut proofs_ids_for_chunk = vec![];
-        for queue in chunk.iter() {
-            let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
-                .take(queue.num_items as usize)
-                .collect();
-            assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
-            proofs_ids_for_chunk.push(proofs_ids_for_queue);
-        }
-        proofs_ids.push(proofs_ids_for_chunk);
+    for queue in queues.iter() {
+        let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
+            .take(queue.num_items as usize)
+            .collect();
+        assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
+        proofs_ids.push(proofs_ids_for_queue);
     }
 
-    let queues_chunks: Vec<_> = queues
-        .chunks(QUEUES_CHUNK_SIZE)
-        .map(|chunk| {
-            let queues_for_chunk: Vec<_> = chunk.into_iter().cloned().collect();
-            queues_for_chunk
-        })
-        .collect();
-    drop(queues);
-
-    let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_QUEUES_CHUNKS));
+    let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
 
     let mut handles = vec![];
-    for (chunk_idx, (queues, proofs_ids_for_queues)) in
-        queues_chunks.into_iter().zip(proofs_ids).enumerate()
+    for (circuit_idx, (queue, proofs_ids_for_queue)) in
+        queues.into_iter().zip(proofs_ids).enumerate()
     {
         let semaphore = semaphore.clone();
 
         let object_store = object_store.clone();
+        let queue = queue.clone();
         let base_vk = job.base_vk.clone();
         let leaf_params = (circuit_id, job.leaf_params.clone());
 
@@ -319,44 +304,32 @@ pub async fn process_leaf_aggregation_job(
                 .await
                 .expect("failed to get permit to process queues chunk");
 
-            let mut proofs_for_queues = vec![];
-            for proofs_ids_for_queue in proofs_ids_for_queues {
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
-                let base_proofs = proofs
-                    .into_iter()
-                    .map(|wrapper| match wrapper {
-                        FriProofWrapper::Base(base_proof) => base_proof,
-                        FriProofWrapper::Recursive(_) => {
-                            panic!(
-                                "Expected only base proofs for leaf agg {} {}",
-                                job.circuit_id, job.block_number
-                            );
-                        }
-                    })
-                    .collect();
-                proofs_for_queues.push(base_proofs);
-            }
-
-            let recursive_circuits = queues
+            let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
+            let base_proofs = proofs
                 .into_iter()
-                .zip(proofs_for_queues)
-                .map(|(queue, proofs)| {
-                    let (_, circuit) = create_leaf_witness(
-                        circuit_id.into(),
-                        queue,
-                        proofs,
-                        &base_vk,
-                        &leaf_params,
-                    );
-
-                    circuit
+                .map(|wrapper| match wrapper {
+                    FriProofWrapper::Base(base_proof) => base_proof,
+                    FriProofWrapper::Recursive(_) => {
+                        panic!(
+                            "Expected only base proofs for leaf agg {} {}",
+                            job.circuit_id, job.block_number
+                        );
+                    }
                 })
                 .collect();
 
+            let (_, circuit) = create_leaf_witness(
+                circuit_id.into(),
+                queue,
+                base_proofs,
+                &base_vk,
+                &leaf_params,
+            );
+
             let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
                 job.block_number,
-                chunk_idx * QUEUES_CHUNK_SIZE,
-                recursive_circuits,
+                circuit_idx,
+                vec![circuit],
                 AggregationRound::LeafAggregation,
                 0,
                 &*object_store,
