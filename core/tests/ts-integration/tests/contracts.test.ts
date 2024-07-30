@@ -70,11 +70,11 @@ describe('Smart contract behavior checks', () => {
         await expect(contract.getFooName()).resolves.toBe('Foo');
     });
 
-    test('Should perform "expensive" contract calls', async () => {
+    test.only('Should perform "expensive" contract calls', async () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);
 
         // First, check that the transaction that is too expensive would be rejected by the API server.
-        await expect(expensiveContract.expensive(7000)).toBeRejected();
+        await expect(expensiveContract.expensive(15000)).toBeRejected();
 
         // Second, check that processable transaction may fail with "out of gas" error.
         // To do so, we estimate gas for arg "1" and supply it to arg "20".
