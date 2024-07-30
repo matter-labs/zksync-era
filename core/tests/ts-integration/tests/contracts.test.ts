@@ -70,7 +70,7 @@ describe('Smart contract behavior checks', () => {
         await expect(contract.getFooName()).resolves.toBe('Foo');
     });
 
-    test.only('Should perform "expensive" contract calls', async () => {
+    test('Should perform "expensive" contract calls', async () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);
 
         // First, check that the transaction that is too expensive would be rejected by the API server.
