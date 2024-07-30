@@ -1,8 +1,8 @@
 //! Tying the Merkle tree implementation to the problem domain.
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use zksync_crypto::hasher::blake2::Blake2Hasher;
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 use zksync_types::{L1BatchNumber, StorageKey};
 
 use crate::{
@@ -37,7 +37,7 @@ pub struct TreeMetadata {
     /// 1-based index of the next leaf to be inserted in the tree.
     pub rollup_last_leaf_index: u64,
     /// Witness information. As with `repeated_writes`, no-op updates will be omitted from Merkle paths.
-    pub witness: Option<PrepareBasicCircuitsJob>,
+    pub witness: Option<WitnessInputMerklePaths>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -248,7 +248,7 @@ impl ZkSyncTree {
             self.tree.extend_with_proofs(instructions.to_vec())
         }?;
 
-        let mut witness = PrepareBasicCircuitsJob::new(starting_leaf_count + 1);
+        let mut witness = WitnessInputMerklePaths::new(starting_leaf_count + 1);
         witness.reserve(output.logs.len());
         for (log, instruction) in output.logs.iter().zip(instructions) {
             let empty_levels_end = TREE_DEPTH - log.merkle_path.len();

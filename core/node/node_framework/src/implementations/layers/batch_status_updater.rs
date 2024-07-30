@@ -6,7 +6,7 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -14,46 +14,39 @@ use crate::{
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
-struct LayerInput {
-    pool: PoolResource<MasterPool>,
-    client: MainNodeClientResource,
+pub struct Input {
+    pub pool: PoolResource<MasterPool>,
+    pub client: MainNodeClientResource,
     #[context(default)]
-    app_health: AppHealthCheckResource,
+    pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
-struct LayerOutput {
+pub struct Output {
     #[context(task)]
-    updater: BatchStatusUpdater,
+    pub updater: BatchStatusUpdater,
 }
 
 /// Wiring layer for `BatchStatusUpdater`, part of the external node.
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-/// - `MainNodeClientResource`
-/// - `AppHealthCheckResource` (adds a health check)
-///
-/// ## Adds tasks
-///
-/// - `BatchStatusUpdater`
 #[derive(Debug)]
 pub struct BatchStatusUpdaterLayer;
 
 #[async_trait::async_trait]
 impl WiringLayer for BatchStatusUpdaterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "batch_status_updater_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let LayerInput {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let Input {
             pool,
             client,
             app_health,
-        } = LayerInput::from_context(&mut context)?;
+        } = input;
 
         let updater = BatchStatusUpdater::new(client.0, pool.get().await?);
 
@@ -63,11 +56,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             .insert_component(updater.health_check())
             .map_err(WiringError::internal)?;
 
-        // Insert task
-        let layer_output = LayerOutput { updater };
-        layer_output.into_context(&mut context)?;
-
-        Ok(())
+        Ok(Output { updater })
     }
 }
 

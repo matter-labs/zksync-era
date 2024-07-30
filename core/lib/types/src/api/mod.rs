@@ -19,6 +19,7 @@ use crate::{
 };
 
 pub mod en;
+pub mod state_override;
 
 /// Block Number
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
@@ -480,6 +481,9 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {

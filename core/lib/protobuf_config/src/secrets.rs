@@ -4,7 +4,7 @@ use anyhow::Context;
 use secrecy::ExposeSecret;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
-    consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
+    consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     secrets::Secrets,
     DatabaseSecrets, L1Secrets,
 };
@@ -41,15 +41,12 @@ impl ProtoRepr for proto::DatabaseSecrets {
             .map(str::parse::<SensitiveUrl>)
             .transpose()
             .context("master_url")?;
-        let mut server_replica_url = self
+        let server_replica_url = self
             .server_replica_url
             .as_deref()
             .map(str::parse::<SensitiveUrl>)
             .transpose()
             .context("replica_url")?;
-        if server_replica_url.is_none() {
-            server_replica_url.clone_from(&server_url)
-        }
         let prover_url = self
             .prover_url
             .as_deref()
@@ -98,6 +95,10 @@ impl ProtoRepr for proto::ConsensusSecrets {
                 .validator_key
                 .as_ref()
                 .map(|x| ValidatorSecretKey(x.clone().into())),
+            attester_key: self
+                .attester_key
+                .as_ref()
+                .map(|x| AttesterSecretKey(x.clone().into())),
             node_key: self
                 .node_key
                 .as_ref()
@@ -109,6 +110,10 @@ impl ProtoRepr for proto::ConsensusSecrets {
         Self {
             validator_key: this
                 .validator_key
+                .as_ref()
+                .map(|x| x.0.expose_secret().clone()),
+            attester_key: this
+                .attester_key
                 .as_ref()
                 .map(|x| x.0.expose_secret().clone()),
             node_key: this.node_key.as_ref().map(|x| x.0.expose_secret().clone()),

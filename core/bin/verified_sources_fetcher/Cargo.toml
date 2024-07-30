@@ -1,5 +1,6 @@
 [package]
 name = "verified_sources_fetcher"
+description = "Tool to fetch verified contract sources"
 version = "0.1.0"
 edition.workspace = true
 authors.workspace = true

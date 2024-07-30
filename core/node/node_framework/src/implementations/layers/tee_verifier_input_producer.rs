@@ -7,20 +7,13 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for [`TeeVerifierInputProducer`].
-///
-/// ## Requests resources
-///
-/// - `PoolResource<MasterPool>`
-///
-/// ## Adds tasks
-///
-/// - `TeeVerifierInputProducer`
 #[derive(Debug)]
 pub struct TeeVerifierInputProducerLayer {
     l2_chain_id: L2ChainId,
@@ -32,25 +25,35 @@ impl TeeVerifierInputProducerLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub object_store: ObjectStoreResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: TeeVerifierInputProducer,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TeeVerifierInputProducerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "tee_verifier_input_producer_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Get resources.
-        let pool_resource = context
-            .get_resource::<PoolResource<MasterPool>>()?
-            .get()
-            .await?;
-        let object_store = context.get_resource::<ObjectStoreResource>()?;
-        let tee =
-            TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let ObjectStoreResource(object_store) = input.object_store;
+        let task = TeeVerifierInputProducer::new(pool, object_store, self.l2_chain_id).await?;
 
-        context.add_task(tee);
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 

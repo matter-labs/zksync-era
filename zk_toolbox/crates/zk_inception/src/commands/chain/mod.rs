@@ -22,8 +22,10 @@ pub enum ChainCommands {
     /// Run server genesis
     Genesis(GenesisArgs),
     /// Initialize bridges on l2
+    #[command(alias = "bridge")]
     InitializeBridges(ForgeScriptArgs),
     /// Initialize bridges on l2
+    #[command(alias = "paymaster")]
     DeployPaymaster(ForgeScriptArgs),
 }
 

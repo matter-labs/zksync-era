@@ -2,17 +2,17 @@ use core::fmt::Debug;
 use std::str::FromStr;
 
 use blake2::{Blake2s256, Digest};
+pub use log::*;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::keccak256, L2ChainId};
+pub use zksync_system_constants::*;
+use zksync_utils::address_to_h256;
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
+pub mod witness_block_state;
 pub mod writes;
-
-pub use log::*;
-pub use zksync_system_constants::*;
-use zksync_utils::address_to_h256;
 
 /// Typed fully qualified key of the storage slot in global state tree.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]

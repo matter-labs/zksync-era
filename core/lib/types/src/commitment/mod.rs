@@ -12,7 +12,7 @@ use ethabi::Token;
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::Tokenize};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_crypto::hasher::Hasher;
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
@@ -379,8 +379,7 @@ impl L1BatchAuxiliaryOutput {
                 )
                 .merkle_root();
 
-                let l2_l1_logs_merkle_root = zksync_crypto::hasher::keccak::KeccakHasher
-                    .compress(&local_root, &aggregated_root);
+                let l2_l1_logs_merkle_root = KeccakHasher.compress(&local_root, &aggregated_root);
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
@@ -590,7 +589,7 @@ pub struct L1BatchCommitment {
     pub meta_parameters: L1BatchMetaParameters,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct L1BatchCommitmentHash {
     pub pass_through_data: H256,
@@ -793,7 +792,7 @@ impl CommitmentInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct L1BatchCommitmentArtifacts {
     pub commitment_hash: L1BatchCommitmentHash,
     pub l2_l1_merkle_root: H256,

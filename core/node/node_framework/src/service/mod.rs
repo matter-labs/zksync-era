@@ -9,6 +9,7 @@ pub use self::{
     context::ServiceContext,
     context_traits::{FromContext, IntoContext},
     error::ZkStackServiceError,
+    shutdown_hook::ShutdownHook,
     stop_receiver::StopReceiver,
 };
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
         runnables::{NamedBoxFuture, Runnables, TaskReprs},
     },
     task::TaskId,
-    wiring_layer::{WiringError, WiringLayer},
+    wiring_layer::{WireFn, WiringError, WiringLayer, WiringLayerExt},
 };
 
 mod context;
@@ -26,6 +27,7 @@ mod context_traits;
 mod error;
 mod named_future;
 mod runnables;
+mod shutdown_hook;
 mod stop_receiver;
 #[cfg(test)]
 mod tests;
@@ -34,15 +36,37 @@ mod tests;
 const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A builder for [`ZkStackService`].
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ZkStackServiceBuilder {
     /// List of wiring layers.
-    layers: Vec<Box<dyn WiringLayer>>,
+    // Note: It has to be a `Vec` and not e.g. `HashMap` because the order in which we
+    // iterate through it matters.
+    layers: Vec<(&'static str, WireFn)>,
+    /// Tokio runtime used to spawn tasks.
+    runtime: Runtime,
 }
 
 impl ZkStackServiceBuilder {
-    pub fn new() -> Self {
-        Self { layers: Vec::new() }
+    /// Creates a new builder.
+    ///
+    /// Returns an error if called within a Tokio runtime context.
+    pub fn new() -> Result<Self, ZkStackServiceError> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return Err(ZkStackServiceError::RuntimeDetected);
+        }
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        Ok(Self {
+            layers: Vec::new(),
+            runtime,
+        })
+    }
+
+    /// Returns a handle to the Tokio runtime used by the service.
+    pub fn runtime_handle(&self) -> tokio::runtime::Handle {
+        self.runtime.handle().clone()
     }
 
     /// Adds a wiring layer.
@@ -55,39 +79,29 @@ impl ZkStackServiceBuilder {
     /// This may be useful if the same layer is a prerequisite for multiple other layers: it is safe
     /// to add it multiple times, and it will only be wired once.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
+        let name = layer.layer_name();
         if !self
             .layers
             .iter()
-            .any(|existing_layer| existing_layer.layer_name() == layer.layer_name())
+            .any(|(existing_name, _)| name == *existing_name)
         {
-            self.layers.push(Box::new(layer));
+            self.layers.push((name, layer.into_wire_fn()));
         }
         self
     }
 
     /// Builds the service.
-    ///
-    /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
-    /// of their occurrence.
-    pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            return Err(ZkStackServiceError::RuntimeDetected);
-        }
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-
+    pub fn build(self) -> ZkStackService {
         let (stop_sender, _stop_receiver) = watch::channel(false);
 
-        Ok(ZkStackService {
-            layers: std::mem::take(&mut self.layers),
+        ZkStackService {
+            layers: self.layers,
             resources: Default::default(),
             runnables: Default::default(),
             stop_sender,
-            runtime,
+            runtime: self.runtime,
             errors: Vec::new(),
-        })
+        }
     }
 }
 
@@ -98,7 +112,7 @@ pub struct ZkStackService {
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of wiring layers.
-    layers: Vec<Box<dyn WiringLayer>>,
+    layers: Vec<(&'static str, WireFn)>,
     /// Different kinds of tasks for the service.
     runnables: Runnables,
 
@@ -115,6 +129,9 @@ type TaskFuture = NamedFuture<Fuse<JoinHandle<anyhow::Result<()>>>>;
 
 impl ZkStackService {
     /// Runs the system.
+    ///
+    /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
+    /// of their occurrence.
     pub fn run(mut self) -> Result<(), ZkStackServiceError> {
         self.wire()?;
 
@@ -144,15 +161,15 @@ impl ZkStackService {
         let mut errors: Vec<(String, WiringError)> = Vec::new();
 
         let runtime_handle = self.runtime.handle().clone();
-        for layer in wiring_layers {
-            let name = layer.layer_name().to_string();
+        for (name, WireFn(wire_fn)) in wiring_layers {
             // We must process wiring layers sequentially and in the same order as they were added.
-            let task_result = runtime_handle.block_on(layer.wire(ServiceContext::new(&name, self)));
+            let mut context = ServiceContext::new(name, self);
+            let task_result = wire_fn(&runtime_handle, &mut context);
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have
                 // to fix them one by one.
-                errors.push((name, err));
+                errors.push((name.to_string(), err));
                 continue;
             };
         }

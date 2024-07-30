@@ -18,6 +18,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 mod tests;
 
 mod errors;
+mod metrics;
 mod request_processor;
 mod tee_request_processor;
 
