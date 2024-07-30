@@ -18,7 +18,7 @@ const NEXT_VALUE_VARIATION_RANGE: f64 = 0.03; //3%
 #[derive(Debug)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
-    previousNumerator: RwLock<NonZeroU64>,
+    previous_numerator: RwLock<NonZeroU64>,
     fluctuation: Option<u32>,
 }
 
@@ -44,7 +44,7 @@ impl ForcedPriceClient {
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             },
-            previousNumerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
+            previous_numerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
             fluctuation,
         }
     }
@@ -55,7 +55,7 @@ impl PriceAPIClient for ForcedPriceClient {
     /// Returns a ratio which is 10% higher or lower than the configured forced ratio,
     /// but not different more than 3% than the last value
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        let mut previousNumerator = self.previousNumerator.write().await;
+        let mut previousNumerator = self.previous_numerator.write().await;
         let mut rng = rand::thread_rng();
         let numerator_range = (
             max(
