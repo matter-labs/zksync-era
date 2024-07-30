@@ -9308,6 +9308,8 @@ dependencies = [
  "axum",
  "tokio",
  "tracing",
+ "zksync_basic_types",
+ "zksync_config",
  "zksync_dal",
  "zksync_object_store",
  "zksync_proof_data_handler",
