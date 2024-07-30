@@ -156,7 +156,7 @@ pub trait VmFactory<S>: VmInterface {
 ///   OTOH, it's not required to call either of these methods by the end of VM execution.
 /// - `pop_snapshot_no_rollback()` may be called spuriously, when no snapshot was created. It is a no-op in this case.
 ///
-/// These rules guarantee that at each given moment, a VM instance has <=1 snapshot (unless the VM makes snapshots internally),
+/// These rules guarantee that at each given moment, a VM instance has at most one snapshot (unless the VM makes snapshots internally),
 /// which may allow additional VM optimizations.
 pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Create a snapshot of the current VM state and push it into memory.
