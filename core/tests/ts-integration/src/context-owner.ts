@@ -170,7 +170,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        console.log('bridgehub.address', bridgehub.address);
+        console.log('bridgehub.address', bridgehub.target);
         const erc20Bridge = await bridgehub.sharedBridge();
         const baseToken = await bridgehub.baseToken(chainId);
 
@@ -327,7 +327,7 @@ export class TestContextOwner {
                         gasPrice
                     }
                 })
-                .then((tx) => {
+                .then(async (tx) => {
                     // Note: there is an `approve` tx, not listed here.
                     this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, tx nonce: ${tx.nonce}`);
                     return tx.wait();
@@ -400,8 +400,8 @@ export class TestContextOwner {
                     // specify gas limit manually, until EVM-554 is fixed
                     l2GasLimit: 1000000
                 })
-                .then((tx) => {
-                    const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
+                .then(async (tx) => {
+                    const amount = ethers.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
                     await tx.wait();
                 });
@@ -513,8 +513,8 @@ export class TestContextOwner {
      */
     private async distributeL2Tokens(wallets: TestWallets) {
         this.reporter.startAction(`Distributing tokens on L2`);
-        let l2startNonce = await this.mainSyncWallet.getTransactionCount();
-        console.log(ethers.utils.formatEther(await this.mainSyncWallet.getBalance()));
+        let l2startNonce = await this.mainSyncWallet.getNonce();
+        console.log(ethers.formatEther(await this.mainSyncWallet.getBalance()));
 
         // ETH transfers.
         const l2TxPromises = await sendTransfers(

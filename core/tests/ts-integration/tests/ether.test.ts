@@ -11,7 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber, Overrides } from 'ethers';
+import { Overrides } from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import {
     EIP712_TX_TYPE,
@@ -202,7 +202,10 @@ describe('ETH token checks', () => {
         const EIP_1559_TX_TYPE = 0x02;
         const value = 200n;
 
-        await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value })).toBeRejected(
+        // SDK sets maxFeePerGas to the type 1 transactions, causing issues on the SDK level
+        const gasPrice = await scaledGasPrice(alice);
+
+        await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value, gasPrice })).toBeRejected(
             'access lists are not supported'
         );
 
@@ -258,7 +261,7 @@ describe('ETH token checks', () => {
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
         // await withdrawalTx.waitFinalize();
 
         await sleep(25);
