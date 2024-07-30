@@ -536,9 +536,6 @@ impl EthTxManager {
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
-        // It's mandatory to set `last_known_l1_block` to zero, otherwise the first iteration
-        // will never check in-flight txs status
-        let mut last_known_l1_block = L1BlockNumber(0);
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
@@ -549,10 +546,7 @@ impl EthTxManager {
             let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
-            if last_known_l1_block < l1_block_numbers.latest {
-                self.loop_iteration(&mut storage, l1_block_numbers).await;
-                last_known_l1_block = l1_block_numbers.latest;
-            }
+            self.loop_iteration(&mut storage, l1_block_numbers).await;
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
