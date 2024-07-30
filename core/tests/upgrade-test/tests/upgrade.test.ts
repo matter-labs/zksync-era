@@ -31,7 +31,8 @@ const depositAmount = ethers.parseEther('0.001');
 describe('Upgrade test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
-    let govWallet: ethers.Wallet;
+    let ecosystemGovWallet: ethers.Wallet;
+    let adminGovWallet: ethers.Wallet;
     let mainContract: IZkSyncHyperchain;
     let governanceContract: ethers.Contract;
     let chainAdminContract: ethers.Contract;
@@ -69,15 +70,25 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
-            const walletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+            let walletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
-            govWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+            adminGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+
+            walletConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolder: '../../configs/',
+                config: 'wallets.yaml'
+            });
+
+            ecosystemGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
         } else {
             let govMnemonic = ethers.Mnemonic.fromPhrase(
                 require('../../../../etc/test_config/constant/eth.json').mnemonic
             );
             let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
-            govWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
+            adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
+            ecosystemGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
         }
 
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
@@ -221,7 +232,7 @@ describe('Upgrade test', function () {
         ]);
 
         const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
-            govWallet,
+            adminGovWallet,
             alice._providerL2(),
             {
                 l2ProtocolUpgradeTx: {
@@ -339,7 +350,7 @@ describe('Upgrade test', function () {
 
     async function sendGovernanceOperation(data: string) {
         await (
-            await govWallet.sendTransaction({
+            await ecosystemGovWallet.sendTransaction({
                 to: await governanceContract.getAddress(),
                 data: data,
                 type: 0
@@ -349,7 +360,7 @@ describe('Upgrade test', function () {
 
     async function sendChainAdminOperation(data: string) {
         await (
-            await govWallet.sendTransaction({
+            await adminGovWallet.sendTransaction({
                 to: await chainAdminContract.getAddress(),
                 data: data,
                 type: 0
