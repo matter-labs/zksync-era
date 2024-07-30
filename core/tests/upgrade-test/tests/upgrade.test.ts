@@ -47,24 +47,21 @@ describe('Upgrade test', function () {
     let complexUpgraderAddress: string;
 
     before('Create test wallet', async () => {
+        forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
+        deployerAddress = '0x0000000000000000000000000000000000008007';
+        complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
+
         if (fileConfig.loadFromFile) {
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
-            forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
-            deployerAddress = '0x0000000000000000000000000000000000008007';
-            complexUpgraderAddress = contractsConfig.l2.default_l2_upgrader;
-
-            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = contractsConfig.l2.default_l2_upgrader;
+            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = contractsConfig.l1.default_upgrade_addr;
             process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
             contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
-            forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
-            deployerAddress = '0x0000000000000000000000000000000000008007';
-            complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
         }
 
         const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
