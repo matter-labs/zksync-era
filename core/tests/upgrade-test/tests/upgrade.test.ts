@@ -47,6 +47,8 @@ describe('Upgrade test', function () {
     let contractsL2DefaultUpgradeAddr: string;
     let deployerAddress: string;
     let complexUpgraderAddress: string;
+    let upgradeAddress: string | undefined;
+    let contractsPriorityTxMaxGasLimit: string;
 
     before('Create test wallet', async () => {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
@@ -61,12 +63,18 @@ describe('Upgrade test', function () {
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
             web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
             contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
-            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = contractsConfig.l1.default_upgrade_addr;
-            process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
+            upgradeAddress = contractsConfig.l1.default_upgrade_addr;
+            contractsPriorityTxMaxGasLimit = '72000000';
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
             web3JsonRpc = process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL;
             contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
+
+            upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
+            if (!upgradeAddress) {
+                throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
+            }
+            contractsPriorityTxMaxGasLimit = process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
         }
 
         const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
@@ -238,12 +246,13 @@ describe('Upgrade test', function () {
         const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
             adminGovWallet,
             alice._providerL2(),
+            upgradeAddress!,
             {
                 l2ProtocolUpgradeTx: {
                     txType: 254,
                     from: deployerAddress, // FORCE_DEPLOYER address
                     to: complexUpgraderAddress, // ComplexUpgrader address
-                    gasLimit: process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!,
+                    gasLimit: contractsPriorityTxMaxGasLimit,
                     gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
                     maxFeePerGas: 0,
                     maxPriorityFeePerGas: 0,
@@ -434,6 +443,7 @@ async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.Tr
 async function prepareUpgradeCalldata(
     govWallet: ethers.Wallet,
     l2Provider: zksync.Provider,
+    upgradeAddress: string,
     params: {
         l2ProtocolUpgradeTx: {
             txType: BigNumberish;
@@ -467,12 +477,6 @@ async function prepareUpgradeCalldata(
         upgradeTimestamp: BigNumberish;
     }
 ) {
-    const upgradeAddress = process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
-
-    if (!upgradeAddress) {
-        throw new Error('CONTRACTS_DEFAULT_UPGRADE_ADDR not set');
-    }
-
     const zksyncAddress = await l2Provider.getMainContractAddress();
     const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, govWallet);
     const stmAddress = await zksyncContract.getStateTransitionManager();
