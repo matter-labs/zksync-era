@@ -5,7 +5,7 @@ use std::time::Duration;
 use futures::FutureExt;
 use tokio::sync::watch;
 use zksync_eth_client::EthInterface;
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     error::ClientRpcContext,
@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 /// Task that validates chain IDs using main node and Ethereum clients.
 #[derive(Debug)]
 pub struct ValidateChainIdsTask {
-    l1_chain_id: L1ChainId,
+    l1_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
     eth_client: Box<DynClient<L1>>,
     main_node_client: Box<DynClient<L2>>,
@@ -25,7 +25,7 @@ impl ValidateChainIdsTask {
     const BACKOFF_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_chain_id: L1ChainId,
+        l1_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
         eth_client: Box<DynClient<L1>>,
         main_node_client: Box<DynClient<L2>>,
@@ -40,7 +40,7 @@ impl ValidateChainIdsTask {
 
     async fn check_eth_client(
         eth_client: Box<DynClient<L1>>,
-        expected: L1ChainId,
+        expected: SLChainId,
     ) -> anyhow::Result<()> {
         loop {
             match eth_client.fetch_chain_id().await {
@@ -66,7 +66,7 @@ impl ValidateChainIdsTask {
 
     async fn check_l1_chain_using_main_node(
         main_node_client: Box<DynClient<L2>>,
-        expected: L1ChainId,
+        expected: SLChainId,
     ) -> anyhow::Result<()> {
         loop {
             match main_node_client
@@ -75,7 +75,7 @@ impl ValidateChainIdsTask {
                 .await
             {
                 Ok(chain_id) => {
-                    let chain_id = L1ChainId(chain_id.as_u64());
+                    let chain_id = SLChainId(chain_id.as_u64());
                     anyhow::ensure!(
                         expected == chain_id,
                         "Configured L1 chain ID doesn't match the one from main node. \
@@ -187,11 +187,11 @@ mod tests {
             .build();
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_L1ChainId", || Ok(U64::from(3)))
+            .method("zks_SLChainId", || Ok(U64::from(3)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            L1ChainId(3), // << mismatch with the Ethereum client
+            SLChainId(3), // << mismatch with the Ethereum client
             L2ChainId::default(),
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
@@ -208,7 +208,7 @@ mod tests {
         );
 
         let validation_task = ValidateChainIdsTask::new(
-            L1ChainId(9), // << mismatch with the main node client
+            SLChainId(9), // << mismatch with the main node client
             L2ChainId::from(270),
             Box::new(eth_client.clone()),
             Box::new(main_node_client),
@@ -225,11 +225,11 @@ mod tests {
 
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_L1ChainId", || Ok(U64::from(9)))
+            .method("zks_SLChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            L1ChainId(9),
+            SLChainId(9),
             L2ChainId::from(271), // << mismatch with the main node client
             Box::new(eth_client),
             Box::new(main_node_client),
@@ -252,11 +252,11 @@ mod tests {
             .build();
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_L1ChainId", || Ok(U64::from(9)))
+            .method("zks_SLChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
-            L1ChainId(9),
+            SLChainId(9),
             L2ChainId::default(),
             Box::new(eth_client),
             Box::new(main_node_client),

@@ -1,7 +1,7 @@
 use std::{num::NonZeroUsize, str::FromStr};
 
 use anyhow::Context;
-use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
+use zksync_basic_types::{url::SensitiveUrl, L2ChainId, SLChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -16,7 +16,7 @@ impl ProtoRepr for proto::ExternalNode {
                 required(&self.main_node_url).context("main_node_url")?,
             )?,
             l1_chain_id: required(&self.l1_chain_id)
-                .map(|x| L1ChainId(*x))
+                .map(|x| SLChainId(*x))
                 .context("l1_chain_id")?,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))

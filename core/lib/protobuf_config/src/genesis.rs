@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
-    L2ChainId,
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L2ChainId,
+    SLChainId,
 };
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
@@ -69,7 +69,7 @@ impl ProtoRepr for proto::Genesis {
                     .context("default_aa_hash")?,
             ),
             l1_chain_id: required(&self.l1_chain_id)
-                .map(|x| L1ChainId(*x))
+                .map(|x| SLChainId(*x))
                 .context("l1_chain_id")?,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))

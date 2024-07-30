@@ -15,7 +15,7 @@ use zksync_types::{
     network::Network,
     url::SensitiveUrl,
     web3::{contract::Tokenize, TransactionReceipt},
-    Address, L1ChainId, L1TxCommonData, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+    Address, L1TxCommonData, SLChainId, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L1},
@@ -87,7 +87,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
             )
         })?;
-        let l1_chain_id = L1ChainId(l1_chain_id);
+        let l1_chain_id = SLChainId(l1_chain_id);
 
         let contract_address = provider.get_main_contract().await?;
         let default_bridges = provider

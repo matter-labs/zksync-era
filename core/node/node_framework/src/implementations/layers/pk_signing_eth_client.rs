@@ -4,7 +4,7 @@ use zksync_config::{
     EthConfig,
 };
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::L1ChainId;
+use zksync_types::SLChainId;
 
 use crate::{
     implementations::resources::eth_interface::{
@@ -19,7 +19,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    l1_chain_id: L1ChainId,
+    l1_chain_id: SLChainId,
     wallets: wallets::EthSender,
 }
 
@@ -41,7 +41,7 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        l1_chain_id: L1ChainId,
+        l1_chain_id: SLChainId,
         wallets: wallets::EthSender,
     ) -> Self {
         Self {

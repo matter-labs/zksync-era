@@ -31,7 +31,7 @@ use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
-    L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
+    L1BatchNumber, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -908,9 +908,9 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
-    /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
+    /// The chain ID of the settlement layer (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L1 network.
-    pub l1_chain_id: L1ChainId,
+    pub l1_chain_id: SLChainId,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -972,7 +972,7 @@ impl RequiredENConfig {
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
-            l1_chain_id: L1ChainId(9),
+            l1_chain_id: SLChainId(9),
             l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,

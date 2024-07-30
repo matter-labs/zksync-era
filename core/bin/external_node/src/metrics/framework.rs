@@ -6,13 +6,13 @@ use zksync_node_framework::{
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 use zksync_shared_metrics::rustc::RUST_METRICS;
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 
 use super::EN_METRICS;
 
 #[derive(Debug)]
 pub struct ExternalNodeMetricsLayer {
-    pub l1_chain_id: L1ChainId,
+    pub l1_chain_id: SLChainId,
     pub l2_chain_id: L2ChainId,
     pub postgres_pool_size: u32,
 }

@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use vise::{EncodeLabelSet, Gauge, Info, Metrics};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 
 use crate::metadata::SERVER_VERSION;
 
@@ -31,7 +31,7 @@ pub(crate) struct ExternalNodeMetrics {
 impl ExternalNodeMetrics {
     pub(crate) fn observe_config(
         &self,
-        l1_chain_id: L1ChainId,
+        l1_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
         postgres_pool_size: u32,
     ) {

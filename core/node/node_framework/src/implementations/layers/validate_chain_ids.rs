@@ -1,5 +1,5 @@
 use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 
 use crate::{
     implementations::resources::{
@@ -24,7 +24,7 @@ use crate::{
 /// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
-    l1_chain_id: L1ChainId,
+    l1_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
 }
 
@@ -43,7 +43,7 @@ pub struct Output {
 }
 
 impl ValidateChainIdsLayer {
-    pub fn new(l1_chain_id: L1ChainId, l2_chain_id: L2ChainId) -> Self {
+    pub fn new(l1_chain_id: SLChainId, l2_chain_id: L2ChainId) -> Self {
         Self {
             l1_chain_id,
             l2_chain_id,

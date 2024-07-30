@@ -8,7 +8,7 @@ use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     ethabi,
     web3::{self, contract::Tokenize, BlockId},
-    Address, L1ChainId, H160, H256, U256, U64,
+    Address, SLChainId, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
@@ -315,7 +315,7 @@ impl MockEthereumBuilder {
     }
 
     fn build_client(self) -> MockClient<L1> {
-        const CHAIN_ID: L1ChainId = L1ChainId(9);
+        const CHAIN_ID: SLChainId = SLChainId(9);
 
         let base_fee_history = self.base_fee_history.clone();
         let call_handler = self.call_handler;
@@ -540,7 +540,7 @@ impl BoundEthInterface for MockEthereum {
         H160::repeat_byte(0x22)
     }
 
-    fn chain_id(&self) -> L1ChainId {
+    fn chain_id(&self) -> SLChainId {
         unimplemented!("Not needed right now")
     }
 
@@ -617,7 +617,7 @@ mod tests {
     async fn getting_chain_id() {
         let mock = MockEthereum::builder().build();
         let chain_id = mock.client.fetch_chain_id().await.unwrap();
-        assert_eq!(chain_id, L1ChainId(9));
+        assert_eq!(chain_id, SLChainId(9));
     }
 
     #[tokio::test]

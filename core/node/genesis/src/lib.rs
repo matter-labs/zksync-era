@@ -159,7 +159,7 @@ pub struct GenesisBatchParams {
 }
 
 pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::L1ChainId;
+    use zksync_types::SLChainId;
 
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
     let first_l1_verifier_config = L1VerifierConfig::default();
@@ -174,7 +174,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Some(H256::default()),
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
-        l1_chain_id: L1ChainId(9),
+        l1_chain_id: SLChainId(9),
         l2_chain_id: L2ChainId::default(),
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,

@@ -21,7 +21,7 @@ use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -95,6 +95,7 @@ impl BlockStartInfo {
 /// The intention is to only keep the actually used information here.
 #[derive(Debug, Clone)]
 pub struct InternalApiConfig {
+    /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
     pub max_tx_size: usize,
