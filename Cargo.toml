@@ -36,6 +36,7 @@ members = [
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
     "core/node/base_token_adjuster",
+    "core/node/prover_api",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -77,7 +78,6 @@ members = [
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
-
     # Parts of prover workspace that are needed for Core workspace
     "prover/crates/lib/prover_dal",
 ]

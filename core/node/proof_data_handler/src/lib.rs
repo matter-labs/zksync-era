@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
+pub use crate::request_processor::proof_generation_data_for_existing_batch_impl;
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use request_processor::RequestProcessor;
