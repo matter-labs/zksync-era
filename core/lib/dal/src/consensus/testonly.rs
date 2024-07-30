@@ -1,8 +1,9 @@
-use super::AttestationStatus;
 use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
+
+use super::AttestationStatus;
 
 impl Distribution<AttestationStatus> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> AttestationStatus {
@@ -12,4 +13,3 @@ impl Distribution<AttestationStatus> for Standard {
         }
     }
 }
-

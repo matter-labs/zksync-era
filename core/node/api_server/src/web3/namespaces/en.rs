@@ -37,14 +37,22 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn attestation_status_impl(&self) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let status = self.state
-            .acquire_connection().await?
-            .consensus_dal().attestation_status().await?;
+    pub async fn attestation_status_impl(
+        &self,
+    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
+        let status = self
+            .state
+            .acquire_connection()
+            .await?
+            .consensus_dal()
+            .attestation_status()
+            .await?;
 
-        Ok(status.map(|s|en::AttestationStatus(
-            zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
-        )))
+        Ok(status.map(|s| {
+            en::AttestationStatus(
+                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
+            )
+        }))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {

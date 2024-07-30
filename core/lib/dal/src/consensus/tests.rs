@@ -4,8 +4,7 @@ use rand::Rng;
 use zksync_concurrency::ctx;
 use zksync_protobuf::{
     repr::{decode, encode},
-    testonly::test_encode,
-    testonly::test_encode_random,
+    testonly::{test_encode, test_encode_random},
     ProtoRepr,
 };
 use zksync_test_account::Account;
@@ -13,7 +12,7 @@ use zksync_types::{
     web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
 
-use super::{proto, Payload, AttestationStatus};
+use super::{proto, AttestationStatus, Payload};
 use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
@@ -54,7 +53,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         last_in_batch: rng.gen(),
     }
 }
- 
+
 /// Tests struct <-> proto struct conversions.
 #[test]
 fn test_encoding() {

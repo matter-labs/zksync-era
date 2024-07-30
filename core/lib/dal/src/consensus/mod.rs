@@ -1,12 +1,12 @@
 pub mod proto;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod testonly;
+#[cfg(test)]
+mod tests;
 
 use anyhow::{anyhow, Context as _};
-use zksync_consensus_roles::{attester,validator};
+use zksync_consensus_roles::{attester, validator};
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi, ethabi,
@@ -24,7 +24,7 @@ use crate::models::{parse_h160, parse_h256};
 
 /// Global attestation status served by
 /// `attestationStatus` RPC.
-#[derive(Debug,PartialEq,Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AttestationStatus {
     pub genesis: validator::GenesisHash,
     pub next_batch_to_attest: attester::BatchNumber,
@@ -32,7 +32,7 @@ pub struct AttestationStatus {
 
 impl ProtoFmt for AttestationStatus {
     type Proto = proto::AttestationStatus;
-    
+
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
             genesis: read_required(&r.genesis).context("genesis")?,

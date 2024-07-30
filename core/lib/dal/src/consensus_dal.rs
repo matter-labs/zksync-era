@@ -9,7 +9,7 @@ use zksync_db_connection::{
 };
 use zksync_types::L2BlockNumber;
 
-pub use crate::consensus::{AttestationStatus,Payload};
+pub use crate::consensus::{AttestationStatus, Payload};
 use crate::{Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -459,17 +459,34 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Number of L1 batch that the L2 block belongs to.
-    async fn batch_of_block(&mut self, block: validator::BlockNumber) -> anyhow::Result<Option<attester::BatchNumber>> {
+    async fn batch_of_block(
+        &mut self,
+        block: validator::BlockNumber,
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let Some(row) = sqlx::query!(
-            "SELECT l1_batch_number FROM miniblocks WHERE number = $1",
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
             i64::try_from(block.0).context("overflow")?,
         )
         .instrument("batch_of_block")
         .report_latency()
         .fetch_optional(self.storage)
-        .await? else { return Ok(None) };
-        let Some(batch) = row.l1_batch_number else { return Ok(None) };
-        Ok(Some(attester::BatchNumber(batch.try_into().context("overflow")?)))
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(batch) = row.l1_batch_number else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            batch.try_into().context("overflow")?,
+        )))
     }
 
     /// Global attestation status.
@@ -489,9 +506,13 @@ impl ConsensusDal<'_, '_> {
             {
                 return Ok(Some(last + 1));
             }
-            // Otherwise start with the batch containing the first block of the fork. 
-            self.batch_of_block(genesis.first_block).await.context("batch_of_block()")
-        }.await? else {
+            // Otherwise start with the batch containing the first block of the fork.
+            self.batch_of_block(genesis.first_block)
+                .await
+                .context("batch_of_block()")
+        }
+        .await?
+        else {
             return Ok(None);
         };
         Ok(Some(AttestationStatus {
