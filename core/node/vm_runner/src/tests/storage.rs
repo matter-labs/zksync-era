@@ -121,11 +121,11 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batches = store_l1_batches(
@@ -212,11 +212,11 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     let mut tester = StorageTester::new(connection_pool.clone());
     let io_mock = Arc::new(RwLock::new(IoMock::default()));
@@ -284,11 +284,11 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batch_range = 1..=10;
