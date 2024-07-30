@@ -31,7 +31,7 @@ async fn process_one_batch() -> anyhow::Result<()> {
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
 
     let batches = store_l1_batches(
         &mut conn,

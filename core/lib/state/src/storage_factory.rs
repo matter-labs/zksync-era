@@ -68,7 +68,7 @@ impl<'a> PgOrRocksdbStorage<'a> {
     pub async fn access_storage_pg(
         pool: &'a ConnectionPool<Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<PgOrRocksdbStorage<'a>> {
+    ) -> anyhow::Result<Self> {
         let mut connection = pool.connection().await?;
         let l2_block_number = if let Some((_, l2_block_number)) = connection
             .blocks_dal()
@@ -111,7 +111,7 @@ impl<'a> PgOrRocksdbStorage<'a> {
         rocksdb: RocksDB<StateKeeperColumnFamily>,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<Self>> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let rocksdb = rocksdb_builder

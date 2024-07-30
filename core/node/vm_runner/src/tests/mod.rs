@@ -2,13 +2,14 @@ use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
-use tokio::sync::RwLock;
+use tokio::sync::{watch::Receiver, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
+use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
@@ -17,16 +18,56 @@ use zksync_types::{
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
-use super::{OutputHandlerFactory, VmRunnerIo};
+use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
+use crate::storage::{load_batch_execute_data, StorageLoader};
 
 mod output_handler;
 mod process;
 mod storage;
+mod storage_writer;
+
+/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
+#[derive(Debug)]
+struct PostgresLoader(ConnectionPool<Core>);
+
+#[async_trait]
+impl ReadStorageFactory for PostgresLoader {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &Receiver<bool>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+        let storage = PgOrRocksdbStorage::access_storage_pg(&self.0, l1_batch_number).await?;
+        Ok(Some(storage))
+    }
+}
+
+#[async_trait]
+impl StorageLoader for PostgresLoader {
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<BatchExecuteData>> {
+        let mut conn = self.0.connection().await?;
+        load_batch_execute_data(
+            &mut conn,
+            l1_batch_number,
+            &L1BatchParamsProvider::new(),
+            L2ChainId::default(),
+        )
+        .await
+    }
+
+    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
+        self
+    }
+}
 
 #[derive(Debug, Default)]
 struct IoMock {
@@ -289,12 +330,11 @@ async fn store_l1_batches(
 
         // Insert a fictive L2 block at the end of the batch
         let mut fictive_l2_block = create_l2_block(l2_block_number.0);
-        let mut digest = L2BlockHasher::new(
+        let digest = L2BlockHasher::new(
             fictive_l2_block.number,
             fictive_l2_block.timestamp,
             last_l2_block_hash,
         );
-        digest.push_tx_hash(tx.hash());
         fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
         l2_block_number += 1;
         conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
@@ -337,9 +377,7 @@ async fn store_l1_batches(
     Ok(batches)
 }
 
-async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
-    let mut conn = pool.connection().await.unwrap();
-
+async fn fund(conn: &mut Connection<'_, Core>, accounts: &[Account]) {
     let eth_amount = U256::from(10).pow(U256::from(32)); //10^32 wei
 
     for account in accounts {
