@@ -97,11 +97,11 @@ impl FriWitnessGeneratorConfig {
         self.last_l1_batch_to_process.unwrap_or(u32::MAX)
     }
 
-    // 500 was picked as a mid-ground between allowing enough circuits in flight to speed up circuit generation,
-    // whilst keeping memory as low as possible. At the moment, max size of a circuit is ~50MB.
-    // This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
-    // Maximum theoretic extra memory consumed is up to 25GB (50MB * 500 circuits), but in reality, worse case scenarios are closer to 5GB (the average space distribution).
-    // During normal operations (> P95), this will incur an overhead of ~100MB.
+    /// 500 was picked as a mid-ground between allowing enough circuits in flight to speed up circuit generation,
+    /// whilst keeping memory as low as possible. At the moment, max size of a circuit is ~50MB.
+    /// This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
+    /// Maximum theoretic extra memory consumed is up to 25GB (50MB * 500 circuits), but in reality, worse case scenarios are closer to 5GB (the average space distribution).
+    /// During normal operations (> P95), this will incur an overhead of ~100MB.
     const fn default_max_circuits_in_flight() -> usize {
         500
     }
