@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::{cmp::min, fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -231,7 +231,7 @@ fn compute_batch_fee_model_input_v2(
 /// (MAX_ALLOWED_FAIR_L2_GAS_PRICE and MAX_ALLOWED_FAIR_PUBDATA_PRICE in bootloader code respectively)
 /// Server needs to clip this prices in order to allow chain continues operation at a loss. The alternative
 /// would be to stop accepting the transactions until the conditions improve.
-/// TODO PE-153, to be removed when bootloader limitation is removed
+/// TODO (PE-153): to be removed when bootloader limitation is removed
 fn clip_batch_fee_model_input_v2(
     fee_model: PubdataIndependentBatchFeeModelInput,
 ) -> PubdataIndependentBatchFeeModelInput {
@@ -241,16 +241,8 @@ fn clip_batch_fee_model_input_v2(
     const MAXIMUM_PUBDATA_PRICE: u64 = 1_000_000_000_000_000;
     PubdataIndependentBatchFeeModelInput {
         l1_gas_price: fee_model.l1_gas_price,
-        fair_l2_gas_price: if fee_model.fair_l2_gas_price < MAXIMUM_L2_GAS_PRICE {
-            fee_model.fair_l2_gas_price
-        } else {
-            MAXIMUM_L2_GAS_PRICE
-        },
-        fair_pubdata_price: if fee_model.fair_pubdata_price < MAXIMUM_PUBDATA_PRICE {
-            fee_model.fair_pubdata_price
-        } else {
-            MAXIMUM_PUBDATA_PRICE
-        },
+        fair_l2_gas_price: min(fee_model.fair_l2_gas_price, MAXIMUM_L2_GAS_PRICE),
+        fair_pubdata_price: min(fee_model.fair_pubdata_price, MAXIMUM_PUBDATA_PRICE),
     }
 }
 
