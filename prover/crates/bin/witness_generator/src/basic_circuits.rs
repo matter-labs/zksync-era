@@ -1,10 +1,7 @@
 use std::{
     collections::{hash_map::DefaultHasher, HashSet},
     hash::{Hash, Hasher},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::Instant,
 };
 
@@ -56,14 +53,6 @@ use crate::{
         SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
 };
-
-// This value corresponds to the maximum number of circuits kept in memory at any given time.
-// 500 was picked as a mid-ground between allowing enough circuits in flight to speed up circuit generation,
-// whilst keeping memory as low as possible. At the moment, max size of a circuit is ~50MB.
-// This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
-// Maximum theoretic extra memory consumed is up to 25GB, but in reality, worse case scenarios are closer to 5GB.
-// During normal operations (> P95), this will incur an overhead of ~100MB.
-const MAX_IN_FLIGHT_CIRCUITS: usize = 500;
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
@@ -119,6 +108,7 @@ impl BasicWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
+        max_circuits_in_flight: usize,
     ) -> Option<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob { block_number, job } = basic_job;
 
@@ -128,7 +118,16 @@ impl BasicWitnessGenerator {
             block_number.0
         );
 
-        Some(process_basic_circuits_job(object_store, started_at, block_number, job).await)
+        Some(
+            process_basic_circuits_job(
+                object_store,
+                started_at,
+                block_number,
+                job,
+                max_circuits_in_flight,
+            )
+            .await,
+        )
     }
 }
 
@@ -189,11 +188,14 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
+        let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(Self::process_job_impl(object_store, job, started_at)
-                .instrument(tracing::info_span!("basic_circuit", %block_number))
-                .await)
+            Ok(
+                Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
+                    .instrument(tracing::info_span!("basic_circuit", %block_number))
+                    .await,
+            )
         })
     }
 
@@ -262,9 +264,10 @@ async fn process_basic_circuits_job(
     started_at: Instant,
     block_number: L1BatchNumber,
     job: WitnessInputData,
+    max_circuits_in_flight: usize,
 ) -> BasicCircuitArtifacts {
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-        generate_witness(block_number, object_store, job).await;
+        generate_witness(block_number, object_store, job, max_circuits_in_flight).await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -395,6 +398,7 @@ async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
     input: WitnessInputData,
+    max_circuits_in_flight: usize,
 ) -> Witness {
     let bootloader_contents = expand_bootloader_contents(
         &input.vm_run_data.initial_heap_content,
@@ -478,31 +482,35 @@ async fn generate_witness(
 
     let mut save_circuit_handles = vec![];
 
-    // Ordering determines how we compose the circuit proofs in Leaf Aggregation Round.
-    // Sequence is used to determine circuit ordering (the sequencing of instructions) .
-    // If the order is tampered with, proving will fail (as the proof would be computed for a different sequence of instruction).
-    let circuit_sequence = AtomicUsize::new(0);
-
     let save_circuits_span = tracing::info_span!("save_circuits");
 
     // Future which receives circuits and saves them async.
     let circuit_receiver_handle = async {
-        let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
+        // Ordering determines how we compose the circuit proofs in Leaf Aggregation Round.
+        // Sequence is used to determine circuit ordering (the sequencing of instructions) .
+        // If the order is tampered with, proving will fail (as the proof would be computed for a different sequence of instruction).
+        let mut circuit_sequence = 0;
+
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
         while let Some(circuit) = circuit_receiver
             .recv()
             .instrument(tracing::info_span!("wait_for_circuit"))
             .await
         {
-            let sequence = circuit_sequence.fetch_add(1, Ordering::SeqCst);
+            let sequence = circuit_sequence;
+            circuit_sequence += 1;
             let object_store = object_store.clone();
             let semaphore = semaphore.clone();
+            let permit = semaphore
+                .acquire_owned()
+                .await
+                .expect("failed to get permit for running save circuit task");
             save_circuit_handles.push(tokio::task::spawn(async move {
-                let _permit = semaphore
-                    .acquire()
-                    .await
-                    .expect("failed to get permit for running save circuit task");
-                save_circuit(block_number, circuit, sequence, object_store).await
+                let (circuit_id, circuit_url) =
+                    save_circuit(block_number, circuit, sequence, object_store).await;
+                drop(permit);
+                (circuit_id, circuit_url)
             }));
         }
     }
@@ -538,26 +546,26 @@ async fn generate_witness(
     );
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
-    let mut circuit_urls = vec![];
-    let mut recursion_urls = vec![];
-
     // Harness returns recursion queues for all circuits, but for proving only the queues that have circuits matter.
     // `circuits_present` stores which circuits exist and is used to filter queues in `recursion_urls` later.
     let mut circuits_present = HashSet::<u8>::new();
 
-    for task in save_circuit_handles {
-        let (circuit_id, circuit_url) = task.await.expect("failed to save circuit");
-        circuit_urls.push((circuit_id, circuit_url));
-        circuits_present.insert(circuit_id);
-    }
+    let circuit_urls = futures::future::join_all(save_circuit_handles)
+        .await
+        .into_iter()
+        .map(|result| {
+            let (circuit_id, circuit_url) = result.expect("failed to save circuit");
+            circuits_present.insert(circuit_id);
+            (circuit_id, circuit_url)
+        })
+        .collect();
 
-    for task in save_queue_handles {
-        let (circuit_id, blob_url, basic_circuit_count) =
-            task.await.expect("failed to save recursion queue");
-        if circuits_present.contains(&circuit_id) {
-            recursion_urls.push((circuit_id, blob_url, basic_circuit_count));
-        }
-    }
+    let recursion_urls = futures::future::join_all(save_queue_handles)
+        .await
+        .into_iter()
+        .map(|result| result.expect("failed to save queue"))
+        .filter(|(circuit_id, _, _)| circuits_present.contains(&circuit_id))
+        .collect();
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;

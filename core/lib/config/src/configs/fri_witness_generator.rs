@@ -25,6 +25,15 @@ pub struct FriWitnessGeneratorConfig {
     pub shall_save_to_public_bucket: bool,
 
     pub prometheus_listener_port: Option<u16>,
+
+    /// This value corresponds to the maximum number of circuits kept in memory at any given time for a BWG.
+    /// Acts as a throttling mechanism for circuits; the trade-off here is speed vs memory usage.
+    /// With more circuits in flight, harness does not need to wait for BWG runner to process them.
+    /// But every single circuit in flight eats memory (up to 50MB).
+    /// WARNING: Do NOT change this value unless you're absolutely sure you know what you're doing.
+    /// It affects the performance and resource usage of BWGs.
+    #[serde(default = "FriWitnessGeneratorConfig::default_max_circuits_in_flight")]
+    pub max_circuits_in_flight: usize,
 }
 
 #[derive(Debug)]
@@ -86,5 +95,14 @@ impl FriWitnessGeneratorConfig {
 
     pub fn last_l1_batch_to_process(&self) -> u32 {
         self.last_l1_batch_to_process.unwrap_or(u32::MAX)
+    }
+
+    // 500 was picked as a mid-ground between allowing enough circuits in flight to speed up circuit generation,
+    // whilst keeping memory as low as possible. At the moment, max size of a circuit is ~50MB.
+    // This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
+    // Maximum theoretic extra memory consumed is up to 25GB (50MB * 500 circuits), but in reality, worse case scenarios are closer to 5GB (the average space distribution).
+    // During normal operations (> P95), this will incur an overhead of ~100MB.
+    const fn default_max_circuits_in_flight() -> usize {
+        500
     }
 }

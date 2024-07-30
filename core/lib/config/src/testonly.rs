@@ -573,6 +573,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             last_l1_batch_to_process: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
+            max_circuits_in_flight: self.sample(rng),
         }
     }
 }
