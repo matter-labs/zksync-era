@@ -43,7 +43,7 @@ impl ProtectiveReadsWriter {
             Box::new(io),
             Arc::new(loader),
             Box::new(output_handler_factory),
-            Box::new(batch_processor),
+            batch_processor,
         );
         Ok((
             Self { vm_runner },

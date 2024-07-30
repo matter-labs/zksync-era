@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::{
     runtime::Handle,
     sync::{mpsc, watch},
@@ -13,7 +12,7 @@ use zksync_types::{L1BatchNumber, Transaction};
 
 use super::{
     traits::{BatchVm, TraceCalls},
-    BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult,
+    BatchExecutorHandle, Command, TxExecutionResult,
 };
 use crate::{
     batch_executor::traits::BatchVmFactory,
@@ -21,10 +20,9 @@ use crate::{
 };
 
 /// Concrete trait object for the [`BatchVmFactory`] used in [`MainBatchExecutor`].
-pub(super) type DynVmFactory = dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>;
+pub type DynVmFactory = dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>;
 
-/// The default implementation of [`BatchExecutor`].
-/// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
+/// Batch executor which maintains the VM for the duration of a single L1 batch.
 #[derive(Debug)]
 pub struct MainBatchExecutor {
     vm_factory: Arc<DynVmFactory>,
@@ -51,15 +49,13 @@ impl MainBatchExecutor {
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn set_vm_factory(&mut self, vm_factory: Arc<DynVmFactory>) {
+    /// Sets the VM factory used by this executor.
+    pub fn with_vm_factory(mut self, vm_factory: Arc<DynVmFactory>) -> Self {
         self.vm_factory = vm_factory;
+        self
     }
-}
 
-#[async_trait]
-impl BatchExecutor for MainBatchExecutor {
-    async fn init_batch(
+    pub async fn init_batch(
         &mut self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_params: L1BatchEnv,
@@ -179,7 +175,7 @@ impl CommandReceiver {
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
         APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
 
-        vm_output.into_tx_result(tx)
+        vm_output
     }
 
     fn rollback_last_tx(&self, vm: &mut dyn BatchVm) {

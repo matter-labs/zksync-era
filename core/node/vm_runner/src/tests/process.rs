@@ -71,7 +71,7 @@ async fn process_one_batch() -> anyhow::Result<()> {
         Box::new(io.clone()),
         storage,
         Box::new(output_factory),
-        Box::new(batch_executor),
+        batch_executor,
     );
     tokio::task::spawn(async move { vm_runner.run(&stop_receiver).await.unwrap() });
 

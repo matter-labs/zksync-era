@@ -19,13 +19,43 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 use crate::{ExecutionMetricsForCriteria, TxExecutionResult};
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum TraceCalls {
+pub enum TraceCalls {
     Trace,
     Skip,
 }
 
+/// Object-safe version of `VmInterface` used for batch execution.
+///
+/// # Invariants
+///
+/// - Transaction inspection methods must create a VM snapshot before the execution, and must not roll back these snapshots.
+/// - All rollbacks happen via `rollback_last_transaction`.
+pub trait BatchVm {
+    /// Attempts to execute transaction with mandatory bytecode compression.
+    /// If bytecode compression fails, the transaction will be rejected.
+    fn inspect_transaction(
+        &mut self,
+        tx: Transaction,
+        trace_calls: TraceCalls,
+    ) -> TxExecutionResult;
+
+    /// Attempts to execute transaction with or without bytecode compression.
+    /// If compression fails, the transaction will be re-executed without compression.
+    fn inspect_transaction_with_optional_compression(
+        &mut self,
+        tx: Transaction,
+        trace_calls: TraceCalls,
+    ) -> TxExecutionResult;
+
+    fn rollback_last_transaction(&mut self);
+
+    fn start_new_l2_block(&mut self, l2_block: L2BlockEnv);
+
+    fn finish_batch(&mut self) -> FinishedL1Batch;
+}
+
 #[derive(Debug)]
-pub(super) struct VmTransactionOutput {
+struct VmTransactionOutput {
     tx_result: VmExecutionResultAndLogs,
     compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     /// Empty if call tracing was not requested.
@@ -47,7 +77,7 @@ impl VmTransactionOutput {
         }
     }
 
-    pub(super) fn into_tx_result(self, tx: &Transaction) -> TxExecutionResult {
+    fn into_tx_result(self, tx: &Transaction) -> TxExecutionResult {
         if let ExecutionResult::Halt { reason } = self.tx_result.result {
             return match reason {
                 Halt::BootloaderOutOfGas => TxExecutionResult::BootloaderOutOfGasForTx,
@@ -68,38 +98,8 @@ impl VmTransactionOutput {
 }
 
 #[derive(Debug)]
-pub(super) struct VmTransactionError {
+struct VmTransactionError {
     tx_result: Box<VmExecutionResultAndLogs>,
-}
-
-/// Object-safe version of `VmInterface` used for batch execution.
-///
-/// # Invariants
-///
-/// - Transaction inspection methods must create a VM snapshot before the execution, and must not roll back these snapshots.
-/// - All rollbacks happen via `rollback_last_transaction`.
-pub(super) trait BatchVm {
-    /// Attempts to execute transaction with mandatory bytecode compression.
-    /// If bytecode compression fails, the transaction will be rejected.
-    fn inspect_transaction(
-        &mut self,
-        tx: Transaction,
-        trace_calls: TraceCalls,
-    ) -> VmTransactionOutput;
-
-    /// Attempts to execute transaction with or without bytecode compression.
-    /// If compression fails, the transaction will be re-executed without compression.
-    fn inspect_transaction_with_optional_compression(
-        &mut self,
-        tx: Transaction,
-        trace_calls: TraceCalls,
-    ) -> VmTransactionOutput;
-
-    fn rollback_last_transaction(&mut self);
-
-    fn start_new_l2_block(&mut self, l2_block: L2BlockEnv);
-
-    fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
 fn inspect_transaction<S: ReadStorage>(
@@ -116,11 +116,8 @@ fn inspect_transaction<S: ReadStorage>(
         TraceCalls::Skip => vec![],
     };
 
-    let (compression_result, tx_result) = vm.inspect_transaction_with_bytecode_compression(
-        tracer.into(),
-        tx.clone(),
-        compress_bytecodes,
-    );
+    let (compression_result, tx_result) =
+        vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx, compress_bytecodes);
     if compression_result.is_err() {
         return Err(VmTransactionError {
             tx_result: Box::new(tx_result),
@@ -148,22 +145,23 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
-    ) -> VmTransactionOutput {
+    ) -> TxExecutionResult {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         self.pop_snapshot_no_rollback();
         // Save pre-execution VM snapshot.
         self.make_snapshot();
 
-        inspect_transaction(self, tx, trace_calls, true)
+        inspect_transaction(self, tx.clone(), trace_calls, true)
             .unwrap_or_else(VmTransactionOutput::from_err)
+            .into_tx_result(&tx)
     }
 
     fn inspect_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
-    ) -> VmTransactionOutput {
+    ) -> TxExecutionResult {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         self.pop_snapshot_no_rollback();
@@ -180,7 +178,7 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
         // and so we re-execute the transaction, but without compression.
 
         if let Ok(output) = inspect_transaction(self, tx.clone(), trace_calls, true) {
-            return output;
+            return output.into_tx_result(&tx);
         }
 
         // Roll back to the snapshot just before the transaction execution taken in `Self::execute_tx()`
@@ -190,6 +188,7 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
 
         inspect_transaction(self, tx.clone(), trace_calls, false)
             .expect("Compression can't fail if we don't apply it")
+            .into_tx_result(&tx)
     }
 
     fn rollback_last_transaction(&mut self) {
@@ -207,7 +206,7 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
 
 /// VM factory used by the main batch executor. Encapsulates the storage type used by the executor
 /// so that it's opaque from the implementor's perspective.
-pub(super) trait BatchVmFactory<S>: fmt::Debug + Send + Sync {
+pub trait BatchVmFactory<S>: fmt::Debug + Send + Sync {
     fn create_vm<'a>(
         &self,
         l1_batch_params: L1BatchEnv,

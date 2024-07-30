@@ -1,21 +1,16 @@
-//! Test utilities that can be used for testing sequencer that may
-//! be useful outside of this crate.
+//! Test utilities that can be used for testing sequencer that may be useful outside of this crate.
 
-use std::sync::Arc;
-
-use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::{
     interface::{
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
+        SystemEnv, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::VmExecutionLogs,
 };
-use zksync_state::{ReadStorageFactory, StorageViewCache};
+use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -25,8 +20,8 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-    types::ExecutionMetricsForCriteria,
+    batch_executor::{BatchVm, BatchVmFactory, TraceCalls},
+    ExecutionMetricsForCriteria, TxExecutionResult,
 };
 
 pub mod test_batch_executor;
@@ -76,44 +71,51 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
     }
 }
 
-pub(crate) fn storage_view_cache() -> StorageViewCache {
-    StorageViewCache::default()
+/// `BatchVm` implementation which doesn't check anything at all. Accepts all transactions.
+#[derive(Debug, Default)]
+pub struct MockBatchVm;
+
+impl BatchVm for MockBatchVm {
+    fn inspect_transaction(
+        &mut self,
+        _tx: Transaction,
+        _trace_calls: TraceCalls,
+    ) -> TxExecutionResult {
+        successful_exec()
+    }
+
+    fn inspect_transaction_with_optional_compression(
+        &mut self,
+        tx: Transaction,
+        trace_calls: TraceCalls,
+    ) -> TxExecutionResult {
+        self.inspect_transaction(tx, trace_calls)
+    }
+
+    fn rollback_last_transaction(&mut self) {
+        panic!("unexpected rollback");
+    }
+
+    fn start_new_l2_block(&mut self, _l2_block: L2BlockEnv) {
+        // Do nothing
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        default_vm_batch_result()
+    }
 }
 
-/// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
-#[derive(Debug)]
-pub struct MockBatchExecutor;
-
-#[async_trait]
-impl BatchExecutor for MockBatchExecutor {
-    async fn init_batch(
-        &mut self,
-        _storage_factory: Arc<dyn ReadStorageFactory>,
-        _l1batch_params: L1BatchEnv,
+impl<S: ReadStorage> BatchVmFactory<S> for MockBatchVm {
+    fn create_vm<'a>(
+        &self,
+        _l1_batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle> {
-        let (send, recv) = mpsc::channel(1);
-        let handle = tokio::task::spawn(async {
-            let mut recv = recv;
-            while let Some(cmd) = recv.recv().await {
-                match cmd {
-                    Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
-                    Command::StartNextL2Block(_, resp) => resp.send(()).unwrap(),
-                    Command::RollbackLastTx(_) => panic!("unexpected rollback"),
-                    Command::FinishBatch(resp) => {
-                        // Blanket result, it doesn't really matter.
-                        resp.send(default_vm_batch_result()).unwrap();
-                        break;
-                    }
-                    Command::FinishBatchWithCache(resp) => resp
-                        .send((default_vm_batch_result(), storage_view_cache()))
-                        .unwrap(),
-                }
-            }
-            anyhow::Ok(())
-        });
-        Some(BatchExecutorHandle::from_raw(handle, send))
+        _storage: StoragePtr<StorageView<S>>,
+    ) -> Box<dyn BatchVm + 'a>
+    where
+        S: 'a,
+    {
+        Box::new(Self)
     }
 }
 

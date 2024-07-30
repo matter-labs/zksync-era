@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_state::{AsyncCatchupTask, ReadStorageFactory};
 use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, MainBatchExecutor, OutputHandler,
     StateKeeperIO, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
@@ -85,7 +85,7 @@ impl WiringLayer for StateKeeperLayer {
             .batch_executor
             .0
             .take()
-            .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
+            .context("BatchExecutor was provided but taken by some other task")?;
         let output_handler = input
             .output_handler
             .0
@@ -125,7 +125,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn BatchExecutor>,
+    batch_executor_base: MainBatchExecutor,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,

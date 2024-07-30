@@ -35,7 +35,7 @@ use zksync_state_keeper::{
     seal_criteria::NoopSealer,
     testonly::{
         fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
+        MockBatchVm,
     },
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
@@ -547,7 +547,7 @@ impl StateKeeperRunner {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(MainBatchExecutor::new(false, false)),
+                        MainBatchExecutor::new(false, false),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
@@ -628,12 +628,13 @@ impl StateKeeperRunner {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(MockBatchExecutor),
+                        MainBatchExecutor::new(false, false)
+                            .with_vm_factory(Arc::<MockBatchVm>::default()),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(MockReadStorageFactory),
+                        Arc::<MockReadStorageFactory>::default(),
                     )
                     .run()
                     .await

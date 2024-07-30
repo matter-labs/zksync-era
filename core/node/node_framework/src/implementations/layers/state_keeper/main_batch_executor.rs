@@ -38,11 +38,10 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let builder =
+        let batch_executor =
             MainBatchExecutor::new(self.save_call_traces, self.optional_bytecode_compression);
-
         Ok(Output {
-            batch_executor: builder.into(),
+            batch_executor: batch_executor.into(),
         })
     }
 }

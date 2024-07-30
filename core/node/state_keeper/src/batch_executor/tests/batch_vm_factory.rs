@@ -6,7 +6,10 @@ use zksync_multivm::{
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::Transaction;
 
-use crate::batch_executor::traits::{BatchVm, BatchVmFactory, TraceCalls, VmTransactionOutput};
+use crate::{
+    batch_executor::traits::{BatchVm, BatchVmFactory, TraceCalls},
+    TxExecutionResult,
+};
 
 pub(super) struct VmTrackingSnapshots<S: ReadStorage> {
     inner: VmInstance<S, HistoryEnabled>,
@@ -39,7 +42,7 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
-    ) -> VmTransactionOutput {
+    ) -> TxExecutionResult {
         self.assert_not_too_many_snapshots();
         let output = self.inner.inspect_transaction(tx, trace_calls);
         self.assert_not_too_many_snapshots();
@@ -50,7 +53,7 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
-    ) -> VmTransactionOutput {
+    ) -> TxExecutionResult {
         self.assert_not_too_many_snapshots();
         let output = self
             .inner
