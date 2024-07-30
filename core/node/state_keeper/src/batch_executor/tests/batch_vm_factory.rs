@@ -16,7 +16,7 @@ pub(super) struct VmTrackingSnapshots<S: ReadStorage> {
 }
 
 impl<S: ReadStorage> VmTrackingSnapshots<S> {
-    fn assert_not_too_many_snapshots(&self) {
+    fn assert_at_most_one_snapshot(&self) {
         if let VmInstance::VmFast(vm) = &self.inner {
             let snapshot_count = vm.snapshot_count();
             assert!(
@@ -43,9 +43,9 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult {
-        self.assert_not_too_many_snapshots();
+        self.assert_at_most_one_snapshot();
         let output = self.inner.execute_transaction(tx, trace_calls);
-        self.assert_not_too_many_snapshots();
+        self.assert_at_most_one_snapshot();
         output
     }
 
@@ -54,11 +54,11 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult {
-        self.assert_not_too_many_snapshots();
+        self.assert_at_most_one_snapshot();
         let output = self
             .inner
             .execute_transaction_with_optional_compression(tx, trace_calls);
-        self.assert_not_too_many_snapshots();
+        self.assert_at_most_one_snapshot();
         output
     }
 
@@ -72,7 +72,7 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        self.assert_not_too_many_snapshots();
+        self.assert_at_most_one_snapshot();
         self.inner.finish_batch()
     }
 }
