@@ -7,11 +7,11 @@ postgres:
 db:
   state_keeper_db_path: ./db/main/state_keeper
   merkle_tree:
-    multi_get_chunk_size: 1000
-    block_cache_size_mb: 32
-    memtable_capacity_mb: 512
-    stalled_writes_timeout_sec: 50
-    max_l1_batches_per_iter: 50
+    multi_get_chunk_size: 500
+    block_cache_size_mb: 128
+    memtable_capacity_mb: 256
+    stalled_writes_timeout_sec: 60
+    max_l1_batches_per_iter: 20
     path: "./db/main/tree"
     mode: FULL
   experimental:
@@ -36,46 +36,20 @@ api:
     filters_limit: 10000
     subscriptions_limit: 10000
     pubsub_polling_interval: 200
-    max_nonce_ahead: 50
-    gas_price_scale_factor: 1.2
-    request_timeout: 10
-    account_pks:
-      - 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-      - 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-      - 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
-      - 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
-      - 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
-      - 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-      - 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
-      - 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
-      - 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
-      - 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
-      - 0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897
-      - 0x701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82
-      - 0xa267530f49f8280200edf313ee7af6b827f2a8bce2897751d06a843f644967b1
-      - 0x47c99abed3324a2707c28affff1267e45918ec8c3f20b8aa892e8b065d2942dd
-      - 0xc526ee95bf44d8fc405a158bb884d9d1238d99f0612e9f33d006bb0789009aaa
-      - 0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61
-      - 0xea6c44ac03bff858b476bba40716402b03e41b8e97e276d1baec7c37d42484a0
-      - 0x689af8efa8c651a91ad287602527f3af2fe9f6501a7ac4b061667b5a93e037fd
-      - 0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0
-      - 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e
-    estimate_gas_scale_factor: 1.2
-    estimate_gas_acceptable_overestimation: 1000
+    max_nonce_ahead: 20
+    gas_price_scale_factor: 1.5
+    estimate_gas_scale_factor: 1.3
+    estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
     api_namespaces: [en,eth,net,web3,zks,pubsub,debug]
-    max_response_body_size_overrides:
-      - method: eth_getTransactionReceipt # no size specified, meaning no size limit
-      - method: zks_getProof
-        size_mb: 64
 state_keeper:
-  transaction_slots: 250
-  max_allowed_l2_tx_gas_limit: 4000000000
+  transaction_slots: 8192
+  max_allowed_l2_tx_gas_limit: 15000000000
   block_commit_deadline_ms: 2500
   miniblock_commit_deadline_ms: 1000
   miniblock_seal_queue_capacity: 10
   miniblock_max_payload_size: 1000000
-  max_single_tx_gas: 6000000
+  max_single_tx_gas: 15000000
   close_block_at_geometry_percentage: 0.95
   close_block_at_eth_params_percentage: 0.95
   close_block_at_gas_percentage: 0.95
@@ -87,24 +61,24 @@ state_keeper:
   pubdata_overhead_part: 1
   batch_overhead_l1_gas: 800000
   max_gas_per_batch: 200000000
-  max_pubdata_per_batch: 100000
-  fee_model_version: V1
+  max_pubdata_per_batch: 500000
+  fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  max_circuits_per_batch: 24100
+  max_circuits_per_batch: 31100
   protective_reads_persistence_enabled: true
 mempool:
   delay_interval: 100
   sync_interval_ms: 10
   sync_batch_size: 1000
   capacity: 10000000
-  stuck_tx_timeout: 86400
+  stuck_tx_timeout: 172800
   remove_stuck_txs: true
 
 operations_manager:
   delay_interval: 100
 contract_verifier:
-  compilation_timeout: 30
+  compilation_timeout: 240
   polling_interval: 1000
   prometheus_port: 3314
   port: 3070
@@ -112,8 +86,8 @@ contract_verifier:
   threads_per_server: 128
 
 circuit_breaker:
-  sync_interval_ms: 30000
-  http_req_max_retry_number: 5
+  sync_interval_ms: 120000
+  http_req_max_retry_number: 10
   replication_lag_limit_sec: 100
   http_req_retry_interval_sec: 2
 eth:
@@ -124,21 +98,21 @@ eth:
     max_txs_in_flight: 30
     proof_sending_mode: SKIP_EVERY_PROOF
     max_aggregated_blocks_to_commit: 1
-    max_aggregated_blocks_to_execute: 10
+    max_aggregated_blocks_to_execute: 45
     aggregated_block_commit_deadline: 1
     aggregated_block_prove_deadline: 10
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
     aggregated_proof_sizes: [1]
-    max_aggregated_tx_gas: 4000000
+    max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
-    max_base_fee_samples: 10000
+    max_base_fee_samples: 100
     pricing_formula_parameter_a: 1.5
-    pricing_formula_parameter_b: 1.0005
+    pricing_formula_parameter_b: 1.001
     internal_l1_pricing_multiplier: 0.8
     num_samples_for_blob_base_fee_estimate: 10
     internal_pubdata_pricing_multiplier: 1.0
