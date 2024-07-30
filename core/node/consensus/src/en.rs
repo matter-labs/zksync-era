@@ -1,7 +1,14 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_executor as executor;
-use zksync_consensus_roles::validator;
+use zksync_consensus_executor::{
+    self as executor,
+    attestation::{AttestationStatusClient, AttestationStatusRunner},
+};
+use zksync_consensus_network::gossip::AttestationStatusWatch;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
@@ -99,6 +106,18 @@ impl EN {
                 .wrap("BatchStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
+            let (attestation_status, runner) = {
+                let status = Arc::new(AttestationStatusWatch::default());
+                let client = MainNodeAttestationStatus(self.client.clone());
+                let runner = AttestationStatusRunner::new(
+                    status.clone(),
+                    Box::new(client),
+                    time::Duration::seconds(5),
+                );
+                (status, runner)
+            };
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
@@ -111,6 +130,7 @@ impl EN {
                         payload_manager: Box::new(store.clone()),
                     }),
                 attester,
+                attestation_status,
             };
             executor.run(ctx).await?;
 
@@ -236,5 +256,27 @@ impl EN {
                 .await?;
         }
         Ok(())
+    }
+}
+
+/// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient::next_batch_to_attest].
+pub struct MainNodeAttestationStatus(Box<DynClient<L2>>);
+
+#[async_trait]
+impl AttestationStatusClient for MainNodeAttestationStatus {
+    async fn next_batch_to_attest(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        match ctx.wait(self.0.fetch_attestation_status()).await? {
+            Ok(bn) => {
+                let bn: u64 = bn.next_batch_to_attest.0.into();
+                Ok(Some(attester::BatchNumber(bn)))
+            }
+            Err(err) => {
+                tracing::warn!("AttestationStatus call to main node HTTP RPC failed: {err}");
+                Ok(None)
+            }
+        }
     }
 }

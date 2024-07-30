@@ -429,4 +429,15 @@ impl<'a> Connection<'a> {
             last,
         })
     }
+
+    /// Wrapper for `consensus_dal().next_batch_to_attest()`.
+    pub async fn next_batch_to_attest(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<attester::BatchNumber> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().next_batch_to_attest())
+            .await?
+            .context("next_batch_to_attest()")?)
+    }
 }

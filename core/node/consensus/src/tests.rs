@@ -725,9 +725,14 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let genesis = conn.genesis(ctx).await?.unwrap().hash();
             let cert = attester::BatchQC {
                 signatures: attester::MultiSig::default(),
-                message: attester::Batch { number, hash },
+                message: attester::Batch {
+                    number,
+                    hash,
+                    genesis,
+                },
             };
             conn.insert_batch_certificate(ctx, &cert)
                 .await

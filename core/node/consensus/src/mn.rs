@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_executor::{self as executor, Attester};
+use zksync_consensus_executor::{self as executor, attestation::AttestationStatusRunner, Attester};
+use zksync_consensus_network::gossip::AttestationStatusWatch;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
 
@@ -61,6 +64,17 @@ pub async fn run_main_node(
             .wrap("BatchStore::new()")?;
         s.spawn_bg(runner.run(ctx));
 
+        let (attestation_status, runner) = {
+            let status = Arc::new(AttestationStatusWatch::default());
+            let runner = AttestationStatusRunner::new_from_store(
+                status.clone(),
+                batch_store.clone(),
+                time::Duration::seconds(1),
+            );
+            (status, runner)
+        };
+        s.spawn_bg(runner.run(ctx));
+
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
             block_store,
@@ -71,6 +85,7 @@ pub async fn run_main_node(
                 payload_manager: Box::new(store.clone()),
             }),
             attester,
+            attestation_status,
         };
         executor.run(ctx).await
     })
