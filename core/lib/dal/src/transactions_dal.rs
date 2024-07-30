@@ -58,6 +58,7 @@ pub struct TransactionsDal<'c, 'a> {
 impl TransactionsDal<'_, '_> {
     /// FIXME: remove this function in prod
     pub async fn erase_l1_txs_history(&mut self) -> DalResult<()> {
+        // We need this to ensure that eth watch will start watching from the first block
         sqlx::query!(
             r#"
             UPDATE transactions
@@ -65,6 +66,20 @@ impl TransactionsDal<'_, '_> {
                 l1_block_number = 0
             WHERE
                 l1_block_number IS NOT NULL;
+            "#
+        )
+        .instrument("erase_l1_txs_history")
+        .execute(self.storage)
+        .await?;
+
+        // We need this to ensure that the operators' nonce is not too high.
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs
+            SET
+                nonce = 0
+            WHERE
+                nonce IS NOT NULL;
             "#
         )
         .instrument("erase_l1_txs_history")

@@ -616,26 +616,38 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .unwrap_or(0);
-        // Between server starts we can execute some txs using operator account or remove some txs from the database
-        // At the start we have to consider this fact and get the max nonce.
+
+        // FIXME: refactor this
+        // The below is a big hack that tries to solve the following problem:
+        // - When migrating to sync layer the nonce drops to 0
+        // - Just erasing nonce everywhere to 0 during migration does not really help as the next_db_nonce becomes 1.
+        // - Delete all the transaction to not have this issue does not help
         Ok(if from_addr.is_none() {
-            if self.ignore_db_nonce_0 && no_unsent_txs {
+            if self.ignore_db_nonce_0 && self.base_nonce == 0 && no_unsent_txs {
                 self.ignore_db_nonce_0 = false;
+
                 self.base_nonce
             } else {
                 self.ignore_db_nonce_0 = false;
-                db_nonce.max(self.base_nonce)
+
+                db_nonce
             }
-        } else if self.ignore_db_nonce_1 && no_unsent_txs {
+        } else if self.ignore_db_nonce_1 {
+            let base_nonce = self
+                .base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed");
+
             self.ignore_db_nonce_1 = false;
-            self.base_nonce_custom_commit_sender
-                .expect("custom base nonce is expected to be initialized; qed")
+
+            if base_nonce == 0 && no_unsent_txs {
+                base_nonce
+            } else {
+                db_nonce
+            }
         } else {
             self.ignore_db_nonce_1 = false;
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
+
+            db_nonce
         })
     }
 }
