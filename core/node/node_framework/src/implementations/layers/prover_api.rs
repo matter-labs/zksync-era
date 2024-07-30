@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
+use zksync_config::configs::prover_api::ProverApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::commitment::L1BatchCommitmentMode;
@@ -8,7 +8,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 use crate::{
     implementations::resources::{
         object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource},
+        pools::{PoolResource, ReplicaPool},
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -26,7 +26,7 @@ pub struct ProverApiLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    pub master_pool: PoolResource<ReplicaPool>,
     pub object_store: ObjectStoreResource,
 }
 

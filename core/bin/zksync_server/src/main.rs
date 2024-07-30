@@ -19,7 +19,7 @@ use zksync_config::{
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ProverApiConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{decode_yaml_repr, TempConfigStore},
@@ -208,5 +208,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         pruning: None,
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        prover_api_config: ProverApiConfig::from_env().ok(),
     })
 }

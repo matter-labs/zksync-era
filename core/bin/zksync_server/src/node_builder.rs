@@ -715,7 +715,7 @@ impl MainNodeBuilder {
                     self = self.add_vm_runner_bwip_layer()?;
                 }
                 Component::ProverApi => {
-                    self = self.add_prover_api_layer().unwrap()?;
+                    self = self.add_prover_api_layer()?;
                 }
             }
         }
