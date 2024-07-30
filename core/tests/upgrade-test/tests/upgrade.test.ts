@@ -22,7 +22,7 @@ import path from 'path';
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
-const contracts: Contracts = initContracts(fileConfig.loadFromFile);
+const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
 
 let serverComponents = ['api', 'tree', 'eth', 'state_keeper', 'commitment_generator', 'da_dispatcher'];
 
@@ -120,7 +120,7 @@ describe('Upgrade test', function () {
         runServerInBackground({
             components: serverComponents,
             stdio: [null, logs, logs],
-            cwd: process.env.ZKSYNC_HOME!!,
+            cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -196,7 +196,7 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${process.env.ZKSYNC_HOME}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
+        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
         const bootloaderCode = ethers.hexlify(fs.readFileSync(path));
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
@@ -326,7 +326,7 @@ describe('Upgrade test', function () {
         runServerInBackground({
             components: serverComponents,
             stdio: [null, logs, logs],
-            cwd: process.env.ZKSYNC_HOME!!,
+            cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile
         });
         await utils.sleep(10);

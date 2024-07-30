@@ -64,9 +64,9 @@ export interface Contracts {
     stateTransitonManager: any;
 }
 
-export function initContracts(zkToolbox: boolean): Contracts {
+export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts {
     if (zkToolbox) {
-        const CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts`;
+        const CONTRACTS_FOLDER = `${pathToHome}/contracts`;
         return {
             l1DefaultUpgradeAbi: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
@@ -87,14 +87,14 @@ export function initContracts(zkToolbox: boolean): Contracts {
                 require(`${CONTRACTS_FOLDER}/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
             counterBytecode:
-                require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
                     .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`).abi
             )
         };
     } else {
-        const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/contracts`;
+        const L1_CONTRACTS_FOLDER = `${pathToHome}/contracts/l1-contracts/artifacts/contracts`;
         return {
             l1DefaultUpgradeAbi: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
@@ -109,13 +109,13 @@ export function initContracts(zkToolbox: boolean): Contracts {
                 require(`${L1_CONTRACTS_FOLDER}/governance/ChainAdmin.sol/ChainAdmin.json`).abi
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
-                require(`${process.env.ZKSYNC_HOME}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+                require(`${pathToHome}/contracts/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${pathToHome}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
             counterBytecode:
-                require(`${process.env.ZKSYNC_HOME}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
+                require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
                     .deployedBytecode,
             stateTransitonManager: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`).abi
