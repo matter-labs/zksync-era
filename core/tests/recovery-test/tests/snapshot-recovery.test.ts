@@ -313,7 +313,7 @@ describe('snapshot recovery', () => {
     });
 
     step('check tokens on EN', async () => {
-        const externalNodeTokens = await getAllTokens(externalNode);
+        const externalNodeTokens = await getAllTokens(externalNode, snapshotMetadata.miniblockNumber);
         console.log('Fetched tokens from EN', externalNodeTokens);
         expect(externalNodeTokens).to.not.be.empty; // should contain at least ether
         const mainNodeTokens = await getAllTokens(mainNode, snapshotMetadata.miniblockNumber);
