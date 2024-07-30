@@ -143,7 +143,7 @@ testFees('Test fees', () => {
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
-    test.only('Test gas price expected value', async () => {
+    test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 100_000_000_000n; /// set to 100 gwei
         await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
