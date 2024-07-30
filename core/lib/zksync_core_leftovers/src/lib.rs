@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use tokio::sync::oneshot;
-
 use zksync_config::configs::DatabaseSecrets;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 
