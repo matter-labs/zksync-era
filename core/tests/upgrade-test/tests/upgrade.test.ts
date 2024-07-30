@@ -52,12 +52,12 @@ describe('Upgrade test', function () {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
-            contractsL2DefaultUpgradeAddr = '0x0000000000000000000000000000000000000000';
+            contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
             forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
             deployerAddress = '0x0000000000000000000000000000000000008007';
             complexUpgraderAddress = contractsConfig.l2.default_l2_upgrader;
 
-            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = '0x0000000000000000000000000000000000000000';
+            process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = contractsConfig.l2.default_l2_upgrader;
             process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
