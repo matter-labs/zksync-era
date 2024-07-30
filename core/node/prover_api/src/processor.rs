@@ -4,13 +4,12 @@ use axum::{extract::Path, Json};
 use zksync_basic_types::{
     basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
 };
-use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{bincode, ObjectStore};
 use zksync_prover_interface::{
     api::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-        SubmitProofRequest, VerifyProofRequest,
+        VerifyProofRequest,
     },
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
@@ -20,6 +19,7 @@ use zksync_prover_interface::{
 
 use crate::error::ProcessorError;
 
+#[derive(Clone)]
 pub(crate) struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,

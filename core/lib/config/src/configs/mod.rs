@@ -21,6 +21,7 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    prover_api::ProverApiConfig,
     pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,

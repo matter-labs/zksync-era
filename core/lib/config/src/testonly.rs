@@ -996,6 +996,15 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
     }
 }
 
+impl Distribution<configs::prover_api::ProverApiConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::prover_api::ProverApiConfig {
+        configs::prover_api::ProverApiConfig {
+            http_port: self.sample(rng),
+            last_available_batch: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -1045,6 +1054,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             base_token_adjuster: self.sample(rng),
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
+            prover_api_config: self.sample(rng),
         }
     }
 }

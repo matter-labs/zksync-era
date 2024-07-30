@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package zksync.config.prover_api;
+
+message ProverApi {
+    optional uint32 http_port = 1;
+    optional uint32 last_available_batch = 2;
+}

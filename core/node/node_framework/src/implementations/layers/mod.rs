@@ -23,6 +23,7 @@ pub mod pools_layer;
 pub mod postgres_metrics;
 pub mod prometheus_exporter;
 pub mod proof_data_handler;
+pub mod prover_api;
 pub mod pruning;
 pub mod query_eth_client;
 pub mod reorg_detector;

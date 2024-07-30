@@ -7,12 +7,10 @@ use anyhow::Context;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
-use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
+use zksync_config::configs::prover_api::ProverApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, SubmitProofRequest, VerifyProofRequest,
-};
+use zksync_prover_interface::api::{ProofGenerationDataRequest, VerifyProofRequest};
 
 use crate::processor::Processor;
 
@@ -25,7 +23,7 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting external prover API server on {bind_address}");
-    let app = create_router(blob_store, connection_pool, commitment_mode, config);
+    let app = create_router(blob_store, connection_pool, commitment_mode, config).await;
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -56,7 +54,7 @@ async fn create_router(
         L1BatchNumber(config.last_available_batch),
     );
     let verify_proof_processor = processor.clone();
-    let mut router = Router::new()
+    Router::new()
         .route(
             "/proof_generation_data",
             post(
@@ -76,6 +74,5 @@ async fn create_router(
                         .await
                 },
             ),
-        );
-    router
+        )
 }

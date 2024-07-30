@@ -57,6 +57,7 @@ impl ProtoRepr for proto::GeneralConfig {
             external_price_api_client_config: read_optional_repr(&self.external_price_api_client)
                 .context("external_price_api_client")?,
             consensus_config: read_optional_repr(&self.consensus).context("consensus")?,
+            prover_api_config: read_optional_repr(&self.prover_api).context("prover_api")?,
         })
     }
 
@@ -107,6 +108,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .as_ref()
                 .map(ProtoRepr::build),
             consensus: this.consensus_config.as_ref().map(ProtoRepr::build),
+            prover_api: this.prover_api_config.as_ref().map(ProtoRepr::build),
         }
     }
 }

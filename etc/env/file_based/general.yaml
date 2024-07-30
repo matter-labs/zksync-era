@@ -63,7 +63,7 @@ api:
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 1000
     max_tx_size: 1000000
-    api_namespaces: [en,eth,net,web3,zks,pubsub,debug]
+    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug ]
     max_response_body_size_overrides:
       - method: eth_getTransactionReceipt # no size specified, meaning no size limit
       - method: zks_getProof
@@ -130,7 +130,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [1]
+    aggregated_proof_sizes: [ 1 ]
     max_aggregated_tx_gas: 4000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -379,3 +379,7 @@ da_dispatcher:
   polling_interval_ms: 5000
   max_rows_to_dispatch: 100
   max_retries: 5
+
+prover_api:
+  http_port: 3073
+  last_available_batch: 1

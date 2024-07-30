@@ -15,7 +15,7 @@ use crate::{
         ProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ProverApiConfig, SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,4 +50,5 @@ pub struct GeneralConfig {
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub consensus_config: Option<ConsensusConfig>,
+    pub prover_api_config: Option<ProverApiConfig>,
 }

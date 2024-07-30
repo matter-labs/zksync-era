@@ -45,6 +45,7 @@ use zksync_node_framework::{
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
+        prover_api::ProverApiLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
@@ -562,6 +563,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_prover_api_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.prover_api_config);
+        self.node.add_layer(ProverApiLayer::new(
+            config,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+        ));
+
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g. genesis will be performed if it's required.
     ///
@@ -702,6 +713,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
+                }
+                Component::ProverApi => {
+                    self = self.add_prover_api_layer().unwrap()?;
                 }
             }
         }
