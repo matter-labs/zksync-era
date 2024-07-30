@@ -1,6 +1,8 @@
 //! This crate contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
+use std::time::Duration;
+
 use ::sentry::ClientInitGuard;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -23,7 +25,53 @@ pub struct ObservabilityBuilder {
 /// Guard for the observability subsystem.
 /// Releases configured integrations upon being dropped.
 pub struct ObservabilityGuard {
-    _sentry_guard: Option<ClientInitGuard>,
+    /// Opentelemetry provider. Can be used to force flush spans.
+    otlp_provider: Option<opentelemetry_sdk::trace::TracerProvider>,
+    sentry_guard: Option<ClientInitGuard>,
+}
+
+impl ObservabilityGuard {
+    /// Forces flushing of pending events.
+    /// This method is blocking.
+    pub fn force_flush(&self) {
+        // We don't want to wait for too long.
+        const FLUSH_TIMEOUT: Duration = Duration::from_secs(1);
+
+        if let Some(sentry_guard) = &self.sentry_guard {
+            sentry_guard.flush(Some(FLUSH_TIMEOUT));
+        }
+
+        if let Some(provider) = &self.otlp_provider {
+            for result in provider.force_flush() {
+                if let Err(err) = result {
+                    tracing::warn!("Flushing the spans failed: {err:?}");
+                }
+            }
+        }
+    }
+
+    /// Shutdown the observability subsystem.
+    /// It will stop the background tasks like collec
+    pub fn shutdown(&self) {
+        // We don't want to wait for too long.
+        const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+
+        if let Some(sentry_guard) = &self.sentry_guard {
+            sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
+        }
+        if let Some(provider) = &self.otlp_provider {
+            if let Err(err) = provider.shutdown() {
+                tracing::warn!("Shutting down the provider failed: {err:?}");
+            }
+        }
+    }
+}
+
+impl Drop for ObservabilityGuard {
+    fn drop(&mut self) {
+        self.force_flush();
+        self.shutdown();
+    }
 }
 
 impl std::fmt::Debug for ObservabilityGuard {
@@ -62,16 +110,23 @@ impl ObservabilityBuilder {
         // Later we may want to enforce each layer to have its own filter.
         let global_filter = logs.build_filter();
 
+        let logs_layer = logs.into_layer();
+        let (otlp_provider, otlp_layer) = self
+            .opentelemetry_layer
+            .map(|layer| layer.into_layer())
+            .unzip();
+
         tracing_subscriber::registry()
             .with(global_filter)
-            .with(logs.into_layer())
-            .with(self.opentelemetry_layer.map(|layer| layer.into_layer()))
+            .with(logs_layer)
+            .with(otlp_layer)
             .init();
 
         let sentry_guard = self.sentry.map(|sentry| sentry.install());
 
         ObservabilityGuard {
-            _sentry_guard: sentry_guard,
+            otlp_provider,
+            sentry_guard,
         }
     }
 }
