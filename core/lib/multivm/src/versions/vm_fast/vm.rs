@@ -46,9 +46,8 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_used_bootloader_memory_bytes, get_vm_hook_params_start_position,
-            get_vm_hook_position, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET,
-            VM_HOOK_PARAMS_COUNT,
+            get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
+            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
         L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
@@ -322,9 +321,12 @@ impl<S: ReadStorage> Vm<S> {
     ) {
         assert!(self.inner.state.previous_frames.is_empty());
         // TODO: this should probably address `vm2::FIRST_HEAP` instead.
-        let heap = &mut self.inner.state.heaps[self.inner.state.current_frame.heap];
         for (slot, value) in memory {
-            heap.write_u256(slot as u32 * 32, value);
+            self.inner.state.heaps.write_u256(
+                self.inner.state.current_frame.heap,
+                slot as u32 * 32,
+                value,
+            );
         }
     }
 
@@ -455,7 +457,6 @@ impl<S: ReadStorage> Vm<S> {
         inner.state.current_frame.sp = 0;
 
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.heaps[vm2::FIRST_HEAP].reserve(get_used_bootloader_memory_bytes(VM_VERSION));
         inner.state.current_frame.heap_size = u32::MAX;
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
@@ -717,7 +718,7 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 impl<S: ReadStorage> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
-            self.inner.world_diff.delete_history();
+            self.inner.delete_history();
         }
     }
 }
