@@ -32,14 +32,10 @@ pub enum Network {
     Unknown,
     /// Test network for testkit purposes
     Test,
-    /// Linea testnet
-    Lineatest,
+    /// Linea Sepolia testnet
+    LineaSepolia,
     /// Linea mainnet
     Linea,
-    /// Arbitrum Sepolia testnet
-    Arbitrumtest,
-    /// Arbitrum mainnet
-    Arbitrum,
 }
 
 impl FromStr for Network {
@@ -54,10 +50,8 @@ impl FromStr for Network {
             "localhost" => Self::Localhost,
             "sepolia" => Self::Sepolia,
             "test" => Self::Test,
-            "lineatest" => Self::Lineatest,
+            "lineaSepolia" => Self::LineaSepolia,
             "linea" => Self::Linea,
-            "arbitrumtest" => Self::Arbitrumtest,
-            "arbitrum" => Self::Arbitrum,
             another => return Err(another.to_owned()),
         })
     }
@@ -74,10 +68,8 @@ impl fmt::Display for Network {
             Self::Sepolia => write!(f, "sepolia"),
             Self::Unknown => write!(f, "unknown"),
             Self::Test => write!(f, "test"),
-            Self::Lineatest => write!(f, "lineatest"),
+            Self::LineaSepolia => write!(f, "lineaSepolia"),
             Self::Linea => write!(f, "linea"),
-            Self::Arbitrumtest => write!(f, "arbitrumtest"),
-            Self::Arbitrum => write!(f, "arbitrum"),
         }
     }
 }
@@ -92,10 +84,8 @@ impl Network {
             5 => Self::Goerli,
             9 => Self::Localhost,
             11155111 => Self::Sepolia,
-            59141 => Self::Lineatest,
+            59141 => Self::LineaSepolia,
             59144 => Self::Linea,
-            421614 => Self::Arbitrumtest,
-            42161 => Self::Arbitrum,
             _ => Self::Unknown,
         }
     }
@@ -109,10 +99,8 @@ impl Network {
             Self::Goerli => L1ChainId(5),
             Self::Localhost => L1ChainId(9),
             Self::Sepolia => L1ChainId(11155111),
-            Self::Lineatest => L1ChainId(59141),
+            Self::LineaSepolia => L1ChainId(59141),
             Self::Linea => L1ChainId(59144),
-            Self::Arbitrumtest => L1ChainId(421614),
-            Self::Arbitrum => L1ChainId(42161),
             Self::Unknown => panic!("Unknown chain ID"),
             Self::Test => panic!("Test chain ID"),
         }

@@ -96,7 +96,6 @@ const deployTestTokens = async (options?: DeployTestTokensOptions) => {
 const initBridgehubStateTransition = async () => {
     await announced('Deploying L1 contracts', contract.deployL1());
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
-    await announced('Initializing governance', contract.initializeGovernance());
     await announced('Reloading env', env.reload());
 };
 

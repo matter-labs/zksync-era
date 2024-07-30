@@ -16,7 +16,6 @@ export async function verifyL1Contracts(): Promise<void> {
         return;
     }
     await utils.spawn('yarn l1-contracts verify');
-    await utils.spawn('yarn l1-contracts verify-governance');
 }
 
 export function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>): string {
@@ -281,6 +280,14 @@ async function setupLegacyBridgeEra(): Promise<void> {
     fs.writeFileSync('upgraded_shared_bridge.log', updatedContracts);
 }
 
+export async function deployCreate2(): Promise<void> {
+    await utils.confirmAction();
+
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
+    await utils.spawn(`yarn l1-contracts deploy-create2 ${args.join(' ')}`);
+}
+
 export const command = new Command('contract').description('contract management');
 
 command
@@ -326,3 +333,7 @@ command
     )
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);
+command
+    .command('deploy-create2')
+    .description('deploy deploy create2 factory and multicall3 contracts to l1')
+    .action(deployCreate2);
