@@ -4,7 +4,10 @@ use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
-    args::run::{ProverComponent, ProverRunArgs, WitnessGeneratorArgs, WitnessGeneratorRound},
+    args::run::{
+        ProverComponent, ProverRunArgs, WitnessGeneratorArgs, WitnessGeneratorRound,
+        WitnessVectorGeneratorArgs,
+    },
     utils::get_link_to_prover,
 };
 use crate::messages::{
@@ -32,7 +35,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             run_witness_generator(shell, &chain, args.witness_generator_args)?
         }
         Some(ProverComponent::WitnessVectorGenerator) => {
-            run_witness_vector_generator(shell, &chain)?
+            run_witness_vector_generator(shell, &chain, args.witness_vector_generator_args)?
         }
         Some(ProverComponent::Prover) => run_prover(shell, &chain)?,
         Some(ProverComponent::Compressor) => run_compressor(shell, &chain, &ecosystem_config)?,
@@ -76,12 +79,17 @@ fn run_witness_generator(
     cmd.run().context(MSG_RUNNING_WITNESS_GENERATOR_ERR)
 }
 
-fn run_witness_vector_generator(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+fn run_witness_vector_generator(
+    shell: &Shell,
+    chain: &ChainConfig,
+    args: WitnessVectorGeneratorArgs,
+) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_WITNESS_VECTOR_GENERATOR);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_vector_generator -- --config-path={config_path} --secrets-path={secrets_path}"));
+    let threads = args.threads.unwrap_or(1).to_string();
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_witness_vector_generator -- --config-path={config_path} --secrets-path={secrets_path} --threads={threads}"));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR)
 }
