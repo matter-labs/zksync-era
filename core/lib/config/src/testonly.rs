@@ -933,7 +933,6 @@ impl Distribution<configs::vm_runner::BasicWitnessInputProducerConfig> for Encod
             db_path: self.sample(rng),
             window_size: self.sample(rng),
             first_processed_batch: L1BatchNumber(rng.gen()),
-            experimental_vm: self.sample(rng),
         }
     }
 }

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_basic_types::L1BatchNumber;
-use zksync_config::configs::{self, ExperimentalVmConfig};
+use zksync_config::configs;
 use zksync_protobuf::{required, ProtoRepr};
 
 use crate::proto::vm_runner as proto;
@@ -37,10 +37,6 @@ impl ProtoRepr for proto::BasicWitnessInputProducer {
             first_processed_batch: L1BatchNumber(
                 *required(&self.first_processed_batch).context("first_batch")? as u32,
             ),
-            experimental_vm: match &self.experimental_vm {
-                Some(proto) => proto.read()?,
-                None => ExperimentalVmConfig::default(),
-            },
         })
     }
 
@@ -49,7 +45,6 @@ impl ProtoRepr for proto::BasicWitnessInputProducer {
             db_path: Some(this.db_path.clone()),
             window_size: Some(this.window_size as u64),
             first_processed_batch: Some(this.first_processed_batch.0 as u64),
-            experimental_vm: Some(ProtoRepr::build(&this.experimental_vm)),
         }
     }
 }

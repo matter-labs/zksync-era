@@ -52,21 +52,19 @@ impl ProtoRepr for proto::Db {
 }
 
 impl proto::FastVmMode {
-    fn new(source: configs::vm_runner::FastVmMode) -> Self {
-        use configs::vm_runner::FastVmMode as From;
+    fn new(source: FastVmMode) -> Self {
         match source {
-            From::Old => Self::Old,
-            From::New => Self::New,
-            From::Shadow => Self::Shadow,
+            FastVmMode::Old => Self::Old,
+            FastVmMode::New => Self::New,
+            FastVmMode::Shadow => Self::Shadow,
         }
     }
 
-    fn parse(&self) -> configs::vm_runner::FastVmMode {
-        use configs::vm_runner::FastVmMode as To;
+    fn parse(&self) -> FastVmMode {
         match self {
-            Self::Old => To::Old,
-            Self::New => To::New,
-            Self::Shadow => To::Shadow,
+            Self::Old => FastVmMode::Old,
+            Self::New => FastVmMode::New,
+            Self::Shadow => FastVmMode::Shadow,
         }
     }
 }

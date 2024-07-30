@@ -1,8 +1,5 @@
 use serde::Deserialize;
-pub use zksync_basic_types::vm::FastVmMode;
 use zksync_basic_types::L1BatchNumber;
-
-use crate::configs::experimental::ExperimentalVmConfig;
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct ProtectiveReadsWriterConfig {
@@ -30,10 +27,6 @@ pub struct BasicWitnessInputProducerConfig {
     pub window_size: u32,
     /// All batches before this one (inclusive) are always considered to be processed.
     pub first_processed_batch: L1BatchNumber,
-
-    #[serde(skip)]
-    // manually added when parsing from env because `envy` doesn't support `serde(flatten)`
-    pub experimental_vm: ExperimentalVmConfig,
 }
 
 impl BasicWitnessInputProducerConfig {
