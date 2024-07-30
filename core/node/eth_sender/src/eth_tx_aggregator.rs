@@ -264,6 +264,8 @@ impl EthTxAggregator {
                 default_aa,
             };
 
+            call_results_iterator.next().unwrap();
+
             let multicall3_verifier_address =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
             if multicall3_verifier_address.len() != 32 {
