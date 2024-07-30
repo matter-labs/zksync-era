@@ -182,6 +182,7 @@ witness_generator:
   max_attempts: 10
   shall_save_to_public_bucket: true
   prometheus_listener_port: 3116
+  max_circuits_in_flight: 500
 witness_vector_generator:
   prover_instance_wait_timeout_in_secs: 200
   prover_instance_poll_time_in_milli_secs: 250
