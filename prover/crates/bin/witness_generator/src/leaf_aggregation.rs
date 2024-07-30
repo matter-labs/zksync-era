@@ -6,7 +6,7 @@ use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type
 use tracing::Instrument;
 use zkevm_test_harness::{
     witness::recursive_aggregation::{
-        compute_leaf_params, create_leaf_witness, split_reqursion_queue,
+        compute_leaf_params, create_leaf_witness, split_recursion_queue,
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
@@ -254,7 +254,7 @@ pub async fn process_leaf_aggregation_job(
     object_store: Arc<dyn ObjectStore>,
 ) -> LeafAggregationArtifacts {
     let circuit_id = job.circuit_id;
-    let queues = split_reqursion_queue(job.closed_form_inputs.1);
+    let queues = split_recursion_queue(job.closed_form_inputs.1);
 
     let mut aggregations = vec![];
     for queue in queues.iter().cloned() {

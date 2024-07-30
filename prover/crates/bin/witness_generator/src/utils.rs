@@ -184,12 +184,12 @@ pub async fn save_node_aggregations_artifacts(
 }
 
 pub async fn load_proofs_for_job_ids(
-    job_ids: &[u32],
+    job_ids: &Vec<u32>,
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut proofs = Vec::with_capacity(job_ids.len());
-    for &job_id in job_ids {
-        proofs.push(object_store.get(job_id).await.unwrap());
+    for job_id in job_ids {
+        proofs.push(object_store.get(*job_id).await.unwrap());
     }
     proofs
 }
