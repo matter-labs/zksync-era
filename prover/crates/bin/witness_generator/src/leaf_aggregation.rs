@@ -287,22 +287,24 @@ pub async fn process_leaf_aggregation_job(
         .collect();
     drop(queues);
 
-    let semaphore = Semaphore::new(MAX_IN_FLIGHT_QUEUES_CHUNKS);
+    let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_QUEUES_CHUNKS));
 
     let mut handles = vec![];
     for (chunk_idx, (queues, proofs_ids_for_queues)) in
         queues_chunks.into_iter().zip(proofs_ids).enumerate()
     {
-        let _permit = semaphore
-            .acquire()
-            .await
-            .expect("failed to get permit to process queues chunk");
+        let semaphore = semaphore.clone();
 
         let object_store = object_store.clone();
         let base_vk = job.base_vk.clone();
         let leaf_params = (circuit_id, job.leaf_params.clone());
 
         let handle = tokio::task::spawn(async move {
+            let _permit = semaphore
+            .acquire()
+            .await
+            .expect("failed to get permit to process queues chunk");
+        
             let mut proofs_for_queues = vec![];
             for proofs_ids_for_queue in proofs_ids_for_queues {
                 let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
