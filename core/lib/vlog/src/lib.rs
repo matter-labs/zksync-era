@@ -49,11 +49,28 @@ impl ObservabilityGuard {
             }
         }
     }
+
+    /// Shutdown the observability subsystem.
+    /// It will stop the background tasks like collec
+    pub fn shutdown(&self) {
+        // We don't want to wait for too long.
+        const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+
+        if let Some(sentry_guard) = &self.sentry_guard {
+            sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
+        }
+        if let Some(provider) = &self.otlp_provider {
+            if let Err(err) = provider.shutdown() {
+                tracing::warn!("Shutting down the provider failed: {err:?}");
+            }
+        }
+    }
 }
 
 impl Drop for ObservabilityGuard {
     fn drop(&mut self) {
         self.force_flush();
+        self.shutdown();
     }
 }
 
