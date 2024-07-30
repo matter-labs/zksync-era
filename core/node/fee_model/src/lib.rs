@@ -1,4 +1,4 @@
-use std::{cmp::min, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
