@@ -134,6 +134,8 @@ async function updateConfigOnSyncLayer() {
     //     env.modify(userVar, process.env[originalVar]!, envFile, false);
     // }
 
+    console.log('a');
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
@@ -146,11 +148,15 @@ async function updateConfigOnSyncLayer() {
     env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
 
+    console.log('b');
+
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
 
     env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
     env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
+
+    console.log('c');
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
