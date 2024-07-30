@@ -13,25 +13,22 @@ env:
   CLICOLOR: 1
 
 jobs:
-  #  lint:
-  #    name: lint
-  #    uses: ./.github/workflows/ci-core-lint-reusable.yml
-  #    secrets:
-  #      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  lint:
+    name: lint
+    uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build:
     runs-on: [matterlabs-ci-runner]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
-
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build
-        uses: "actions-rs/toolchain@v1"
         run: |
+          sudo apt install libssl-dev pkg-config
           cd zk_toolbox 
           cargo build --release
 
