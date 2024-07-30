@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
@@ -7,13 +5,9 @@ use zksync_multivm::interface::ExecutionResult;
 use zksync_test_account::Account;
 use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
 
-use self::{
-    batch_vm_factory::VmTrackingSnapshotsFactory,
-    tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester},
-};
+use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
 use super::TxExecutionResult;
 
-mod batch_vm_factory;
 mod read_storage_factory;
 mod tester;
 
@@ -341,9 +335,8 @@ async fn execute_reverted_tx() {
 
 /// Runs the batch executor through a semi-realistic basic scenario:
 /// a batch with different operations, both successful and not.
-#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn execute_realistic_scenario(track_snapshots: bool) {
+async fn execute_realistic_scenario() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let mut bob = Account::random();
@@ -353,15 +346,9 @@ async fn execute_realistic_scenario(track_snapshots: bool) {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
-    let mut executor = if track_snapshots {
-        tester
-            .create_batch_executor_with_vm_factory(Arc::new(VmTrackingSnapshotsFactory))
-            .await
-    } else {
-        tester
-            .create_batch_executor(StorageType::AsyncRocksdbCache)
-            .await
-    };
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
 
     // A good tx should be executed successfully.
     let res = executor.execute_tx(alice.execute()).await.unwrap();
