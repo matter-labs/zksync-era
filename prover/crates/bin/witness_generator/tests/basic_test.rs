@@ -143,7 +143,12 @@ async fn test_node_witness_gen() {
         .await
         .unwrap();
 
-    let artifacts = NodeAggregationWitnessGenerator::process_job_sync(job, Instant::now());
+    let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
+        job,
+        Instant::now(),
+        object_store.clone(),
+    )
+    .await;
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
 
     let expected_results_object_store_config = ObjectStoreConfig {
@@ -158,7 +163,13 @@ async fn test_node_witness_gen() {
         .await
         .unwrap();
 
-    for (idx, circuit) in artifacts.recursive_circuits.into_iter().enumerate() {
+    for (idx, circuit_metadata) in artifacts
+        .recursive_circuit_ids_and_urls
+        .into_iter()
+        .enumerate()
+    {
+        assert_eq!(circuit_id, circuit_metadata.0);
+
         let circuit_key = FriCircuitKey {
             block_number,
             sequence_number: idx,
@@ -167,12 +178,17 @@ async fn test_node_witness_gen() {
             depth: 0,
         };
 
+        let result = object_store
+            .get::<CircuitWrapper>(circuit_key.clone())
+            .await
+            .expect(&format!("result circuit missing: {}", idx));
+
         let expected_result = expected_object_store
             .get::<CircuitWrapper>(circuit_key)
             .await
             .expect(&format!("expected circuit missing: {}", idx));
 
-        compare_serialized(&expected_result, &CircuitWrapper::Recursive(circuit));
+        compare_serialized(&expected_result, &result);
     }
 
     let agg_key = AggregationsKey {
