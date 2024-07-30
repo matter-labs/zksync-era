@@ -15,6 +15,8 @@ It will create a config similar to `dev`, but with:
 
 You can always switch back to dev config via `zk env dev`.
 
+**Important:** If you change environments, you have to do `zk init` again.
+
 ## Enter the prover workspace
 
 All the commands for binaries in the prover workspace must be done from the prover folder:

@@ -94,6 +94,14 @@ impl ConsensusDal<'_, '_> {
         .unwrap();
         sqlx::query!(
             r#"
+            DELETE FROM l1_batches_consensus
+            "#
+        )
+        .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
+        .execute(&mut txn)
+        .await?;
+        sqlx::query!(
+            r#"
             DELETE FROM miniblocks_consensus
             "#
         )

@@ -185,6 +185,7 @@ impl JobProcessor for BasicWitnessGenerator {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(l1_batch = %job_id))]
     async fn save_result(
         &self,
         job_id: L1BatchNumber,
@@ -243,7 +244,7 @@ impl JobProcessor for BasicWitnessGenerator {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     started_at: Instant,
@@ -268,6 +269,7 @@ async fn process_basic_circuits_job(
     }
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -305,6 +307,7 @@ async fn update_database(
         .await;
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
@@ -313,6 +316,7 @@ async fn get_artifacts(
     BasicWitnessGeneratorJob { block_number, job }
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn save_scheduler_artifacts(
     block_number: L1BatchNumber,
     scheduler_partial_input: SchedulerCircuitInstanceWitness<
@@ -341,6 +345,7 @@ async fn save_scheduler_artifacts(
     object_store.put(block_number, &wrapper).await.unwrap()
 }
 
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
 async fn save_recursion_queue(
     block_number: L1BatchNumber,
     circuit_id: u8,
@@ -362,11 +367,7 @@ async fn save_recursion_queue(
     (circuit_id, blob_url, basic_circuit_count)
 }
 
-async fn generate_witness(
-    block_number: L1BatchNumber,
-    object_store: &dyn ObjectStore,
-    input: WitnessInputData,
-) -> (
+type Witness = (
     Vec<(u8, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
@@ -375,7 +376,14 @@ async fn generate_witness(
         GoldilocksExt2,
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
-) {
+);
+
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+async fn generate_witness(
+    block_number: L1BatchNumber,
+    object_store: &dyn ObjectStore,
+    input: WitnessInputData,
+) -> Witness {
     let bootloader_contents = expand_bootloader_contents(
         &input.vm_run_data.initial_heap_content,
         input.vm_run_data.protocol_version,
@@ -397,7 +405,11 @@ async fn generate_witness(
     let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
+    let make_circuits_span = tracing::info_span!("make_circuits");
+    let make_circuits_span_copy = make_circuits_span.clone();
     let make_circuits = tokio::task::spawn_blocking(move || {
+        let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
+
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
@@ -432,37 +444,42 @@ async fn generate_witness(
             path,
             input.eip_4844_blobs.blobs(),
             |circuit| {
-                circuit_sender.blocking_send(circuit).unwrap();
+                let parent_span = span.clone();
+                tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
+                    circuit_sender.blocking_send(circuit).unwrap();
+                });
             },
             |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
         );
         (scheduler_witness, block_witness)
-    });
+    })
+    .instrument(make_circuits_span);
 
     let mut circuit_urls = vec![];
     let mut recursion_urls = vec![];
 
     let mut circuits_present = HashSet::<u8>::new();
 
+    let save_circuits_span = tracing::info_span!("save_circuits");
     let save_circuits = async {
         loop {
             tokio::select! {
-                Some(circuit) = circuit_receiver.recv() => {
+                Some(circuit) = circuit_receiver.recv().instrument(tracing::info_span!("wait_for_circuit")) => {
                     circuits_present.insert(circuit.numeric_circuit_type());
                     circuit_urls.push(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
                 }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
-                    save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
-                        .await,
-                ),
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv().instrument(tracing::info_span!("wait_for_queue")) => {
+                    let urls = save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store).await;
+                    recursion_urls.push(urls);
+                }
                 else => break,
             };
         }
-    };
+    }.instrument(save_circuits_span);
 
-    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
+    let (witnesses, ()) = tokio::join!(make_circuits, save_circuits,);
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
     recursion_urls.retain(|(circuit_id, _, _)| circuits_present.contains(circuit_id));

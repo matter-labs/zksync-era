@@ -59,6 +59,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     } else {
         prover_config.shall_save_to_public_bucket = false;
     }
+    prover_config.cloud_type = args.cloud_type;
     general_config.prover_config = Some(prover_config);
 
     let mut proof_compressor_config = general_config

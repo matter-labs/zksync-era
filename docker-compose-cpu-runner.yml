@@ -16,7 +16,7 @@ services:
       - 127.0.0.1:8545:8545
 
   zk:
-    image: "matterlabs/zk-environment:latest2.0-lightweight-nightly"
+    image: "ghcr.io/matter-labs/zk-environment:latest2.0-lightweight-nightly"
     depends_on:
       - reth
       - postgres

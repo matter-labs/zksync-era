@@ -142,6 +142,11 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "ProtectiveReadsOutputHandler::handle_l1_batch",
+        skip_all,
+        fields(l1_batch = %updates_manager.l1_batch.number)
+    )]
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,

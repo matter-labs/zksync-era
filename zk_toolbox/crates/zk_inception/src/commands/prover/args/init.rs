@@ -3,14 +3,15 @@ use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::Shell;
+use zksync_config::configs::fri_prover::CloudType;
 
 use super::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{
     commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
     messages::{
-        MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
-        MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
+        MSG_CLOUD_TYPE_PROMPT, MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT,
+        MSG_CREATE_GCS_BUCKET_NAME_PROMTP, MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
@@ -52,6 +53,9 @@ pub struct ProverInitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub setup_key_config: SetupKeyConfigTmp,
+
+    #[clap(long)]
+    cloud_type: Option<InternalCloudType>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
@@ -59,6 +63,24 @@ pub struct ProverInitArgs {
 enum ProofStoreConfig {
     Local,
     GCS,
+}
+
+#[derive(
+    Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Deserialize, Serialize,
+)]
+#[allow(clippy::upper_case_acronyms)]
+enum InternalCloudType {
+    GCP,
+    Local,
+}
+
+impl From<InternalCloudType> for CloudType {
+    fn from(cloud_type: InternalCloudType) -> Self {
+        match cloud_type {
+            InternalCloudType::GCP => CloudType::GCP,
+            InternalCloudType::Local => CloudType::Local,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
@@ -144,6 +166,7 @@ pub struct ProverInitArgsFinal {
     pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
     pub bellman_cuda_config: InitBellmanCudaArgs,
+    pub cloud_type: CloudType,
 }
 
 impl ProverInitArgs {
@@ -156,11 +179,14 @@ impl ProverInitArgs {
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
+        let cloud_type = self.get_cloud_type_with_prompt();
+
         Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
             setup_key_config,
             bellman_cuda_config,
+            cloud_type,
         })
     }
 
@@ -405,5 +431,13 @@ impl ProverInitArgs {
 
     fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<InitBellmanCudaArgs> {
         self.bellman_cuda_config.clone().fill_values_with_prompt()
+    }
+
+    fn get_cloud_type_with_prompt(&self) -> CloudType {
+        let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
+            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudType::iter()).ask()
+        });
+
+        cloud_type.into()
     }
 }
