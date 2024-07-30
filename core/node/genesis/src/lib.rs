@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
@@ -176,11 +176,6 @@ pub fn mock_genesis_config() -> GenesisConfig {
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
-        recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
-        recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-        recursion_circuits_set_vks_hash: first_l1_verifier_config
-            .params
-            .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
         fee_account: Default::default(),
@@ -196,11 +191,6 @@ pub async fn insert_genesis_batch(
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
-        params: VerifierParams {
-            recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: genesis_params.config.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: H256::zero(),
-        },
         recursion_scheduler_level_vk_hash: genesis_params.config.recursion_scheduler_level_vk_hash,
     };
 

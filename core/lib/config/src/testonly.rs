@@ -704,10 +704,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
             l2_chain_id: L2ChainId::default(),
-            recursion_node_level_vk_hash: rng.gen(),
-            recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
-            recursion_circuits_set_vks_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
