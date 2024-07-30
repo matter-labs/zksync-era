@@ -105,7 +105,10 @@ describe('ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert due to lack of balance.
-        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Transfer to zero address should revert', async () => {
@@ -124,7 +127,10 @@ describe('ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert because transfers to zero address are not allowed.
-        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Approve and transferFrom should work', async () => {
