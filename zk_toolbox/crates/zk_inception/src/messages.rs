@@ -176,9 +176,6 @@ pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contrac
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
-/// Contracts management related messages
-pub(super) const MSG_CONTRACT_BUILDING: &str = "Building contracts";
-
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";

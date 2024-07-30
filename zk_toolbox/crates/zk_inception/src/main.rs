@@ -1,7 +1,5 @@
 use clap::{command, Parser, Subcommand};
-use commands::{
-    args::UpdateArgs, contract::ContractCommands, contract_verifier::ContractVerifierCommands,
-};
+use commands::{args::UpdateArgs, contract_verifier::ContractVerifierCommands};
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -55,9 +53,6 @@ pub enum InceptionSubcommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
-    /// Manage contracts
-    #[command(subcommand)]
-    Contract(ContractCommands),
     /// Update zkSync
     #[command(alias = "u")]
     Update(UpdateArgs),
@@ -118,7 +113,6 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
-        InceptionSubcommands::Contract(args) => commands::contract::run(shell, args).await?,
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
     }
     Ok(())
