@@ -41,7 +41,7 @@ use zksync_reorg_detector::ReorgDetector;
 use zksync_shared_metrics::rustc::RUST_METRICS;
 use zksync_state::{PostgresStorageCaches, RocksdbStorageOptions};
 use zksync_state_keeper::{
-    seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
+    seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
@@ -94,7 +94,8 @@ async fn build_state_keeper(
         stop_receiver_clone.changed().await?;
         result
     }));
-    let batch_executor_base = BatchExecutor::new(save_call_traces, true);
+    let batch_executor_base: Box<dyn BatchExecutor> =
+        Box::new(MainBatchExecutor::new(save_call_traces, true));
 
     let io = ExternalIO::new(
         connection_pool,

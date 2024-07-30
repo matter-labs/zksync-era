@@ -37,16 +37,16 @@ use crate::{
     },
     testonly::{
         successful_exec,
-        test_batch_vm::{
+        test_batch_executor::{
             random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_metrics,
-            MockReadStorageFactory, TestBatchVmFactory, TestIO, TestScenario, FEE_ACCOUNT,
+            MockReadStorageFactory, TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
         },
         BASE_SYSTEM_CONTRACTS,
     },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::l1_batch_base_cost,
-    BatchExecutor, ZkSyncStateKeeper,
+    ZkSyncStateKeeper,
 };
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
@@ -425,8 +425,7 @@ async fn pending_batch_is_applied() {
 async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
-    let batch_executor = BatchExecutor::new(false, false)
-        .with_vm_factory(Arc::new(TestBatchVmFactory::new(&scenario)));
+    let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
@@ -436,10 +435,10 @@ async fn load_upgrade_tx() {
     let mut sk = ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
-        batch_executor,
+        Box::new(batch_executor_base),
         output_handler,
         Arc::new(sealer),
-        Arc::<MockReadStorageFactory>::default(),
+        Arc::new(MockReadStorageFactory),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

@@ -42,7 +42,7 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
-            batch_executor::BatchExecutorLayer, mempool_io::MempoolIOLayer,
+            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         web3_api::{
@@ -161,7 +161,7 @@ impl MainNodeBuilder {
             wallets.state_keeper.context("State keeper wallets")?,
         );
         let main_node_batch_executor_builder_layer =
-            BatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
+            MainBatchExecutorLayer::new(StateKeeperConfig::from_env()?.save_call_traces, true);
         let db_config = DBConfig::from_env()?;
 
         let rocksdb_options = RocksdbStorageOptions {

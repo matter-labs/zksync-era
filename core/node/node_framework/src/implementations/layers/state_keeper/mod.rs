@@ -8,8 +8,8 @@ use zksync_state_keeper::{
 };
 use zksync_storage::RocksDB;
 
-pub mod batch_executor;
 pub mod external_io;
+pub mod main_batch_executor;
 pub mod mempool_io;
 pub mod output_handler;
 
@@ -85,7 +85,7 @@ impl WiringLayer for StateKeeperLayer {
             .batch_executor
             .0
             .take()
-            .context("BatchExecutor was provided but taken by some other task")?;
+            .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
         let output_handler = input
             .output_handler
             .0
@@ -125,7 +125,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: BatchExecutor,
+    batch_executor_base: Box<dyn BatchExecutor>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,

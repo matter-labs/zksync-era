@@ -1,28 +1,26 @@
-use std::{error::Error as StdError, sync::Arc};
+use std::{error::Error as StdError, fmt, sync::Arc};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
-use zksync_multivm::interface::{FinishedL1Batch, Halt, L2BlockEnv, VmExecutionResultAndLogs};
-use zksync_state::StorageViewCache;
+use zksync_multivm::interface::{
+    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+};
+use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-pub use self::{
-    main_executor::{BatchExecutor, DynVmFactory},
-    traits::{BatchVm, BatchVmFactory, TraceCalls},
-};
 use crate::{
     metrics::{ExecutorCommand, EXECUTOR_METRICS},
     types::ExecutionMetricsForCriteria,
 };
 
-mod main_executor;
+pub mod main_executor;
 #[cfg(test)]
 mod tests;
-mod traits;
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
@@ -52,6 +50,20 @@ impl TxExecutionResult {
             Self::BootloaderOutOfGasForTx => Some(&Halt::BootloaderOutOfGas),
         }
     }
+}
+
+/// An abstraction that allows us to create different kinds of batch executors.
+/// The only requirement is to return a [`BatchExecutorHandle`], which does its work
+/// by communicating with the externally initialized thread.
+#[async_trait]
+pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
+    async fn init_batch(
+        &mut self,
+        storage_factory: Arc<dyn ReadStorageFactory>,
+        l1_batch_params: L1BatchEnv,
+        system_env: SystemEnv,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle>;
 }
 
 #[derive(Debug)]
@@ -98,6 +110,8 @@ pub struct BatchExecutorHandle {
 
 impl BatchExecutorHandle {
     /// Creates a batch executor handle from the provided sender and thread join handle.
+    /// Can be used to inject an alternative batch executor implementation.
+    #[doc(hidden)]
     pub(super) fn from_raw(
         handle: JoinHandle<anyhow::Result<()>>,
         commands: mpsc::Sender<Command>,

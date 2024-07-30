@@ -13,8 +13,8 @@ use zksync_node_test_utils::{
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_vm::{MockReadStorageFactory, TestBatchVmFactory},
-    BatchExecutor, OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
+    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
+    OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
     api,
@@ -121,19 +121,18 @@ impl StateKeeperHandles {
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let mut vm_factory = TestBatchVmFactory::default();
+        let mut batch_executor_base = TestBatchExecutorBuilder::default();
         for &tx_hashes_in_l1_batch in tx_hashes {
-            vm_factory.push_successful_transactions(tx_hashes_in_l1_batch);
+            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
         }
-        let batch_executor = BatchExecutor::new(false, false).with_vm_factory(Arc::new(vm_factory));
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            batch_executor,
+            Box::new(batch_executor_base),
             output_handler,
             Arc::new(NoopSealer),
-            Arc::<MockReadStorageFactory>::default(),
+            Arc::new(MockReadStorageFactory),
         );
 
         Self {

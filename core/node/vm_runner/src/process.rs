@@ -29,7 +29,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_processor: BatchExecutor,
+    batch_processor: Box<dyn BatchExecutor>,
 }
 
 impl VmRunner {
@@ -44,7 +44,7 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_processor: BatchExecutor,
+        batch_processor: Box<dyn BatchExecutor>,
     ) -> Self {
         Self {
             pool,

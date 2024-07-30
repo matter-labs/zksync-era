@@ -26,7 +26,7 @@ impl<T: StateKeeperIO> From<T> for StateKeeperIOResource {
 /// A resource that provides [`BatchExecutor`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.
 #[derive(Debug, Clone)]
-pub struct BatchExecutorResource(pub Unique<BatchExecutor>);
+pub struct BatchExecutorResource(pub Unique<Box<dyn BatchExecutor>>);
 
 impl Resource for BatchExecutorResource {
     fn name() -> String {
@@ -34,9 +34,9 @@ impl Resource for BatchExecutorResource {
     }
 }
 
-impl From<BatchExecutor> for BatchExecutorResource {
-    fn from(executor: BatchExecutor) -> Self {
-        Self(Unique::new(executor))
+impl<T: BatchExecutor> From<T> for BatchExecutorResource {
+    fn from(executor: T) -> Self {
+        Self(Unique::new(Box::new(executor)))
     }
 }
 

@@ -257,12 +257,6 @@ impl RocksdbStorageBuilder {
     ) -> anyhow::Result<()> {
         self.0.revert(storage, last_l1_batch_to_keep).await
     }
-
-    /// Returns the underlying storage without synchronizing it or checking that it's up-to-date.
-    /// Should not be used other than for tests.
-    pub fn build_unchecked(self) -> RocksdbStorage {
-        self.0
-    }
 }
 
 impl RocksdbStorage {
