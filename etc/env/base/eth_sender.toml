@@ -9,7 +9,7 @@
 # operator_blobs_eth_addr is defined in the `private.toml`
 
 # Amount of confirmations required to consider L1 transaction committed.
-wait_confirmations = 1
+wait_confirmations = 0
 # Amount of blocks we will wait before considering L1 transaction stuck.
 expected_wait_time_block = 30
 # Node polling period in seconds.
