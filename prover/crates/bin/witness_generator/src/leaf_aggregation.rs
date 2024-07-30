@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
+use tokio::sync::Semaphore;
 use tracing::Instrument;
 use zkevm_test_harness::{
     witness::recursive_aggregation::{
@@ -247,6 +248,7 @@ pub async fn prepare_leaf_aggregation_job(
 }
 
 const QUEUES_CHUNK_SIZE: usize = 10;
+const MAX_IN_FLIGHT_QUEUES_CHUNKS: usize = 10;
 
 pub async fn process_leaf_aggregation_job(
     started_at: Instant,
@@ -256,75 +258,105 @@ pub async fn process_leaf_aggregation_job(
     let circuit_id = job.circuit_id;
     let queues = split_recursion_queue(job.closed_form_inputs.1);
 
-    let mut aggregations = vec![];
-    for queue in queues.iter().cloned() {
-        aggregations.push((circuit_id as u64, queue));
-    }
-
-    let leaf_params = (circuit_id, job.leaf_params);
-
-    let mut circuit_ids_and_urls = vec![];
+    let aggregations = queues
+        .iter()
+        .cloned()
+        .map(|queue| (circuit_id as u64, queue))
+        .collect();
 
     let mut proof_ids_iter = job.proofs_ids.into_iter();
     let mut proofs_ids = vec![];
     for chunk in queues.chunks(QUEUES_CHUNK_SIZE) {
+        let mut proofs_ids_for_chunk = vec![];
         for queue in chunk.iter() {
             let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
                 .take(queue.num_items as usize)
                 .collect();
             assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
-            proofs_ids.push(proofs_ids_for_queue);
+            proofs_ids_for_chunk.push(proofs_ids_for_queue);
         }
+        proofs_ids.push(proofs_ids_for_chunk);
     }
 
-    for (chunk_idx, (queues, proofs_ids_for_queues)) in queues
+    let queues_chunks: Vec<_> = queues
         .chunks(QUEUES_CHUNK_SIZE)
-        .zip(proofs_ids.chunks(QUEUES_CHUNK_SIZE))
-        .enumerate()
+        .map(|chunk| {
+            let queues_for_chunk: Vec<_> = chunk.into_iter().cloned().collect();
+            queues_for_chunk
+        })
+        .collect();
+    drop(queues);
+
+    let semaphore = Semaphore::new(MAX_IN_FLIGHT_QUEUES_CHUNKS);
+
+    let mut handles = vec![];
+    for (chunk_idx, (queues, proofs_ids_for_queues)) in
+        queues_chunks.into_iter().zip(proofs_ids).enumerate()
     {
-        let mut proofs_for_queues = vec![];
-        for proofs_ids_for_queue in proofs_ids_for_queues {
-            let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
-            let base_proofs = proofs
+        let _permit = semaphore
+            .acquire()
+            .await
+            .expect("failed to get permit to process queues chunk");
+
+        let object_store = object_store.clone();
+        let base_vk = job.base_vk.clone();
+        let leaf_params = (circuit_id, job.leaf_params.clone());
+
+        let handle = tokio::task::spawn(async move {
+            let mut proofs_for_queues = vec![];
+            for proofs_ids_for_queue in proofs_ids_for_queues {
+                let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
+                let base_proofs = proofs
+                    .into_iter()
+                    .map(|wrapper| match wrapper {
+                        FriProofWrapper::Base(base_proof) => base_proof,
+                        FriProofWrapper::Recursive(_) => {
+                            panic!(
+                                "Expected only base proofs for leaf agg {} {}",
+                                job.circuit_id, job.block_number
+                            );
+                        }
+                    })
+                    .collect();
+                proofs_for_queues.push(base_proofs);
+            }
+
+            let recursive_circuits = queues
                 .into_iter()
-                .map(|wrapper| match wrapper {
-                    FriProofWrapper::Base(base_proof) => base_proof,
-                    FriProofWrapper::Recursive(_) => {
-                        panic!(
-                            "Expected only base proofs for leaf agg {} {}",
-                            job.circuit_id, job.block_number
-                        );
-                    }
+                .zip(proofs_for_queues)
+                .map(|(queue, proofs)| {
+                    let (_, circuit) = create_leaf_witness(
+                        circuit_id.into(),
+                        queue,
+                        proofs,
+                        &base_vk,
+                        &leaf_params,
+                    );
+
+                    circuit
                 })
                 .collect();
-            proofs_for_queues.push(base_proofs);
-        }
 
-        let mut recursive_circuits = vec![];
-        for (queue, proofs) in queues.into_iter().zip(proofs_for_queues) {
-            let (_, circuit) = create_leaf_witness(
-                circuit_id.into(),
-                queue.clone(),
-                proofs,
-                &job.base_vk,
-                &leaf_params,
-            );
+            let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
+                job.block_number,
+                chunk_idx * QUEUES_CHUNK_SIZE,
+                recursive_circuits,
+                AggregationRound::LeafAggregation,
+                0,
+                &*object_store,
+                None,
+            )
+            .await;
 
-            recursive_circuits.push(circuit);
-        }
+            new_circuit_ids_and_urls
+        });
 
-        let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
-            job.block_number,
-            chunk_idx * QUEUES_CHUNK_SIZE,
-            recursive_circuits,
-            AggregationRound::LeafAggregation,
-            0,
-            &*object_store,
-            None,
-        )
-        .await;
+        handles.push(handle);
+    }
 
-        circuit_ids_and_urls.extend(new_circuit_ids_and_urls);
+    let mut circuit_ids_and_urls = vec![];
+    for handle in handles {
+        circuit_ids_and_urls.extend(handle.await.unwrap());
     }
 
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
