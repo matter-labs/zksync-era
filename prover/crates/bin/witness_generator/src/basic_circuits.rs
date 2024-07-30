@@ -566,7 +566,7 @@ async fn generate_witness(
         .await
         .into_iter()
         .map(|result| result.expect("failed to save queue"))
-        .filter(|(circuit_id, _, _)| circuits_present.contains(&circuit_id))
+        .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
         .collect();
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
