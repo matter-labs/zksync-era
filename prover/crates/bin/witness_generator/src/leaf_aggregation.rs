@@ -315,10 +315,10 @@ pub async fn process_leaf_aggregation_job(
 
         let handle = tokio::task::spawn(async move {
             let _permit = semaphore
-            .acquire()
-            .await
-            .expect("failed to get permit to process queues chunk");
-        
+                .acquire()
+                .await
+                .expect("failed to get permit to process queues chunk");
+
             let mut proofs_for_queues = vec![];
             for proofs_ids_for_queue in proofs_ids_for_queues {
                 let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;

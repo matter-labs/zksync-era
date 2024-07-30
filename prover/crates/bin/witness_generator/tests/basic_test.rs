@@ -3,10 +3,15 @@ use std::time::Instant;
 use serde::Serialize;
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_types::{keys::{AggregationsKey, FriCircuitKey}, CircuitWrapper};
+use zksync_prover_fri_types::{
+    keys::{AggregationsKey, FriCircuitKey},
+    CircuitWrapper,
+};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::{LeafAggregationJobMetadata, NodeAggregationJobMetadata}, L1BatchNumber
+    basic_fri_types::AggregationRound,
+    prover_dal::{LeafAggregationJobMetadata, NodeAggregationJobMetadata},
+    L1BatchNumber,
 };
 use zksync_witness_generator::{
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
@@ -83,14 +88,14 @@ async fn test_leaf_witness_gen() {
         };
 
         let result = object_store
-        .get::<CircuitWrapper>(circuit_key.clone())
-        .await
-        .expect(&format!("result circuit missing: {}", idx));
+            .get::<CircuitWrapper>(circuit_key.clone())
+            .await
+            .expect(&format!("result circuit missing: {}", idx));
 
         let expected_result = expected_object_store
-        .get::<CircuitWrapper>(circuit_key)
-        .await
-        .expect(&format!("expected circuit missing: {}", idx));
+            .get::<CircuitWrapper>(circuit_key)
+            .await
+            .expect(&format!("expected circuit missing: {}", idx));
 
         compare_serialized(&expected_result, &result);
     }
@@ -163,9 +168,9 @@ async fn test_node_witness_gen() {
         };
 
         let expected_result = expected_object_store
-        .get::<CircuitWrapper>(circuit_key)
-        .await
-        .expect(&format!("expected circuit missing: {}", idx));
+            .get::<CircuitWrapper>(circuit_key)
+            .await
+            .expect(&format!("expected circuit missing: {}", idx));
 
         compare_serialized(&expected_result, &CircuitWrapper::Recursive(circuit));
     }
