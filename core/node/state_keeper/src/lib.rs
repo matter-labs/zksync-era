@@ -10,7 +10,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
-    batch_executor::{BatchExecutorHandle, DynVmFactory, MainBatchExecutor, TxExecutionResult},
+    batch_executor::{BatchExecutor, BatchExecutorHandle, DynVmFactory, TxExecutionResult},
     io::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
@@ -50,7 +50,7 @@ pub async fn create_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(state_keeper_config.save_call_traces, false);
+    let batch_executor_base = BatchExecutor::new(state_keeper_config.save_call_traces, false);
 
     let io = MempoolIO::new(
         mempool,

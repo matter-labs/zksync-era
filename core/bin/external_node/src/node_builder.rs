@@ -37,7 +37,7 @@ use zksync_node_framework::{
         reorg_detector::ReorgDetectorLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
-            external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
+            batch_executor::BatchExecutorLayer, external_io::ExternalIOLayer,
             output_handler::OutputHandlerLayer, StateKeeperLayer,
         },
         sync_state_updater::SyncStateUpdaterLayer,
@@ -201,7 +201,7 @@ impl ExternalNodeBuilder {
             .api_namespaces()
             .contains(&Namespace::Debug);
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+            BatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: self

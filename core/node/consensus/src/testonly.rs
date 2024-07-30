@@ -34,11 +34,10 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchVm,
+        fund, l1_transaction, l2_transaction, test_batch_vm::MockReadStorageFactory, MockBatchVm,
     },
-    AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
-    TreeWritesPersistence, ZkSyncStateKeeper,
+    AsyncRocksdbCache, BatchExecutor, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
+    ZkSyncStateKeeper,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -547,7 +546,7 @@ impl StateKeeperRunner {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        MainBatchExecutor::new(false, false),
+                        BatchExecutor::new(false, false),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
@@ -628,7 +627,7 @@ impl StateKeeperRunner {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        MainBatchExecutor::new(false, false)
+                        BatchExecutor::new(false, false)
                             .with_vm_factory(Arc::<MockBatchVm>::default()),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(tree_writes_persistence))

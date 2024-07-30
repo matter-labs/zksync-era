@@ -5,7 +5,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::L2BlockEnv;
 use zksync_state_keeper::{
-    BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams, MainBatchExecutor,
+    BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
     StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
@@ -29,7 +29,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_processor: MainBatchExecutor,
+    batch_processor: BatchExecutor,
 }
 
 impl VmRunner {
@@ -44,7 +44,7 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_processor: MainBatchExecutor,
+        batch_processor: BatchExecutor,
     ) -> Self {
         Self {
             pool,

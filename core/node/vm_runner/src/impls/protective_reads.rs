@@ -4,7 +4,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
 
 use crate::{
@@ -37,7 +37,7 @@ impl ProtectiveReadsWriter {
         let output_handler_factory = ProtectiveReadsOutputHandlerFactory { pool: pool.clone() };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutor::new(false, false);
+        let batch_processor = BatchExecutor::new(false, false);
         let vm_runner = VmRunner::new(
             pool,
             Box::new(io),

@@ -38,18 +38,18 @@ impl<S: ReadStorage> VmTrackingSnapshots<S> {
 }
 
 impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
-    fn inspect_transaction(
+    fn execute_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult {
         self.assert_not_too_many_snapshots();
-        let output = self.inner.inspect_transaction(tx, trace_calls);
+        let output = self.inner.execute_transaction(tx, trace_calls);
         self.assert_not_too_many_snapshots();
         output
     }
 
-    fn inspect_transaction_with_optional_compression(
+    fn execute_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -57,7 +57,7 @@ impl<S: ReadStorage> BatchVm for VmTrackingSnapshots<S> {
         self.assert_not_too_many_snapshots();
         let output = self
             .inner
-            .inspect_transaction_with_optional_compression(tx, trace_calls);
+            .execute_transaction_with_optional_compression(tx, trace_calls);
         self.assert_not_too_many_snapshots();
         output
     }

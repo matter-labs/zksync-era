@@ -37,7 +37,7 @@ use crate::{
     },
     testonly::{
         successful_exec,
-        test_batch_executor::{
+        test_batch_vm::{
             random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_metrics,
             MockReadStorageFactory, TestBatchVmFactory, TestIO, TestScenario, FEE_ACCOUNT,
         },
@@ -46,7 +46,7 @@ use crate::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::l1_batch_base_cost,
-    MainBatchExecutor, ZkSyncStateKeeper,
+    BatchExecutor, ZkSyncStateKeeper,
 };
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of L2 blocks.
@@ -425,7 +425,7 @@ async fn pending_batch_is_applied() {
 async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
-    let batch_executor = MainBatchExecutor::new(false, false)
+    let batch_executor = BatchExecutor::new(false, false)
         .with_vm_factory(Arc::new(TestBatchVmFactory::new(&scenario)));
     let (stop_sender, stop_receiver) = watch::channel(false);
 

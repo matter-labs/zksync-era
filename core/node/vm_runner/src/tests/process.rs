@@ -4,7 +4,7 @@ use tempfile::TempDir;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state_keeper::MainBatchExecutor;
+use zksync_state_keeper::BatchExecutor;
 use zksync_test_account::Account;
 use zksync_types::L2ChainId;
 
@@ -65,7 +65,7 @@ async fn process_one_batch() -> anyhow::Result<()> {
     tokio::task::spawn(async move { task.run(output_stop_receiver).await.unwrap() });
 
     let storage = Arc::new(storage);
-    let batch_executor = MainBatchExecutor::new(false, false);
+    let batch_executor = BatchExecutor::new(false, false);
     let vm_runner = VmRunner::new(
         connection_pool,
         Box::new(io.clone()),

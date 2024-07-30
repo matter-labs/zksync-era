@@ -1,7 +1,7 @@
 // TODO(QIT-33): Some of the interfaces are public, and some are only used in tests within this crate.
 // This causes crate-local interfaces to spawn a warning without `cfg(test)`. The interfaces here must
 // be revisited and properly split into "truly public" (e.g. useful for other crates to test, say, different
-// IO or `BatchExecutor` implementations) and "local-test-only" (e.g. used only in tests within this crate).
+// IO implementations) and "local-test-only" (e.g. used only in tests within this crate).
 #![allow(dead_code)]
 
 use std::{
@@ -38,7 +38,7 @@ use crate::{
     testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    MainBatchExecutor, OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
+    BatchExecutor, OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -201,7 +201,7 @@ impl TestScenario {
     pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
-        let batch_executor = MainBatchExecutor::new(false, false)
+        let batch_executor = BatchExecutor::new(false, false)
             .with_vm_factory(Arc::new(TestBatchVmFactory::new(&self)));
 
         let (stop_sender, stop_receiver) = watch::channel(false);
@@ -428,15 +428,16 @@ impl<S: ReadStorage> BatchVmFactory<S> for TestBatchVmFactory {
     where
         S: 'a,
     {
-        Box::new(TestBatchExecutor::new(
-            self.txs.lock().unwrap().pop_front().unwrap(),
-            self.rollback_set.clone(),
-        ))
+        Box::new(TestBatchVm {
+            txs: self.txs.lock().unwrap().pop_front().unwrap(),
+            rollback_set: self.rollback_set.clone(),
+            last_tx: H256::default(), // We don't expect rollbacks until the first tx is executed.
+        })
     }
 }
 
 #[derive(Debug)]
-pub(super) struct TestBatchExecutor {
+struct TestBatchVm {
     /// Mapping tx -> response.
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
     txs: HashMap<H256, VecDeque<TxExecutionResult>>,
@@ -446,8 +447,8 @@ pub(super) struct TestBatchExecutor {
     last_tx: H256,
 }
 
-impl BatchVm for TestBatchExecutor {
-    fn inspect_transaction(
+impl BatchVm for TestBatchVm {
+    fn execute_transaction(
         &mut self,
         tx: Transaction,
         _trace_calls: TraceCalls,
@@ -464,12 +465,12 @@ impl BatchVm for TestBatchExecutor {
         result
     }
 
-    fn inspect_transaction_with_optional_compression(
+    fn execute_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult {
-        self.inspect_transaction(tx, trace_calls)
+        self.execute_transaction(tx, trace_calls)
     }
 
     fn rollback_last_transaction(&mut self) {
@@ -493,19 +494,6 @@ impl BatchVm for TestBatchExecutor {
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
         default_vm_batch_result()
-    }
-}
-
-impl TestBatchExecutor {
-    pub(super) fn new(
-        txs: HashMap<H256, VecDeque<TxExecutionResult>>,
-        rollback_set: HashSet<H256>,
-    ) -> Self {
-        Self {
-            txs,
-            rollback_set,
-            last_tx: H256::default(), // We don't expect rollbacks until the first tx is executed.
-        }
     }
 }
 

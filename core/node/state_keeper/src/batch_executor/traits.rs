@@ -18,9 +18,12 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{ExecutionMetricsForCriteria, TxExecutionResult};
 
+/// Tracing configuration for transaction-related [`BatchVm`] methods.
 #[derive(Debug, Clone, Copy)]
 pub enum TraceCalls {
+    /// Trace calls during transaction execution.
     Trace,
+    /// Do not trace calls during transaction execution.
     Skip,
 }
 
@@ -33,7 +36,7 @@ pub enum TraceCalls {
 pub trait BatchVm {
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
-    fn inspect_transaction(
+    fn execute_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -41,16 +44,19 @@ pub trait BatchVm {
 
     /// Attempts to execute transaction with or without bytecode compression.
     /// If compression fails, the transaction will be re-executed without compression.
-    fn inspect_transaction_with_optional_compression(
+    fn execute_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult;
 
+    /// Rolls back the VM state to before the last transaction was executed.
     fn rollback_last_transaction(&mut self);
 
+    /// Starts a new L2 block with the provided parameters.
     fn start_new_l2_block(&mut self, l2_block: L2BlockEnv);
 
+    /// Finishes executing an L1 batch. This is guaranteed to be called exactly once at the end of the VM lifecycle.
     fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
@@ -141,7 +147,7 @@ fn inspect_transaction<S: ReadStorage>(
 }
 
 impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
-    fn inspect_transaction(
+    fn execute_transaction(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -157,7 +163,7 @@ impl<S: ReadStorage> BatchVm for VmInstance<S, HistoryEnabled> {
             .into_tx_result(&tx)
     }
 
-    fn inspect_transaction_with_optional_compression(
+    fn execute_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
@@ -217,8 +223,11 @@ pub trait BatchVmFactory<S>: fmt::Debug + Send + Sync {
         S: 'a;
 }
 
-/// Default VM factory creating `VmInstance`s.
-impl<S: ReadStorage> BatchVmFactory<S> for () {
+/// Default VM factory implementation used in the batch executor unless it's overridden.
+#[derive(Debug)]
+pub(super) struct DefaultBatchVmFactory;
+
+impl<S: ReadStorage> BatchVmFactory<S> for DefaultBatchVmFactory {
     fn create_vm<'a>(
         &self,
         l1_batch_params: L1BatchEnv,

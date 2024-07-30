@@ -38,7 +38,7 @@ use crate::{
     testonly,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{default_l1_batch_env, default_system_env},
-    AsyncRocksdbCache, MainBatchExecutor,
+    AsyncRocksdbCache, BatchExecutor,
 };
 
 /// Representation of configuration parameters used by the state keeper.
@@ -152,7 +152,7 @@ impl Tester {
         ));
         let (_stop_sender, stop_receiver) = watch::channel(false);
 
-        MainBatchExecutor::new(self.config.save_call_traces, false)
+        BatchExecutor::new(self.config.save_call_traces, false)
             .with_vm_factory(vm_factory)
             .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)
             .await
@@ -165,7 +165,7 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
+        let mut batch_executor = BatchExecutor::new(self.config.save_call_traces, false);
         let (_stop_sender, stop_receiver) = watch::channel(false);
         batch_executor
             .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)

@@ -13,9 +13,8 @@ use zksync_node_test_utils::{
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchVmFactory},
-    MainBatchExecutor, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
-    ZkSyncStateKeeper,
+    testonly::test_batch_vm::{MockReadStorageFactory, TestBatchVmFactory},
+    BatchExecutor, OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
     api,
@@ -126,8 +125,7 @@ impl StateKeeperHandles {
         for &tx_hashes_in_l1_batch in tx_hashes {
             vm_factory.push_successful_transactions(tx_hashes_in_l1_batch);
         }
-        let batch_executor =
-            MainBatchExecutor::new(false, false).with_vm_factory(Arc::new(vm_factory));
+        let batch_executor = BatchExecutor::new(false, false).with_vm_factory(Arc::new(vm_factory));
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,

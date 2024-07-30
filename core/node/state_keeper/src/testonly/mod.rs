@@ -24,7 +24,7 @@ use crate::{
     ExecutionMetricsForCriteria, TxExecutionResult,
 };
 
-pub mod test_batch_executor;
+pub mod test_batch_vm;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -76,7 +76,7 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
 pub struct MockBatchVm;
 
 impl BatchVm for MockBatchVm {
-    fn inspect_transaction(
+    fn execute_transaction(
         &mut self,
         _tx: Transaction,
         _trace_calls: TraceCalls,
@@ -84,12 +84,12 @@ impl BatchVm for MockBatchVm {
         successful_exec()
     }
 
-    fn inspect_transaction_with_optional_compression(
+    fn execute_transaction_with_optional_compression(
         &mut self,
         tx: Transaction,
         trace_calls: TraceCalls,
     ) -> TxExecutionResult {
-        self.inspect_transaction(tx, trace_calls)
+        self.execute_transaction(tx, trace_calls)
     }
 
     fn rollback_last_transaction(&mut self) {

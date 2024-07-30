@@ -11,7 +11,7 @@ use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub use self::{
-    main_executor::{DynVmFactory, MainBatchExecutor},
+    main_executor::{BatchExecutor, DynVmFactory},
     traits::{BatchVm, BatchVmFactory, TraceCalls},
 };
 use crate::{
@@ -98,8 +98,6 @@ pub struct BatchExecutorHandle {
 
 impl BatchExecutorHandle {
     /// Creates a batch executor handle from the provided sender and thread join handle.
-    /// Can be used to inject an alternative batch executor implementation.
-    #[doc(hidden)]
     pub(super) fn from_raw(
         handle: JoinHandle<anyhow::Result<()>>,
         commands: mpsc::Sender<Command>,

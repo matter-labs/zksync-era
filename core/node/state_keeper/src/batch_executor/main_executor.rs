@@ -15,16 +15,16 @@ use super::{
     BatchExecutorHandle, Command, TxExecutionResult,
 };
 use crate::{
-    batch_executor::traits::BatchVmFactory,
+    batch_executor::traits::{BatchVmFactory, DefaultBatchVmFactory},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
 
-/// Concrete trait object for the [`BatchVmFactory`] used in [`MainBatchExecutor`].
+/// Concrete trait object for the [`BatchVmFactory`] used in [`BatchExecutor`].
 pub type DynVmFactory = dyn for<'a> BatchVmFactory<PgOrRocksdbStorage<'a>>;
 
 /// Batch executor which maintains the VM for the duration of a single L1 batch.
 #[derive(Debug)]
-pub struct MainBatchExecutor {
+pub struct BatchExecutor {
     vm_factory: Arc<DynVmFactory>,
     trace_calls: TraceCalls,
     /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
@@ -36,10 +36,11 @@ pub struct MainBatchExecutor {
     optional_bytecode_compression: bool,
 }
 
-impl MainBatchExecutor {
+impl BatchExecutor {
+    /// Creates an executor with the specified parameters.
     pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
         Self {
-            vm_factory: Arc::new(()),
+            vm_factory: Arc::new(DefaultBatchVmFactory),
             trace_calls: if save_call_traces {
                 TraceCalls::Trace
             } else {
@@ -91,8 +92,8 @@ impl MainBatchExecutor {
     }
 }
 
-/// Implementation of the "primary" (non-test) batch executor.
-/// Upon launch, it initializes the VM object with provided block context and properties, and keeps invoking the commands
+/// Command processor for `BatchExecutor`.
+/// Upon launch, it initializes the VM object with provided L1 batch context and properties, and keeps invoking the commands
 /// sent to it one by one until the batch is finished.
 ///
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
@@ -167,9 +168,9 @@ impl CommandReceiver {
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();
         let vm_output = if self.optional_bytecode_compression {
-            vm.inspect_transaction_with_optional_compression(tx.clone(), self.trace_calls)
+            vm.execute_transaction_with_optional_compression(tx.clone(), self.trace_calls)
         } else {
-            vm.inspect_transaction(tx.clone(), self.trace_calls)
+            vm.execute_transaction(tx.clone(), self.trace_calls)
         };
         latency.observe();
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();

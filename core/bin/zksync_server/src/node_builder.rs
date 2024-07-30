@@ -48,7 +48,7 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
-            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
+            batch_executor::BatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
@@ -232,7 +232,7 @@ impl MainNodeBuilder {
         );
         let db_config = try_load_config!(self.configs.db_config);
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+            BatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
