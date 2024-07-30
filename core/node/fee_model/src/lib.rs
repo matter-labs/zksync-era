@@ -241,8 +241,26 @@ fn clip_batch_fee_model_input_v2(
     const MAXIMUM_PUBDATA_PRICE: u64 = 1_000_000_000_000_000;
     PubdataIndependentBatchFeeModelInput {
         l1_gas_price: fee_model.l1_gas_price,
-        fair_l2_gas_price: min(fee_model.fair_l2_gas_price, MAXIMUM_L2_GAS_PRICE),
-        fair_pubdata_price: min(fee_model.fair_pubdata_price, MAXIMUM_PUBDATA_PRICE),
+        fair_l2_gas_price: if fee_model.fair_l2_gas_price < MAXIMUM_L2_GAS_PRICE {
+            fee_model.fair_l2_gas_price
+        } else {
+            tracing::warn!(
+                "Fair l2 gas price {} exceeds maximum. Limitting to {}",
+                fee_model.fair_l2_gas_price,
+                MAXIMUM_L2_GAS_PRICE
+            );
+            MAXIMUM_L2_GAS_PRICE
+        },
+        fair_pubdata_price: if fee_model.fair_pubdata_price < MAXIMUM_PUBDATA_PRICE {
+            fee_model.fair_pubdata_price
+        } else {
+            tracing::warn!(
+                "Fair pubdata price {} exceeds maximum. Limitting to {}",
+                fee_model.fair_pubdata_price,
+                MAXIMUM_PUBDATA_PRICE
+            );
+            MAXIMUM_PUBDATA_PRICE
+        },
     }
 }
 
