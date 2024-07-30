@@ -9,7 +9,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams, VersionPatch},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VersionPatch},
     ProtocolVersionId, H256,
 };
 
@@ -71,35 +71,15 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_patches (
-                    minor,
-                    patch,
-                    recursion_scheduler_level_vk_hash,
-                    recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash,
-                    created_at
-                )
+                protocol_patches (minor, patch, recursion_scheduler_level_vk_hash, created_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, NOW())
+                ($1, $2, $3, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             version.patch.0 as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_circuits_set_vks_hash
                 .as_bytes(),
         )
         .instrument("save_protocol_version#patch")
@@ -255,10 +235,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
                 protocol_patches.patch,
-                protocol_patches.recursion_scheduler_level_vk_hash,
-                protocol_patches.recursion_node_level_vk_hash,
-                protocol_patches.recursion_leaf_level_vk_hash,
-                protocol_patches.recursion_circuits_set_vks_hash
+                protocol_patches.recursion_scheduler_level_vk_hash
             FROM
                 protocol_versions
                 JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
@@ -291,10 +268,7 @@ impl ProtocolVersionsDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash,
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash
+                recursion_scheduler_level_vk_hash
             FROM
                 protocol_patches
             WHERE
@@ -308,13 +282,6 @@ impl ProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()?;
         Some(L1VerifierConfig {
-            params: VerifierParams {
-                recursion_node_level_vk_hash: H256::from_slice(&row.recursion_node_level_vk_hash),
-                recursion_leaf_level_vk_hash: H256::from_slice(&row.recursion_leaf_level_vk_hash),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &row.recursion_circuits_set_vks_hash,
-                ),
-            },
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &row.recursion_scheduler_level_vk_hash,
             ),
