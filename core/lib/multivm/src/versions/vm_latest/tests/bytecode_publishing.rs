@@ -6,7 +6,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{initialize_message_root_storage, read_test_contract},
+            utils::read_test_contract,
         },
         HistoryEnabled,
     },
@@ -21,8 +21,6 @@ fn test_bytecode_publishing() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();
-
-    initialize_message_root_storage(vm.storage);
 
     let counter = read_test_contract();
     let account = &mut vm.rich_accounts[0];

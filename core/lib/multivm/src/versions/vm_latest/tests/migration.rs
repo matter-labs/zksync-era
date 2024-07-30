@@ -5,7 +5,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{initialize_message_root_storage, read_test_contract},
+            utils::read_test_contract,
         },
         HistoryEnabled,
     },
@@ -26,8 +26,6 @@ fn test_migration_for_system_context_aa_interaction() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();
-
-    initialize_message_root_storage(vm.storage);
 
     // Now, we will just proceed with standard transaction execution.
     // The bootloader should be able to update system context regardless of whether

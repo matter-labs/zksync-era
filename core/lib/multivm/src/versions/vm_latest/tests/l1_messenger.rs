@@ -9,7 +9,7 @@ use crate::{
         constants::ZK_SYNC_BYTES_PER_BLOB,
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{initialize_message_root_storage, read_test_contract},
+            utils::read_test_contract,
         },
         types::internals::{
             pubdata::{PubdataBuilder, RollupPubdataBuilder},
@@ -76,8 +76,6 @@ fn test_publish_and_clear_state() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();
-
-    initialize_message_root_storage(vm.storage);
 
     let account = &mut vm.rich_accounts[0];
 

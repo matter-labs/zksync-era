@@ -549,7 +549,7 @@ impl EthTxManager {
             let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
-            if last_known_l1_block < l1_block_numbers.latest {
+            if last_known_l1_block <= l1_block_numbers.latest {
                 self.loop_iteration(&mut storage, l1_block_numbers).await;
                 last_known_l1_block = l1_block_numbers.latest;
             }

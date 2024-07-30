@@ -24,7 +24,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
         console.log('Starting server');
         const child = utils.background({
             command: `cargo run --bin zksync_server --release ${options}`,
-            stdio: [null, null, null]
+            stdio: [null, 'inherit', 'inherit']
         });
 
         const promise = new Promise((resolve, reject) => {

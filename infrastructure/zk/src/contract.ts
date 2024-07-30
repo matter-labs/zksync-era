@@ -156,7 +156,7 @@ async function updateConfigOnSyncLayer() {
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
     env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
 
-    console.log('c');
+    env.modify('ETH_SENDER_SENDER_WAIT_CONFIRMATIONS', '0', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(

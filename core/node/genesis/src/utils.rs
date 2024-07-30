@@ -11,7 +11,7 @@ use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     commitment::L1BatchCommitment,
-    get_code_key, get_known_code_key, get_system_context_init_logs,
+    get_code_key, get_known_code_key, get_system_contracts_init_logs,
     tokens::{TokenInfo, TokenMetadata},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
@@ -44,7 +44,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
     let system_context_init_logs =
         // During the genesis all chains have the same id.
         // TODO(EVM-579): make sure that the logic is compatible with Era.
-        get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID))
+        get_system_contracts_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID))
     ;
 
     let known_code_storage_logs: Vec<_> = system_contracts

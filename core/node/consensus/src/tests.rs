@@ -731,6 +731,12 @@ async fn test_batch_witness(version: ProtocolVersionId) {
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 
+    // FIXME: it is a hack until we have proper integration of the L2 DA handlers.
+    std::env::set_var(
+        "CONTRACTS_L2_DA_VALIDATOR_ADDR",
+        "0x0000000000000000000000000000000000000000",
+    );
+
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::from_genesis(version).await;
         let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
