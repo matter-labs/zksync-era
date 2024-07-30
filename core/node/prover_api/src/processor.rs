@@ -1,16 +1,16 @@
-use crate::error::ProcessorError;
-use axum::Json;
 use std::sync::Arc;
-use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_basic_types::L1BatchNumber;
-use zksync_config::configs::prover_api::ProverApiConfig;
-use zksync_config::configs::ProofDataHandlerConfig;
+
+use axum::Json;
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
+use zksync_config::configs::{prover_api::ProverApiConfig, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::proof_generation_data_for_existing_batch_impl;
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
 };
+
+use crate::error::ProcessorError;
 
 pub(crate) struct Processor {
     blob_store: Arc<dyn ObjectStore>,

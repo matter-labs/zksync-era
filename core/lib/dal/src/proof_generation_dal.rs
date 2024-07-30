@@ -112,9 +112,7 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.meta_parameters_hash IS NOT NULL
                             AND status = 'unpicked'
                         )
-                        OR (
-                            status = 'picked_by_prover'
-                        )
+                        OR (status = 'picked_by_prover')
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT

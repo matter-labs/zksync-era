@@ -1,6 +1,5 @@
 use std::{net::SocketAddr, sync::Arc};
 
-pub use crate::request_processor::proof_generation_data_for_existing_batch_impl;
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use request_processor::RequestProcessor;
@@ -14,6 +13,8 @@ use zksync_prover_interface::api::{
     SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
+
+pub use crate::request_processor::proof_generation_data_for_existing_batch_impl;
 
 #[cfg(test)]
 mod tests;

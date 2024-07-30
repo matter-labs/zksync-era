@@ -1,8 +1,8 @@
 mod error;
 mod processor;
 
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
+
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
