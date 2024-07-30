@@ -44,6 +44,14 @@ impl EnNamespace {
             .state
             .acquire_connection()
             .await?
+            // unwrap is ok, because we start outermost transaction.
+            .transaction_builder()
+            .unwrap()
+            // run readonly transaction to perform consistent reads.
+            .set_readonly()
+            .build()
+            .await
+            .context("TransactionBuilder::build()")?
             .consensus_dal()
             .attestation_status()
             .await?;
