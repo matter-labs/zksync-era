@@ -177,6 +177,7 @@ prover:
   availability_check_interval_in_secs: 10000
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
+  cloud_type: LOCAL
 witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10

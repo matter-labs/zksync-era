@@ -148,6 +148,8 @@ You can specify the prover component to run by providing `--component <component
 If you are running `witness-generator` you can specify the round by providing `--round <round>` argument. Possible
 rounds are: `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`
 
+For `witness-vector-generator`, specify the number of WVG jobs with `--threads <threads>`.
+
 ### Contract verifier
 
 Running the contract verifier:
