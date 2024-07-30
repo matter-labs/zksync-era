@@ -251,7 +251,13 @@ pub async fn prepare_leaf_aggregation_job(
     })
 }
 
+// The number of recursive circuits processed in one chunk.
+// Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
+// So one chunk of recursive circuits with QUEUES_CHUNK_SIZE == 10 should use ~320 MB of RAM + some overhead during serialization.
 const QUEUES_CHUNK_SIZE: usize = 10;
+// The number of chunks to be processed in parallel.
+// Allows us to easily adjust the balance between processing speed and memory usage.
+// See the comment on QUEUES_CHUNK_SIZE to estimate memory usage.
 const MAX_IN_FLIGHT_QUEUES_CHUNKS: usize = 10;
 
 #[tracing::instrument(
