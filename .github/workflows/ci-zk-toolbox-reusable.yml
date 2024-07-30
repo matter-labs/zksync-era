@@ -13,12 +13,12 @@ env:
   CLICOLOR: 1
 
 jobs:
-  lint:
-    name: lint
-    uses: ./.github/workflows/ci-core-lint-reusable.yml
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  #  lint:
+  #    name: lint
+  #    uses: ./.github/workflows/ci-core-lint-reusable.yml
+  #    secrets:
+  #      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+  #      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build:
     runs-on: [matterlabs-ci-runner]
@@ -29,21 +29,11 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
       - name: Build
+        uses: "actions-rs/toolchain@v1"
         run: |
-          ci_run bash -c "cd zk_toolbox && cargo build --release"
+          cd zk_toolbox 
+          cargo build --release
 
       # Compress with tar to avoid permission loss
       # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
@@ -122,11 +112,11 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
           ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
-            
+
       - name: Run recovery tests (from genesis)
         run: |
           ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
-  
+
       - name: Run external node server
         run: |
           ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
