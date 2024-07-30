@@ -43,6 +43,7 @@ describe('Upgrade test', function () {
     let logs: fs.WriteStream;
 
     let ethProviderAddress: string | undefined;
+    let web3JsonRpc: string | undefined;
     let contractsL2DefaultUpgradeAddr: string;
     let deployerAddress: string;
     let complexUpgraderAddress: string;
@@ -53,20 +54,23 @@ describe('Upgrade test', function () {
         complexUpgraderAddress = '0x000000000000000000000000000000000000800f';
 
         if (fileConfig.loadFromFile) {
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
 
             ethProviderAddress = secretsConfig.l1.l1_rpc_url;
+            web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
             contractsL2DefaultUpgradeAddr = contractsConfig.l2.default_l2_upgrader;
             process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR = contractsConfig.l1.default_upgrade_addr;
             process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = '72000000';
         } else {
             ethProviderAddress = process.env.L1_RPC_ADDRESS || process.env.ETH_CLIENT_WEB3_URL;
+            web3JsonRpc = process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL;
             contractsL2DefaultUpgradeAddr = process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR!;
         }
 
         const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-        tester = await Tester.init(network, ethProviderAddress);
+        tester = await Tester.init(network, ethProviderAddress!, web3JsonRpc!);
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
