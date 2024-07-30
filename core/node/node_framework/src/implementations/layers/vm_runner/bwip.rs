@@ -2,8 +2,8 @@ use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
 use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    BasicWitnessInputProducer, BasicWitnessInputProducerIo, ConcurrentOutputHandlerFactoryTask,
-    StorageSyncTask,
+    impls::{BasicWitnessInputProducer, BasicWitnessInputProducerIo},
+    ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
 
 use crate::{

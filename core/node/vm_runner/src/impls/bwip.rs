@@ -75,8 +75,7 @@ impl BasicWitnessInputProducer {
     }
 }
 
-/// A collections of tasks that need to be run in order for BWIP to work as
-/// intended.
+/// Collection of tasks that need to be run in order for BWIP to work as intended.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerTasks {
     /// Task that synchronizes storage with new available batches.
