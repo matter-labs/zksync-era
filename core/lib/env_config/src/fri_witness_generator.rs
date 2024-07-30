@@ -27,6 +27,7 @@ mod tests {
             last_l1_batch_to_process: None,
             shall_save_to_public_bucket: true,
             prometheus_listener_port: Some(3333u16),
+            max_circuits_in_flight: 500,
         }
     }
 
@@ -43,6 +44,7 @@ mod tests {
             FRI_WITNESS_MAX_ATTEMPTS=4
             FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
             FRI_WITNESS_PROMETHEUS_LISTENER_PORT=3333
+            FRI_WITNESS_MAX_CIRCUITS_IN_FLIGHT=500
         "#;
         lock.set_env(config);
 
