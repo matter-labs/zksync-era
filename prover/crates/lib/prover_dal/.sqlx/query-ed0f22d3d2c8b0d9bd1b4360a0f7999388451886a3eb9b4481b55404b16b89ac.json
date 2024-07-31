@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash\n            FROM\n                prover_fri_protocol_versions\n            ORDER BY\n                id DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recursion_scheduler_level_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ed0f22d3d2c8b0d9bd1b4360a0f7999388451886a3eb9b4481b55404b16b89ac"
+}
