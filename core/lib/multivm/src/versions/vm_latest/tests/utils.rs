@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -7,8 +5,7 @@ use zksync_contracts::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256,
-    L2_MESSAGE_ROOT_ADDRESS, U256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
