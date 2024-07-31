@@ -11,14 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { Overrides } from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import {
-    EIP712_TX_TYPE,
-    ETH_ADDRESS,
-    ETH_ADDRESS_IN_CONTRACTS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
-} from 'zksync-ethers/build/utils';
 import { sleep } from 'utils';
 import { ethers } from 'ethers';
 
