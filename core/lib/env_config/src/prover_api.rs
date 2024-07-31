@@ -16,17 +16,13 @@ mod tests {
     static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ProverApiConfig {
-        ProverApiConfig {
-            http_port: 3320,
-            last_available_batch: 100,
-        }
+        ProverApiConfig { http_port: 3320 }
     }
 
     #[test]
     fn from_env() {
         let config = r#"
             PROVER_API_HTTP_PORT="3320"
-            PROVER_API_LAST_AVAILABLE_BATCH=100
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

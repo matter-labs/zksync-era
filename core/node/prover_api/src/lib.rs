@@ -6,7 +6,7 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_config::configs::prover_api::ProverApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
@@ -23,7 +23,7 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting external prover API server on {bind_address}");
-    let app = create_router(blob_store, connection_pool, commitment_mode, config).await;
+    let app = create_router(blob_store, connection_pool, commitment_mode).await;
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -45,14 +45,9 @@ async fn create_router(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
-    config: ProverApiConfig,
 ) -> Router {
-    let mut processor = Processor::new(
-        blob_store.clone(),
-        connection_pool.clone(),
-        commitment_mode,
-        L1BatchNumber(config.last_available_batch),
-    );
+    let mut processor =
+        Processor::new(blob_store.clone(), connection_pool.clone(), commitment_mode);
     let verify_proof_processor = processor.clone();
     Router::new()
         .route(

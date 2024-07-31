@@ -88,46 +88,32 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn get_available_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
+    pub async fn get_available_batch(&mut self) -> DalResult<L1BatchNumber> {
+        let result = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
-            SET
-                status = 'picked_by_prover',
-                updated_at = NOW(),
-                prover_taken_at = NOW()
+            SELECT
+                l1_batch_number
+            FROM
+                proof_generation_details
+                LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
             WHERE
-                l1_batch_number = (
-                    SELECT
-                        l1_batch_number
-                    FROM
-                        proof_generation_details
-                        LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
-                    WHERE
-                        (
-                            vm_run_data_blob_url IS NOT NULL
-                            AND proof_gen_data_blob_url IS NOT NULL
-                            AND l1_batches.hash IS NOT NULL
-                            AND l1_batches.aux_data_hash IS NOT NULL
-                            AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
-                        )
-                        OR (status = 'picked_by_prover')
-                    ORDER BY
-                        l1_batch_number ASC
-                    LIMIT
-                        1
-                )
-            RETURNING
-                proof_generation_details.l1_batch_number
+                vm_run_data_blob_url IS NOT NULL
+                AND proof_gen_data_blob_url IS NOT NULL
+                AND l1_batches.hash IS NOT NULL
+                AND l1_batches.aux_data_hash IS NOT NULL
+                AND l1_batches.meta_parameters_hash IS NOT NULL
+            ORDER BY
+                l1_batch_number ASC
+            LIMIT
+                1
             "#,
         )
         .instrument("get_available batch")
-        .fetch_optional(self.storage)
+        .fetch_one(self.storage)
         .await?
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        .l1_batch_number as u32;
 
-        Ok(result)
+        Ok(L1BatchNumber(result))
     }
 
     /// Marks a previously locked batch as 'unpicked', allowing it to be picked without having

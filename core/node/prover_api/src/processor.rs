@@ -24,8 +24,6 @@ pub(crate) struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
-    last_available_batch_number: L1BatchNumber,
-    last_available_batch_data: Option<Box<ProofGenerationData>>,
 }
 
 impl Processor {
@@ -33,14 +31,11 @@ impl Processor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
-        last_available_batch_number: L1BatchNumber,
     ) -> Self {
         Self {
             blob_store,
             pool,
             commitment_mode,
-            last_available_batch_number,
-            last_available_batch_data: None,
         }
     }
 
@@ -58,29 +53,16 @@ impl Processor {
             .unwrap()
             .proof_generation_dal()
             .get_available_batch()
-            .await?
-            .unwrap_or(self.last_available_batch_number);
-
-        if let Some(data) = &self.last_available_batch_data {
-            if data.l1_batch_number == l1_batch_number {
-                return Ok(Json(ProofGenerationDataResponse::Success(Some(
-                    data.clone(),
-                ))));
-            }
-        }
+            .await?;
 
         let proof_generation_data = self
             .proof_generation_data_for_existing_batch(l1_batch_number)
             .await;
 
         match proof_generation_data {
-            Ok(data) => {
-                self.last_available_batch_number = l1_batch_number;
-                self.last_available_batch_data = Some(Box::new(data.clone()));
-                Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-                    data,
-                )))))
-            }
+            Ok(data) => Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
+                data,
+            ))))),
             Err(err) => Err(err),
         }
     }

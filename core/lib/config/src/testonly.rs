@@ -996,7 +996,6 @@ impl Distribution<configs::prover_api::ProverApiConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::prover_api::ProverApiConfig {
         configs::prover_api::ProverApiConfig {
             http_port: self.sample(rng),
-            last_available_batch: self.sample(rng),
         }
     }
 }
