@@ -9,15 +9,16 @@ use config::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, EcosystemConfig,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
 
 use crate::{
-    config_manipulations::update_paymaster,
-    forge_utils::{check_the_balance, fill_forge_private_key},
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
+    messages::{
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED,
+    },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -26,12 +27,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    deploy_paymaster(shell, &chain_config, args).await
+    let mut contracts = chain_config.get_contracts_config()?;
+    deploy_paymaster(shell, &chain_config, &mut contracts, args).await?;
+    contracts.save_with_base_path(shell, chain_config.configs)
 }
 
 pub async fn deploy_paymaster(
     shell: &Shell,
     chain_config: &ChainConfig,
+    contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
@@ -45,7 +49,14 @@ pub async fn deploy_paymaster(
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(secrets.l1.l1_rpc_url.clone())
+        .with_rpc_url(
+            secrets
+                .l1
+                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
+                .l1_rpc_url
+                .expose_str()
+                .to_string(),
+        )
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -63,6 +74,6 @@ pub async fn deploy_paymaster(
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
 
-    update_paymaster(shell, chain_config, &output)?;
+    contracts_config.l2.testnet_paymaster_addr = output.paymaster;
     Ok(())
 }

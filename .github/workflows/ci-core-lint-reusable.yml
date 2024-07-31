@@ -1,7 +1,13 @@
 name: Workflow template for Core Linting CI jobs
 on:
   workflow_call:
-
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
 
 jobs:
   code_lint:
@@ -17,6 +23,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -35,6 +42,7 @@ jobs:
         run: |
           ci_run zk fmt --check
           ci_run zk lint rust --check
+          ci_run zk lint toolbox --check
           ci_run zk lint js --check
           ci_run zk lint ts --check
           ci_run zk lint md --check

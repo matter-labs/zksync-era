@@ -3,8 +3,8 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, GetLogsFilter, Transaction,
+        TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
@@ -55,6 +55,7 @@ impl EthNamespace {
         &self,
         mut request: CallRequest,
         block_id: Option<BlockId>,
+        state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
@@ -88,7 +89,7 @@ impl EthNamespace {
         let call_result: Vec<u8> = self
             .state
             .tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
         Ok(call_result.into())
     }
@@ -97,6 +98,7 @@ impl EthNamespace {
         &self,
         request: CallRequest,
         _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
@@ -138,7 +140,12 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation as u64)
+            .get_txs_fee_in_wei(
+                tx.into(),
+                scale_factor,
+                acceptable_overestimation as u64,
+                state_override,
+            )
             .await?;
         Ok(fee.gas_limit)
     }
@@ -407,7 +414,7 @@ impl EthNamespace {
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&storage_key, block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         Ok(value)
@@ -688,6 +695,10 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
+        let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
@@ -695,6 +706,8 @@ impl EthNamespace {
             base_fee_per_gas,
             gas_used_ratio,
             reward,
+            base_fee_per_blob_gas,
+            blob_gas_used_ratio,
         })
     }
 
@@ -840,17 +853,17 @@ impl EthNamespace {
     }
 
     pub fn uncle_count_impl(&self, _block: BlockId) -> Option<U256> {
-        // We don't have uncles in zkSync.
+        // We don't have uncles in ZKsync.
         Some(0.into())
     }
 
     pub fn hashrate_impl(&self) -> U256 {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         U256::zero()
     }
 
     pub fn mining_impl(&self) -> bool {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         false
     }
 

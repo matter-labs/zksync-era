@@ -1,5 +1,6 @@
 [package]
 name = "zksync_eth_sender"
+description = "ZKsync Ethereum sender"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -31,6 +31,18 @@ pub trait VmRunnerIo: Debug + Send + Sync + 'static {
         conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber>;
 
+    /// Marks the specified batch as being in progress. Must be called before a batch can be marked
+    /// as completed.
+    ///
+    /// # Errors
+    ///
+    /// Propagates DB errors.
+    async fn mark_l1_batch_as_processing(
+        &self,
+        conn: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()>;
+
     /// Marks the specified batch as the latest completed batch. All earlier batches are considered
     /// to be completed too. No guarantees about later batches.
     ///

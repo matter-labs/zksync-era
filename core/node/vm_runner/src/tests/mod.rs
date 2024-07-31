@@ -55,6 +55,14 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         Ok(io.current + io.max)
     }
 
+    async fn mark_l1_batch_as_processing(
+        &self,
+        _conn: &mut Connection<'_, Core>,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn mark_l1_batch_as_completed(
         &self,
         _conn: &mut Connection<'_, Core>,
@@ -233,9 +241,9 @@ async fn store_l1_batches(
         for _ in 0..10 {
             let key = StorageKey::new(AccountTreeId::new(H160::random()), H256::random());
             let value = StorageValue::random();
-            written_keys.push(key);
+            written_keys.push(key.hashed_key());
             logs.push(StorageLog {
-                kind: StorageLogKind::Write,
+                kind: StorageLogKind::RepeatedWrite,
                 key,
                 value,
             });
@@ -245,7 +253,7 @@ async fn store_l1_batches(
             factory_deps.insert(H256::random(), rng.gen::<[u8; 32]>().into());
         }
         conn.storage_logs_dal()
-            .insert_storage_logs(l2_block_number, &[(tx.hash(), logs)])
+            .insert_storage_logs(l2_block_number, &logs)
             .await?;
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(l1_batch_number, &written_keys)
@@ -343,7 +351,7 @@ async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
         let storage_log = StorageLog::new_write_log(key, value);
 
         conn.storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+            .append_storage_logs(L2BlockNumber(0), &[storage_log])
             .await
             .unwrap();
         if conn
@@ -354,7 +362,7 @@ async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
             .is_empty()
         {
             conn.storage_logs_dedup_dal()
-                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                .insert_initial_writes(L1BatchNumber(0), &[storage_log.key.hashed_key()])
                 .await
                 .unwrap();
         }

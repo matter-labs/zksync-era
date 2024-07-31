@@ -30,6 +30,7 @@ impl proto::PubdataSendingMode {
         match x {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
+            From::Custom => Self::Custom,
         }
     }
 
@@ -38,6 +39,7 @@ impl proto::PubdataSendingMode {
         match self {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
+            Self::Custom => To::Custom,
         }
     }
 }

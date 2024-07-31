@@ -1,10 +1,10 @@
-//! Definition of zkSync network priority operations: operations initiated from the L1.
+//! Definition of ZKsync network priority operations: operations initiated from the L1.
 
 use std::convert::TryFrom;
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
-use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::HashEmptySubtree;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
@@ -121,7 +121,7 @@ pub struct L1TxCommonData {
     pub op_processing_type: OpProcessingType,
     /// Priority operations queue type.
     pub priority_queue_type: PriorityQueueType,
-    /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
+    /// Tx hash of the transaction in the ZKsync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,

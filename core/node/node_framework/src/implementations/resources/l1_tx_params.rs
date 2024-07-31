@@ -4,12 +4,18 @@ use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 
 use crate::resource::Resource;
 
-/// Wrapper for the l1 tx params provider.
+/// A resource that provides [`L1TxParamsProvider`] implementation to the service.
 #[derive(Debug, Clone)]
 pub struct L1TxParamsResource(pub Arc<dyn L1TxParamsProvider>);
 
 impl Resource for L1TxParamsResource {
     fn name() -> String {
         "common/l1_tx_params".into()
+    }
+}
+
+impl<T: L1TxParamsProvider> From<Arc<T>> for L1TxParamsResource {
+    fn from(provider: Arc<T>) -> Self {
+        Self(provider)
     }
 }

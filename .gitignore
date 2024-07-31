@@ -49,6 +49,7 @@ Cargo.lock
 !/etc/env/configs/stage-proofs.toml
 !/etc/env/configs/testnet.toml
 !/etc/env/configs/mainnet.toml
+!/etc/env/configs/prover-local.toml
 /etc/env/l1-inits
 !/etc/env/l1-inits/stage.env
 !/etc/env/l1-inits/stage_proofs.env
@@ -112,7 +113,7 @@ hyperchain-*.yml
 /etc/hyperchains/artifacts
 
 # Prover keys that should not be commited
-prover/vk_setup_data_generator_server_fri/data/setup_*
+prover/crates/bin/vk_setup_data_generator_server_fri/data/setup_*
 
 # Zk Toolbox
 chains/era/configs/*

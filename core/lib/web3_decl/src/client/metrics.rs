@@ -167,7 +167,7 @@ impl L2ClientMetrics {
                 let status = err
                     .downcast_ref::<transport::Error>()
                     .and_then(|err| match err {
-                        transport::Error::RequestFailure { status_code } => Some(*status_code),
+                        transport::Error::Rejected { status_code } => Some(*status_code),
                         _ => None,
                     });
                 let labels = HttpErrorLabels {

@@ -212,10 +212,9 @@ impl Aggregator {
                 );
                 let (_, left, right) = self
                     .priority_merkle_tree
-                    .merkle_root_and_paths_for_range(0..count);
+                    .merkle_root_and_paths_for_range(..count);
                 let hashes = self.priority_merkle_tree.hashes_prefix(count);
                 priority_ops_proofs.push(PriorityOpsMerkleProof {
-                    // TODO: are zero hashes fine or should we pack it?
                     left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
                     right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
                     hashes,
@@ -262,6 +261,7 @@ impl Aggregator {
                     base_system_contracts_hashes.bootloader,
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
+                    self.commitment_mode != L1BatchCommitmentMode::Rollup,
                 )
                 .await
                 .unwrap()

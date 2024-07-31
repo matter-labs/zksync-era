@@ -5,10 +5,12 @@ use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_prover_interface::{
     api::{SubmitProofRequest, SubmitTeeProofRequest},
-    inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    inputs::{StorageLogMetadata, WitnessInputMerklePaths},
     outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, ProtocolVersionId};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
+};
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
@@ -29,7 +31,7 @@ async fn prepare_basic_circuits_job_serialization() {
         .await
         .unwrap();
 
-    let job: PrepareBasicCircuitsJob = store.get(L1BatchNumber(1)).await.unwrap();
+    let job: WitnessInputMerklePaths = store.get(L1BatchNumber(1)).await.unwrap();
 
     let key = store.put(L1BatchNumber(2), &job).await.unwrap();
     let serialized_job = store.get_raw(Bucket::WitnessInput, &key).await.unwrap();
@@ -60,7 +62,7 @@ async fn prepare_basic_circuits_job_compatibility() {
     let serialized = bincode::serialize(&job_tuple).unwrap();
     assert_eq!(serialized, snapshot);
 
-    let job: PrepareBasicCircuitsJob = bincode::deserialize(&snapshot).unwrap();
+    let job: WitnessInputMerklePaths = bincode::deserialize(&snapshot).unwrap();
     assert_eq!(job.next_enumeration_index(), job_tuple.1);
     let job_merkle_paths: Vec<_> = job.into_merkle_paths().collect();
     assert_eq!(job_merkle_paths, job_tuple.0);
@@ -167,13 +169,15 @@ fn test_tee_proof_request_serialization() {
     let tee_proof_str = r#"{
         "signature": [ 0, 1, 2, 3, 4 ],
         "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ]
+        "proof": [ 10, 11, 12, 13, 14 ],
+        "tee_type": "Sgx"
     }"#;
     let tee_proof_result = serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_str).unwrap();
     let tee_proof_expected = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
         signature: vec![0, 1, 2, 3, 4],
         pubkey: vec![5, 6, 7, 8, 9],
         proof: vec![10, 11, 12, 13, 14],
+        tee_type: TeeType::Sgx,
     }));
     assert_eq!(tee_proof_result, tee_proof_expected);
 }

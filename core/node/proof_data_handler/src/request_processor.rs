@@ -4,9 +4,14 @@ use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-    SubmitProofRequest, SubmitProofResponse,
+use zksync_prover_interface::{
+    api::{
+        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+        SubmitProofRequest, SubmitProofResponse,
+    },
+    inputs::{
+        L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
+    },
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -15,7 +20,7 @@ use zksync_types::{
     L1BatchNumber, H256,
 };
 
-use crate::errors::RequestProcessorError;
+use crate::{errors::RequestProcessorError, metrics::METRICS};
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
@@ -46,62 +51,112 @@ impl RequestProcessor {
     ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let l1_batch_number_result = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .proof_generation_dal()
-            .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await
-            .map_err(RequestProcessorError::Dal)?;
-
-        let l1_batch_number = match l1_batch_number_result {
+        let l1_batch_number = match self.lock_batch_for_proving().await? {
             Some(number) => number,
             None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
         };
 
-        let blob = self
+        let proof_generation_data = self
+            .proof_generation_data_for_existing_batch(l1_batch_number)
+            .await;
+
+        // If we weren't able to fetch all the data, we should unlock the batch before returning.
+        match proof_generation_data {
+            Ok(data) => Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
+                data,
+            ))))),
+            Err(err) => {
+                self.unlock_batch(l1_batch_number).await?;
+                Err(err)
+            }
+        }
+    }
+
+    /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
+    async fn lock_batch_for_proving(&self) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
+        self.pool
+            .connection()
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .proof_generation_dal()
+            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .await
+            .map_err(RequestProcessorError::Dal)
+    }
+
+    /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
+    async fn unlock_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), RequestProcessorError> {
+        self.pool
+            .connection()
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .proof_generation_dal()
+            .unlock_batch(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::Dal)
+    }
+
+    /// Will fetch all the required data for the batch and return it.
+    ///
+    /// ## Panics
+    ///
+    /// Expects all the data to be present in the database.
+    /// Will panic if any of the required data is missing.
+    async fn proof_generation_data_for_existing_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<ProofGenerationData, RequestProcessorError> {
+        let vm_run_data: VMRunWitnessInputData = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+        let merkle_paths: WitnessInputMerklePaths = self
             .blob_store
             .get(l1_batch_number)
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        let header = self
+        // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
+        let mut conn = self
             .pool
             .connection()
             .await
-            .unwrap()
+            .map_err(RequestProcessorError::Dal)?;
+
+        let previous_batch_metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
+            .await
+            .map_err(RequestProcessorError::Dal)?
+            .expect("No metadata for previous batch");
+
+        let header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .unwrap()
+            .map_err(RequestProcessorError::Dal)?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let minor_version = header.protocol_version.unwrap();
-        let protocol_version = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+        let protocol_version = conn
             .protocol_versions_dal()
             .get_protocol_version_with_latest_patch(minor_version)
             .await
-            .unwrap()
+            .map_err(RequestProcessorError::Dal)?
             .unwrap_or_else(|| {
                 panic!("Missing l1 verifier info for protocol version {minor_version}")
             });
 
-        let batch_header = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+        let batch_header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .unwrap()
-            .unwrap();
+            .map_err(RequestProcessorError::Dal)?
+            .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let eip_4844_blobs = match self.commitment_mode {
             L1BatchCommitmentMode::Validium => Eip4844Blobs::empty(),
@@ -115,16 +170,25 @@ impl RequestProcessor {
             }
         };
 
-        let proof_gen_data = ProofGenerationData {
+        let blob = WitnessInputData {
+            vm_run_data,
+            merkle_paths,
+            eip_4844_blobs,
+            previous_batch_metadata: L1BatchMetadataHashes {
+                root_hash: previous_batch_metadata.metadata.root_hash,
+                meta_hash: previous_batch_metadata.metadata.meta_parameters_hash,
+                aux_hash: previous_batch_metadata.metadata.aux_data_hash,
+            },
+        };
+
+        METRICS.observe_blob_sizes(&blob);
+
+        Ok(ProofGenerationData {
             l1_batch_number,
-            data: blob,
+            witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,
-            eip_4844_blobs,
-        };
-        Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-            proof_gen_data,
-        )))))
+        })
     }
 
     pub(crate) async fn submit_proof(

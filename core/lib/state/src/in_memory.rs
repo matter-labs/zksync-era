@@ -1,9 +1,9 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
-    block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
-    system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
-    StorageLogKind, StorageValue, H256, U256,
+    block::DeployedContract, get_code_key, get_known_code_key, get_system_contracts_init_logs,
+    system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog, StorageValue,
+    H256, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -47,7 +47,7 @@ impl InMemoryStorage {
         bytecode_hasher: impl Fn(&[u8]) -> H256,
         contracts: Vec<DeployedContract>,
     ) -> Self {
-        let system_context_init_log = get_system_context_init_logs(chain_id);
+        let system_context_init_log = get_system_contracts_init_logs(chain_id);
 
         let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
@@ -63,7 +63,7 @@ impl InMemoryStorage {
                 ]
             })
             .chain(system_context_init_log)
-            .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
+            .filter_map(|log| (log.is_write()).then_some((log.key, log.value)))
             .collect();
         let state: HashMap<_, _> = state_without_indices
             .into_iter()

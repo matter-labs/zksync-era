@@ -1,6 +1,7 @@
 [package]
 name = "zksync_web3_decl"
-version = "0.1.0"
+description = "ZKsync Web3 API abstractions and clients"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -27,6 +28,7 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 vise.workspace = true
+rustls.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

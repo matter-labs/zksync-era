@@ -213,6 +213,13 @@ pub struct Web3JsonRpcConfig {
     /// (additionally to natively bridged tokens).
     #[serde(default)]
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
+    #[serde(default)]
+    pub api_namespaces: Option<Vec<String>>,
+    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// (hundreds or thousands RPS).
+    #[serde(default)]
+    pub extended_api_tracing: bool,
 }
 
 impl Web3JsonRpcConfig {
@@ -251,6 +258,8 @@ impl Web3JsonRpcConfig {
             mempool_cache_size: Default::default(),
             tree_api_url: None,
             whitelisted_tokens_for_aa: Default::default(),
+            api_namespaces: None,
+            extended_api_tracing: false,
         }
     }
 

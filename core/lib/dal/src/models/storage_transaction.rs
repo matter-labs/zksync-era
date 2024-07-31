@@ -1,6 +1,7 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::Zero;
+use serde_json::Value;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
@@ -336,6 +337,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
@@ -394,6 +396,13 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             transaction_type: Some(tx_type),
         }
     }
+}
+
+/// Details of the transaction execution.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageTransactionExecutionInfo {
+    /// This is an opaque JSON field, with VM version specific contents.
+    pub execution_info: Value,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

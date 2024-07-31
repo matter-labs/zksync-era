@@ -32,7 +32,11 @@ fn initialize_merkle_tree(path: &Path, storage_logs: &[StorageLog]) -> Vec<H256>
     let mut tree = ZkSyncTree::new(db.into()).unwrap();
     let hashes = storage_logs.iter().enumerate().map(|(i, log)| {
         let output = tree
-            .process_l1_batch(&[TreeInstruction::write(log.key, i as u64 + 1, log.value)])
+            .process_l1_batch(&[TreeInstruction::write(
+                log.key.hashed_key_u256(),
+                i as u64 + 1,
+                log.value,
+            )])
             .unwrap();
         tree.save().unwrap();
         output.root_hash
@@ -96,15 +100,12 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
 
         storage
             .storage_logs_dal()
-            .insert_storage_logs(
-                l2_block_header.number,
-                &[(H256::zero(), vec![*storage_log])],
-            )
+            .insert_storage_logs(l2_block_header.number, &[*storage_log])
             .await
             .unwrap();
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_header.number, &[storage_log.key])
+            .insert_initial_writes(l1_batch_header.number, &[storage_log.key.hashed_key()])
             .await
             .unwrap();
     }
@@ -240,7 +241,7 @@ async fn create_mock_snapshot(
         let key = object_store
             .put(
                 key,
-                &SnapshotStorageLogsChunk {
+                &SnapshotStorageLogsChunk::<H256> {
                     storage_logs: vec![],
                 },
             )

@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -11,24 +11,22 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        ContractsConfig, DatabaseSecrets, FriProofCompressorConfig, FriProverConfig,
+        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
+    EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
+    SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    delete_l1_txs_history, genesis_init, initialize_components, is_genesis_needed,
-    setup_sigint_handler,
+    delete_l1_txs_history,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_eth_client::clients::Client;
-use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::ManagedTasks;
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -39,21 +37,18 @@ mod node_builder;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Rebuild tree.
-    #[arg(long)]
-    rebuild_tree: bool,
     /// FIXME: dangerous option. Should be decided within the team.
     #[arg(long)]
     clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator"
+        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -71,7 +66,8 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
-    /// Run the node using the node framework.
+    /// Used to enable node framework.
+    /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
 }
@@ -92,15 +88,19 @@ impl FromStr for ComponentsToRun {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     // Load env config and use it if file config is not provided
     let tmp_config = load_env_config()?;
 
     let configs = match opt.config_path {
-        None => tmp_config.general(),
+        None => {
+            let mut configs = tmp_config.general();
+            configs.consensus_config =
+                config::read_consensus_config().context("read_consensus_config()")?;
+            configs
+        }
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
@@ -108,36 +108,6 @@ async fn main() -> anyhow::Result<()> {
                 .context("failed decoding general YAML config")?
         }
     };
-
-    let observability_config = configs
-        .observability
-        .clone()
-        .context("observability config")?;
-
-    let log_format: vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(log_directives) = observability_config.log_directives {
-        builder = builder.with_log_directives(log_directives);
-    }
-
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
@@ -163,8 +133,6 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let consensus = config::read_consensus_config().context("read_consensus_config()")?;
-
     let contracts_config = match opt.contracts_config_path {
         None => ContractsConfig::from_env().context("contracts_config")?,
         Some(path) => {
@@ -184,107 +152,43 @@ async fn main() -> anyhow::Result<()> {
                 .context("failed decoding genesis YAML config")?
         }
     };
+    let observability_config = configs
+        .observability
+        .clone()
+        .context("observability config")?;
 
-    let database_secrets = secrets.database.clone().context("DatabaseSecrets")?;
-
-    if opt.genesis || is_genesis_needed(&database_secrets).await {
-        genesis_init(genesis.clone(), &database_secrets)
-            .await
-            .context("genesis_init")?;
-        // TODO: can we remove this condition?
-        if let Some(_ecosystem_contracts) = &contracts_config.ecosystem_contracts {
-            let l1_secrets = secrets.l1.as_ref().context("l1_screts")?;
-            let query_client = Client::http(l1_secrets.l1_rpc_url.clone())
-                .context("Ethereum client")?
-                .for_network(genesis.l1_chain_id.into())
-                .build();
-            zksync_node_genesis::save_set_chain_id_tx(
-                &query_client,
-                contracts_config.diamond_proxy_addr,
-                &database_secrets,
-            )
-            .await
-            .context("Failed to save Genesis upgrade transaction")?;
-        }
-
-        if opt.genesis {
-            return Ok(());
-        }
-    }
-
+    // FIXME: don't merge this into prod
     if opt.clear_l1_txs_history {
         println!("Clearing L1 txs history!");
-        delete_l1_txs_history(&database_secrets).await?;
+
+        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+
+        tokio_runtime.block_on(async move {
+            let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+            delete_l1_txs_history(&database_secrets).await.unwrap();
+        });
+
         println!("Complete!");
         return Ok(());
     }
 
-    let components = if opt.rebuild_tree {
-        vec![Component::Tree]
-    } else {
-        opt.components.0
+    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+
+    let _observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = node.runtime_handle().enter();
+        observability_config.install()?
     };
 
-    // If the node framework is used, run the node.
-    if opt.use_node_framework {
-        // We run the node from a different thread, since the current thread is in tokio context.
-        std::thread::spawn(move || -> anyhow::Result<()> {
-            let node = MainNodeBuilder::new(
-                configs,
-                wallets,
-                genesis,
-                contracts_config,
-                secrets,
-                consensus,
-            )
-            .build(components)?;
-            node.run()?;
-            Ok(())
-        })
-        .join()
-        .expect("Failed to run the node")?;
-
+    if opt.genesis {
+        // If genesis is requested, we don't need to run the node.
+        node.only_genesis()?.run()?;
         return Ok(());
     }
 
-    // Run core actors.
-    let sigint_receiver = setup_sigint_handler();
-    let (core_task_handles, stop_sender, health_check_handle) = initialize_components(
-        &configs,
-        &wallets,
-        &genesis,
-        &contracts_config,
-        &components,
-        &secrets,
-        consensus,
-    )
-    .await
-    .context("Unable to start Core actors")?;
-
-    tracing::info!("Running {} core task handlers", core_task_handles.len());
-
-    let mut tasks = ManagedTasks::new(core_task_handles);
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        },
-    }
-
-    stop_sender.send(true).ok();
-    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-        .await
-        .context("error waiting for RocksDB instances to drop")?;
-    let complete_timeout =
-        if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
-            // Increase timeout because of complicated graceful shutdown procedure for API servers.
-            Duration::from_secs(30)
-        } else {
-            Duration::from_secs(5)
-        };
-    tasks.complete(complete_timeout).await;
-    health_check_handle.stop().await;
-    tracing::info!("Stopped");
+    node.build(opt.components.0)?.run()?;
     Ok(())
 }
 
@@ -316,7 +220,14 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
+        base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
+        commitment_generator: None,
+        pruning: None,
+        snapshot_recovery: None,
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
     })
 }

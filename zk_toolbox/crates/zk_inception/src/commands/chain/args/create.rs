@@ -1,11 +1,11 @@
 use std::{path::PathBuf, str::FromStr};
 
-use clap::Parser;
-use common::{slugify, Prompt, PromptConfirm, PromptSelect};
+use clap::{Parser, ValueEnum};
+use common::{Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
-use types::{BaseToken, L1BatchCommitDataGeneratorMode, L1Network, ProverMode, WalletCreation};
+use slugify_rs::slugify;
+use strum::{Display, EnumIter, IntoEnumIterator};
+use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -22,28 +22,44 @@ use crate::{
     },
 };
 
+// We need to duplicate it for using enum inside the arguments
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
+enum L1BatchCommitmentModeInternal {
+    Rollup,
+    Validium,
+}
+
+impl From<L1BatchCommitmentModeInternal> for L1BatchCommitmentMode {
+    fn from(val: L1BatchCommitmentModeInternal) -> Self {
+        match val {
+            L1BatchCommitmentModeInternal::Rollup => L1BatchCommitmentMode::Rollup,
+            L1BatchCommitmentModeInternal::Validium => L1BatchCommitmentMode::Validium,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {
     #[arg(long)]
-    pub chain_name: Option<String>,
-    #[arg(value_parser = clap::value_parser!(u32).range(1..))]
-    pub chain_id: Option<u32>,
+    chain_name: Option<String>,
+    #[arg(value_parser = clap::value_parser ! (u32).range(1..))]
+    chain_id: Option<u32>,
     #[clap(long, help = MSG_PROVER_MODE_HELP, value_enum)]
-    pub prover_mode: Option<ProverMode>,
+    prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
-    pub wallet_creation: Option<WalletCreation>,
+    wallet_creation: Option<WalletCreation>,
     #[clap(long, help = MSG_WALLET_PATH_HELP)]
-    pub wallet_path: Option<PathBuf>,
+    wallet_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
-    pub l1_batch_commit_data_generator_mode: Option<L1BatchCommitDataGeneratorMode>,
+    l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
     #[clap(long, help = MSG_BASE_TOKEN_ADDRESS_HELP)]
-    pub base_token_address: Option<String>,
+    base_token_address: Option<String>,
     #[clap(long, help = MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP)]
-    pub base_token_price_nominator: Option<u64>,
+    base_token_price_nominator: Option<u64>,
     #[clap(long, help = MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP)]
-    pub base_token_price_denominator: Option<u64>,
+    base_token_price_denominator: Option<u64>,
     #[clap(long, help = MSG_SET_AS_DEFAULT_HELP, default_missing_value = "true", num_args = 0..=1)]
-    pub set_as_default: Option<bool>,
+    pub(crate) set_as_default: Option<bool>,
 }
 
 impl ChainCreateArgs {
@@ -55,7 +71,7 @@ impl ChainCreateArgs {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
-        chain_name = slugify(&chain_name);
+        chain_name = slugify!(&chain_name, separator = "_");
 
         let chain_id = self.chain_id.unwrap_or_else(|| {
             Prompt::new(MSG_CHAIN_ID_PROMPT)
@@ -80,7 +96,7 @@ impl ChainCreateArgs {
 
         let l1_batch_commit_data_generator_mode = PromptSelect::new(
             MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
-            L1BatchCommitDataGeneratorMode::iter(),
+            L1BatchCommitmentModeInternal::iter(),
         )
         .ask();
 
@@ -138,7 +154,7 @@ impl ChainCreateArgs {
             chain_id,
             prover_version,
             wallet_creation,
-            l1_batch_commit_data_generator_mode,
+            l1_batch_commit_data_generator_mode: l1_batch_commit_data_generator_mode.into(),
             wallet_path,
             base_token,
             set_as_default,
@@ -152,7 +168,7 @@ pub struct ChainCreateArgsFinal {
     pub chain_id: u32,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub wallet_path: Option<PathBuf>,
     pub base_token: BaseToken,
     pub set_as_default: bool,

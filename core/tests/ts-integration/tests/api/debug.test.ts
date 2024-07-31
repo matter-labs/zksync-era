@@ -34,7 +34,7 @@ describe('Debug methods', () => {
 
         const contractFactory = new zksync.ContractFactory([], bytecode, testMaster.mainAccount());
         const deployTx = await contractFactory.deploy();
-        const contractAddress = (await deployTx.deployed()).address;
+        const contractAddress = await (await deployTx.waitForDeployment()).getAddress();
         let txCallTrace = await testMaster.mainAccount().provider.send('debug_traceCall', [
             {
                 to: contractAddress,
@@ -43,7 +43,7 @@ describe('Debug methods', () => {
         ]);
         let expected = {
             error: null,
-            from: ethers.constants.AddressZero,
+            from: ethers.ZeroAddress,
             gas: expect.any(String),
             gasUsed: expect.any(String),
             input: expect.any(String),
@@ -58,7 +58,7 @@ describe('Debug methods', () => {
     });
 
     test('Debug sending erc20 token in a block', async () => {
-        const value = ethers.BigNumber.from(200);
+        const value = 200n;
         await aliceErc20.transfer(bob.address, value).then((tx: any) => tx.wait());
         const tx = await aliceErc20.transfer(bob.address, value);
         const receipt = await tx.wait();
@@ -69,7 +69,7 @@ describe('Debug methods', () => {
             .mainAccount()
             .provider.send('debug_traceBlockByNumber', [receipt.blockNumber.toString(16), { tracer: 'callTracer' }]);
         const expectedTraceInBlock = {
-            from: ethers.constants.AddressZero,
+            from: ethers.ZeroAddress,
             gas: expect.any(String),
             gasUsed: expect.any(String),
             input: expect.any(String),
@@ -88,14 +88,14 @@ describe('Debug methods', () => {
 
         const expected = {
             error: null,
-            from: ethers.constants.AddressZero,
+            from: ethers.ZeroAddress,
             gas: expect.any(String),
             gasUsed: expect.any(String),
             input: `0xa9059cbb000000000000000000000000${bob.address
                 .slice(2, 42)
                 .toLowerCase()}00000000000000000000000000000000000000000000000000000000000000${value
-                .toHexString()
-                .slice(2, 4)}`,
+                .toString(16)
+                .slice(0, 2)}`, // no 0x prefix
             output: '0x',
             revertReason: null,
             to: BOOTLOADER_FORMAL_ADDRESS,

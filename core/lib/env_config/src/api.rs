@@ -98,10 +98,12 @@ mod tests {
                     addr("0x0000000000000000000000000000000000000001"),
                     addr("0x0000000000000000000000000000000000000002"),
                 ],
+                api_namespaces: Some(vec!["debug".to_string()]),
+                extended_api_tracing: true,
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
-                pushgateway_url: "http://127.0.0.1:9091".into(),
+                pushgateway_url: Some("http://127.0.0.1:9091".into()),
                 push_interval_ms: Some(100),
             },
             healthcheck: HealthCheckConfig {
@@ -129,6 +131,8 @@ mod tests {
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
+            API_WEB3_JSON_RPC_API_NAMESPACES=debug
+            API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
             API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0

@@ -4,18 +4,18 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use multivm::{
+use once_cell::sync::Lazy;
+use tokio::sync::{mpsc, watch};
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal as _};
+use zksync_multivm::{
     interface::{
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::VmExecutionLogs,
 };
-use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, watch};
-use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal as _};
-use zksync_state::ReadStorageFactory;
+use zksync_state::{ReadStorageFactory, StorageViewCache};
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, get_code_key, get_known_code_key, utils::storage_key_for_standard_token_balance,
@@ -44,7 +44,7 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
-            deduplicated_storage_log_queries: vec![],
+            deduplicated_storage_logs: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
@@ -79,6 +79,10 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
     }
 }
 
+pub(crate) fn storage_view_cache() -> StorageViewCache {
+    StorageViewCache::default()
+}
+
 /// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
 #[derive(Debug)]
 pub struct MockBatchExecutor;
@@ -105,6 +109,9 @@ impl BatchExecutor for MockBatchExecutor {
                         resp.send(default_vm_batch_result()).unwrap();
                         break;
                     }
+                    Command::FinishBatchWithCache(resp) => resp
+                        .send((default_vm_batch_result(), storage_view_cache()))
+                        .unwrap(),
                 }
             }
             anyhow::Ok(())
@@ -116,10 +123,9 @@ impl BatchExecutor for MockBatchExecutor {
 async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
     storage
         .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![log])])
+        .append_storage_logs(L2BlockNumber(0), &[log])
         .await
         .unwrap();
-
     if storage
         .storage_logs_dedup_dal()
         .filter_written_slots(&[log.key.hashed_key()])
@@ -129,7 +135,7 @@ async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageL
     {
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key])
+            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
             .await
             .unwrap();
     }

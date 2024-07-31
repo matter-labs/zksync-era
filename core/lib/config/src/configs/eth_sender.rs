@@ -83,6 +83,7 @@ pub enum PubdataSendingMode {
     #[default]
     Calldata,
     Blobs,
+    Custom,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -116,7 +117,7 @@ pub struct SenderConfig {
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
 
-    /// The mode in which we send pubdata, either Calldata or Blobs
+    /// The mode in which we send pubdata: Calldata, Blobs or Custom (DA layers, Object Store, etc.)
     pub pubdata_sending_mode: PubdataSendingMode,
 
     /// Used to ignore db nonce check for sender and only use the RPC one.
@@ -159,7 +160,7 @@ impl SenderConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, Default)]
 pub struct GasAdjusterConfig {
     /// Priority Fee to be used by GasAdjuster
     pub default_priority_fee_per_gas: u64,

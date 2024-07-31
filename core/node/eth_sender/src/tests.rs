@@ -9,7 +9,7 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, BaseFees};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
@@ -29,8 +29,9 @@ use zksync_types::{
 };
 
 use crate::{
-    abstract_l1_interface::L1BlockNumbers, aggregated_operations::AggregatedOperation, Aggregator,
-    EthSenderError, EthTxAggregator, EthTxManager,
+    abstract_l1_interface::{L1BlockNumbers, OperatorType},
+    aggregated_operations::AggregatedOperation,
+    Aggregator, EthSenderError, EthTxAggregator, EthTxManager,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -133,12 +134,23 @@ impl EthSenderTester {
             ..eth_sender_config.clone().sender.unwrap()
         };
 
+        let history: Vec<_> = history
+            .into_iter()
+            .map(|base_fee_per_gas| BaseFees {
+                base_fee_per_gas,
+                base_fee_per_blob_gas: 0.into(),
+            })
+            .collect();
+
         let gateway = MockEthereum::builder()
             .with_fee_history(
-                std::iter::repeat(0)
-                    .take(Self::WAIT_CONFIRMATIONS as usize)
-                    .chain(history)
-                    .collect(),
+                std::iter::repeat_with(|| BaseFees {
+                    base_fee_per_gas: 0,
+                    base_fee_per_blob_gas: 0.into(),
+                })
+                .take(Self::WAIT_CONFIRMATIONS as usize)
+                .chain(history)
+                .collect(),
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
@@ -182,7 +194,7 @@ impl EthSenderTester {
                 SyncMerkleTree::from_hashes(std::iter::empty(), None),
             ),
             gateway.clone(),
-            // zkSync contract address
+            // ZKsync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
             Address::random(),
@@ -328,7 +340,7 @@ async fn confirm_many(
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -343,9 +355,10 @@ async fn confirm_many(
 
     let to_resend = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?;
 
@@ -355,7 +368,7 @@ async fn confirm_many(
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -429,7 +442,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -457,7 +470,11 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(&mut tester.conn.connection().await.unwrap(), block_numbers)
+        .monitor_inflight_transactions_single_operator(
+            &mut tester.conn.connection().await.unwrap(),
+            block_numbers,
+            OperatorType::NonBlob,
+        )
         .await?
         .unwrap();
 
@@ -478,7 +495,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -564,7 +581,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -578,9 +595,10 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
 
     let to_resend = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?;
 
@@ -590,7 +608,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -676,9 +694,10 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await?
         .expect("we should be trying to resend the last tx");
@@ -689,7 +708,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs()
+            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
             .await
             .unwrap()
             .len(),
@@ -763,9 +782,10 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
         .execute_tx(hash, false, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
         )
         .await
         .unwrap();
@@ -1250,9 +1270,20 @@ async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
         .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
     tester
         .manager
-        .monitor_inflight_transactions(
+        .monitor_inflight_transactions_single_operator(
             &mut tester.conn.connection().await.unwrap(),
             tester.get_block_numbers().await,
+            OperatorType::NonBlob,
+        )
+        .await
+        .unwrap();
+
+    tester
+        .manager
+        .monitor_inflight_transactions_single_operator(
+            &mut tester.conn.connection().await.unwrap(),
+            tester.get_block_numbers().await,
+            OperatorType::Blob,
         )
         .await
         .unwrap();

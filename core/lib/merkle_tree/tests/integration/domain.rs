@@ -5,14 +5,14 @@ use std::slice;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use tempfile::TempDir;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{domain::ZkSyncTree, HashTree, TreeEntry, TreeInstruction};
 use zksync_prover_interface::inputs::StorageLogMetadata;
 use zksync_storage::RocksDB;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
 
-fn gen_storage_logs() -> Vec<TreeInstruction<StorageKey>> {
+fn gen_storage_logs() -> Vec<TreeInstruction> {
     let addrs = vec![
         "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
         "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
@@ -32,7 +32,7 @@ fn gen_storage_logs() -> Vec<TreeInstruction<StorageKey>> {
         .zip(proof_values)
         .enumerate()
         .map(|(i, (proof_key, proof_value))| {
-            let entry = TreeEntry::new(proof_key, i as u64 + 1, proof_value);
+            let entry = TreeEntry::new(proof_key.hashed_key_u256(), i as u64 + 1, proof_value);
             TreeInstruction::Write(entry)
         })
         .collect()
@@ -171,11 +171,12 @@ fn revert_blocks() {
     // Produce 4 blocks with distinct values and 1 block with modified values from first block
     let block_size: usize = 25;
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
-    let proof_keys = (0..100)
-        .map(move |i| StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i)));
+    let proof_keys = (0..100).map(move |i| {
+        StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i)).hashed_key_u256()
+    });
     let proof_values = (0..100).map(H256::from_low_u64_be);
 
-    // Add couple of blocks of distinct keys/values
+    // Add a couple of blocks of distinct keys/values
     let mut logs: Vec<_> = proof_keys
         .zip(proof_values)
         .map(|(proof_key, proof_value)| {
@@ -185,7 +186,8 @@ fn revert_blocks() {
         .collect();
     // Add a block with repeated keys
     let extra_logs = (0..block_size).map(move |i| {
-        let key = StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i as u64));
+        let key = StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i as u64))
+            .hashed_key_u256();
         let entry = TreeEntry::new(key, i as u64 + 1, H256::from_low_u64_be(i as u64 + 1));
         TreeInstruction::Write(entry)
     });
@@ -317,9 +319,13 @@ fn create_write_log(
     address: Address,
     address_storage_key: [u8; 32],
     value: [u8; 32],
-) -> TreeInstruction<StorageKey> {
+) -> TreeInstruction {
     let key = StorageKey::new(AccountTreeId::new(address), H256(address_storage_key));
-    TreeInstruction::Write(TreeEntry::new(key, leaf_index, H256(value)))
+    TreeInstruction::Write(TreeEntry::new(
+        key.hashed_key_u256(),
+        leaf_index,
+        H256(value),
+    ))
 }
 
 fn subtract_from_max_value(diff: u8) -> [u8; 32] {

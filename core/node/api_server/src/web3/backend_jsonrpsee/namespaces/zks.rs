@@ -3,14 +3,15 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{
     api::{
-        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, LeafAggProof,
-        Log, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
+        L1BatchDetails, L2ToL1LogProof, LeafAggProof, Log, Proof, ProtocolVersion,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
     web3::Bytes,
-    Address, L1BatchNumber, L2BlockNumber, StorageLogQueryType, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -22,14 +23,22 @@ use crate::web3::ZksNamespace;
 
 #[async_trait]
 impl ZksNamespaceServer for ZksNamespace {
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
-        self.estimate_fee_impl(req)
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee> {
+        self.estimate_fee_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256> {
-        self.estimate_l1_to_l2_gas_impl(req)
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256> {
+        self.estimate_l1_to_l2_gas_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -213,7 +222,7 @@ impl ZksNamespaceServer for ZksNamespace {
                     .logs
                     .storage_logs
                     .iter()
-                    .filter(|x| x.log_type != StorageLogQueryType::Read)
+                    .filter(|x| x.log.is_write())
                     .map(ApiStorageLog::from)
                     .collect_vec(),
                 events: result

@@ -1,6 +1,7 @@
 [package]
 name = "zksync_reorg_detector"
-version = "0.1.0"
+description = "ZKsync reorg detector"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

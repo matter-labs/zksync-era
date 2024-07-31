@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_api_server"
-version = "0.1.0"
+description = "ZKsync API server"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -10,8 +11,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_crypto.workspace = true
+zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
+zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
@@ -27,7 +29,7 @@ zksync_web3_decl = { workspace = true, features = ["server"] }
 zksync_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
-multivm.workspace = true
+zksync_multivm.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true
@@ -49,6 +51,7 @@ pin-project-lite.workspace = true
 hex.workspace = true
 http.workspace = true
 tower.workspace = true
+strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
 

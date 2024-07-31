@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use tokio::{
     sync::{watch, RwLock},
     task::JoinHandle,
 };
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_state_keeper::UpdatesManager;
 use zksync_types::L1BatchNumber;
 

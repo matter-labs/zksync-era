@@ -1,2 +1,3 @@
+pub mod clean;
 pub mod database;
-pub mod integration_tests;
+pub mod test;

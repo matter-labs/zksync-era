@@ -5,12 +5,12 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
 };
 use zksync_mempool::MempoolStore;
+use zksync_multivm::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use zksync_shared_metrics::InteractionType;
 use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
 
@@ -444,6 +444,7 @@ pub(super) enum ExecutorCommand {
     StartNextL2Block,
     RollbackLastTx,
     FinishBatch,
+    FinishBatchWithCache,
 }
 
 const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[

@@ -5,14 +5,8 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::ProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
-
-// This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
-// This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
 
 #[derive(Debug, Clone)]
 pub struct FriProverJobMetadata {
@@ -259,7 +253,6 @@ pub struct ProverJobFriInfo {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub depth: u32,
     pub is_node_final_proof: bool,
     pub proof_blob_url: Option<String>,
@@ -270,7 +263,7 @@ pub struct ProverJobFriInfo {
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
-    pub merkle_tree_paths_blob_url: Option<String>,
+    pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
     pub error: Option<String>,
@@ -278,10 +271,8 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
-    pub eip_4844_blobs: Option<Eip4844Blobs>,
 }
 
 #[derive(Debug, Clone)]
@@ -297,7 +288,6 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub number_of_basic_circuits: Option<i32>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
@@ -381,4 +371,13 @@ pub struct ProofCompressionJobInfo {
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
     pub picked_by: Option<String>,
+}
+
+// Used for transferring information about L1 Batches from DAL to public interfaces (currently prover_cli stats).
+/// DTO containing information about L1 Batch Proof.
+#[derive(Debug, Clone)]
+pub struct ProofGenerationTime {
+    pub l1_batch_number: L1BatchNumber,
+    pub time_taken: NaiveTime,
+    pub created_at: NaiveDateTime,
 }

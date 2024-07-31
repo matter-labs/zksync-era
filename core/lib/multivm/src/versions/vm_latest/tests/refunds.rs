@@ -5,7 +5,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::{initialize_message_root_storage, read_test_contract},
+            utils::read_test_contract,
         },
         types::internals::TransactionData,
         HistoryEnabled,
@@ -26,7 +26,6 @@ fn test_predetermined_refunded_gas() {
         .with_random_rich_accounts(1)
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
-    initialize_message_root_storage(vm.storage);
     let l1_batch = vm.vm.batch_env.clone();
 
     let counter = read_test_contract();
@@ -66,7 +65,6 @@ fn test_predetermined_refunded_gas() {
         .with_rich_accounts(vec![account.clone()])
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
-    initialize_message_root_storage(vm.storage);
 
     let tx: TransactionData = tx.into();
     // Overhead
@@ -103,8 +101,8 @@ fn test_predetermined_refunded_gas() {
     );
 
     assert_eq!(
-        current_state_with_predefined_refunds.deduplicated_storage_log_queries,
-        current_state_without_predefined_refunds.deduplicated_storage_log_queries
+        current_state_with_predefined_refunds.deduplicated_storage_logs,
+        current_state_without_predefined_refunds.deduplicated_storage_logs
     );
     assert_eq!(
         current_state_with_predefined_refunds.used_contract_hashes,
@@ -121,8 +119,6 @@ fn test_predetermined_refunded_gas() {
         .with_rich_accounts(vec![account.clone()])
         .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
-
-    initialize_message_root_storage(vm.storage);
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
@@ -160,16 +156,16 @@ fn test_predetermined_refunded_gas() {
 
     assert_eq!(
         current_state_with_changed_predefined_refunds
-            .deduplicated_storage_log_queries
+            .deduplicated_storage_logs
             .len(),
         current_state_without_predefined_refunds
-            .deduplicated_storage_log_queries
+            .deduplicated_storage_logs
             .len()
     );
 
     assert_ne!(
-        current_state_with_changed_predefined_refunds.deduplicated_storage_log_queries,
-        current_state_without_predefined_refunds.deduplicated_storage_log_queries
+        current_state_with_changed_predefined_refunds.deduplicated_storage_logs,
+        current_state_without_predefined_refunds.deduplicated_storage_logs
     );
     assert_eq!(
         current_state_with_changed_predefined_refunds.used_contract_hashes,

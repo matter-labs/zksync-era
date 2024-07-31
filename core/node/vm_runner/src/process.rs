@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
-use multivm::interface::L2BlockEnv;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::L2BlockEnv;
 use zksync_state_keeper::{
     BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
     StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
@@ -110,11 +110,15 @@ impl VmRunner {
                 .await
                 .context("VM runner failed to handle L2 block")?;
         }
-        let finished_batch = batch_executor
-            .finish_batch()
+
+        let (finished_batch, storage_view_cache) = batch_executor
+            .finish_batch_with_cache()
             .await
-            .context("failed finishing L1 batch in executor")?;
+            .context("Failed getting storage view cache")?;
         updates_manager.finish_batch(finished_batch);
+        // this is needed for Basic Witness Input Producer to use in memory reads, but not database queries
+        updates_manager.update_storage_view_cache(storage_view_cache);
+
         latency.observe();
         output_handler
             .handle_l1_batch(Arc::new(updates_manager))
@@ -194,6 +198,9 @@ impl VmRunner {
                 .create_handler(next_batch)
                 .await?;
 
+            self.io
+                .mark_l1_batch_as_processing(&mut self.pool.connection().await?, next_batch)
+                .await?;
             let handle = tokio::task::spawn(Self::process_batch(
                 batch_executor,
                 batch_data.l2_blocks,

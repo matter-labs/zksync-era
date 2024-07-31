@@ -8,8 +8,8 @@ use std::{
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
@@ -22,9 +22,8 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     utils::display_timestamp,
-    zk_evm_types::LogQuery,
-    AccountTreeId, Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
-    Transaction, VmEvent, H256,
+    Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog, Transaction,
+    VmEvent, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -84,7 +83,7 @@ impl UpdatesManager {
         progress.observe(
             finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .len(),
         );
 
@@ -92,7 +91,7 @@ impl UpdatesManager {
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter(),
         );
 
@@ -175,9 +174,9 @@ impl UpdatesManager {
             let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
             let protective_reads: Vec<_> = finished_batch
                 .final_execution_state
-                .deduplicated_storage_log_queries
+                .deduplicated_storage_logs
                 .iter()
-                .filter(|log_query| !log_query.rw_flag)
+                .filter(|log_query| !log_query.is_write())
                 .copied()
                 .collect();
             transaction
@@ -188,54 +187,46 @@ impl UpdatesManager {
         }
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
-        let (initial_writes, all_writes_len): (Vec<_>, usize) = if let Some(state_diffs) =
-            &finished_batch.state_diffs
-        {
-            let all_writes_len = state_diffs.len();
+        let (initial_writes, all_writes_len): (Vec<_>, usize) =
+            if let Some(state_diffs) = &finished_batch.state_diffs {
+                let all_writes_len = state_diffs.len();
 
-            (
-                state_diffs
+                (
+                    state_diffs
+                        .iter()
+                        .filter(|diff| diff.is_write_initial())
+                        .map(|diff| {
+                            H256(StorageKey::raw_hashed_key(
+                                &diff.address,
+                                &u256_to_h256(diff.key),
+                            ))
+                        })
+                        .collect(),
+                    all_writes_len,
+                )
+            } else {
+                let deduplicated_writes_hashed_keys_iter = finished_batch
+                    .final_execution_state
+                    .deduplicated_storage_logs
                     .iter()
-                    .filter(|diff| diff.is_write_initial())
-                    .map(|diff| {
-                        StorageKey::new(AccountTreeId::new(diff.address), u256_to_h256(diff.key))
-                    })
-                    .collect(),
-                all_writes_len,
-            )
-        } else {
-            let deduplicated_writes = finished_batch
-                .final_execution_state
-                .deduplicated_storage_log_queries
-                .iter()
-                .filter(|log_query| log_query.rw_flag);
+                    .filter(|log| log.is_write())
+                    .map(|log| log.key.hashed_key());
 
-            let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
-                .clone()
-                .map(|log| {
-                    H256(StorageKey::raw_hashed_key(
-                        &log.address,
-                        &u256_to_h256(log.key),
-                    ))
-                })
-                .collect();
-            let all_writes_len = deduplicated_writes_hashed_keys.len();
-            let non_initial_writes = transaction
-                .storage_logs_dedup_dal()
-                .filter_written_slots(&deduplicated_writes_hashed_keys)
-                .await?;
+                let deduplicated_writes_hashed_keys: Vec<_> =
+                    deduplicated_writes_hashed_keys_iter.clone().collect();
+                let all_writes_len = deduplicated_writes_hashed_keys.len();
+                let non_initial_writes = transaction
+                    .storage_logs_dedup_dal()
+                    .filter_written_slots(&deduplicated_writes_hashed_keys)
+                    .await?;
 
-            (
-                deduplicated_writes
-                    .filter_map(|log| {
-                        let key =
-                            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-                        (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
-                    })
-                    .collect(),
-                all_writes_len,
-            )
-        };
+                (
+                    deduplicated_writes_hashed_keys_iter
+                        .filter(|hashed_key| !non_initial_writes.contains(hashed_key))
+                        .collect(),
+                    all_writes_len,
+                )
+            };
         progress.observe(all_writes_len);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
@@ -437,55 +428,22 @@ impl L2BlockSealCommand {
                 "event transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
             );
         }
-        for storage_log in &self.l2_block.storage_logs {
-            let tx_index = storage_log.log_query.tx_number_in_block as usize;
-            anyhow::ensure!(
-                tx_index_range.contains(&tx_index),
-                "log transaction index {tx_index} is outside of the expected range {tx_index_range:?}"
-            );
-        }
         Ok(())
     }
 
-    fn extract_deduplicated_write_logs(&self, is_fictive: bool) -> Vec<(H256, Vec<StorageLog>)> {
+    fn extract_deduplicated_write_logs(&self) -> Vec<StorageLog> {
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
         storage_writes_deduplicator.apply(
             self.l2_block
                 .storage_logs
                 .iter()
-                .filter(|log| log.log_query.rw_flag),
+                .filter(|log| log.log.is_write()),
         );
         let deduplicated_logs = storage_writes_deduplicator.into_modified_key_values();
 
         deduplicated_logs
             .into_iter()
-            .map(
-                |(
-                    key,
-                    ModifiedSlot {
-                        value, tx_index, ..
-                    },
-                )| (tx_index, (key, value)),
-            )
-            .sorted_by_key(|(tx_index, _)| *tx_index)
-            .group_by(|(tx_index, _)| *tx_index)
-            .into_iter()
-            .map(|(tx_index, logs)| {
-                let tx_hash = if is_fictive {
-                    assert_eq!(tx_index as usize, self.first_tx_index);
-                    H256::zero()
-                } else {
-                    self.transaction(tx_index as usize).hash()
-                };
-                (
-                    tx_hash,
-                    logs.into_iter()
-                        .map(|(_, (key, value))| {
-                            StorageLog::new_write_log(key, u256_to_h256(value))
-                        })
-                        .collect(),
-                )
-            })
+            .map(|(key, ModifiedSlot { value, .. })| StorageLog::new_write_log(key, value))
             .collect()
     }
 
@@ -603,12 +561,12 @@ fn l1_l2_tx_count(executed_transactions: &[TransactionExecutionResult]) -> (usiz
     (l1_tx_count, l2_tx_count)
 }
 
-fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a LogQuery>) -> (usize, usize) {
+fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a StorageLog>) -> (usize, usize) {
     let mut reads_count = 0;
     let mut writes_count = 0;
 
     for log in logs {
-        if log.rw_flag {
+        if log.is_write() {
             writes_count += 1;
         } else {
             reads_count += 1;

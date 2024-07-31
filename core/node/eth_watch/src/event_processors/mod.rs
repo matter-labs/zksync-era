@@ -5,10 +5,12 @@ use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::{web3::Log, H256};
 
 pub(crate) use self::{
+    decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,
 };
 use crate::client::EthClient;
 
+mod decentralized_upgrades;
 mod governance_upgrades;
 pub mod priority_ops;
 
