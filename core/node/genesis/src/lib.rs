@@ -159,8 +159,6 @@ pub struct GenesisBatchParams {
 }
 
 pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::SLChainId;
-
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
     let first_l1_verifier_config = L1VerifierConfig::default();
 
