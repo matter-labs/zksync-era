@@ -98,8 +98,8 @@ If so, you **do not need** to install `docker-machine`. Most probably, it means 
 the`docker` group. You can check it as follows:
 
 ```bash
-docker-compose up # Should raise the same error.
-sudo docker-compose up # Should start doing things.
+docker ps # Should raise the same error.
+sudo docker ps # Should return a (probably empty) list of running containers
 ```
 
 If the first command fails, but the second succeeds, then you need to add your user to the `docker` group:
