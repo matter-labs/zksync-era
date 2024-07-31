@@ -6,7 +6,7 @@ use zksync_types::{web3, Address, L1ChainId, L2BlockNumber, H256, U256, U64};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{
-    decl::{L1EthNamespaceClient, L2EthNamespaceClient, L2ZksNamespaceClient},
+    decl::{L1EthNamespaceClient, L2EthNamespaceClient},
     Method, COUNTERS, LATENCIES,
 };
 use crate::{
@@ -352,7 +352,7 @@ where
 #[async_trait::async_trait]
 impl<T> ZkSyncInterface for T
 where
-    T: L2EthNamespaceClient + L2ZksNamespaceClient + fmt::Debug + Send + Sync,
+    T: L2EthNamespaceClient + fmt::Debug + Send + Sync,
 {
     async fn l2_fee_history(
         &self,

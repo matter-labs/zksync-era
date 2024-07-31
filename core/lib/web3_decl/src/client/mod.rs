@@ -37,7 +37,7 @@ use zksync_types::url::SensitiveUrl;
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
-    mock::MockClient,
+    mock::{MockClient, MockClientBuilder},
     network::{ForNetwork, Network, TaggedClient, L1, L2},
     shared::Shared,
 };

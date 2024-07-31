@@ -70,20 +70,6 @@ pub(super) trait L1EthNamespace {
     ) -> RpcResult<Option<web3::TransactionReceipt>>;
 }
 
-/// Subset of the L2 `zks` namespace used by an L2 client.
-#[rpc(client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))]
-pub(super) trait L2ZksNamespace {
-    #[method(name = "getL1BatchDetails")]
-    async fn get_l1_batch_details(&self, batch: L1BatchNumber)
-        -> RpcResult<Option<L1BatchDetails>>;
-
-    #[method(name = "getBlockDetails")]
-    async fn get_block_details(
-        &self,
-        block_number: L2BlockNumber,
-    ) -> RpcResult<Option<BlockDetails>>;
-}
-
 /// Subset of the L2 `eth` namespace used by an L2 client. It may have the same
 /// methods as the L1 `eth` namespace, but with extended return values.
 #[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))]
