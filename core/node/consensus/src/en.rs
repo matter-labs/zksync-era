@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
@@ -7,7 +5,6 @@ use zksync_consensus_executor::{
     self as executor,
     attestation::{AttestationStatusClient, AttestationStatusRunner},
 };
-use zksync_consensus_network::gossip::AttestationStatusWatch;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_node_sync::{
@@ -107,14 +104,14 @@ impl EN {
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let (attestation_status, runner) = {
-                let status = Arc::new(AttestationStatusWatch::default());
-                let client = MainNodeAttestationStatus(self.client.clone());
-                let runner = AttestationStatusRunner::new(
-                    status.clone(),
-                    Box::new(client),
+                AttestationStatusRunner::init(
+                    ctx,
+                    Box::new(MainNodeAttestationStatus(self.client.clone())),
                     time::Duration::seconds(5),
-                );
-                (status, runner)
+                )
+                .await
+                .map_err(ctx::Error::Canceled)
+                .wrap("AttestationStatusRunner::init()")?
             };
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
@@ -269,10 +266,13 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
         ctx: &ctx::Ctx,
     ) -> ctx::Result<Option<attester::BatchNumber>> {
         match ctx.wait(self.0.fetch_attestation_status()).await? {
-            Ok(bn) => {
-                let bn: u64 = bn.next_batch_to_attest.0.into();
-                Ok(Some(attester::BatchNumber(bn)))
+            Ok(Some(status)) => {
+                let status: zksync_dal::consensus_dal::AttestationStatus =
+                    zksync_protobuf::serde::deserialize(&status.0)
+                        .context("deserialize(AttestationStatus)")?;
+                Ok(Some(status.next_batch_to_attest))
             }
+            Ok(None) => Ok(None),
             Err(err) => {
                 tracing::warn!("AttestationStatus call to main node HTTP RPC failed: {err}");
                 Ok(None)

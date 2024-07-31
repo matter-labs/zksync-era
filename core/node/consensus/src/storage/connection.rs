@@ -430,14 +430,14 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// Wrapper for `consensus_dal().next_batch_to_attest()`.
-    pub async fn next_batch_to_attest(
+    /// Wrapper for `consensus_dal().attestation_status()`.
+    pub async fn attestation_status(
         &mut self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<attester::BatchNumber> {
+    ) -> ctx::Result<Option<consensus_dal::AttestationStatus>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().next_batch_to_attest())
+            .wait(self.0.consensus_dal().attestation_status())
             .await?
-            .context("next_batch_to_attest()")?)
+            .context("attestation_status()")?)
     }
 }

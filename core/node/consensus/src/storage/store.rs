@@ -449,13 +449,13 @@ impl storage::PersistentBatchStore for Store {
         &self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(Some(
-            self.conn(ctx)
-                .await?
-                .next_batch_to_attest(ctx)
-                .await
-                .wrap("next_batch_to_attest")?,
-        ))
+        Ok(self
+            .conn(ctx)
+            .await?
+            .attestation_status(ctx)
+            .await
+            .wrap("next_batch_to_attest")?
+            .map(|s| s.next_batch_to_attest))
     }
 
     /// Get the L1 batch QC from storage with the highest number.
