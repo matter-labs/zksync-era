@@ -231,7 +231,12 @@ export async function registerHyperchain({
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
-    const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
+    const l2EnvVars = [
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        'CONTRACTS_HYPERCHAIN_DEPLOY_TX'
+    ];
     console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`);
 
     const updatedContracts = updateContractsEnv(
