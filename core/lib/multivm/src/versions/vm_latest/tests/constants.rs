@@ -75,7 +75,7 @@ fn test_l2_message_root_init_logs() {
         .storage
         .borrow_mut()
         .modified_storage_keys()
-        .into_iter()
+        .iter()
         .filter_map(|(&storage_key, &value)| {
             if *storage_key.address() == address {
                 Some(StorageLog {
