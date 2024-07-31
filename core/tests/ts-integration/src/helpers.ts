@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
-import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import {ZkSyncArtifact} from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -47,8 +47,13 @@ export async function deployContract(
     overrides: any = {}
 ): Promise<zksync.Contract> {
     const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, initiator, deploymentType);
+    console.time('DEPLOY');
     const contract = (await contractFactory.deploy(...args, overrides)) as zksync.Contract;
+    console.timeEnd('DEPLOY');
+
+    console.time('waitForDeployment');
     await contract.waitForDeployment();
+    console.timeEnd('waitForDeployment');
     return contract;
 }
 
@@ -60,7 +65,7 @@ export async function deployContract(
  * @returns Transaction receipt.
  */
 export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.TransactionReceipt> {
-    return await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
+    return await wallet.transfer({to: wallet.address, amount: 0}).then((tx) => tx.wait());
 }
 
 /**

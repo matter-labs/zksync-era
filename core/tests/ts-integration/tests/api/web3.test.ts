@@ -1,15 +1,15 @@
 /**
  * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
-import { TestMaster } from '../../src';
+import {TestMaster} from '../../src';
 import * as zksync from 'zksync-ethers';
-import { types } from 'zksync-ethers';
+import {types} from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
-import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
-import fetch, { RequestInit } from 'node-fetch';
-import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
-import { NodeMode } from '../../src/types';
+import {anyTransaction, deployContract, getTestContract, waitForNewL1Batch} from '../../src/helpers';
+import {shouldOnlyTakeFee} from '../../src/modifiers/balance-checker';
+import fetch, {RequestInit} from 'node-fetch';
+import {EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE} from 'zksync-ethers/build/utils';
+import {NodeMode} from '../../src/types';
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
@@ -93,8 +93,13 @@ describe('web3 API compatibility tests', () => {
         expect(txByHash.hash).toEqual(txByBlockNumberAndIndex.hash);
     });
 
-    test('Should test storage web3 methods', async () => {
+    test.only('Should test storage web3 methods', async () => {
+        console.time('deployContract')
+
         const counterContract = await deployContract(alice, contracts.counter, []);
+
+        console.timeEnd('deployContract')
+
 
         // eth_getCode
         const code = await alice.provider.getCode(await counterContract.getAddress());
@@ -132,7 +137,7 @@ describe('web3 API compatibility tests', () => {
         expect(batchDetails.number).toEqual(block.l1BatchNumber);
         // zks_estimateFee
         const response = await alice.provider.send('zks_estimateFee', [
-            { from: alice.address, to: alice.address, value: '0x1' }
+            {from: alice.address, to: alice.address, value: '0x1'}
         ]);
         const expectedResponse = {
             gas_limit: expect.stringMatching(HEX_VALUE_REGEX),
@@ -700,7 +705,7 @@ describe('web3 API compatibility tests', () => {
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
         expect(
-            poorBob.estimateGas({ value: 1, to: alice.address })
+            poorBob.estimateGas({value: 1, to: alice.address})
         ).toBeRejected(/*'insufficient balance for transfer'*/);
     });
 
@@ -838,10 +843,10 @@ describe('web3 API compatibility tests', () => {
                 toBlock: latestBlock.number
             })
         ).map((x) => {
-            return new zksync.types.Log({ ...x, l1BatchNumber: 0 }, alice.provider); // Set bogus value.
+            return new zksync.types.Log({...x, l1BatchNumber: 0}, alice.provider); // Set bogus value.
         });
-        const getLogsByHash = (await alice.provider.getLogs({ blockHash: latestBlock.hash || undefined })).map((x) => {
-            return new zksync.types.Log({ ...x, l1BatchNumber: 0 }, alice.provider); // Set bogus value.
+        const getLogsByHash = (await alice.provider.getLogs({blockHash: latestBlock.hash || undefined})).map((x) => {
+            return new zksync.types.Log({...x, l1BatchNumber: 0}, alice.provider); // Set bogus value.
         });
         await expect(getLogsByNumber).toEqual(getLogsByHash);
 
@@ -1028,7 +1033,7 @@ describe('web3 API compatibility tests', () => {
                     data: incrementFunctionData
                 },
                 'latest',
-                { [contract1Address.toString()]: { code: code } }
+                {[contract1Address.toString()]: {code: code}}
             ]);
 
             // Assert that the response is successful
@@ -1251,7 +1256,7 @@ export class MockMetamask {
 
     // EIP-1193
     async request(req: { method: string; params?: any[] }) {
-        let { method, params } = req;
+        let {method, params} = req;
         params ??= [];
 
         switch (method) {

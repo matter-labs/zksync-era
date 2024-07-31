@@ -1,4 +1,6 @@
 use anyhow::Context as _;
+use std::time::Duration;
+use tokio::time::Instant;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -137,6 +139,7 @@ impl EthNamespace {
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
+        let time = Instant::now();
         let fee = self
             .state
             .tx_sender
@@ -147,6 +150,7 @@ impl EthNamespace {
                 state_override,
             )
             .await?;
+        dbg!(time.elapsed());
         Ok(fee.gas_limit)
     }
 
