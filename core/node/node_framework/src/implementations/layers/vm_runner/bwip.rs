@@ -66,15 +66,13 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
             object_store,
         } = input;
 
-        // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
-        // catch up cache.
-        //
-        // One for `ConcurrentOutputHandlerFactoryTask`/`VmRunner` as they need occasional access
-        // to DB for querying last processed batch and last ready to be loaded batch.
-        //
-        // `window_size` connections for `BasicWitnessInputProducer`
-        // as there can be multiple output handlers holding multi-second connections to process
-        // BWIP data.
+        // - 1 connection for `StorageSyncTask` which can hold a long-term connection in case it needs to
+        //   catch up cache.
+        // - 1 connection for `ConcurrentOutputHandlerFactoryTask` / `VmRunner` as they need occasional access
+        //   to DB for querying last processed batch and last ready to be loaded batch.
+        // - `window_size` connections for `BasicWitnessInputProducer`
+        //   as there can be multiple output handlers holding multi-second connections to process
+        //   BWIP data.
         let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
 
         // We don't get the executor from the context because it would contain state keeper-specific settings.

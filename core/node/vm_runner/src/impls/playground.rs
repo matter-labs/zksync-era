@@ -33,6 +33,11 @@ impl VmPlayground {
         first_processed_batch: L1BatchNumber,
         reset_state: bool,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
+        tracing::info!(
+            "Starting VM playground with executor {batch_executor:?}, first processed batch is #{first_processed_batch} \
+             (reset processing: {reset_state:?})"
+        );
+
         fs::create_dir_all(&rocksdb_path)
             .await
             .with_context(|| format!("cannot create dir `{rocksdb_path}`"))?;

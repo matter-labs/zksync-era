@@ -9,6 +9,7 @@ import "zksync/config/contract_verifier.proto";
 import "zksync/config/database.proto";
 import "zksync/config/circuit_breaker.proto";
 import "zksync/config/eth_sender.proto";
+import "zksync/config/experimental.proto";
 import "zksync/config/house_keeper.proto";
 import "zksync/config/observability.proto";
 import "zksync/config/snapshots_creator.proto";
@@ -54,4 +55,5 @@ message GeneralConfig {
   optional vm_runner.BasicWitnessInputProducer basic_witness_input_producer = 40;
   optional external_price_api_client.ExternalPriceApiClient external_price_api_client = 41;
   optional core.consensus.Config consensus = 42;
+  optional experimental.VmPlayground vm_playground = 43;
 }

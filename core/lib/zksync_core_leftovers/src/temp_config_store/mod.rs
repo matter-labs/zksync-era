@@ -12,11 +12,11 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        CommitmentGeneratorConfig, DatabaseSecrets, ExternalPriceApiClientConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
-        PruningConfig, SnapshotRecoveryConfig,
+        CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmPlaygroundConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -71,6 +71,7 @@ pub struct TempConfigStore {
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
+    pub vm_playground_config: Option<ExperimentalVmPlaygroundConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
@@ -105,6 +106,7 @@ impl TempConfigStore {
             da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
+            vm_playground_config: self.vm_playground_config.clone(),
             core_object_store: self.core_object_store.clone(),
             base_token_adjuster: self.base_token_adjuster_config.clone(),
             commitment_generator: self.commitment_generator.clone(),
@@ -177,6 +179,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
+        vm_playground_config: ExperimentalVmPlaygroundConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
         base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
         commitment_generator: None,
@@ -186,7 +189,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
     })
 }
 
-pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<GeneralConfig> {
+pub fn load_general_config(path: Option<PathBuf>) -> anyhow::Result<GeneralConfig> {
     match path {
         Some(path) => {
             let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
@@ -198,7 +201,7 @@ pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<G
     }
 }
 
-pub fn load_database_secrets(path: Option<std::path::PathBuf>) -> anyhow::Result<DatabaseSecrets> {
+pub fn load_database_secrets(path: Option<PathBuf>) -> anyhow::Result<DatabaseSecrets> {
     match path {
         Some(path) => {
             let yaml = std::fs::read_to_string(path).context("Failed to read secrets")?;
