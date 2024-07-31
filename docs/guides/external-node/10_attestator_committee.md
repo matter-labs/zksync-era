@@ -26,6 +26,7 @@ We are looking for participants to this network.
 Joining the attester committee imposes no additional computational, operational, security, or business overhead for EN operators.
 
 The only difference in behaviour is that the node would asynchronously sign batches and send those signatures to the main node.
+Node checks if its public key is part of the committee for the current l1 batch - if it is, this logic kicks in.
 We expect the participating nodes to have very high uptime, 
 but there are no penalties for not submitting votes (and we wouldn't have any way to impose this).
 
