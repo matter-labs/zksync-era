@@ -256,7 +256,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 
     fn gas_remaining(&self) -> u32 {
-        todo!()
+        self.inner.state.current_frame().unwrap().gas_left.0
     }
 }
 
