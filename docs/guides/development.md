@@ -1,6 +1,7 @@
 # Development guide
 
-This document covers development-related actions in ZKsync.
+This document covers development-related actions in ZKsync. **You should first setup your environment following
+[setup-dev.md](./setup-dev.md)**
 
 ## Initializing the project
 
@@ -36,6 +37,9 @@ Initializing may take pretty long, but many steps (such as downloading & unpacki
 required to be done only once.
 
 Usually, it is a good idea to do `zk init` once after each merge to the `main` branch (as application setup may change).
+
+`zk init` accepts arguments for different deployment scenarios. For example you may run `zk init --base-token-name BAT`
+to get a setup with non ETH base token.
 
 Additionally, there is a subcommand `zk clean` to remove previously generated data. Examples:
 
@@ -110,11 +114,23 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
   # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block
   ```
 
-- Running the integration test:
+- Running the integration tests. Integration tests should be run on different setups (eth vs custom base token, rollup
+  vs validium). Some tests change behaviour depending on setup.:
+
+  - main tests
 
   ```
   zk server           # Has to be run in the 1st terminal
   zk test i server    # Has to be run in the 2nd terminal
+  zk test i api       # Has to be run in the 2nd terminal
+  ```
+
+  - fees tests
+
+  ```
+  zk server           # Has to be run in the 1st terminal. Will be killed by tests
+  zk test i fees      # Has to be run in the 2nd terminal
+  pkill zksync_server # Kills background server started by tests
   ```
 
 - Running the benchmarks:
