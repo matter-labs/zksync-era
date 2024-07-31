@@ -549,7 +549,12 @@ impl EthTxManager {
             let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
-            if last_known_l1_block < l1_block_numbers.latest {
+            // We need to re-run the iteration even if the latest seen block number is the same as the previous one, since
+            // in case of a low-activity settlement layer network, new blocks may only be produced by the transactions from the operator itself.
+            //
+            // We do not skip the check entirely, to ensure the monotonicity of the `last_known_l1_block`
+            // in case of bugs of the JSON-RPC API provider.
+            if last_known_l1_block <= l1_block_numbers.latest {
                 self.loop_iteration(&mut storage, l1_block_numbers).await;
                 last_known_l1_block = l1_block_numbers.latest;
             }
