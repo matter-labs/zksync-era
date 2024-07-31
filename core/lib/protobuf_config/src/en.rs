@@ -1,10 +1,9 @@
 use std::{num::NonZeroUsize, str::FromStr};
 
 use anyhow::Context;
-use zksync_basic_types::{url::SensitiveUrl, L2ChainId, SLChainId};
+use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
-use zksync_types::L1ChainId;
 
 use crate::proto::en as proto;
 

@@ -27,7 +27,7 @@ pub struct GenesisConfig {
 }
 
 impl GenesisConfig {
-    pub fn get_settlement_layer_id(&self) -> SLChainId {
+    pub fn settlement_layer_id(&self) -> SLChainId {
         self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
     }
 }

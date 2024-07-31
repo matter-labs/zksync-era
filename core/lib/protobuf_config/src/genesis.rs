@@ -2,11 +2,11 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L2ChainId,
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
+    L2ChainId,
 };
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
-use zksync_types::L1ChainId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
