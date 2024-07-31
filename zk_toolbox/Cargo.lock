@@ -6399,6 +6399,7 @@ dependencies = [
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",
@@ -6478,6 +6479,7 @@ dependencies = [
  "blake2",
  "chrono",
  "derive_more 1.0.0-beta.6",
+ "ethabi",
  "hex",
  "itertools 0.10.5",
  "num",
