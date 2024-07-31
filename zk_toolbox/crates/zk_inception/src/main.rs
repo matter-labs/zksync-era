@@ -44,7 +44,7 @@ pub enum InceptionSubcommands {
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
-    // Run External Node
+    ///  External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
