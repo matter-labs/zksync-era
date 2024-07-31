@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS ROW_NUMBER\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n            WHERE\n                number - ROW_NUMBER = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                data_availability.inclusion_data\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -105,8 +105,8 @@
       },
       {
         "ordinal": 20,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "protocol_version",
+        "type_info": "Int4"
       },
       {
         "ordinal": 21,
@@ -115,8 +115,8 @@
       },
       {
         "ordinal": 22,
-        "name": "protocol_version",
-        "type_info": "Int4"
+        "name": "system_logs",
+        "type_info": "ByteaArray"
       },
       {
         "ordinal": 23,
@@ -132,13 +132,15 @@
         "ordinal": 25,
         "name": "pubdata_input",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 26,
+        "name": "inclusion_data",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Int8"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -161,13 +163,14 @@
       true,
       true,
       true,
-      false,
       true,
+      true,
+      false,
       true,
       true,
       true,
       true
     ]
   },
-  "hash": "659f616d3af4a79f898e84f890e06de9633d1086da972a467d89831e7a07c67e"
+  "hash": "c0650c10864969d582136808e870417323479c637425740cf9ecf04e816a88d2"
 }
