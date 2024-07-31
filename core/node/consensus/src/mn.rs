@@ -85,6 +85,8 @@ pub async fn run_main_node(
             attester,
             attestation_status,
         };
+
+        tracing::info!("running the main node executor");
         executor.run(ctx).await
     })
     .await

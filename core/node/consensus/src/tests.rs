@@ -616,8 +616,16 @@ async fn test_with_pruning(version: ProtocolVersionId) {
             .wait_for_batch(ctx, validator.last_sealed_batch())
             .await?;
 
+        // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
+        // does not look for where the last prune happened at, and thus if we prune the block genesis
+        // points at, we might never be able to start the Executor.
+        tracing::info!("Wait until the external node has all the batches we want to prune");
+        node_pool
+            .wait_for_batch(ctx, to_prune.next())
+            .await
+            .context("wait_for_batch()")?;
         tracing::info!("Prune some blocks and sync more");
-        validator_pool
+        node_pool
             .prune_batches(ctx, to_prune)
             .await
             .context("prune_batches")?;

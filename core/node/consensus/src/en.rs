@@ -136,6 +136,7 @@ impl EN {
                 attester,
                 attestation_status,
             };
+            tracing::info!("running the external node executor");
             executor.run(ctx).await?;
 
             Ok(())
