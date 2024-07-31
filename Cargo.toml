@@ -181,7 +181,7 @@ tower-http = "0.5.2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.25.0"
-time = "0.3.36" # Has to be same as used by `tracing-subscriber`
+time = "0.3.36"                                                               # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 fraction = "0.15.3"
@@ -289,3 +289,16 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
+
+# TODO: Release era-consensus 0.1.0-rc.5
+[patch.crates-io]
+zksync_concurrency = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_bft = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_crypto = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_executor = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_network = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_roles = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_storage = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_consensus_utils = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_protobuf = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
+zksync_protobuf_build = { git = "https://github.com/matter-labs/era-consensus.git", rev = "638b23e291a35fe9109c68d42f277903aaae0c42" }
