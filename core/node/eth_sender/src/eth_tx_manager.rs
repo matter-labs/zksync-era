@@ -8,7 +8,7 @@ use zksync_eth_client::{
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
@@ -468,14 +468,6 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if gas_used > U256::from(tx.predicted_gas_cost) {
-            tracing::error!(
-                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
-                tx.predicted_gas_cost,
-                tx.tx_type,
-                tx.id
-            );
-        }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,

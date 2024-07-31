@@ -943,7 +943,6 @@ mod tests {
                 vec![],
                 AggregatedActionType::Commit,
                 Address::default(),
-                0,
                 None,
                 None,
             )

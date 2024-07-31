@@ -46,7 +46,6 @@ pub struct EthTx {
     pub raw_tx: Vec<u8>,
     pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
-    pub predicted_gas_cost: u64,
     /// If this field is `Some` then it contains address of a custom operator that has sent
     /// this transaction. If it is set to `None` this transaction was sent by the main operator.
     pub from_addr: Option<Address>,
@@ -62,7 +61,6 @@ impl std::fmt::Debug for EthTx {
             .field("contract_address", &self.contract_address)
             .field("tx_type", &self.tx_type)
             .field("created_at_timestamp", &self.created_at_timestamp)
-            .field("predicted_gas_cost", &self.predicted_gas_cost)
             .finish()
     }
 }
