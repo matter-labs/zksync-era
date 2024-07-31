@@ -1,0 +1,10 @@
+server_addr: '0.0.0.0:3054'
+public_addr: '127.0.0.1:3054'
+max_payload_size: 5000000
+gossip_dynamic_inbound_limit: 100
+gossip_static_outbound:
+  # preconfigured ENs owned by Matterlabs that you can connect to
+  - key: 'node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a'
+    addr: 'external-node-consensus-mainnet.zksync.dev:3054'
+  - key: 'node:public:ed25519:b521e1bb173d04bc83d46b859d1296378e94a40427a6beb9e7fdd17cbd934c11'
+    addr: 'external-node-moby-consensus-mainnet.zksync.dev:3054'
