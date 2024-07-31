@@ -1,12 +1,15 @@
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state_keeper::MainBatchExecutor;
+use zksync_types::vm::FastVmMode;
 
 use super::*;
 use crate::impls::VmPlayground;
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn vm_playground_basics() {
+async fn vm_playground_basics(reset_state: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -20,26 +23,28 @@ async fn vm_playground_basics() {
     fund(&mut conn, &accounts).await;
     store_l1_batches(
         &mut conn,
-        1..=1, // FIXME: test on >1 batch
+        1..=1, // TODO: test on >1 batch
         genesis_params.base_system_contracts().hashes(),
         &mut accounts,
     )
     .await
     .unwrap();
 
+    let mut batch_executor = MainBatchExecutor::new(false, false);
+    batch_executor.set_fast_vm_mode(FastVmMode::Shadow);
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
-        Box::new(MainBatchExecutor::new(false, false)),
+        Box::new(batch_executor),
         rocksdb_dir.path().to_str().unwrap().to_owned(),
         genesis_params.config().l2_chain_id,
         L1BatchNumber(0),
-        false,
+        reset_state,
     )
     .await
     .unwrap();
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let playground_io = playground_tasks.loader_task.io().clone();
+    let playground_io = playground.io.clone();
     assert_eq!(
         playground_io
             .latest_processed_batch(&mut conn)

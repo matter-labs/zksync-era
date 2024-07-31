@@ -4,8 +4,8 @@ use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    impls::{VmPlayground, VmPlaygroundIo},
-    ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
+    impls::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask},
+    ConcurrentOutputHandlerFactoryTask,
 };
 
 use crate::{
@@ -40,7 +40,7 @@ pub struct Output {
     #[context(task)]
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
     #[context(task)]
-    pub loader_task: StorageSyncTask<VmPlaygroundIo>,
+    pub loader_task: VmPlaygroundLoaderTask,
     #[context(task)]
     pub playground: VmPlayground,
 }
@@ -82,6 +82,17 @@ impl WiringLayer for VmPlaygroundLayer {
             loader_task: tasks.loader_task,
             playground,
         })
+    }
+}
+
+#[async_trait]
+impl Task for VmPlaygroundLoaderTask {
+    fn id(&self) -> TaskId {
+        "vm_runner/playground/storage_sync".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }
 

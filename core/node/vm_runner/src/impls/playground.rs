@@ -6,8 +6,12 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::{fs, sync::watch};
+use tokio::{
+    fs,
+    sync::{oneshot, watch},
+};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_state::RocksdbStorage;
 use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{L1BatchNumber, L2ChainId};
 
@@ -20,7 +24,16 @@ use crate::{
 /// (so that the playground doesn't repeatedly process same batches after a restart).
 #[derive(Debug)]
 pub struct VmPlayground {
-    vm_runner: VmRunner,
+    pool: ConnectionPool<Core>,
+    batch_executor: Box<dyn BatchExecutor>,
+    rocksdb_path: String,
+    chain_id: L2ChainId,
+    // Visible for test purposes
+    pub(crate) io: VmPlaygroundIo,
+    loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
+    output_handler_factory:
+        ConcurrentOutputHandlerFactory<VmPlaygroundIo, VmPlaygroundOutputHandler>,
+    reset_to_batch: Option<L1BatchNumber>,
 }
 
 impl VmPlayground {
@@ -38,37 +51,54 @@ impl VmPlayground {
              (reset processing: {reset_state:?})"
         );
 
-        fs::create_dir_all(&rocksdb_path)
-            .await
-            .with_context(|| format!("cannot create dir `{rocksdb_path}`"))?;
         let cursor_file_path = Path::new(&rocksdb_path).join("__vm_playground_cursor");
-
         let io = VmPlaygroundIo {
             first_processed_batch,
-            reset_state,
             cursor_file_path,
             #[cfg(test)]
             completed_batches_sender: Arc::new(watch::channel(first_processed_batch).0),
         };
-        let (loader, loader_task) =
-            VmRunnerStorage::new(pool.clone(), rocksdb_path, io.clone(), chain_id).await?;
-        let output_handler_factory = VmPlaygroundOutputHandler;
         let (output_handler_factory, output_handler_factory_task) =
-            ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let vm_runner = VmRunner::new(
+            ConcurrentOutputHandlerFactory::new(
+                pool.clone(),
+                io.clone(),
+                VmPlaygroundOutputHandler,
+            );
+        let (loader_task_sender, loader_task_receiver) = oneshot::channel();
+
+        let this = Self {
             pool,
-            Box::new(io),
-            Arc::new(loader),
-            Box::new(output_handler_factory),
             batch_executor,
-        );
+            rocksdb_path,
+            chain_id,
+            io,
+            loader_task_sender,
+            output_handler_factory,
+            reset_to_batch: reset_state.then_some(first_processed_batch),
+        };
         Ok((
-            Self { vm_runner },
+            this,
             VmPlaygroundTasks {
-                loader_task,
+                loader_task: VmPlaygroundLoaderTask {
+                    inner: loader_task_receiver,
+                },
                 output_handler_factory_task,
             },
         ))
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
+        let builder = RocksdbStorage::builder(self.rocksdb_path.as_ref()).await?;
+        let current_l1_batch = builder.l1_batch_number().await;
+        if current_l1_batch <= Some(last_retained_batch) {
+            tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
+            return Ok(());
+        }
+
+        tracing::info!("Resetting RocksDB cache from batch #{current_l1_batch:?}");
+        let mut conn = self.pool.connection_tagged("vm_playground").await?;
+        builder.roll_back(&mut conn, last_retained_batch).await
     }
 
     /// Continuously loads new available batches and writes the corresponding data
@@ -78,7 +108,56 @@ impl VmPlayground {
     ///
     /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
-        self.vm_runner.run(stop_receiver).await
+        fs::create_dir_all(&self.rocksdb_path)
+            .await
+            .with_context(|| format!("cannot create dir `{}`", self.rocksdb_path))?;
+
+        if let Some(reset_to_batch) = self.reset_to_batch {
+            self.reset_rocksdb_cache(reset_to_batch).await?;
+            self.io
+                .write_cursor(reset_to_batch)
+                .await
+                .context("failed resetting VM playground state")?;
+            tracing::info!("Finished resetting playground state");
+        }
+
+        let (loader, loader_task) = VmRunnerStorage::new(
+            self.pool.clone(),
+            self.rocksdb_path,
+            self.io.clone(),
+            self.chain_id,
+        )
+        .await?;
+        self.loader_task_sender.send(loader_task).ok();
+        let vm_runner = VmRunner::new(
+            self.pool,
+            Box::new(self.io),
+            Arc::new(loader),
+            Box::new(self.output_handler_factory),
+            self.batch_executor,
+        );
+        vm_runner.run(stop_receiver).await
+    }
+}
+
+/// Loader task for the VM playground.
+#[derive(Debug)]
+pub struct VmPlaygroundLoaderTask {
+    inner: oneshot::Receiver<StorageSyncTask<VmPlaygroundIo>>,
+}
+
+impl VmPlaygroundLoaderTask {
+    /// Runs a task until a stop signal is received.
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let task = tokio::select! {
+            biased;
+            _ = stop_receiver.changed() => return Ok(()),
+            res = self.inner => match res {
+                Ok(task) => task,
+                Err(_) => anyhow::bail!("VM playground stopped before spawning loader task"),
+            }
+        };
+        task.run(stop_receiver).await
     }
 }
 
@@ -86,16 +165,16 @@ impl VmPlayground {
 #[derive(Debug)]
 pub struct VmPlaygroundTasks {
     /// Task that synchronizes storage with new available batches.
-    pub loader_task: StorageSyncTask<VmPlaygroundIo>,
+    pub loader_task: VmPlaygroundLoaderTask,
     /// Task that handles output from processed batches.
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
 }
 
+// FIXME: non-atomic file writes.
 /// I/O powering [`VmPlayground`].
 #[derive(Debug, Clone)]
 pub struct VmPlaygroundIo {
     first_processed_batch: L1BatchNumber,
-    reset_state: bool,
     cursor_file_path: PathBuf,
     #[cfg(test)]
     completed_batches_sender: Arc<watch::Sender<L1BatchNumber>>,
@@ -146,9 +225,6 @@ impl VmRunnerIo for VmPlaygroundIo {
         &self,
         _conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
-        if self.reset_state {
-            return Ok(self.first_processed_batch);
-        }
         Ok(self
             .read_cursor()
             .await?

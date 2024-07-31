@@ -73,7 +73,8 @@ pub struct ExperimentalVmPlaygroundConfig {
     /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
     #[serde(default)]
     pub first_processed_batch: L1BatchNumber,
-    /// If set to true, processing cursor will reset `first_processed_batch` regardless of the current progress.
+    /// If set to true, processing cursor will reset `first_processed_batch` regardless of the current progress. Beware that this will likely
+    /// require to drop the RocksDB cache.
     #[serde(default)]
     pub reset: bool,
 }
