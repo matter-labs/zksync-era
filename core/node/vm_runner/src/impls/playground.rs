@@ -52,11 +52,17 @@ impl VmPlayground {
         );
 
         let cursor_file_path = Path::new(&rocksdb_path).join("__vm_playground_cursor");
+        let latest_processed_batch = VmPlaygroundIo::read_cursor(&cursor_file_path).await?;
+        tracing::info!("Latest processed batch: {latest_processed_batch:?}");
+        let latest_processed_batch = if reset_state {
+            first_processed_batch
+        } else {
+            latest_processed_batch.unwrap_or(first_processed_batch)
+        };
+
         let io = VmPlaygroundIo {
-            first_processed_batch,
             cursor_file_path,
-            #[cfg(test)]
-            completed_batches_sender: Arc::new(watch::channel(first_processed_batch).0),
+            latest_processed_batch: Arc::new(watch::channel(latest_processed_batch).0),
         };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(
@@ -170,19 +176,18 @@ pub struct VmPlaygroundTasks {
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
 }
 
-// FIXME: non-atomic file writes.
 /// I/O powering [`VmPlayground`].
 #[derive(Debug, Clone)]
 pub struct VmPlaygroundIo {
-    first_processed_batch: L1BatchNumber,
     cursor_file_path: PathBuf,
-    #[cfg(test)]
-    completed_batches_sender: Arc<watch::Sender<L1BatchNumber>>,
+    // We don't read this value from the cursor file in the `VmRunnerIo` implementation because reads / writes
+    // aren't guaranteed to be atomic.
+    latest_processed_batch: Arc<watch::Sender<L1BatchNumber>>,
 }
 
 impl VmPlaygroundIo {
-    async fn read_cursor(&self) -> anyhow::Result<Option<L1BatchNumber>> {
-        match fs::read_to_string(&self.cursor_file_path).await {
+    async fn read_cursor(cursor_file_path: &Path) -> anyhow::Result<Option<L1BatchNumber>> {
+        match fs::read_to_string(cursor_file_path).await {
             Ok(buffer) => {
                 let cursor = buffer
                     .parse::<u32>()
@@ -192,7 +197,7 @@ impl VmPlaygroundIo {
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(err) => Err(anyhow::Error::new(err).context(format!(
                 "failed reading VM playground cursor from `{}`",
-                self.cursor_file_path.display()
+                cursor_file_path.display()
             ))),
         }
     }
@@ -211,7 +216,7 @@ impl VmPlaygroundIo {
 
     #[cfg(test)]
     pub(crate) fn subscribe_to_completed_batches(&self) -> watch::Receiver<L1BatchNumber> {
-        self.completed_batches_sender.subscribe()
+        self.latest_processed_batch.subscribe()
     }
 }
 
@@ -225,10 +230,7 @@ impl VmRunnerIo for VmPlaygroundIo {
         &self,
         _conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
-        Ok(self
-            .read_cursor()
-            .await?
-            .unwrap_or(self.first_processed_batch))
+        Ok(*self.latest_processed_batch.borrow())
     }
 
     async fn last_ready_to_be_loaded_batch(
@@ -260,9 +262,8 @@ impl VmRunnerIo for VmPlaygroundIo {
     ) -> anyhow::Result<()> {
         tracing::info!("Finished processing L1 batch #{l1_batch_number}");
         self.write_cursor(l1_batch_number).await?;
-
-        #[cfg(test)]
-        self.completed_batches_sender.send_replace(l1_batch_number);
+        // We should only update the in-memory value after the write to the cursor file succeeded.
+        self.latest_processed_batch.send_replace(l1_batch_number);
         Ok(())
     }
 }
