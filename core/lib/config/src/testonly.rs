@@ -875,7 +875,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
-            sl_chain_id: Some(SLChainId(rng.gen())),
+            sl_chain_id: None,
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
