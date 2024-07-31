@@ -62,13 +62,10 @@ pub struct Vm<S> {
     pub(crate) inner: VirtualMachine,
     suspended_at: u16,
     gas_for_account_validation: u32,
-
     pub(crate) bootloader_state: BootloaderState,
-
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
-
-    snapshots: Vec<VmSnapshot>,
+    snapshot: Option<VmSnapshot>,
 }
 
 impl<S: ReadStorage> Vm<S> {
@@ -476,7 +473,7 @@ impl<S: ReadStorage> Vm<S> {
             ),
             system_env,
             batch_env,
-            snapshots: vec![],
+            snapshot: None,
         };
 
         me.write_to_bootloader_heap(bootloader_memory);
@@ -684,7 +681,11 @@ struct VmSnapshot {
 
 impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
-        self.snapshots.push(VmSnapshot {
+        assert!(
+            self.snapshot.is_none(),
+            "cannot create a VM snapshot until a previous snapshot is rolled back to or popped"
+        );
+        self.snapshot = Some(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
             suspended_at: self.suspended_at,
@@ -698,7 +699,7 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
             bootloader_snapshot,
             suspended_at,
             gas_for_account_validation,
-        } = self.snapshots.pop().expect("no snapshots to rollback to");
+        } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback(vm_snapshot);
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
@@ -709,14 +710,14 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop();
+        self.snapshot = None;
         self.delete_history_if_appropriate();
     }
 }
 
 impl<S: ReadStorage> Vm<S> {
     fn delete_history_if_appropriate(&mut self) {
-        if self.snapshots.is_empty() && self.inner.state.previous_frames.is_empty() {
+        if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
             self.inner.delete_history();
         }
     }
@@ -735,7 +736,7 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
             .field("program_cache", &self.world.program_cache)
             .field("batch_env", &self.batch_env)
             .field("system_env", &self.system_env)
-            .field("snapshots", &self.snapshots.len())
+            .field("snapshot", &self.snapshot.as_ref().map(|_| ()))
             .finish()
     }
 }

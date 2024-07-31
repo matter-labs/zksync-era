@@ -167,7 +167,10 @@ impl CommandReceiver {
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> TxExecutionResult {
-        // Save pre-`execute_next_tx` VM snapshot.
+        // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
+        // was already removed), or that we build on top of it (in which case, it can be removed now).
+        vm.pop_snapshot_no_rollback();
+        // Save pre-execution VM snapshot.
         vm.make_snapshot();
 
         // Execute the transaction.
@@ -253,9 +256,6 @@ impl CommandReceiver {
         // it means that there is no sense in polluting the space of compressed bytecodes,
         // and so we re-execute the transaction, but without compression.
 
-        // Saving the snapshot before executing
-        vm.make_snapshot();
-
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
@@ -267,7 +267,6 @@ impl CommandReceiver {
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-            vm.pop_snapshot_no_rollback();
 
             let trace = Arc::try_unwrap(call_tracer_result)
                 .unwrap()
@@ -275,7 +274,11 @@ impl CommandReceiver {
                 .unwrap_or_default();
             return (result, compressed_bytecodes, trace);
         }
+
+        // Roll back to the snapshot just before the transaction execution taken in `Self::execute_tx()`
+        // and create a snapshot at the same VM state again.
         vm.rollback_to_the_latest_snapshot();
+        vm.make_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {

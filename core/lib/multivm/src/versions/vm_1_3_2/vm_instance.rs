@@ -381,7 +381,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop().unwrap();
+        self.snapshots.pop();
     }
 
     /// Returns the amount of gas remaining to the VM.

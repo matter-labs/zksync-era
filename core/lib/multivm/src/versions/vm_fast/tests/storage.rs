@@ -50,6 +50,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
     vm.vm.push_transaction(tx1);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "First tx failed");
+    vm.vm.pop_snapshot_no_rollback();
 
     // We rollback once because transient storage and rollbacks are a tricky combination.
     vm.vm.make_snapshot();

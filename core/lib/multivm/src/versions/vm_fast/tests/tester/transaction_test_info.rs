@@ -209,6 +209,8 @@ impl VmTester {
                 inner_state_before, inner_state_after,
                 "Inner state before and after rollback should be equal"
             );
+        } else {
+            self.vm.pop_snapshot_no_rollback();
         }
         result
     }
