@@ -55,17 +55,17 @@ impl PriceAPIClient for ForcedPriceClient {
     /// Returns a ratio which is 10% higher or lower than the configured forced ratio,
     /// but not different more than 3% than the last value
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        let mut previousNumerator = self.previous_numerator.write().await;
+        let mut previous_numerator = self.previous_numerator.write().await;
         let mut rng = rand::thread_rng();
         let numerator_range = (
             max(
                 (self.ratio.numerator.get() as f64 * (1.0 - VARIATION_RANGE)).round() as u64,
-                (previousNumerator.get() as f64 * (1.0 - NEXT_VALUE_VARIATION_RANGE)).round()
+                (previous_numerator.get() as f64 * (1.0 - NEXT_VALUE_VARIATION_RANGE)).round()
                     as u64,
             ),
             min(
                 (self.ratio.numerator.get() as f64 * (1.0 + VARIATION_RANGE)).round() as u64,
-                (previousNumerator.get() as f64 * (1.0 + NEXT_VALUE_VARIATION_RANGE)).round()
+                (previous_numerator.get() as f64 * (1.0 + NEXT_VALUE_VARIATION_RANGE)).round()
                     as u64,
             ),
         );
@@ -77,7 +77,7 @@ impl PriceAPIClient for ForcedPriceClient {
             denominator: self.ratio.denominator,
             ratio_timestamp: chrono::Utc::now(),
         };
-        *previousNumerator = new_numerator;
+        *previous_numerator = new_numerator;
 
         Ok(adjusted_ratio)
     }
