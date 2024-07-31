@@ -13,7 +13,7 @@ pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
 }
 
 /// L1 (i.e., Ethereum) network.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub struct L1(Option<L1ChainId>);
 
 impl Network for L1 {
@@ -33,7 +33,7 @@ impl From<L1ChainId> for L1 {
 }
 
 /// L2 network.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub struct L2(Option<L2ChainId>);
 
 impl Network for L2 {

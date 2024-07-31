@@ -404,7 +404,7 @@ impl EthTxAggregator {
     async fn is_batches_synced(&self, op: &ExecuteBatches) -> Result<bool, EthSenderError> {
         let is_batches_synced = &*self.functions.is_batches_synced.name;
 
-        let params = op.into_tokens();
+        let params = op.into_tokens().pop().unwrap();
         let res: bool = CallFunctionArgs::new(is_batches_synced, params)
             .for_contract(
                 self.timelock_contract_address,

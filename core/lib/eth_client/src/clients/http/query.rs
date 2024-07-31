@@ -2,7 +2,9 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
-use zksync_types::{transaction_request::CallRequest, web3, Address, L1ChainId, H256, U256, U64};
+use zksync_types::{
+    network::Network, transaction_request::CallRequest, web3, Address, L1ChainId, H256, U256, U64,
+};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
@@ -95,6 +97,9 @@ where
         let mut history = Vec::with_capacity(block_count);
         let from_block = upto_block.saturating_sub(block_count);
 
+        let is_linea = self.network() == Network::LineaSepolia.chain_id().into()
+            || self.network() == Network::Linea.chain_id().into();
+
         // Here we are requesting `fee_history` from blocks
         // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
         // starting from the oldest block.
@@ -102,7 +107,7 @@ where
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
 
-            let fee_history = self
+            let mut fee_history = self
                 .fee_history(
                     U64::from(chunk_size),
                     web3::BlockNumber::from(chunk_end),
@@ -118,11 +123,16 @@ where
             // prior to EIP-4844.
             // https://ethereum.github.io/execution-apis/api-documentation/
             if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-                tracing::error!(
-                    "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
-                    fee_history.base_fee_per_gas.len(),
-                    fee_history.base_fee_per_blob_gas.len()
-                );
+                if is_linea {
+                    fee_history.base_fee_per_blob_gas =
+                        vec![Default::default(); fee_history.base_fee_per_gas.len()];
+                } else {
+                    tracing::error!(
+                        "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+                        fee_history.base_fee_per_gas.len(),
+                        fee_history.base_fee_per_blob_gas.len()
+                    );
+                }
             }
 
             for (base, blob) in fee_history
