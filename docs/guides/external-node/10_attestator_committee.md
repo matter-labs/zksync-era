@@ -3,7 +3,7 @@
 ## Overview
 
 Attester committee is a subset of ZKSync nodes. 
-After each l1 batch execution, participating nodes sign the execution result and send it back to the main node.
+After each l1 batch execution, participating nodes sign its execution result and send back to the network.
 
 The ultimate goal is to make L1 commit operation contingent on such signatures.
 This will improve the security and finality guarantees: 
