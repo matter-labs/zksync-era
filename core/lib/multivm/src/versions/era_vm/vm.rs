@@ -278,14 +278,17 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
 pub struct World<S: WriteStorage> {
     pub storage: StoragePtr<S>,
     pub contract_storage: HashMap<U256, Vec<U256>>,
+    pub l2_to_l1_logs: Vec<L2ToL1Log>,
 }
 
 impl<S: WriteStorage> World<S> {
     pub fn new_empty(storage: StoragePtr<S>) -> Self {
         let contract_storage = HashMap::new();
+        let l2_to_l1_logs = Vec::new();
         Self {
             contract_storage,
             storage,
+            l2_to_l1_logs,
         }
     }
 
@@ -293,6 +296,7 @@ impl<S: WriteStorage> World<S> {
         Self {
             storage,
             contract_storage,
+            l2_to_l1_logs: Vec::new(),
         }
     }
 }
@@ -349,4 +353,10 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
     fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
         unimplemented!()
     }
+
+    fn record_l2_to_l1_log(&mut self, log: L2ToL1Log) -> Result<(), StorageError> {
+        self.l2_to_l1_logs.push(log);
+        Ok(())
+    }
+}
 }
