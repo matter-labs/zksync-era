@@ -265,7 +265,7 @@ export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
 export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"  # Not needed for recent enough gcc versions
 ```
 
-## Tip: Speeding up building `RocksDB`
+### Tip: Speeding up building `RocksDB`
 
 By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
 by using precompiled versions of library, and it will significantly improve your build times.
