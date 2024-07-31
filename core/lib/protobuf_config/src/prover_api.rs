@@ -12,7 +12,7 @@ impl ProtoRepr for proto::ProverApi {
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("http_port")?,
             last_available_batch: required(&self.last_available_batch)
-                .and_then(|p| Ok(*p))
+                .copied()
                 .context("last_available_batch")?,
         })
     }
