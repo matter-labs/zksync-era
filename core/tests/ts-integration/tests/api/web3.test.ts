@@ -118,7 +118,7 @@ describe('web3 API compatibility tests', () => {
             const tokenBalance = await alice.getBalance(l2Token);
             expect(balances[l2Token.toLowerCase()] == tokenBalance);
         }
-        // zks_SLChainId
+        // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());
         expect(l1ChainId).toEqual(l1ChainIdFromL2Provider);

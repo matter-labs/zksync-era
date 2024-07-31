@@ -72,7 +72,7 @@ impl ProtoRepr for proto::Genesis {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            // For now, the settlement layer is always the same as the L1 network
+            // TODO(X): for now, the settlement layer is always the same as the L1 network
             sl_chain_id: Some(
                 required(&self.l1_chain_id)
                     .map(|x| SLChainId(*x))

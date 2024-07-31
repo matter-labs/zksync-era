@@ -187,7 +187,7 @@ mod tests {
             .build();
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_SLChainId", || Ok(U64::from(3)))
+            .method("zks_L1ChainId", || Ok(U64::from(3)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
@@ -225,7 +225,7 @@ mod tests {
 
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_SLChainId", || Ok(U64::from(9)))
+            .method("zks_L1ChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
@@ -252,7 +252,7 @@ mod tests {
             .build();
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_chainId", || Ok(U64::from(270)))
-            .method("zks_SLChainId", || Ok(U64::from(9)))
+            .method("zks_L1ChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(

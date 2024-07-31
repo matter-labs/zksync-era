@@ -87,7 +87,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
             )
         })?;
-        let l1_chain_id = SLChainId(l1_chain_id);
+        let sl_chain_id = SLChainId(l1_chain_id);
 
         let contract_address = provider.get_main_contract().await?;
         let default_bridges = provider
@@ -101,7 +101,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
         let query_client = Client::http(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
-            .for_network(l1_chain_id.into())
+            .for_network(sl_chain_id.into())
             .build();
         let query_client: Box<DynClient<L1>> = Box::new(query_client);
         let eth_client = SigningClient::new(
@@ -111,7 +111,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             eth_signer,
             contract_address,
             DEFAULT_PRIORITY_FEE.into(),
-            l1_chain_id,
+            sl_chain_id,
         );
         let erc20_abi = ierc20_contract();
         let l1_erc20_bridge_abi = l1_erc20_bridge_contract();
