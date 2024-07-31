@@ -8,7 +8,7 @@ use jsonrpsee::{core::ClientError, types::ErrorObject};
 use zksync_types::{
     ethabi,
     web3::{self, contract::Tokenize, BlockId},
-    Address, L1ChainId, H160, H256, U256, U64,
+    Address, L1ChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{DynClient, MockClient, L1};
 
@@ -28,7 +28,15 @@ struct MockTx {
 }
 
 impl From<Vec<u8>> for MockTx {
-    fn from(tx: Vec<u8>) -> Self {
+    fn from(raw_tx: Vec<u8>) -> Self {
+        let is_eip4844 = raw_tx[0] == EIP_4844_TX_TYPE;
+        let tx: Vec<u8> = if is_eip4844 {
+            // decoding rlp-encoded length
+            let len = raw_tx[2] as usize * 256 + raw_tx[3] as usize - 2;
+            raw_tx[3..3 + len].to_vec()
+        } else {
+            raw_tx
+        };
         let len = tx.len();
         let recipient = Address::from_slice(&tx[len - 116..len - 96]);
         let max_fee_per_gas = U256::from(&tx[len - 96..len - 64]);
@@ -37,6 +45,9 @@ impl From<Vec<u8>> for MockTx {
         let hash = {
             let mut buffer = [0_u8; 32];
             buffer.copy_from_slice(&tx[..32]);
+            if is_eip4844 {
+                buffer[0] = 0x00;
+            }
             buffer.into()
         };
 
@@ -94,11 +105,12 @@ impl MockEthereumInner {
         self.block_number += confirmations;
         let nonce = self.current_nonce;
         self.current_nonce += 1;
+        tracing::info!("Executing tx with hash {tx_hash:?}, success: {success}, current nonce: {}, confirmations: {confirmations}", self.current_nonce);
         let tx_nonce = self.sent_txs[&tx_hash].nonce;
 
         if non_ordering_confirmations {
             if tx_nonce >= nonce {
-                self.current_nonce = tx_nonce;
+                self.current_nonce = tx_nonce + 1;
             }
         } else {
             assert_eq!(tx_nonce, nonce, "nonce mismatch");
@@ -140,6 +152,7 @@ impl MockEthereumInner {
     fn send_raw_transaction(&mut self, tx: web3::Bytes) -> Result<H256, ClientError> {
         let mock_tx = MockTx::from(tx.0);
         let mock_tx_hash = mock_tx.hash;
+        tracing::info!("Sending tx with hash {mock_tx_hash:?}");
 
         if mock_tx.nonce < self.current_nonce {
             let err = ErrorObject::owned(
