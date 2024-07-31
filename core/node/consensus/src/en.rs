@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
@@ -70,7 +71,11 @@ impl EN {
             s.spawn_bg::<()>(async {
                 let old = genesis;
                 loop {
-                    if let Ok(new) = self.fetch_genesis(ctx).await {
+                    if let Ok(new) = self
+                        .fetch_genesis(ctx)
+                        .instrument(tracing::info_span!("genesis_monitor_fetch"))
+                        .await
+                    {
                         if new != old {
                             return Err(anyhow::format_err!(
                                 "genesis changed: old {old:?}, new {new:?}"

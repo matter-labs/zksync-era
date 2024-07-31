@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::{attester, validator};
@@ -129,6 +130,7 @@ impl PersistedBlockState {
     /// If `persisted.first` is moved forward, it means that blocks have been pruned.
     /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
     /// persisted.
+    #[tracing::instrument(skip_all, fields(first = %new.first, last = ?new.last.as_ref().map(|l| l.message.proposal.number)))]
     fn update(&self, new: storage::BlockStoreState) {
         self.0.send_if_modified(|p| {
             if &new == p {
@@ -149,6 +151,7 @@ impl PersistedBlockState {
     }
 
     /// Appends the `cert` to `persisted` range.
+    #[tracing::instrument(skip_all, fields(batch_number = %cert.message.proposal.number))]
     fn advance(&self, cert: validator::CommitQC) {
         self.0.send_if_modified(|p| {
             if p.next() != cert.header().number {
@@ -175,14 +178,23 @@ impl StoreRunner {
                 // Loop updating `blocks_persisted` whenever blocks get pruned.
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 loop {
-                    let range = pool
-                        .connection(ctx)
-                        .await?
-                        .block_certificates_range(ctx)
-                        .await
-                        .wrap("block_certificates_range()")?;
-                    blocks_persisted.update(range);
-                    ctx.sleep(POLL_INTERVAL).await?;
+                    let span = tracing::info_span!("blocks_persisted_loop");
+                    async {
+                        let range = pool
+                            .connection(ctx)
+                            .await?
+                            .block_certificates_range(ctx)
+                            .await
+                            .wrap("block_certificates_range()")?;
+                        blocks_persisted.update(range);
+                        ctx.sleep(POLL_INTERVAL)
+                            .instrument(tracing::info_span!("sleep"))
+                            .await?;
+
+                        anyhow::Ok(())
+                    }
+                    .instrument(span)
+                    .await?;
                 }
             });
 
@@ -203,19 +215,31 @@ impl StoreRunner {
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
                 let mut next_batch_number = { batches_persisted.borrow().next() };
                 loop {
-                    let mut conn = pool.connection(ctx).await?;
-                    if let Some(last_batch_number) = conn
-                        .get_last_batch_number(ctx)
-                        .await
-                        .wrap("last_batch_number()")?
-                    {
-                        if last_batch_number >= next_batch_number {
-                            let range = conn.batches_range(ctx).await.wrap("batches_range()")?;
-                            next_batch_number = last_batch_number.next();
-                            batches_persisted.send_replace(range);
+                    let span = tracing::info_span!("gossip_sync_batches_loop", %next_batch_number);
+                    async {
+                        let mut conn = pool.connection(ctx).await?;
+                        if let Some(last_batch_number) = conn
+                            .get_last_batch_number(ctx)
+                            .await
+                            .wrap("last_batch_number()")?
+                        {
+                            if last_batch_number >= next_batch_number {
+                                let range =
+                                    conn.batches_range(ctx).await.wrap("batches_range()")?;
+                                next_batch_number = last_batch_number.next();
+                                tracing::info_span!("batches_persisted_send").in_scope(|| {
+                                    batches_persisted.send_replace(range);
+                                });
+                            }
                         }
+                        ctx.sleep(POLL_INTERVAL)
+                            .instrument(tracing::info_span!("sleep"))
+                            .await?;
+
+                        anyhow::Ok(())
                     }
-                    ctx.sleep(POLL_INTERVAL).await?;
+                    .instrument(span)
+                    .await?;
                 }
             });
 
@@ -223,73 +247,98 @@ impl StoreRunner {
                 // Loop inserting batch certificates into storage
                 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
                 loop {
-                    let cert = batch_certificates.recv(ctx).await?;
+                    let span = tracing::info_span!("insert_batch_certificates_loop");
 
-                    loop {
-                        use consensus_dal::InsertCertificateError as E;
-                        // Try to insert the cert.
-                        let res = pool
-                            .connection(ctx)
-                            .await?
-                            .insert_batch_certificate(ctx, &cert)
-                            .await;
+                    async {
+                        let cert = batch_certificates
+                            .recv(ctx)
+                            .instrument(tracing::info_span!("wait_for_certificate"))
+                            .await?;
 
-                        match res {
-                            Ok(()) => {
-                                break;
-                            }
-                            Err(InsertCertificateError::Inner(E::MissingPayload)) => {
-                                // The L1 batch isn't available yet.
-                                // We can wait until it's produced/received, or we could modify gossip
-                                // so that we don't even accept votes until we have the corresponding batch.
-                                ctx.sleep(POLL_INTERVAL).await?;
-                            }
-                            Err(InsertCertificateError::Inner(err)) => {
-                                return Err(ctx::Error::Internal(anyhow::Error::from(err)))
-                            }
-                            Err(InsertCertificateError::Canceled(err)) => {
-                                return Err(ctx::Error::Canceled(err))
+                        loop {
+                            use consensus_dal::InsertCertificateError as E;
+                            // Try to insert the cert.
+                            let res = pool
+                                .connection(ctx)
+                                .await?
+                                .insert_batch_certificate(ctx, &cert)
+                                .await;
+
+                            match res {
+                                Ok(()) => {
+                                    break;
+                                }
+                                Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                                    // The L1 batch isn't available yet.
+                                    // We can wait until it's produced/received, or we could modify gossip
+                                    // so that we don't even accept votes until we have the corresponding batch.
+                                    ctx.sleep(POLL_INTERVAL)
+                                        .instrument(tracing::info_span!("wait_for_batch"))
+                                        .await?;
+                                }
+                                Err(InsertCertificateError::Inner(err)) => {
+                                    return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                                }
+                                Err(InsertCertificateError::Canceled(err)) => {
+                                    return Err(ctx::Error::Canceled(err))
+                                }
                             }
                         }
+
+                        Ok(())
                     }
+                    .instrument(span)
+                    .await?
                 }
             });
 
             // Loop inserting block certs to storage.
             const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
             loop {
-                let cert = block_certificates.recv(ctx).await?;
-                // Wait for the block to be persisted, so that we can attach a cert to it.
-                // We may exit this loop without persisting the certificate in case the
-                // corresponding block has been pruned in the meantime.
-                while blocks_persisted.should_be_persisted(&cert) {
-                    use consensus_dal::InsertCertificateError as E;
-                    // Try to insert the cert.
-                    let res = pool
-                        .connection(ctx)
-                        .await?
-                        .insert_block_certificate(ctx, &cert)
-                        .await;
-                    match res {
-                        Ok(()) => {
-                            // Insertion succeeded: update persisted state
-                            // and wait for the next cert.
-                            blocks_persisted.advance(cert);
-                            break;
-                        }
-                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
-                            // the payload is not in storage, it's either not yet persisted
-                            // or already pruned. We will retry after a delay.
-                            ctx.sleep(POLL_INTERVAL).await?;
-                        }
-                        Err(InsertCertificateError::Canceled(err)) => {
-                            return Err(ctx::Error::Canceled(err))
-                        }
-                        Err(InsertCertificateError::Inner(err)) => {
-                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                let span = tracing::info_span!("insert_block_certificates_loop");
+                async {
+                    let cert = block_certificates
+                        .recv(ctx)
+                        .instrument(tracing::info_span!("wait_for_certificate"))
+                        .await?;
+                    // Wait for the block to be persisted, so that we can attach a cert to it.
+                    // We may exit this loop without persisting the certificate in case the
+                    // corresponding block has been pruned in the meantime.
+                    while blocks_persisted.should_be_persisted(&cert) {
+                        use consensus_dal::InsertCertificateError as E;
+                        // Try to insert the cert.
+                        let res = pool
+                            .connection(ctx)
+                            .await?
+                            .insert_block_certificate(ctx, &cert)
+                            .await;
+                        match res {
+                            Ok(()) => {
+                                // Insertion succeeded: update persisted state
+                                // and wait for the next cert.
+                                blocks_persisted.advance(cert);
+                                break;
+                            }
+                            Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                                // the payload is not in storage, it's either not yet persisted
+                                // or already pruned. We will retry after a delay.
+                                ctx.sleep(POLL_INTERVAL)
+                                    .instrument(tracing::info_span!("wait_for_block"))
+                                    .await?;
+                            }
+                            Err(InsertCertificateError::Canceled(err)) => {
+                                return Err(ctx::Error::Canceled(err))
+                            }
+                            Err(InsertCertificateError::Inner(err)) => {
+                                return Err(ctx::Error::Internal(anyhow::Error::from(err)))
+                            }
                         }
                     }
+
+                    Ok(())
                 }
+                .instrument(span)
+                .await?;
             }
         })
         .await;
