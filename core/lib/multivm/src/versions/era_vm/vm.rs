@@ -2,12 +2,12 @@ use std::{borrow::Borrow, cell::RefCell, collections::HashMap, fmt::Write, io::R
 
 use era_vm::{
     state::{Event, VMStateBuilder},
-    store::{InMemory, Storage, StorageError, StorageKey as EraStorageKey},
+    store::{InMemory, L2ToL1Log, Storage, StorageError, StorageKey as EraStorageKey},
     vm::ExecutionOutput,
     LambdaVm, VMState,
 };
 use zksync_contracts::SystemContractCode;
-use zksync_state::{ReadStorage, StoragePtr};
+use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
 use zksync_types::{
     l1::is_l1_tx_type, AccountTreeId, Address, L1BatchNumber, StorageKey, Transaction, VmEvent,
     BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
@@ -28,7 +28,7 @@ use crate::{
     HistoryMode,
 };
 
-pub struct Vm<S: ReadStorage> {
+pub struct Vm<S: WriteStorage> {
     pub(crate) inner: LambdaVm,
     suspended_at: u16,
     gas_for_account_validation: u32,
@@ -47,7 +47,7 @@ pub struct Vm<S: ReadStorage> {
     snapshots: Vec<VmSnapshot>, // TODO: Implement snapshots logic
 }
 
-impl<S: ReadStorage + 'static> Vm<S> {
+impl<S: WriteStorage + 'static> Vm<S> {
     pub fn run(&mut self, _execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
         let (result, final_vm) = self.inner.run_program_with_custom_bytecode();
         let result = match result {
@@ -93,7 +93,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
     }
 }
 
-impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
+impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     type TracerDispatcher = ();
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
@@ -126,7 +126,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         );
 
         let world_storage = World::new(storage.clone(), pre_contract_storage);
-        let vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
+        let mut vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
         let bootloader_memory = bootloader_initial_memory(&batch_env);
         let mut mv = Self {
             inner: vm,
@@ -254,7 +254,7 @@ impl<S: ReadStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 }
 
-impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
+impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     fn make_snapshot(&mut self) {
         todo!()
     }
@@ -269,12 +269,12 @@ impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
 }
 
 #[derive(Debug)]
-pub struct World<S: ReadStorage> {
+pub struct World<S: WriteStorage> {
     pub storage: StoragePtr<S>,
     pub contract_storage: HashMap<U256, Vec<U256>>,
 }
 
-impl<S: ReadStorage> World<S> {
+impl<S: WriteStorage> World<S> {
     pub fn new_empty(storage: StoragePtr<S>) -> Self {
         let contract_storage = HashMap::new();
         Self {
@@ -291,9 +291,22 @@ impl<S: ReadStorage> World<S> {
     }
 }
 
-impl<S: ReadStorage> era_vm::store::Storage for World<S> {
+impl<S: WriteStorage> era_vm::store::Storage for World<S> {
     fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
-        Ok(self.contract_storage.get(&hash).cloned())
+        let contract = self.contract_storage.get(&hash).cloned();
+        if contract.is_none() {
+            let contract = self.storage.borrow_mut().load_factory_dep(u256_to_h256(hash)).expect("Bytecode not found");
+            let mut program_code = vec![];
+            for raw_opcode_slice in contract.chunks(32) {
+                let mut raw_opcode_bytes: [u8; 32] = [0; 32];
+                raw_opcode_bytes.copy_from_slice(&raw_opcode_slice[..32]);
+
+                let raw_opcode_u256 = U256::from_big_endian(&raw_opcode_bytes);
+                program_code.push(raw_opcode_u256);
+            }
+            return Ok(Some(program_code));
+        }
+        Ok(contract)
     }
 
     fn add_contract(&mut self, hash: U256, code: Vec<U256>) -> Result<(), StorageError> {
@@ -315,7 +328,12 @@ impl<S: ReadStorage> era_vm::store::Storage for World<S> {
     }
 
     fn storage_write(&mut self, key: EraStorageKey, value: U256) -> Result<(), StorageError> {
-        unimplemented!()
+        let mut storage = RefCell::borrow_mut(&self.storage);
+        storage.set_value(
+            StorageKey::new(AccountTreeId::new(key.address), u256_to_h256(key.key)),
+            u256_to_h256(value),
+        );
+        Ok(())
     }
 
     fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
