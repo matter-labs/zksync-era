@@ -66,6 +66,8 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+    /// Verifies that the configuration files parse correctly, then exits.
+    just_verify_configs: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -164,6 +166,10 @@ fn main() -> anyhow::Result<()> {
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
         node.only_genesis()?.run()?;
+        return Ok(());
+    }
+
+    if opt.just_verify_configs {
         return Ok(());
     }
 
