@@ -50,9 +50,14 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
     async fn get_tx_status(
         &self,
         tx_hash: H256,
+        operator_type: OperatorType,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError>;
 
-    async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256>;
+    async fn send_raw_tx(
+        &self,
+        tx_bytes: RawTransactionBytes,
+        operator_type: OperatorType,
+    ) -> EnrichedClientResult<H256>;
 
     fn get_blobs_operator_account(&self) -> Option<Address>;
 
@@ -89,6 +94,14 @@ impl RealL1Interface {
     pub(crate) fn query_client(&self) -> &DynClient<L1> {
         self.ethereum_gateway().as_ref()
     }
+
+    pub(crate) fn query_client_for_operator(&self, operator_type: OperatorType) -> &DynClient<L1> {
+        if operator_type == OperatorType::Blob {
+            self.ethereum_gateway_blobs().unwrap().as_ref()
+        } else {
+            self.ethereum_gateway().as_ref()
+        }
+    }
 }
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
@@ -106,15 +119,22 @@ impl AbstractL1Interface for RealL1Interface {
     async fn get_tx_status(
         &self,
         tx_hash: H256,
+        operator_type: OperatorType,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError> {
-        self.query_client()
+        self.query_client_for_operator(operator_type)
             .get_tx_status(tx_hash)
             .await
             .map_err(Into::into)
     }
 
-    async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256> {
-        self.query_client().send_raw_tx(tx_bytes).await
+    async fn send_raw_tx(
+        &self,
+        tx_bytes: RawTransactionBytes,
+        operator_type: OperatorType,
+    ) -> EnrichedClientResult<H256> {
+        self.query_client_for_operator(operator_type)
+            .send_raw_tx(tx_bytes)
+            .await
     }
 
     fn get_blobs_operator_account(&self) -> Option<Address> {

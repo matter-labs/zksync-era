@@ -10,8 +10,9 @@ use xshell::Shell;
 use crate::{
     consts::SERVER_MIGRATIONS,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DATABASE_MUST_BE_PRESENTED,
+        MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
@@ -36,7 +37,14 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
             .clone()
             .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?,
     )?;
-    let db_config = DatabaseConfig::from_url(secrets.database.server_url)?;
+    let db_config = DatabaseConfig::from_url(
+        secrets
+            .database
+            .as_ref()
+            .context(MSG_DATABASE_MUST_BE_PRESENTED)?
+            .master_url()?
+            .expose_url(),
+    )?;
     drop_db_if_exists(&db_config)
         .await
         .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;

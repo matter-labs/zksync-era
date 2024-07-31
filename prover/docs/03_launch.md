@@ -15,6 +15,8 @@ It will create a config similar to `dev`, but with:
 
 You can always switch back to dev config via `zk env dev`.
 
+**Important:** If you change environments, you have to do `zk init` again.
+
 ## Enter the prover workspace
 
 All the commands for binaries in the prover workspace must be done from the prover folder:
@@ -62,7 +64,7 @@ until it happens, witness generators will panic and won't be able to start.
 Once a job is created, start witness generators:
 
 ```
-API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
+zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
 ```
 
 `--all_rounds` means that witness generator will produce witnesses of all kinds. You can run a witness generator for
@@ -71,11 +73,11 @@ each round separately, but it's mostly useful in production environments.
 ### Witness vector generator
 
 ```
-FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
+zk f cargo run --release --bin zksync_witness_vector_generator -- --threads 10
 ```
 
-WVG prepares inputs for prover, and it's a single-threaded time-consuming operation. You may run several instances (make
-sure to use different ports). The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
+WVG prepares inputs for prover, and it's a single-threaded time-consuming operation. You may run several jobs by
+changing the `threads` parameter. The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
 ballpark estimate (useful for local development) is 10 WVGs per prover.
 
 ### Prover

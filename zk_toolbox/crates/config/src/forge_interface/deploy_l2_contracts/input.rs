@@ -1,23 +1,23 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
-use types::ChainId;
+use zksync_basic_types::L2ChainId;
 
-use crate::{traits::FileConfig, ChainConfig};
+use crate::{traits::ZkToolboxConfig, ChainConfig};
 
-impl FileConfig for InitializeBridgeInput {}
+impl ZkToolboxConfig for DeployL2ContractsInput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InitializeBridgeInput {
-    pub era_chain_id: ChainId,
-    pub chain_id: ChainId,
+pub struct DeployL2ContractsInput {
+    pub era_chain_id: L2ChainId,
+    pub chain_id: L2ChainId,
     pub l1_shared_bridge: Address,
     pub bridgehub: Address,
     pub governance: Address,
     pub erc20_bridge: Address,
 }
 
-impl InitializeBridgeInput {
-    pub fn new(chain_config: &ChainConfig, era_chain_id: ChainId) -> anyhow::Result<Self> {
+impl DeployL2ContractsInput {
+    pub fn new(chain_config: &ChainConfig, era_chain_id: L2ChainId) -> anyhow::Result<Self> {
         let contracts = chain_config.get_contracts_config()?;
         let wallets = chain_config.get_wallets_config()?;
         Ok(Self {

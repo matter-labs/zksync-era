@@ -276,7 +276,10 @@ async fn deploy_ecosystem(
             }
             L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
                 .get_preexisting_configs_path()
-                .join(ecosystem_config.l1_network.to_string().to_lowercase()),
+                .join(format!(
+                    "{}.yaml",
+                    ecosystem_config.l1_network.to_string().to_lowercase()
+                )),
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
@@ -351,6 +354,20 @@ async fn deploy_ecosystem_inner(
         l1_rpc_url.clone(),
     )
     .await?;
+
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config
+            .ecosystem_contracts
+            .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
     Ok(contracts_config)
 }
 
