@@ -116,6 +116,29 @@ impl ProofGenerationDal<'_, '_> {
         Ok(L1BatchNumber(result))
     }
 
+    pub async fn check_proof_presence(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        let result = sqlx::query!(
+            r#"
+            SELECT
+                proof_blob_url
+            FROM
+                proof_generation_details
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("is_proof_present")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(result.is_some())
+    }
+
     /// Marks a previously locked batch as 'unpicked', allowing it to be picked without having
     /// to wait for the processing timeout.
     pub async fn unlock_batch(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<()> {

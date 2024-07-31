@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                proof_blob_url\n            FROM\n                proof_generation_details\n            WHERE\n                l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "proof_blob_url",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "6cb61500f47a68493309883396cbfb74b830b48c5067ea2435c730f698a8fca2"
+}

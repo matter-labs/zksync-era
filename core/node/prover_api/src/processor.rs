@@ -153,19 +153,30 @@ impl Processor {
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<VerifyProofRequest>,
     ) -> Result<(), ProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::info!(
-            "Received request to verify proof for batch: {}",
+            "Received request to verify proof for batch: {:?}",
             l1_batch_number
         );
+
+        let is_proof_present = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .check_proof_presence(l1_batch_number)
+            .await?;
+
+        if !is_proof_present {
+            return Err(ProcessorError::ProofNotReady(l1_batch_number));
+        }
 
         let serialized_proof = bincode::serialize(&payload.0)?;
         let expected_proof = bincode::serialize(
             &self
                 .blob_store
-                .get::<L1BatchProofForL1>((
-                    L1BatchNumber(l1_batch_number),
-                    payload.0.protocol_version,
-                ))
+                .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
                 .await?,
         )?;
 

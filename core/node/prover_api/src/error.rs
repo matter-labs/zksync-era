@@ -2,6 +2,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use zksync_basic_types::L1BatchNumber;
 use zksync_dal::DalError;
 use zksync_object_store::ObjectStoreError;
 
@@ -9,6 +10,7 @@ pub(crate) enum ProcessorError {
     ObjectStore(ObjectStoreError),
     Dal(DalError),
     Serialization(bincode::Error),
+    ProofNotReady(L1BatchNumber),
     InvalidProof,
 }
 
@@ -36,7 +38,7 @@ impl IntoResponse for ProcessorError {
             ProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
                 (
-                    StatusCode::BAD_GATEWAY,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     "Failed fetching/saving from GCS".to_owned(),
                 )
             }
@@ -47,7 +49,7 @@ impl IntoResponse for ProcessorError {
                         (StatusCode::NOT_FOUND, "Non existing L1 batch".to_owned())
                     }
                     _ => (
-                        StatusCode::BAD_GATEWAY,
+                        StatusCode::INTERNAL_SERVER_ERROR,
                         "Failed fetching/saving from db".to_owned(),
                     ),
                 }
@@ -56,7 +58,16 @@ impl IntoResponse for ProcessorError {
                 tracing::error!("Serialization error: {:?}", err);
                 (
                     StatusCode::BAD_REQUEST,
-                    "Failed to serialize proof data".to_owned(),
+                    "Failed to deserialize proof data".to_owned(),
+                )
+            }
+            ProcessorError::ProofNotReady(l1_batch_number) => {
+                tracing::error!(
+                "Proof for {l1_batch_number:?} wasn't found. Most likely it is not generated yet"
+                );
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Proof for {l1_batch_number:?} wasn't found. Most likely it is not generated yet, try again later"),
                 )
             }
             ProcessorError::InvalidProof => {
