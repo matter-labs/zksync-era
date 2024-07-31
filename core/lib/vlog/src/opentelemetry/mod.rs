@@ -108,7 +108,7 @@ impl OpenTelemetry {
         self
     }
 
-    pub(super) fn into_layer<S>(self) -> impl Layer<S>
+    pub(super) fn into_layer<S>(self) -> (opentelemetry_sdk::trace::TracerProvider, impl Layer<S>)
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
@@ -151,9 +151,11 @@ impl OpenTelemetry {
         let tracer = provider.tracer_builder(service_name).build();
 
         opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
-        tracing_opentelemetry::layer()
+        let layer = tracing_opentelemetry::layer()
             .with_tracer(tracer)
-            .with_filter(filter)
+            .with_filter(filter);
+
+        (provider, layer)
     }
 }
 
