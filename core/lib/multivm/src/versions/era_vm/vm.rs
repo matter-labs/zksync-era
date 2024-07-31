@@ -51,17 +51,11 @@ impl<S: WriteStorage + 'static> Vm<S> {
     pub fn run(&mut self, _execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
         let (result, final_vm) = self.inner.run_program_with_custom_bytecode();
         let result = match result {
-            ExecutionOutput::Ok(output) => {
-                // println!("ExecutionOutput::Ok");
-                ExecutionResult::Success { output }
-            }
-            ExecutionOutput::Revert(output) => {
-                // println!("ExecutionOutput::Revert");
-                match TxRevertReason::parse_error(&output) {
-                    TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
-                    TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
-                }
-            }
+            ExecutionOutput::Ok(output) => ExecutionResult::Success { output },
+            ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
+                TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
+                TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
+            },
             ExecutionOutput::Panic => ExecutionResult::Halt {
                 reason: if self.inner.state.gas_left().unwrap() == 0 {
                     Halt::BootloaderOutOfGas
@@ -79,14 +73,11 @@ impl<S: WriteStorage + 'static> Vm<S> {
             .inner
             .state
             .heaps
-            .get(self.inner.state.current_frame().unwrap().heap_id)
-            .cloned()
+            .get_mut(self.inner.state.current_frame().unwrap().heap_id)
         {
             for (slot, value) in memory {
                 let end = (slot + 1) * 32;
-                if heap.len() <= end {
-                    heap.expand_memory(end as u32);
-                }
+                heap.expand_memory(end as u32);
                 heap.store((slot * 32) as u32, value);
             }
         }
@@ -128,6 +119,21 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         let world_storage = World::new(storage.clone(), pre_contract_storage);
         let mut vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
         let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        // The bootloader shouldn't pay for growing memory and it writes results
+        // to the end of its heap, so it makes sense to preallocate it in its entirety.
+        const BOOTLOADER_MAX_MEMORY_SIZE: u32 = 59000000;
+        vm.state
+            .heaps
+            .get_mut(era_vm::state::FIRST_HEAP)
+            .unwrap()
+            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
+        vm.state
+            .heaps
+            .get_mut(era_vm::state::FIRST_HEAP + 1)
+            .unwrap()
+            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
+
         let mut mv = Self {
             inner: vm,
             suspended_at: 0,
@@ -295,7 +301,11 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
     fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
         let contract = self.contract_storage.get(&hash).cloned();
         if contract.is_none() {
-            let contract = self.storage.borrow_mut().load_factory_dep(u256_to_h256(hash)).expect("Bytecode not found");
+            let contract = self
+                .storage
+                .borrow_mut()
+                .load_factory_dep(u256_to_h256(hash))
+                .expect("Bytecode not found");
             let mut program_code = vec![];
             for raw_opcode_slice in contract.chunks(32) {
                 let mut raw_opcode_bytes: [u8; 32] = [0; 32];
