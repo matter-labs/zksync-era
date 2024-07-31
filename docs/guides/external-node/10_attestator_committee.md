@@ -23,7 +23,7 @@ We are looking for participants to this network.
 
 ## Participating in the Attestor Committee
 
-Joining the attestor committee imposes no additional computational, operational, security, or business overhead for EN operators
+Joining the attestor committee imposes no additional computational, operational, security, or business overhead for EN operators.
 
 The only difference in behaviour is that the node would asynchronously sign batches and send those signatures to the main node.
 We expect the participating nodes to have very high uptime, 
