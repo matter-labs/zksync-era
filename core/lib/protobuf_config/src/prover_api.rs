@@ -12,7 +12,7 @@ impl ProtoRepr for proto::ProverApi {
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("http_port")?,
             last_available_batch: required(&self.last_available_batch)
-                .and_then(|p| Ok((*p).try_into()?))
+                .and_then(|p| Ok(*p))
                 .context("last_available_batch")?,
         })
     }
@@ -20,7 +20,7 @@ impl ProtoRepr for proto::ProverApi {
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
-            last_available_batch: Some(this.last_available_batch.into()),
+            last_available_batch: Some(this.last_available_batch),
         }
     }
 }
