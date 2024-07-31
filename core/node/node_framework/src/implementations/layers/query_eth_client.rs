@@ -27,6 +27,7 @@ impl QueryEthClientLayer {
     }
 }
 
+#[derive(Debug)]
 pub struct Output {
     query_client_l1: Client<L1>,
     query_client_l2: Option<Client<L2>>,

@@ -165,29 +165,6 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
-    /*
-
-
-
-           SELECT
-               id
-           FROM
-               eth_txs
-           WHERE
-               from_addr IS NOT DISTINCT FROM '\x0bbc816539a5d4bffb8cb720099512abcf26017f' -- can't just use equality as NULL != NULL
-               AND id > (
-                   SELECT
-                       COALESCE(MAX(eth_tx_id), 0)
-                   FROM
-                       eth_txs_history
-               )
-           ORDER BY
-               id
-           LIMIT
-               30
-
-
-    */
     pub async fn get_unsent_txs(&mut self) -> sqlx::Result<Vec<TxHistoryToSend>> {
         let txs = sqlx::query_as!(
             StorageTxHistoryToSend,

@@ -84,6 +84,8 @@ pub(super) trait L2ZksNamespace {
     ) -> RpcResult<Option<BlockDetails>>;
 }
 
+/// Subset of the L2 `eth` namespace used by an L2 client. It may have the same
+/// methods as the L1 `eth` namespace, but with extended return values.
 #[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))]
 pub(super) trait L2EthNamespace {
     #[method(name = "feeHistory")]

@@ -77,17 +77,6 @@ impl GasAdjusterClient {
         }
     }
 
-    // fn assert_l2_mode(l2_mode: bool) {
-    //     match self {
-    //         GasAdjusterClient::L1(_) => {
-    //             assert!(!l2_mode, "L2 mode is enabled, but L1 client is used");
-    //         }
-    //         GasAdjusterClient::L2(_) => {
-    //             assert!(l2_mode, "L2 mode is disabled, but L2 client is used");
-    //         }
-    //     }
-    // }
-
     async fn block_number(&self) -> EnrichedClientResult<U64> {
         relay!(self, block_number).await
     }
@@ -262,7 +251,8 @@ impl GasAdjuster {
             if let Some(current_l2_pubdata_price) = fee_data.last().map(|fee| fee.l2_pubdata_price)
             {
                 // L2 pubdata price overflows `u64` only in very extreme cases.
-                // TODO: decide wether we can display such values
+                // It doesn't worth to observe exact value with metric because anyway values that can be used
+                // are capped by `self.config.max_blob_base_fee()` of `u64` type.
                 if current_l2_pubdata_price > U256::from(u64::MAX) {
                     tracing::error!("Failed to report current_l2_pubdata_price = {current_l2_pubdata_price}, it exceeds u64::MAX");
                 } else {
@@ -356,7 +346,7 @@ impl GasAdjuster {
                 0
             }
             PubdataSendingMode::RelayedL2Calldata => {
-                self.l2_pubdata_price_statistics.median().as_u64()
+                self.bound_blob_base_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
             }
         }
     }
@@ -368,6 +358,7 @@ impl GasAdjuster {
         }
     }
 
+    // FIXME: shall we rename this method to the `bound_pubdata_fee`?
     fn bound_blob_base_fee(&self, blob_base_fee: f64) -> u64 {
         let max_blob_base_fee = self.config.max_blob_base_fee();
         match self.commitment_mode {
