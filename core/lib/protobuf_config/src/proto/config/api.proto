@@ -20,8 +20,6 @@ message Web3JsonRpc {
   optional uint64 pubsub_polling_interval = 8; // optional
   optional uint32 max_nonce_ahead = 9; // required
   optional double gas_price_scale_factor = 10; // required
-  optional uint64 request_timeout = 11; // seconds
-  repeated string account_pks = 12; // optional
   optional double estimate_gas_scale_factor = 13; // required
   optional uint32 estimate_gas_acceptable_overestimation = 14; // required
   optional uint64 max_tx_size = 16; // required; B
@@ -43,6 +41,8 @@ message Web3JsonRpc {
   repeated string api_namespaces = 32; // Optional, if empty all namespaces are available
   optional bool extended_api_tracing = 33; // optional, default false
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
+  reserved 11; reserved "request_timeout";
+  reserved 12; reserved "account_pks";
 }
 
 

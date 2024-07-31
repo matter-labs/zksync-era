@@ -276,7 +276,10 @@ async fn deploy_ecosystem(
             }
             L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
                 .get_preexisting_configs_path()
-                .join(ecosystem_config.l1_network.to_string().to_lowercase()),
+                .join(format!(
+                    "{}.yaml",
+                    ecosystem_config.l1_network.to_string().to_lowercase()
+                )),
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)

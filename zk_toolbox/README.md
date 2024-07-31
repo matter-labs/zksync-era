@@ -178,6 +178,8 @@ zk_inception prover run
 Specify the prover component with `--component <component>`. Components:
 `gateway, witness-generator, witness-vector-generator, prover, compressor`.
 
+For `witness-vector-generator`, specify the number of WVG jobs with `--threads <threads>`.
+
 For `witness-generator`, specify the round with `--round <round>`. Rounds:
 `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`.
 
