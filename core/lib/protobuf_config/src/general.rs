@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use zksync_config::configs::GeneralConfig;
 use zksync_protobuf::ProtoRepr;
 
@@ -9,55 +8,39 @@ impl ProtoRepr for proto::GeneralConfig {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            postgres_config: read_optional_repr(&self.postgres).context("postgres")?,
-            contract_verifier: read_optional_repr(&self.contract_verifier).context("postgres")?,
-            circuit_breaker_config: read_optional_repr(&self.circuit_breaker)
-                .context("circuit_breaker")?,
-            mempool_config: read_optional_repr(&self.mempool).context("mempool")?,
-            operations_manager_config: read_optional_repr(&self.operations_manager)
-                .context("operations_manager")?,
-            state_keeper_config: read_optional_repr(&self.state_keeper).context("state_keeper")?,
-            house_keeper_config: read_optional_repr(&self.house_keeper).context("house_keeper")?,
-            proof_compressor_config: read_optional_repr(&self.proof_compressor)
-                .context("proof_compressor_config")?,
-            prover_config: read_optional_repr(&self.prover).context("prover_config")?,
-            prover_gateway: read_optional_repr(&self.prover_gateway).context("prover_gateway")?,
-            witness_vector_generator: read_optional_repr(&self.witness_vector_generator)
-                .context("witness_vector_generator")?,
-            prover_group_config: read_optional_repr(&self.prover_group)
-                .context("prover_group_config")?,
-            prometheus_config: read_optional_repr(&self.prometheus).context("prometheus")?,
-            proof_data_handler_config: read_optional_repr(&self.data_handler)
-                .context("proof_data_handler")?,
-            witness_generator: read_optional_repr(&self.witness_generator)
-                .context("witness_generator")?,
-            api_config: read_optional_repr(&self.api).context("api")?,
-            db_config: read_optional_repr(&self.db).context("db")?,
-            eth: read_optional_repr(&self.eth).context("eth")?,
-            snapshot_creator: read_optional_repr(&self.snapshot_creator)
-                .context("snapshot_creator")?,
-            observability: read_optional_repr(&self.observability).context("observability")?,
-            da_dispatcher_config: read_optional_repr(&self.da_dispatcher)
-                .context("da_dispatcher")?,
-            protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer)
-                .context("protective_reads_writer")?,
+            postgres_config: read_optional_repr(&self.postgres),
+            contract_verifier: read_optional_repr(&self.contract_verifier),
+            circuit_breaker_config: read_optional_repr(&self.circuit_breaker),
+            mempool_config: read_optional_repr(&self.mempool),
+            operations_manager_config: read_optional_repr(&self.operations_manager),
+            state_keeper_config: read_optional_repr(&self.state_keeper),
+            house_keeper_config: read_optional_repr(&self.house_keeper),
+            proof_compressor_config: read_optional_repr(&self.proof_compressor),
+            prover_config: read_optional_repr(&self.prover),
+            prover_gateway: read_optional_repr(&self.prover_gateway),
+            witness_vector_generator: read_optional_repr(&self.witness_vector_generator),
+            prover_group_config: read_optional_repr(&self.prover_group),
+            prometheus_config: read_optional_repr(&self.prometheus),
+            proof_data_handler_config: read_optional_repr(&self.data_handler),
+            witness_generator: read_optional_repr(&self.witness_generator),
+            api_config: read_optional_repr(&self.api),
+            db_config: read_optional_repr(&self.db),
+            eth: read_optional_repr(&self.eth),
+            snapshot_creator: read_optional_repr(&self.snapshot_creator),
+            observability: read_optional_repr(&self.observability),
+            da_dispatcher_config: read_optional_repr(&self.da_dispatcher),
+            protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer),
             basic_witness_input_producer_config: read_optional_repr(
                 &self.basic_witness_input_producer,
-            )
-            .context("basic_witness_input_producer")?,
-            core_object_store: read_optional_repr(&self.core_object_store)
-                .context("core_object_store")?,
-            base_token_adjuster: read_optional_repr(&self.base_token_adjuster)
-                .context("base_token_adjuster")?,
-            commitment_generator: read_optional_repr(&self.commitment_generator)
-                .context("commitment_generator")?,
-            pruning: read_optional_repr(&self.pruning).context("pruning")?,
-            snapshot_recovery: read_optional_repr(&self.snapshot_recovery)
-                .context("snapshot_recovery")?,
-            external_price_api_client_config: read_optional_repr(&self.external_price_api_client)
-                .context("external_price_api_client")?,
-            consensus_config: read_optional_repr(&self.consensus).context("consensus")?,
-            prover_api_config: read_optional_repr(&self.prover_api).context("prover_api")?,
+            ),
+            core_object_store: read_optional_repr(&self.core_object_store),
+            base_token_adjuster: read_optional_repr(&self.base_token_adjuster),
+            commitment_generator: read_optional_repr(&self.commitment_generator),
+            pruning: read_optional_repr(&self.pruning),
+            snapshot_recovery: read_optional_repr(&self.snapshot_recovery),
+            external_price_api_client_config: read_optional_repr(&self.external_price_api_client),
+            consensus_config: read_optional_repr(&self.consensus),
+            prover_api_config: read_optional_repr(&self.prover_api),
         })
     }
 

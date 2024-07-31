@@ -8168,6 +8168,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
