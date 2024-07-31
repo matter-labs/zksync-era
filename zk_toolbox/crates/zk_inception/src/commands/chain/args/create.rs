@@ -94,11 +94,14 @@ impl ChainCreateArgs {
 
         let prover_version = PromptSelect::new(MSG_PROVER_VERSION_PROMPT, ProverMode::iter()).ask();
 
-        let l1_batch_commit_data_generator_mode = PromptSelect::new(
-            MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
-            L1BatchCommitmentModeInternal::iter(),
-        )
-        .ask();
+        let l1_batch_commit_data_generator_mode =
+            self.l1_batch_commit_data_generator_mode.unwrap_or_else(|| {
+                PromptSelect::new(
+                    MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
+                    L1BatchCommitmentModeInternal::iter(),
+                )
+                .ask()
+            });
 
         let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
             Some(self.wallet_path.unwrap_or_else(|| {
