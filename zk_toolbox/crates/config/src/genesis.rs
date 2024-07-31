@@ -14,7 +14,7 @@ use crate::{
 pub fn update_from_chain_config(genesis: &mut GenesisConfig, config: &ChainConfig) {
     genesis.l2_chain_id = config.chain_id;
     // TODO(X): for now, the settlement layer is always the same as the L1 network
-    genesis.l1_chain_id = L1ChainId(config.l1_network.chain_id().0);
+    genesis.l1_chain_id = L1ChainId(config.l1_network.chain_id());
     genesis.l1_batch_commit_data_generator_mode = config.l1_batch_commit_data_generator_mode;
 }
 
