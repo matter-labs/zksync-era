@@ -152,7 +152,7 @@ sudo apt-get install libssl-dev
 
 ## `Rust`
 
-Install the latest `rust` version.
+Install `rustup` & toolchain.
 
 Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
 
@@ -188,7 +188,7 @@ Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres:
+Install the latest postgres client:
 
 On mac:
 
@@ -199,7 +199,7 @@ brew install postgresql@14
 On debian-based linux:
 
 ```bash
-sudo apt-get install postgresql
+sudo apt-get install postgresql-client
 ```
 
 ### Cargo nextest
