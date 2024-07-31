@@ -3,12 +3,9 @@ import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
-type Network = string;
-
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
     constructor(
-        public network: Network,
         public ethProvider: ethers.Provider,
         public ethWallet: ethers.Wallet,
         public syncWallet: zksync.Wallet,
@@ -18,11 +15,14 @@ export class Tester {
     }
 
     // prettier-ignore
-    static async init(network: Network, ethProviderAddress: string, web3JsonRpc: string) {
+    static async init(ethProviderAddress: string, web3JsonRpc: string) {
         const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
 
         let ethWallet;
-        if (network == 'localhost') {
+        if (process.env.MASTER_WALLET_PK) {
+            ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK);
+        }
+        else {
             ethProvider.pollingInterval = 100;
 
             const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
@@ -33,9 +33,7 @@ export class Tester {
             );
             ethWallet = new ethers.Wallet(ethWalletHD.privateKey, ethProvider);
         }
-        else {
-            ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK!);
-        }
+
         ethWallet = ethWallet.connect(ethProvider);
         const web3Provider = new zksync.Provider(web3JsonRpc);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
@@ -61,7 +59,7 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        return new Tester(network, ethProvider, ethWallet, syncWallet, web3Provider);
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
     }
 
     emptyWallet() {

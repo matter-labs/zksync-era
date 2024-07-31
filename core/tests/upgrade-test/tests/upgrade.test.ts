@@ -77,8 +77,7 @@ describe('Upgrade test', function () {
             contractsPriorityTxMaxGasLimit = process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
         }
 
-        const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-        tester = await Tester.init(network, ethProviderAddress!, web3JsonRpc!);
+        tester = await Tester.init(ethProviderAddress!, web3JsonRpc!);
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
