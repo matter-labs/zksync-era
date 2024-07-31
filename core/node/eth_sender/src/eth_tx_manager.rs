@@ -551,11 +551,19 @@ impl EthTxManager {
 
             // We need to re-run the iteration even if the latest seen block number is the same as the previous one, since
             // in case of a low-activity settlement layer network, new blocks may only be produced by the transactions from the operator itself.
-            //
-            // We do not skip the check entirely, to ensure the monotonicity of the `last_known_l1_block`
-            // in case of bugs of the JSON-RPC API provider.
-            if last_known_l1_block <= l1_block_numbers.latest {
-                self.loop_iteration(&mut storage, l1_block_numbers).await;
+            self.send_new_eth_tx_for_all_operators(&mut storage, l1_block_numbers)
+                .await;
+
+            if last_known_l1_block < l1_block_numbers.latest {
+                // This function checks the status of the tx on the current block and if the tx,
+                // has not been yet accepted, we have to resend it with a higher price.
+                // And since tx can't be included into already generated block
+                // we don't need to check it more frequent than once per block.
+                self.update_tx_statuses_and_resend_it_for_all_operators(
+                    &mut storage,
+                    l1_block_numbers,
+                )
+                .await;
                 last_known_l1_block = l1_block_numbers.latest;
             }
             tokio::time::sleep(self.config.tx_poll_period()).await;
@@ -635,19 +643,31 @@ impl EthTxManager {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, name = "EthTxManager::loop_iteration")]
-    async fn loop_iteration(
+    async fn send_new_eth_tx_for_all_operators(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
-        tracing::trace!("Loop iteration at block {}", l1_block_numbers.latest);
+        for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
+            self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
+                .await;
+        }
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        name = "EthTxManager::update_tx_statuses_and_resend_it_for_all_operators"
+    )]
+    async fn update_tx_statuses_and_resend_it_for_all_operators(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        l1_block_numbers: L1BlockNumbers,
+    ) {
+        tracing::trace!("Update tx statuses at block {}", l1_block_numbers.latest);
         // We can treat those two operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction
         for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
-            self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
-                .await;
             let result = self
                 .update_statuses_and_resend_if_needed(storage, l1_block_numbers, operator_type)
                 .await;
