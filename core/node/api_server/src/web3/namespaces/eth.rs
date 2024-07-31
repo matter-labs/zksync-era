@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use std::time::Duration;
 use tokio::time::Instant;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
