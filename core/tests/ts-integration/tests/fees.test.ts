@@ -17,6 +17,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { sendTransfers } from '../src/context-owner';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -54,12 +55,24 @@ testFees('Test fees', () => {
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
+
+        const mainWallet = new zksync.Wallet(
+            testMaster.environment().mainWalletPK,
+            alice._providerL2(),
+            alice._providerL1()
+        );
+        await sendTransfers(
+            zksync.utils.ETH_ADDRESS,
+            mainWallet,
+            { alice: alice.privateKey },
+            ethers.parseEther('100')
+        );
     });
 
     test('Test fees', async () => {
