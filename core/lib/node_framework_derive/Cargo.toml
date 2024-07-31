@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_framework_derive"
+description = "Derive macro for ZKsync node framework"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

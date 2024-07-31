@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{governance_contract, hyperchain_contract};
+use zksync_contracts::{chain_admin_contract, governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_mini_merkle_tree::SyncMerkleTree;
@@ -136,6 +136,13 @@ impl EthClient for MockEthClient {
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
+
+    async fn diamond_cut_by_version(
+        &self,
+        _packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        unimplemented!()
+    }
 }
 
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
@@ -202,6 +209,7 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
     let watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
+        &chain_admin_contract(),
         Box::new(client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
@@ -295,6 +303,7 @@ async fn test_normal_operation_governance_upgrades() {
     let mut watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
+        &chain_admin_contract(),
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
@@ -508,6 +517,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
         transaction_log_index: Some(0u64.into()),
         log_type: None,
         removed: None,
+        block_timestamp: None,
     }
 }
 
@@ -552,6 +562,7 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         transaction_log_index: Some(0u64.into()),
         log_type: None,
         removed: None,
+        block_timestamp: None,
     }
 }
 

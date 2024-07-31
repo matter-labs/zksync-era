@@ -13,36 +13,45 @@ use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
+        base_token_ratio_provider::BaseTokenRatioProviderResource,
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
         fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for sequencer L1 gas interfaces.
 /// Adds several resources that depend on L1 gas price.
-///
-/// ## Requests resources
-///
-/// - `EthInterfaceResource`
-///
-/// ## Adds resources
-///
-/// - `FeeInputResource`
-/// - `L1TxParamsResource`
-///
-/// ## Adds tasks
-///
-/// - `GasAdjusterTask` (only runs if someone uses the resourced listed above).
 #[derive(Debug)]
 pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
     state_keeper_config: StateKeeperConfig,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub eth_interface_client: EthInterfaceResource,
+    pub l2_inteface_client: Option<L2InterfaceResource>,
+    /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
+    #[context(default)]
+    pub base_token_ratio_provider: BaseTokenRatioProviderResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub fee_input: FeeInputResource,
+    pub l1_tx_params: L1TxParamsResource,
+    /// Only runs if someone uses the resources listed above.
+    #[context(task)]
+    pub gas_adjuster_task: GasAdjusterTask,
 }
 
 impl SequencerL1GasLayer {
@@ -63,15 +72,18 @@ impl SequencerL1GasLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for SequencerL1GasLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "sequencer_l1_gas_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let client = if self.gas_adjuster_config.l2_mode.unwrap_or_default() {
-            GasAdjusterClient::from_l2(context.get_resource::<L2InterfaceResource>()?.0)
+            GasAdjusterClient::from_l2(input.l2_inteface_client.unwrap().0)
         } else {
-            GasAdjusterClient::from_l1(context.get_resource::<EthInterfaceResource>()?.0)
+            GasAdjusterClient::from_l1(input.eth_interface_client.0)
         };
 
         let adjuster = GasAdjuster::new(
@@ -84,21 +96,23 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
+        let ratio_provider = input.base_token_ratio_provider;
+
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
+            ratio_provider.0.clone(),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
-        context.insert_resource(FeeInputResource(batch_fee_input_provider))?;
-
-        context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
-
-        context.add_task(GasAdjusterTask { gas_adjuster });
-        Ok(())
+        Ok(Output {
+            fee_input: batch_fee_input_provider.into(),
+            l1_tx_params: gas_adjuster.clone().into(),
+            gas_adjuster_task: GasAdjusterTask { gas_adjuster },
+        })
     }
 }
 
 #[derive(Debug)]
-struct GasAdjusterTask {
+pub struct GasAdjusterTask {
     gas_adjuster: Arc<GasAdjuster>,
 }
 

@@ -5,8 +5,9 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, LeafAggProof, Proof,
-        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -29,10 +30,18 @@ use crate::{
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee>;
 
     #[method(name = "estimateGasL1ToL2")]
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256>;
 
     #[method(name = "getBridgehubContract")]
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>>;

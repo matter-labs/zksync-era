@@ -1,6 +1,7 @@
 [package]
 name = "zksync_contract_verification_server"
-version = "0.1.0"
+description = "ZKsync contract verification server"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -18,7 +19,7 @@ vise.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio = { workspace = true, features = ["time"] }
-tower-http.workspace = true
+tower-http = { workspace = true, features = ["cors"] }
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true

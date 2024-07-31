@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_consensus"
-version = "0.1.0"
+description = "Consensus integration for ZKsync node"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

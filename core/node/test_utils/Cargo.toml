@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_test_utils"
+description = "ZKsync utilities for writing tests"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

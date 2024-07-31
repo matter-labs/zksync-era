@@ -1,6 +1,7 @@
 [package]
 name = "zksync_state_keeper"
-version = "0.1.0"
+description = "ZKsync state keeper"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -28,6 +29,7 @@ zksync_test_account.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_vm_utils.workspace = true
+zksync_base_token_adjuster.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

@@ -8,6 +8,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 // Subcommands help
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
+pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
@@ -36,9 +37,7 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
-
-pub(super) const MSG_PROVER_URL_MUST_BE_PRESENTED: &str = "Prover url must be presented";
-
+pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_CORE_HELP: &str = "Core database";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP: &str =
@@ -92,5 +91,26 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 
 // Revert tests related messages
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
+pub(super) const MSG_REVERT_TEST_INSTALLING_DEPENDENCIES: &str =
+    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
+
+pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
+    let base = "Running integration tests";
+    if external_node {
+        format!("{} for external node", base)
+    } else {
+        format!("{} for main server", base)
+    }
+}
+
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
+
+// Cleaning related messages
+pub(super) const MSG_DOCKER_COMPOSE_DOWN: &str = "docker compose down";
+pub(super) const MSG_DOCKER_COMPOSE_REMOVE_VOLUMES: &str = "docker compose remove volumes";
+pub(super) const MSG_DOCKER_COMPOSE_CLEANED: &str = "docker compose network cleaned";
+pub(super) const MSG_CONTRACTS_CLEANING: &str =
+    "Removing contracts building and deployment artifacts";
+pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
+    "Contracts building and deployment artifacts are cleaned up";

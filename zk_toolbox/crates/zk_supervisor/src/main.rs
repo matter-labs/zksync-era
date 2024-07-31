@@ -8,9 +8,12 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    msg_global_chain_does_not_exist, MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT,
+    MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
+
+use crate::commands::clean::CleanCommands;
 
 mod commands;
 mod dals;
@@ -27,10 +30,12 @@ struct Supervisor {
 
 #[derive(Subcommand, Debug)]
 enum SupervisorSubcommands {
-    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT, alias = "db")]
     Database(DatabaseCommands),
-    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT, alias = "t")]
     Test(TestCommands),
+    #[command(subcommand, about = MSG_SUBCOMMAND_CLEAN)]
+    Clean(CleanCommands),
 }
 
 #[derive(Parser, Debug)]
@@ -80,6 +85,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
         SupervisorSubcommands::Test(command) => commands::test::run(shell, command)?,
+        SupervisorSubcommands::Clean(command) => commands::clean::run(shell, command)?,
     }
     Ok(())
 }

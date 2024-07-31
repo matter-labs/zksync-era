@@ -1,6 +1,7 @@
 [package]
 name = "zksync_external_node"
-version = "24.8.0" # x-release-please-version
+description = "Non-validator ZKsync node"
+version = "24.12.0" # x-release-please-version
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -46,8 +47,10 @@ zksync_vlog.workspace = true
 
 zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
+zksync_consensus_crypto.workspace = true
 vise.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true

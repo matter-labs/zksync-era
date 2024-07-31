@@ -616,7 +616,6 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .unwrap_or(0);
-
         // FIXME: refactor this
         // The below is a big hack that tries to solve the following problem:
         // - When migrating to sync layer the nonce drops to 0

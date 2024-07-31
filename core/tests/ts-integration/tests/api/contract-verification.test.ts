@@ -1,4 +1,4 @@
-import { TestMaster } from '../../src/index';
+import { TestMaster } from '../../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
@@ -55,7 +55,7 @@ describe.skip('Tests for the contract verification API', () => {
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
@@ -81,7 +81,7 @@ describe.skip('Tests for the contract verification API', () => {
             const constructorArguments = counterContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: counterContract.address,
+                contractAddress: await counterContract.getAddress(),
                 contractName: 'contracts/counter/counter.sol:Counter',
                 sourceCode: getContractSource('counter/counter.sol'),
                 compilerZksolcVersion: ZKSOLC_VERSION,
@@ -102,7 +102,7 @@ describe.skip('Tests for the contract verification API', () => {
                     factoryDeps: [contracts.create.factoryDep]
                 }
             });
-            const importContract = await contractHandle.deployed();
+            const importContract = await contractHandle.waitForDeployment();
             const standardJsonInput = {
                 language: 'Solidity',
                 sources: {
@@ -122,7 +122,7 @@ describe.skip('Tests for the contract verification API', () => {
             const constructorArguments = importContract.interface.encodeDeploy([]);
 
             const requestBody = {
-                contractAddress: importContract.address,
+                contractAddress: await importContract.getAddress(),
                 contractName: 'contracts/create/create.sol:Import',
                 sourceCode: standardJsonInput,
                 codeFormat: 'solidity-standard-json-input',
@@ -149,7 +149,7 @@ describe.skip('Tests for the contract verification API', () => {
 
             const contractFactory = new zksync.ContractFactory([], bytecode, alice);
             const deployTx = await contractFactory.deploy();
-            const contractAddress = (await deployTx.deployed()).address;
+            const contractAddress = await (await deployTx.waitForDeployment()).getAddress();
 
             const requestBody = {
                 contractAddress,
@@ -173,17 +173,17 @@ describe.skip('Tests for the contract verification API', () => {
                 contracts.greeter2.bytecode,
                 alice
             );
-            const randomAddress = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+            const randomAddress = ethers.hexlify(ethers.randomBytes(20));
             const contractHandle = await contractFactory.deploy(randomAddress, {
                 customData: {
                     factoryDeps: [contracts.greeter2.factoryDep]
                 }
             });
-            const contract = await contractHandle.deployed();
+            const contract = await contractHandle.waitForDeployment();
             const constructorArguments = contract.interface.encodeDeploy([randomAddress]);
 
             const requestBody = {
-                contractAddress: contract.address,
+                contractAddress: await contract.getAddress(),
                 contractName: 'Greeter2',
                 sourceCode: {
                     Greeter: getContractSource('vyper/Greeter.vy'),

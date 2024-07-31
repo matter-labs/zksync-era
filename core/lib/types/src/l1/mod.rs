@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Log, Address, L1BlockNumber, PriorityOpId, H256, U256};
-use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::HashEmptySubtree;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,

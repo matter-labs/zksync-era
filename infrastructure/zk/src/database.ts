@@ -10,7 +10,7 @@ export async function reset(opts: DbOpts) {
 
 export enum DalPath {
     CoreDal = 'core/lib/dal',
-    ProverDal = 'prover/prover_dal'
+    ProverDal = 'prover/crates/lib/prover_dal'
 }
 
 export interface DbOpts {
@@ -56,7 +56,7 @@ async function resetTestDal(dalPath: DalPath, dbUrl: string) {
     await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
     await waitForDal(dbUrl, 100);
     console.log('setting up a database template');
-    await setupForDal(dalPath, dbUrl, true);
+    await setupForDal(dalPath, dbUrl, false);
     console.log('disallowing connections to the template');
     await utils.spawn(
         `psql "${dbUrl}" -c "update pg_database set datallowconn = false where datname = current_database()"`
@@ -119,7 +119,7 @@ export async function generateMigration(dbType: DbType, name: string) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function setupForDal(dalPath: DalPath, dbUrl: string, skipDbPreparation: boolean) {
+export async function setupForDal(dalPath: DalPath, dbUrl: string, shouldCheck: boolean = false) {
     process.chdir(dalPath);
     const localDbUrl = 'postgres://postgres:notsecurepassword@localhost';
     if (dbUrl.startsWith(localDbUrl)) {
@@ -132,7 +132,8 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string, skipDbPrepara
     await utils.spawn(`cargo sqlx migrate run --database-url ${dbUrl}`);
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
-    if (dbUrl.startsWith(localDbUrl) && !isLocalSetup && !skipDbPreparation) {
+    shouldCheck = shouldCheck && dbUrl.startsWith(localDbUrl) && !isLocalSetup;
+    if (shouldCheck) {
         // Dont't do this preparation for local (docker) setup - as it requires full cargo compilation.
         await utils.spawn(
             `cargo sqlx prepare --check --database-url ${dbUrl} -- --tests || cargo sqlx prepare --database-url ${dbUrl} -- --tests`
@@ -145,7 +146,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string, skipDbPrepara
 export async function setup(opts: DbOpts, skipDbPreparation: boolean) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
-        await setupForDal(dalPath, dbUrl, skipDbPreparation);
+        await setupForDal(dalPath, dbUrl, !skipDbPreparation);
     }
 }
 

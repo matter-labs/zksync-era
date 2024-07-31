@@ -15,10 +15,6 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (rebuildTree || components) {
         options += ' --';
     }
-    if (rebuildTree) {
-        clean('db');
-        options += ' --rebuild-tree';
-    }
     if (components) {
         options += ` --components=${components}`;
     }
@@ -114,7 +110,6 @@ export async function genesisFromBinary() {
 export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
-    .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     // FIXME: remove this option once it is removed from the server
     .option('--clear-l1-txs-history', 'clear l1 txs history')
     .option('--uring', 'enables uring support for RocksDB')
