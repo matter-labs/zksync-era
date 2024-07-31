@@ -467,6 +467,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Number of L1 batch that the L2 block belongs to.
+    /// None if the L2 block doesn't exist.
     async fn batch_of_block(
         &mut self,
         block: validator::BlockNumber,
@@ -474,7 +475,21 @@ impl ConsensusDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                l1_batch_number
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    )
+                ) AS "l1_batch_number!"
             FROM
                 miniblocks
             WHERE
@@ -489,16 +504,16 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        let Some(batch) = row.l1_batch_number else {
-            return Ok(None);
-        };
         Ok(Some(attester::BatchNumber(
-            batch.try_into().context("overflow")?,
+            row.l1_batch_number.try_into().context("overflow")?,
         )))
     }
 
     /// Global attestation status.
     /// Includes the next batch that the attesters should vote for.
+    /// None iff the consensus genesis is missing (i.e. consensus wasn't enabled) or
+    /// L2 block with number `genesis.first_block` doesn't exist yet.
+    ///
     /// This is a main node only query.
     /// ENs should call the attestation_status RPC of the main node.
     pub async fn attestation_status(&mut self) -> anyhow::Result<Option<AttestationStatus>> {
