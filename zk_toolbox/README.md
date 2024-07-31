@@ -106,3 +106,65 @@ zk_inception server
 ```
 
 You can specify the chain you are running by providing `--chain <chain_name>` argument
+
+### Prover
+
+#### Requirements
+
+Make sure you have installed the following requirements:
+
+- [gcloud](https://cloud.google.com/sdk/docs/install)
+- [wget](https://www.gnu.org/software/wget/)
+- [cmake](https://apt.kitware.com/)
+- [nvcc (CUDA toolkit)](https://developer.nvidia.com/cuda-downloads)
+
+Checkout [prover docs](https://github.com/matter-labs/zksync-era/blob/main/prover/docs/02_setup.md) for more info.
+
+#### Running the prover
+
+To run the prover, follow these steps:
+
+First, initialize the prover:
+
+```bash
+zk_inception prover init # initializes object store settings, downloads setup keys and initializes bellman-cuda
+```
+
+You can generate the setup keys with:
+
+```bash
+zk_inception prover generate-sk
+```
+
+Finally, run the prover:
+
+```bash
+zk_inception prover run
+```
+
+You can specify the prover component to run by providing `--component <component>` argument. Possible components are:
+`gateway, witness-generator, witness-vector-generator, prover, compressor`
+
+If you are running `witness-generator` you can specify the round by providing `--round <round>` argument. Possible
+rounds are: `all-rounds, basic-circuits, leaf-aggregation, node-aggregation, recursion-tip, scheduler`
+
+For `witness-vector-generator`, specify the number of WVG jobs with `--threads <threads>`.
+
+### Contract verifier
+
+Running the contract verifier:
+
+First, download the required `solc`, `zksolc`, `vyper` and `zkvyper` binaries with:
+
+```bash
+zk_inception contract-verifier init`
+```
+
+Select the minimum version of each compiler, and the tool will download any missing binaries. These binaries are
+necessary to compile contracts, as each contract may require a different compiler version.
+
+Then, run the contract verifier with:
+
+```bash
+zk_inception contract-verifier run
+```

@@ -54,7 +54,8 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
-pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will be added to ZkSync ecosystem";
+pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZkSync ecosystem config. \
+For using this config, you need to have governance wallet";
 pub(super) const MSG_L1_RPC_URL_INVALID_ERR: &str = "Invalid RPC URL";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path";
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
@@ -129,6 +130,8 @@ pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
 
 /// Chain genesis related messages
+pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
+pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
@@ -169,7 +172,7 @@ pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {
 }
 
 /// Chain initialize bridges related messages
-pub(super) const MSG_INITIALIZING_BRIDGES_SPINNER: &str = "Initializing bridges";
+pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contracts";
 
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
@@ -281,6 +284,8 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
+pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud type:";
+pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
@@ -316,4 +321,45 @@ pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
 
 pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> String {
     format!("Downloading {} {} binary", name, version)
+}
+
+/// Update related messages
+
+pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
+pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
+pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
+pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
+pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
+pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =
+    "Added the following fields to the general config:";
+pub(super) const MSG_DIFF_EN_CONFIG: &str =
+    "Added the following fields to the external node config:";
+pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
+    "Added the following fields to the external node generalconfig:";
+pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
+
+pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
+    format!(
+        "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"
+    )
+}
+
+pub(super) fn msg_diff_secrets(
+    chain: &str,
+    current_secrets_path: &Path,
+    era_secret_path: &Path,
+) -> String {
+    format!(
+        "Found differences between chain {chain} and era secrets configs. Consider updating the chain {chain} secrets config at {current_secrets_path:?} using the file {era_secret_path:?} as reference. Diff:"
+    )
+}
+
+pub(super) fn msg_updating_chain(chain: &str) -> String {
+    format!("Updating chain: {}", chain)
 }

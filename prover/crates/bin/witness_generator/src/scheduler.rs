@@ -74,6 +74,10 @@ impl SchedulerWitnessGenerator {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number)
+    )]
     pub fn process_job_sync(
         job: SchedulerWitnessGeneratorJob,
         started_at: Instant,
@@ -173,6 +177,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
         })
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job_id)
+    )]
     async fn save_result(
         &self,
         job_id: L1BatchNumber,
@@ -242,6 +250,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %l1_batch_number)
+)]
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
     recursion_tip_job_id: u32,

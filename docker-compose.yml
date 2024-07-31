@@ -30,7 +30,7 @@ services:
 
   # This is specific to runner
   zk:
-    image: "matterlabs/zk-environment:latest2.0-lightweight"
+    image: "ghcr.io/matter-labs/zk-environment:latest2.0-lightweight"
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null

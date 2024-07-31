@@ -63,36 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let observability_config = general_config
         .observability
         .context("observability config")?;
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-
-    if let Some(opentelemetry) = observability_config.opentelemetry {
-        builder = builder
-            .with_opentelemetry(
-                &opentelemetry.level,
-                opentelemetry.endpoint,
-                "zksync-prover-fri".into(),
-            )
-            .expect("Invalid OpenTelemetry config");
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}",);
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
+    let _observability_guard = observability_config.install()?;
 
     let prover_config = general_config.prover_config.context("fri_prover config")?;
     let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);

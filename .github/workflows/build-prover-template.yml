@@ -50,11 +50,9 @@ jobs:
       matrix:
         component:
           - witness-generator
-          - prover-fri
           - prover-gpu-fri
           - witness-vector-generator
           - prover-fri-gateway
-          - proof-fri-compressor
           - proof-fri-gpu-compressor
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
@@ -70,6 +68,7 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: start-services
         run: |
@@ -85,12 +84,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-
-      # We need the CRS only for the fri compressor.
-      - name: download CRS for CPU compressor
-        if: matrix.component == 'proof-fri-compressor'
-        run: |
-          ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: download CRS for GPU compressor
         if: matrix.component == 'proof-fri-gpu-compressor'
@@ -185,12 +178,12 @@ jobs:
         component:
           - witness-vector-generator
     steps:
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      -  name: Auth Docker hub registry
+         run: |
+           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to us-central1 GAR
         run: |

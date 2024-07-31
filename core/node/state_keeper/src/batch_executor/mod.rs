@@ -122,6 +122,7 @@ impl BatchExecutorHandle {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
@@ -161,6 +162,7 @@ impl BatchExecutorHandle {
         Ok(res)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
@@ -184,6 +186,7 @@ impl BatchExecutorHandle {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
@@ -207,6 +210,7 @@ impl BatchExecutorHandle {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn finish_batch(mut self) -> anyhow::Result<FinishedL1Batch> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self

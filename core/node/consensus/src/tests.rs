@@ -6,10 +6,11 @@ use zksync_config::configs::consensus::{ValidatorPublicKey, WeightedValidator};
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::{
-    validator,
+    attester, validator,
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
+use zksync_node_sync::MainNodeClient;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
@@ -120,17 +121,25 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
         let batches = conn.batches_range(ctx).await?;
         let last = batches.last.expect("last is set");
         let (min, max) = conn
-            .get_l2_block_range_of_l1_batch(ctx, last.number)
+            .get_l2_block_range_of_l1_batch(ctx, last)
             .await?
             .unwrap();
 
+        let last_batch = conn
+            .get_batch(ctx, last)
+            .await?
+            .expect("last batch can be retrieved");
+
         assert_eq!(
-            last.payloads.len(),
+            last_batch.payloads.len(),
             (max.0 - min.0) as usize,
             "all block payloads present"
         );
 
-        let first_payload = last.payloads.first().expect("last batch has payloads");
+        let first_payload = last_batch
+            .payloads
+            .first()
+            .expect("last batch has payloads");
 
         let want_payload = conn.payload(ctx, min).await?.expect("payload is in the DB");
         let want_payload = want_payload.encode();
@@ -655,6 +664,58 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
             .wait_for_payload(ctx, validator.last_block())
             .await?;
         assert_eq!(want, got);
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+#[test_casing(2, VERSIONS)]
+#[tokio::test]
+async fn test_attestation_status_api(version: ProtocolVersionId) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    scope::run!(ctx, |ctx, s| async {
+        let validator_pool = ConnectionPool::test(false, version).await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
+
+        // API server needs at least 1 L1 batch to start.
+        validator.seal_batch().await;
+        let api = validator.connect(ctx).await?;
+
+        // If the main node has no L1 batch certificates,
+        // the first one to sign should be `last_sealed_batch`.
+        validator_pool
+            .wait_for_batch(ctx, validator.last_sealed_batch())
+            .await?;
+        let status = api.fetch_attestation_status().await?;
+        assert_eq!(status.next_batch_to_attest, validator.last_sealed_batch());
+
+        // Insert a cert, then check again.
+        validator_pool
+            .wait_for_batch(ctx, status.next_batch_to_attest)
+            .await?;
+        {
+            let mut conn = validator_pool.connection(ctx).await?;
+            let number = attester::BatchNumber(status.next_batch_to_attest.0.into());
+            let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let cert = attester::BatchQC {
+                signatures: attester::MultiSig::default(),
+                message: attester::Batch { number, hash },
+            };
+            conn.insert_batch_certificate(ctx, &cert)
+                .await
+                .context("insert_batch_certificate()")?;
+        }
+        let want = status.next_batch_to_attest + 1;
+        let got = api
+            .fetch_attestation_status()
+            .await
+            .context("fetch_attestation_status()")?;
+        assert_eq!(want, got.next_batch_to_attest);
+
         Ok(())
     })
     .await

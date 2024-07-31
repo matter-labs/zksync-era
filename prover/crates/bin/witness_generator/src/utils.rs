@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Write as _},
+    sync::Arc,
 };
 
 use circuit_definitions::circuit_definitions::{
@@ -122,11 +123,15 @@ impl StoredObject for SchedulerPartialInputWrapper {
     serialize_using_bincode!();
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
+)]
 pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
-    object_store: &dyn ObjectStore,
+    object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
@@ -143,6 +148,10 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number)
+)]
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
     aggregations: Vec<(
@@ -174,6 +183,10 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     ids_and_urls
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit_id)
+)]
 pub async fn save_node_aggregations_artifacts(
     block_number: L1BatchNumber,
     circuit_id: u8,
@@ -196,6 +209,7 @@ pub async fn save_node_aggregations_artifacts(
         .unwrap()
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
@@ -211,6 +225,7 @@ pub async fn load_proofs_for_job_ids(
 /// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
 /// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
 /// For this scenario, we use an empty_proof, but any proof would suffice.
+#[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_recursion_tip(
     job_ids: Vec<(u8, u32)>,
     object_store: &dyn ObjectStore,

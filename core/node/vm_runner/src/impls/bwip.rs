@@ -154,6 +154,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "BasicWitnessInputProducerOutputHandler::handle_l1_batch",
+        skip_all,
+        fields(l1_batch = %updates_manager.l1_batch.number)
+    )]
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,
@@ -186,6 +191,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn get_updates_manager_witness_input_data(
     connection: &mut Connection<'_, Core>,
     updates_manager: Arc<UpdatesManager>,
@@ -262,6 +268,7 @@ async fn get_updates_manager_witness_input_data(
     })
 }
 
+#[tracing::instrument(skip_all)]
 async fn assert_database_witness_input_data(
     connection: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
