@@ -8132,11 +8132,15 @@ dependencies = [
 name = "zksync_concurrency"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50302b77192891256d180ff2551dc0c3bc4144958b49e9a16c50a0dc218958ba"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8171,11 +8175,15 @@ dependencies = [
 name = "zksync_consensus_bft"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2325c7486a8280db1c26c10020350bead6eecb3de03f8bbfd878060f000cdce7"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8197,11 +8205,15 @@ dependencies = [
 name = "zksync_consensus_crypto"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5cb8ed0d59593f6147085b77142628e459ba673aa4d48fce064d5b96e31eb36"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "blst",
@@ -8225,11 +8237,15 @@ dependencies = [
 name = "zksync_consensus_executor"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "247b70ec255781b3b740acb744236e771a192922ffbaa52c462b84c4ea67609f"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8249,11 +8265,15 @@ dependencies = [
 name = "zksync_consensus_network"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f10626b79885a9b096cd19ee83d85ef9b0554f061a9db6946f2b7c9d1b2f49ea"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8288,11 +8308,15 @@ dependencies = [
 name = "zksync_consensus_roles"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffe3e47d99eb943eb94f2f5c9d929b1192bf3e8d1434de0fa6f0090f9c1197e"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8314,11 +8338,15 @@ dependencies = [
 name = "zksync_consensus_storage"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9ae9a0ec64ce9c0af346e50cc87dc257c30259101ce9675b408cb883e096087"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8338,11 +8366,15 @@ dependencies = [
 name = "zksync_consensus_utils"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24dc6135abeefa80f617eb2903fe43d137d362bf673f0651b4894b17069d1fb1"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9282,11 +9314,15 @@ dependencies = [
 name = "zksync_protobuf"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1e7c7820f290db565a1b4ff73aa1175cd7d31498fca8d859eb5aceebd33468c"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9307,11 +9343,15 @@ dependencies = [
 name = "zksync_protobuf_build"
 version = "0.1.0-rc.4"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6cafeec1150ae91f1a37c8f0dce6b71b92b93e0c4153d32b4c37e2fd71bce2f"
 =======
 source = "git+https://github.com/matter-labs/era-consensus.git?rev=638b23e291a35fe9109c68d42f277903aaae0c42#638b23e291a35fe9109c68d42f277903aaae0c42"
 >>>>>>> 1ada9d3b3 (Update the era-consensus ref)
+=======
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=f0b265c1327aaad392d5a795b65b46a207162e1b#f0b265c1327aaad392d5a795b65b46a207162e1b"
+>>>>>>> 43390c398 (Update the era-consensus dependency to runner fix)
 dependencies = [
  "anyhow",
  "heck 0.5.0",
