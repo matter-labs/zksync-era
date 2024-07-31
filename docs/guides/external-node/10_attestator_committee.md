@@ -17,7 +17,7 @@ we want to make sure we are able to consistently reach the quorum and collect th
 Currently the main node just stores the signatures in the local DB (`l1_batches_consensus` table).
 
 We run a (temporary) PoA network of attesters where the Main Node administrator defines the committee for every L1 batch.
-There is currently no tangible incentive or any kind of reward for the participants - we'll be developing them and potential tokenomics later on.
+There is currently no tangible incentive or any kind of actual or implied reward for the participants - we'll be developing them and potential tokenomics later on.
 
 We are looking for participants to this network. 
 
