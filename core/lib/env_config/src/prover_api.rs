@@ -4,7 +4,7 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ProverApiConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("prover_api", "PROVER_API")
+        envy_load("prover_api", "PROVER_API_")
     }
 }
 
