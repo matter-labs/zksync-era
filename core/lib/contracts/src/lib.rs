@@ -18,6 +18,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
 
+pub mod consensus_l2_contracts;
 pub mod test_contracts;
 
 #[derive(Debug, Clone)]

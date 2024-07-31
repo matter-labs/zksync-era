@@ -8958,6 +8958,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "hex",
  "rand 0.8.5",
  "secrecy",
  "tempfile",
@@ -8965,6 +8966,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "zksync_basic_types",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",

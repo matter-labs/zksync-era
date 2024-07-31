@@ -18,6 +18,9 @@ pub(crate) use store::*;
 
 #[cfg(test)]
 pub(crate) mod testonly;
+#[cfg(test)]
+mod tests;
+mod vm_reader;
 
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {

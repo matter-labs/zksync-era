@@ -89,7 +89,7 @@ pub(crate) struct TransactionExecutionOutput {
 
 /// Executor of transactions.
 #[derive(Debug)]
-pub(crate) enum TransactionExecutor {
+pub enum TransactionExecutor {
     Real,
     #[doc(hidden)] // Intended for tests only
     Mock(MockTransactionExecutor),
