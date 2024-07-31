@@ -74,19 +74,6 @@ impl ProtoRepr for proto::Genesis {
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
-            recursion_node_level_vk_hash: required(&prover.recursion_node_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_node_level_vk_hash")?,
-            recursion_leaf_level_vk_hash: required(&prover.recursion_leaf_level_vk_hash)
-                .and_then(|x| parse_h256(x))
-                .context("recursion_leaf_level_vk_hash")?,
-            recursion_circuits_set_vks_hash: prover
-                .recursion_circuits_set_vks_hash
-                .as_ref()
-                .map(|x| parse_h256(x))
-                .transpose()
-                .context("recursion_circuits_set_vks_hash")?
-                .unwrap_or_default(),
             recursion_scheduler_level_vk_hash: required(&prover.recursion_scheduler_level_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("recursion_scheduler_level_vk_hash")?,
@@ -119,18 +106,6 @@ impl ProtoRepr for proto::Genesis {
                 recursion_scheduler_level_vk_hash: Some(format!(
                     "{:?}",
                     this.recursion_scheduler_level_vk_hash
-                )),
-                recursion_node_level_vk_hash: Some(format!(
-                    "{:?}",
-                    this.recursion_node_level_vk_hash
-                )),
-                recursion_leaf_level_vk_hash: Some(format!(
-                    "{:?}",
-                    this.recursion_leaf_level_vk_hash
-                )),
-                recursion_circuits_set_vks_hash: Some(format!(
-                    "{:?}",
-                    this.recursion_circuits_set_vks_hash
                 )),
                 dummy_verifier: Some(this.dummy_verifier),
             }),
