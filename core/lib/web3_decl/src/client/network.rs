@@ -12,7 +12,8 @@ pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
     fn metric_label(&self) -> String;
 }
 
-/// L1 (i.e., Ethereum) network.
+/// L1-compatible (e.g., Ethereum) network.
+/// Note, that this network does not have to be an L1. It can be any network that is compatible with Ethereum JSON-RPC.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct L1(Option<SLChainId>);
 

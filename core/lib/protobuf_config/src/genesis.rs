@@ -7,6 +7,7 @@ use zksync_basic_types::{
 };
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_types::L1ChainId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
@@ -69,8 +70,14 @@ impl ProtoRepr for proto::Genesis {
                     .context("default_aa_hash")?,
             ),
             l1_chain_id: required(&self.l1_chain_id)
-                .map(|x| SLChainId(*x))
+                .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
+            // For now, the settlement layer is always the same as the L1 network
+            sl_chain_id: Some(
+                required(&self.l1_chain_id)
+                    .map(|x| SLChainId(*x))
+                    .context("l1_chain_id")?,
+            ),
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,

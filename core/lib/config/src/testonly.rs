@@ -6,7 +6,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    L1BatchNumber, L2ChainId, SLChainId,
+    L1BatchNumber, L1ChainId, L2ChainId, SLChainId,
 };
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
@@ -701,7 +701,8 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             bootloader_hash: Some(rng.gen()),
             default_aa_hash: Some(rng.gen()),
             fee_account: rng.gen(),
-            l1_chain_id: SLChainId(self.sample(rng)),
+            l1_chain_id: L1ChainId(self.sample(rng)),
+            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
@@ -873,7 +874,8 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::en_config::ENConfig {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
-            l1_chain_id: SLChainId(rng.gen()),
+            l1_chain_id: L1ChainId(rng.gen()),
+            sl_chain_id: Some(SLChainId(rng.gen())),
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,

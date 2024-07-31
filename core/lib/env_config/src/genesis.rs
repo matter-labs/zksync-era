@@ -1,6 +1,6 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, Address, H256};
+use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, Address, L1ChainId, H256};
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
     GenesisConfig,
@@ -68,7 +68,9 @@ impl FromEnv for GenesisConfig {
             genesis_commitment: contracts_config.genesis_batch_commitment,
             bootloader_hash: state_keeper.bootloader_hash,
             default_aa_hash: state_keeper.default_aa_hash,
-            l1_chain_id: network_config.network.chain_id(),
+            // FIXME: double check whether we can remove it
+            l1_chain_id: L1ChainId(9),
+            sl_chain_id: Some(network_config.network.chain_id()),
             l2_chain_id: network_config.zksync_network_id,
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper

@@ -31,13 +31,13 @@ pub(crate) struct ExternalNodeMetrics {
 impl ExternalNodeMetrics {
     pub(crate) fn observe_config(
         &self,
-        l1_chain_id: SLChainId,
+        sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
         postgres_pool_size: u32,
     ) {
         let info = ExternalNodeInfo {
             server_version: SERVER_VERSION,
-            l1_chain_id: l1_chain_id.0,
+            l1_chain_id: sl_chain_id.0,
             l2_chain_id: l2_chain_id.as_u64(),
             postgres_pool_size,
         };

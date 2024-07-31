@@ -19,7 +19,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    l1_chain_id: SLChainId,
+    sl_chain_id: SLChainId,
     wallets: wallets::EthSender,
 }
 
@@ -41,13 +41,13 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        l1_chain_id: SLChainId,
+        sl_chain_id: SLChainId,
         wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            l1_chain_id,
+            sl_chain_id,
             wallets,
         }
     }
@@ -75,7 +75,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
-            self.l1_chain_id,
+            self.sl_chain_id,
             query_client.clone(),
         );
         let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
@@ -86,7 +86,7 @@ impl WiringLayer for PKSigningEthClientLayer {
                 private_key.clone(),
                 self.contracts_config.diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
-                self.l1_chain_id,
+                self.sl_chain_id,
                 query_client,
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))

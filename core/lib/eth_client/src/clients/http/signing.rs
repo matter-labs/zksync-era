@@ -22,7 +22,7 @@ impl PKSigningClient {
         operator_private_key: K256PrivateKey,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
-        l1_chain_id: SLChainId,
+        chain_id: SLChainId,
         query_client: Box<DynClient<L1>>,
     ) -> Self {
         let operator_address = operator_private_key.address();
@@ -35,7 +35,7 @@ impl PKSigningClient {
             signer,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
-            l1_chain_id,
+            chain_id,
         )
     }
 }

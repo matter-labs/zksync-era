@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 /// Task that validates chain IDs using main node and Ethereum clients.
 #[derive(Debug)]
 pub struct ValidateChainIdsTask {
-    l1_chain_id: SLChainId,
+    sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
     eth_client: Box<DynClient<L1>>,
     main_node_client: Box<DynClient<L2>>,
@@ -25,13 +25,13 @@ impl ValidateChainIdsTask {
     const BACKOFF_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_chain_id: SLChainId,
+        sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
         eth_client: Box<DynClient<L1>>,
         main_node_client: Box<DynClient<L2>>,
     ) -> Self {
         Self {
-            l1_chain_id,
+            sl_chain_id,
             l2_chain_id,
             eth_client: eth_client.for_component("chain_ids_validation"),
             main_node_client: main_node_client.for_component("chain_ids_validation"),
@@ -140,9 +140,9 @@ impl ValidateChainIdsTask {
 
     /// Runs the task once, exiting either when all the checks are performed or when the stop signal is received.
     pub async fn run_once(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let eth_client_check = Self::check_eth_client(self.eth_client, self.l1_chain_id);
+        let eth_client_check = Self::check_eth_client(self.eth_client, self.sl_chain_id);
         let main_node_l1_check =
-            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id);
+            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id);
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
         let joined_futures =
@@ -158,9 +158,9 @@ impl ValidateChainIdsTask {
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
         // so we'll just wait for another check or a stop signal.
-        let eth_client_check = Self::check_eth_client(self.eth_client, self.l1_chain_id).fuse();
+        let eth_client_check = Self::check_eth_client(self.eth_client, self.sl_chain_id).fuse();
         let main_node_l1_check =
-            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id)
+            Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id)
                 .fuse();
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id).fuse();
