@@ -4578,7 +4578,6 @@ dependencies = [
  "dialoguer",
  "hex",
  "serde_json",
- "sqlx",
  "strum",
  "tokio",
  "tracing",
