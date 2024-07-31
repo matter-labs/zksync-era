@@ -291,12 +291,19 @@ async fn update_database(
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.connection().await.unwrap();
-    let protocol_version_id = prover_connection
+    let mut connection = prover_connection_pool
+        .connection()
+        .await
+        .expect("failed to get database connection");
+    let mut transaction = connection
+        .start_transaction()
+        .await
+        .expect("failed to get database transaction");
+    let protocol_version_id = transaction
         .fri_witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
         .await;
-    prover_connection
+    transaction
         .fri_prover_jobs_dal()
         .insert_prover_jobs(
             block_number,
@@ -306,7 +313,7 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    prover_connection
+    transaction
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
             block_number,
@@ -316,10 +323,14 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    prover_connection
+    transaction
         .fri_witness_generator_dal()
         .mark_witness_job_as_successful(block_number, started_at.elapsed())
         .await;
+    transaction
+        .commit()
+        .await
+        .expect("failed to commit database transaction");
 }
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
