@@ -25,8 +25,6 @@ pub struct StorageTeeProof {
 /// TODO rename it TeeProof once StorageTeeProof is moved to api/mod.rs?
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct TmpStorageTeeProof {
-    #[allow(dead_code)]
-    pub id: i64,
     pub pubkey: Option<Vec<u8>>,
     pub signature: Option<Vec<u8>>,
     pub proof: Option<Vec<u8>>,

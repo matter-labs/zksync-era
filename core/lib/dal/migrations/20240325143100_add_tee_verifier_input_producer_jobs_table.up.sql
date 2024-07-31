@@ -15,6 +15,3 @@ CREATE TABLE IF NOT EXISTS tee_verifier_input_producer_jobs
 
 CREATE INDEX IF NOT EXISTS idx_tee_verifier_input_producer_jobs_status_processing_attempts
     ON tee_verifier_input_producer_jobs (status, processing_started_at, attempts);
-
-CREATE INDEX IF NOT EXISTS idx_tee_verifier_input_producer_jobs_l1_batch_number_status
-ON tee_verifier_input_producer_jobs (l1_batch_number, status);

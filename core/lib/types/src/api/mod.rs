@@ -3,6 +3,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
+    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
     L1BatchNumber, H160, H2048, H256, H64, U256, U64,
 };
@@ -832,6 +833,17 @@ pub struct ApiStorageLog {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionExecutionInfo {
     pub execution_info: Value,
+}
+
+/// A "final" TEE proof that can be sent to the L1 contract.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct TeeProof {
+    pub l1_batch_number: L1BatchNumber,
+    pub tee_type: TeeType,
+    pub proof: Vec<u8>,
+    pub attestation: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub pubkey: Vec<u8>,
 }
 
 #[cfg(test)]

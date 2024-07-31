@@ -53,15 +53,9 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::Dal)?;
 
-        let (proof_id, l1_batch_number) = match l1_batch_number_result {
-            Some((proof_id, number)) => (proof_id, number),
-            None => {
-                // TODO introduce a proper type
-                return Ok(Json(TeeProofGenerationDataResponse {
-                    proof_id: None,
-                    input: None,
-                }));
-            }
+        let l1_batch_number = match l1_batch_number_result {
+            Some(number) => number,
+            None => return Ok(Json(TeeProofGenerationDataResponse(None))),
         };
 
         let tee_verifier_input: TeeVerifierInput = self
@@ -70,10 +64,7 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        let response = TeeProofGenerationDataResponse {
-            proof_id: Some(proof_id),
-            input: Some(Box::new(tee_verifier_input)),
-        };
+        let response = TeeProofGenerationDataResponse(Some(Box::new(tee_verifier_input)));
 
         Ok(Json(response))
     }
@@ -97,7 +88,8 @@ impl TeeRequestProcessor {
             l1_batch_number
         );
         dal.save_proof_artifacts_metadata(
-            proof.0.proof_id,
+            l1_batch_number,
+            proof.0.tee_type,
             &proof.0.pubkey,
             &proof.0.signature,
             &proof.0.proof,

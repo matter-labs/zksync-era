@@ -8,6 +8,7 @@ use zksync_prover_interface::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitTeeProofRequest,
         SubmitTeeProofResponse, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
     },
+    inputs::TeeVerifierInput,
     outputs::L1BatchTeeProofForL1,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
@@ -76,18 +77,17 @@ impl TeeApiClient {
     pub async fn get_job(
         &self,
         tee_type: TeeType,
-    ) -> Result<TeeProofGenerationDataResponse, TeeProverError> {
+    ) -> Result<Option<Box<TeeVerifierInput>>, TeeProverError> {
         let request = TeeProofGenerationDataRequest { tee_type };
         let response = self
             .post::<_, TeeProofGenerationDataResponse, _>("/tee/proof_inputs", request)
             .await?;
-        Ok(response)
+        Ok(response.0)
     }
 
     /// Submits the successfully verified proof to the TEE prover interface API.
     pub async fn submit_proof(
         &self,
-        proof_id: i64,
         batch_number: L1BatchNumber,
         signature: Signature,
         pubkey: &PublicKey,
@@ -95,7 +95,6 @@ impl TeeApiClient {
         tee_type: TeeType,
     ) -> Result<(), TeeProverError> {
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
-            proof_id,
             signature: signature.serialize_compact().into(),
             pubkey: pubkey.serialize().into(),
             proof: root_hash.as_bytes().into(),

@@ -114,10 +114,9 @@ impl TeeProver {
     async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job(self.tee_type).await? {
             Some(job) => {
-                let (signature, batch_number, root_hash) = self.verify(job.input)?;
+                let (signature, batch_number, root_hash) = self.verify(*job)?;
                 self.api_client
                     .submit_proof(
-                        job.proof_id.unwrap(), // TODO unwrap() is not safe here
                         batch_number,
                         signature,
                         &self.public_key,

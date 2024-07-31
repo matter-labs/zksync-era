@@ -18,7 +18,7 @@ use zksync_prover_interface::{
     api::SubmitTeeProofRequest,
     inputs::{TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths},
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, H256};
+use zksync_types::{commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber, H256};
 
 use crate::create_proof_processing_router;
 
@@ -94,7 +94,7 @@ async fn request_tee_proof_inputs() {
         },
         L1BatchCommitmentMode::Rollup,
     );
-    let req_body = Body::from(serde_json::to_vec(&json!({})).unwrap());
+    let req_body = Body::from(serde_json::to_vec(&json!({ "tee_type": "Sgx" })).unwrap());
     let response = app
         .oneshot(
             Request::builder()
@@ -183,17 +183,25 @@ async fn submit_tee_proof() {
 
     // there should be one TEE proof in the db now
 
-    let proof = proof_db_conn
+    let proofs = proof_db_conn
         .tee_proof_generation_dal()
-        .get_tee_proof(batch_number)
+        .get_tee_proofs(batch_number, Some(TeeType::Sgx))
         .await
-        .unwrap()
         .unwrap();
 
-    assert_eq!(proof.signature.unwrap(), tee_proof_request.0.signature);
-    assert_eq!(proof.pubkey.unwrap(), tee_proof_request.0.pubkey);
-    assert_eq!(proof.proof.unwrap(), tee_proof_request.0.proof);
-    assert_eq!(proof.tee_type.unwrap(), tee_proof_request.0.tee_type);
+    assert_eq!(proofs.len(), 1);
+    let proof = &proofs[0];
+    assert_eq!(
+        proof.tee_type.as_ref().unwrap(),
+        &tee_proof_request.0.tee_type
+    );
+    assert_eq!(proof.proof.as_ref().unwrap(), &tee_proof_request.0.proof);
+    assert_eq!(proof.attestation.as_ref().unwrap(), &attestation);
+    assert_eq!(
+        proof.signature.as_ref().unwrap(),
+        &tee_proof_request.0.signature
+    );
+    assert_eq!(proof.pubkey.as_ref().unwrap(), &tee_proof_request.0.pubkey);
 }
 
 // Mock SQL db with information about the status of the TEE proof generation
@@ -229,7 +237,7 @@ async fn mock_tee_batch_status(
     // mock SQL table with relevant information about the status of TEE proof generation ('ready_to_be_proven')
 
     proof_dal
-        .insert_tee_proof_generation_job(batch_number)
+        .insert_tee_proof_generation_job(batch_number, TeeType::Sgx)
         .await
         .expect("Failed to insert tee_proof_generation_job");
 
