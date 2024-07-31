@@ -28,8 +28,7 @@ pub struct VmPlayground {
     batch_executor: Box<dyn BatchExecutor>,
     rocksdb_path: String,
     chain_id: L2ChainId,
-    // Visible for test purposes
-    pub(crate) io: VmPlaygroundIo,
+    io: VmPlaygroundIo,
     loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
     output_handler_factory:
         ConcurrentOutputHandlerFactory<VmPlaygroundIo, VmPlaygroundOutputHandler>,
@@ -91,6 +90,11 @@ impl VmPlayground {
                 output_handler_factory_task,
             },
         ))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn io(&self) -> &VmPlaygroundIo {
+        &self.io
     }
 
     #[tracing::instrument(skip(self), err)]

@@ -1,34 +1,37 @@
 use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_state::RocksdbStorage;
 use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
 use crate::impls::VmPlayground;
 
-#[test_casing(2, [false, true])]
-#[tokio::test]
-async fn vm_playground_basics(reset_state: bool) {
-    let pool = ConnectionPool::<Core>::test_pool().await;
+async fn run_playground(
+    pool: ConnectionPool<Core>,
+    rocksdb_dir: &tempfile::TempDir,
+    reset_state: bool,
+) {
     let mut conn = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    if conn.blocks_dal().is_genesis_needed().await.unwrap() {
+        insert_genesis_batch(&mut conn, &genesis_params)
+            .await
+            .unwrap();
+
+        // Generate some batches and persist them in Postgres
+        let mut accounts = [Account::random()];
+        fund(&mut conn, &accounts).await;
+        store_l1_batches(
+            &mut conn,
+            1..=1, // TODO: test on >1 batch
+            genesis_params.base_system_contracts().hashes(),
+            &mut accounts,
+        )
         .await
         .unwrap();
-    let rocksdb_dir = tempfile::TempDir::new().unwrap();
-
-    // Generate some batches and persist them in Postgres
-    let mut accounts = [Account::random()];
-    fund(&mut conn, &accounts).await;
-    store_l1_batches(
-        &mut conn,
-        1..=1, // TODO: test on >1 batch
-        genesis_params.base_system_contracts().hashes(),
-        &mut accounts,
-    )
-    .await
-    .unwrap();
+    }
 
     let mut batch_executor = MainBatchExecutor::new(false, false);
     batch_executor.set_fast_vm_mode(FastVmMode::Shadow);
@@ -44,7 +47,7 @@ async fn vm_playground_basics(reset_state: bool) {
     .unwrap();
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let playground_io = playground.io.clone();
+    let playground_io = playground.io().clone();
     assert_eq!(
         playground_io
             .latest_processed_batch(&mut conn)
@@ -97,4 +100,31 @@ async fn vm_playground_basics(reset_state: bool) {
     for task_handle in task_handles {
         task_handle.await.unwrap().unwrap();
     }
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn vm_playground_basics(reset_state: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let rocksdb_dir = tempfile::TempDir::new().unwrap();
+    run_playground(pool, &rocksdb_dir, reset_state).await;
+}
+
+#[tokio::test]
+async fn resetting_playground_state() {
+    let pool = ConnectionPool::test_pool().await;
+    let rocksdb_dir = tempfile::TempDir::new().unwrap();
+    run_playground(pool.clone(), &rocksdb_dir, false).await;
+
+    // Manually catch up RocksDB to Postgres to ensure that resetting it is not trivial.
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let mut conn = pool.connection().await.unwrap();
+    RocksdbStorage::builder(rocksdb_dir.path())
+        .await
+        .unwrap()
+        .synchronize(&mut conn, &stop_receiver, None)
+        .await
+        .unwrap();
+
+    run_playground(pool.clone(), &rocksdb_dir, true).await;
 }
