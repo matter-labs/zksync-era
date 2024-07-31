@@ -262,7 +262,7 @@ If you installed `mold` to `/usr/local/bin/mold`, then the quickest way to use i
 
 ```bash
 export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
-export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"  # Not needed for recent enough gcc versions
 ```
 
 ## Tip: Speeding up building `RocksDB`
