@@ -337,23 +337,6 @@ impl<S: ReadStorage> Vm<S> {
         }
     }
 
-    /// Returns the current state of the VM in a format that can be compared for equality.
-    #[cfg(test)]
-    #[allow(clippy::type_complexity)] // OK for tests
-    pub(crate) fn dump_state(&self) -> (vm2::State, Vec<((H160, U256), U256)>, Box<[vm2::Event]>) {
-        // TODO this doesn't include all the state of ModifiedWorld
-        (
-            self.inner.state.clone(),
-            self.inner
-                .world_diff
-                .get_storage_state()
-                .iter()
-                .map(|(k, v)| (*k, *v))
-                .collect(),
-            self.inner.world_diff.events().into(),
-        )
-    }
-
     pub(crate) fn push_transaction_inner(
         &mut self,
         tx: zksync_types::Transaction,
@@ -479,6 +462,12 @@ impl<S: ReadStorage> Vm<S> {
         me.write_to_bootloader_heap(bootloader_memory);
 
         me
+    }
+
+    fn delete_history_if_appropriate(&mut self) {
+        if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
+            self.inner.delete_history();
+        }
     }
 }
 
@@ -672,6 +661,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 }
 
+#[derive(Debug)]
 struct VmSnapshot {
     vm_snapshot: vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
@@ -685,6 +675,8 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
             self.snapshot.is_none(),
             "cannot create a VM snapshot until a previous snapshot is rolled back to or popped"
         );
+
+        self.delete_history_if_appropriate();
         self.snapshot = Some(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
@@ -712,14 +704,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn pop_snapshot_no_rollback(&mut self) {
         self.snapshot = None;
         self.delete_history_if_appropriate();
-    }
-}
-
-impl<S: ReadStorage> Vm<S> {
-    fn delete_history_if_appropriate(&mut self) {
-        if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
-            self.inner.delete_history();
-        }
     }
 }
 
