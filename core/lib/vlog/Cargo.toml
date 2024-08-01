@@ -34,6 +34,7 @@ opentelemetry-otlp = { workspace = true, features = [
     "reqwest-client",
 ] }
 opentelemetry-semantic-conventions.workspace = true
+opentelemetry-appender-tracing.workspace = true
 vise.workspace = true
 vise-exporter.workspace = true
 url.workspace = true
