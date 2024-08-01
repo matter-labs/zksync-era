@@ -1,3 +1,5 @@
+pub use self::vm::Vm;
+
 mod bootloader_state;
 mod bytecode;
 mod events;
@@ -10,5 +12,3 @@ mod refund;
 mod tests;
 mod transaction_data;
 mod vm;
-
-pub use vm::Vm;

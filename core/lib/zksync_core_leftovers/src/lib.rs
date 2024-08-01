@@ -62,6 +62,8 @@ pub enum Component {
     BaseTokenRatioPersister,
     /// VM runner-based component that saves VM execution data for basic witness generation.
     VmRunnerBwip,
+    /// VM runner-based component that allows to test experimental VM features. Doesn't save any data to Postgres.
+    VmPlayground,
 }
 
 #[derive(Debug)]
@@ -106,6 +108,7 @@ impl FromStr for Components {
                 Ok(Components(vec![Component::BaseTokenRatioPersister]))
             }
             "vm_runner_bwip" => Ok(Components(vec![Component::VmRunnerBwip])),
+            "vm_playground" => Ok(Components(vec![Component::VmPlayground])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }

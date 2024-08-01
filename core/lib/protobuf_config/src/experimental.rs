@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use anyhow::Context as _;
+use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
@@ -46,6 +47,54 @@ impl ProtoRepr for proto::Db {
             include_indices_and_filters_in_block_cache: Some(
                 this.include_indices_and_filters_in_block_cache,
             ),
+        }
+    }
+}
+
+impl proto::FastVmMode {
+    fn new(source: FastVmMode) -> Self {
+        match source {
+            FastVmMode::Old => Self::Old,
+            FastVmMode::New => Self::New,
+            FastVmMode::Shadow => Self::Shadow,
+        }
+    }
+
+    fn parse(&self) -> FastVmMode {
+        match self {
+            Self::Old => FastVmMode::Old,
+            Self::New => FastVmMode::New,
+            Self::Shadow => FastVmMode::Shadow,
+        }
+    }
+}
+
+impl ProtoRepr for proto::VmPlayground {
+    type Type = configs::ExperimentalVmPlaygroundConfig;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            fast_vm_mode: self
+                .fast_vm_mode
+                .map(proto::FastVmMode::try_from)
+                .transpose()
+                .context("fast_vm_mode")?
+                .map_or_else(FastVmMode::default, |mode| mode.parse()),
+            db_path: self
+                .db_path
+                .clone()
+                .unwrap_or_else(Self::Type::default_db_path),
+            first_processed_batch: L1BatchNumber(self.first_processed_batch.unwrap_or(0)),
+            reset: self.reset.unwrap_or(false),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            fast_vm_mode: Some(proto::FastVmMode::new(this.fast_vm_mode).into()),
+            db_path: Some(this.db_path.clone()),
+            first_processed_batch: Some(this.first_processed_batch.0),
+            reset: Some(this.reset),
         }
     }
 }

@@ -3,6 +3,7 @@
 use std::num::NonZeroU32;
 
 use serde::Deserialize;
+use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ExperimentalDBConfig {
@@ -58,5 +59,39 @@ impl ExperimentalDBConfig {
 
     const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct ExperimentalVmPlaygroundConfig {
+    /// Mode in which to run the fast VM implementation. Note that for it to actually be used, L1 batches should have a recent version.
+    #[serde(default)]
+    pub fast_vm_mode: FastVmMode,
+    /// Path to the RocksDB cache directory.
+    #[serde(default = "ExperimentalVmPlaygroundConfig::default_db_path")]
+    pub db_path: String,
+    /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
+    #[serde(default)]
+    pub first_processed_batch: L1BatchNumber,
+    /// If set to true, processing cursor will reset `first_processed_batch` regardless of the current progress. Beware that this will likely
+    /// require to drop the RocksDB cache.
+    #[serde(default)]
+    pub reset: bool,
+}
+
+impl Default for ExperimentalVmPlaygroundConfig {
+    fn default() -> Self {
+        Self {
+            fast_vm_mode: FastVmMode::default(),
+            db_path: Self::default_db_path(),
+            first_processed_batch: L1BatchNumber(0),
+            reset: false,
+        }
+    }
+}
+
+impl ExperimentalVmPlaygroundConfig {
+    pub fn default_db_path() -> String {
+        "./db/vm_playground".to_owned()
     }
 }

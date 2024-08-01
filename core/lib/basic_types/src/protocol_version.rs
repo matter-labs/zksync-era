@@ -12,7 +12,7 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 use crate::{
     ethabi::Token,
-    vm_version::VmVersion,
+    vm::VmVersion,
     web3::contract::{Detokenize, Error},
     H256, U256,
 };

@@ -10,7 +10,7 @@ use tokio::{
 use zksync_multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
@@ -18,7 +18,7 @@ use zksync_multivm::{
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{ReadStorage, ReadStorageFactory, StorageView};
-use zksync_types::{vm_trace::Call, Transaction};
+use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
@@ -39,6 +39,7 @@ pub struct MainBatchExecutor {
     /// that in cases where the node is expected to process any transactions processed by the sequencer
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
+    fast_vm_mode: FastVmMode,
 }
 
 impl MainBatchExecutor {
@@ -46,7 +47,17 @@ impl MainBatchExecutor {
         Self {
             save_call_traces,
             optional_bytecode_compression,
+            fast_vm_mode: FastVmMode::Old,
         }
+    }
+
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        if !matches!(fast_vm_mode, FastVmMode::Old) {
+            tracing::warn!(
+                "Running new VM with mode {fast_vm_mode:?}; this can lead to incorrect node behavior"
+            );
+        }
+        self.fast_vm_mode = fast_vm_mode;
     }
 }
 
@@ -65,6 +76,7 @@ impl BatchExecutor for MainBatchExecutor {
         let executor = CommandReceiver {
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
+            fast_vm_mode: self.fast_vm_mode,
             commands: commands_receiver,
         };
 
@@ -96,6 +108,7 @@ impl BatchExecutor for MainBatchExecutor {
 struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
+    fast_vm_mode: FastVmMode,
     commands: mpsc::Receiver<Command>,
 }
 
@@ -109,8 +122,12 @@ impl CommandReceiver {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
-
-        let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
+        let mut vm = VmInstance::maybe_fast(
+            l1_batch_params,
+            system_env,
+            storage_view.clone(),
+            self.fast_vm_mode,
+        );
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {

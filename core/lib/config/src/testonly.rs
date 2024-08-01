@@ -6,6 +6,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
@@ -289,6 +290,21 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
             protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmPlaygroundConfig {
+        configs::ExperimentalVmPlaygroundConfig {
+            fast_vm_mode: match rng.gen_range(0..3) {
+                0 => FastVmMode::Old,
+                1 => FastVmMode::New,
+                _ => FastVmMode::Shadow,
+            },
+            db_path: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+            reset: self.sample(rng),
         }
     }
 }
@@ -1038,6 +1054,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             da_dispatcher_config: self.sample(rng),
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
+            vm_playground_config: self.sample(rng),
             commitment_generator: self.sample(rng),
             snapshot_recovery: self.sample(rng),
             pruning: self.sample(rng),

@@ -4,7 +4,8 @@ use zk_evm_1_3_1::aux_structures::LogQuery;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Transaction, VmVersion,
+    vm::VmVersion,
+    Transaction,
 };
 use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
 
