@@ -91,10 +91,11 @@ impl ServiceDescriptor {
     }
 
     fn into_otlp_resource(self) -> Resource {
-        let mut attributes = vec![];
-        attributes.push(KeyValue::new(K8S_POD_NAME, self.k8s_pod_name));
-        attributes.push(KeyValue::new(K8S_NAMESPACE_NAME, self.k8s_namespace_name));
-        attributes.push(KeyValue::new(SERVICE_NAME, self.service_name));
+        let attributes = vec![
+            KeyValue::new(K8S_POD_NAME, self.k8s_pod_name),
+            KeyValue::new(K8S_NAMESPACE_NAME, self.k8s_namespace_name),
+            KeyValue::new(SERVICE_NAME, self.service_name),
+        ];
         Resource::new(attributes)
     }
 }
@@ -164,10 +165,7 @@ impl OpenTelemetry {
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
-        let Some(logging_endpoint) = self.logging_endpoint.clone() else {
-            return None;
-        };
-
+        let logging_endpoint = self.logging_endpoint.clone()?;
         let resource = self.service.clone().into_otlp_resource();
 
         let exporter = opentelemetry_otlp::new_exporter()
@@ -195,9 +193,7 @@ impl OpenTelemetry {
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
-        let Some(tracing_endpoint) = self.tracing_endpoint.clone() else {
-            return None;
-        };
+        let tracing_endpoint = self.tracing_endpoint.clone()?;
         // `otel::tracing` should be a level info to emit opentelemetry trace & span
         // `otel` set to debug to log detected resources, configuration read and inferred
         let filter = self

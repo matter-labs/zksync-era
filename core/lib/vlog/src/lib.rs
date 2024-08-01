@@ -130,13 +130,11 @@ impl ObservabilityBuilder {
         let (otlp_tracing_provider, otlp_tracing_layer) = self
             .opentelemetry_layer
             .as_ref()
-            .map(|layer| layer.tracing_layer())
-            .flatten()
+            .and_then(|layer| layer.tracing_layer())
             .unzip();
         let (otlp_logging_provider, otlp_logging_layer) = self
             .opentelemetry_layer
-            .map(|layer| layer.logs_layer())
-            .flatten()
+            .and_then(|layer| layer.logs_layer())
             .unzip();
 
         tracing_subscriber::registry()
