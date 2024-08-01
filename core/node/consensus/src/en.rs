@@ -194,6 +194,7 @@ impl EN {
     }
 
     /// Fetches genesis from the main node.
+    #[tracing::instrument(skip_all)]
     async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         let genesis = ctx
             .wait(self.client.fetch_consensus_genesis())
