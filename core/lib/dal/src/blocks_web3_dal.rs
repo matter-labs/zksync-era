@@ -564,17 +564,18 @@ impl BlocksWeb3Dal<'_, '_> {
         .collect())
     }
 
-    /// Returns `base_fee_per_gas` for L2 block range [min(newest_block - block_count + 1, 0), newest_block]
+    /// Returns `base_fee_per_gas` and `effective_pubdata_price` for L2 block range [min(newest_block - block_count + 1, 0), newest_block]
     /// in descending order of L2 block numbers.
     pub async fn get_fee_history(
         &mut self,
         newest_block: L2BlockNumber,
         block_count: u64,
-    ) -> DalResult<Vec<U256>> {
+    ) -> DalResult<(Vec<U256>, Vec<U256>)> {
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
-                base_fee_per_gas
+                base_fee_per_gas,
+                gas_per_pubdata_limit
             FROM
                 miniblocks
             WHERE
@@ -593,10 +594,19 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| bigdecimal_to_u256(row.base_fee_per_gas))
+        .map(|row| {
+            let base_fee_per_gas = bigdecimal_to_u256(row.base_fee_per_gas);
+            let effective_pubdata_price =
+                U256::from(row.gas_per_pubdata_limit as u64) * base_fee_per_gas;
+
+            (base_fee_per_gas, effective_pubdata_price)
+        })
         .collect();
 
-        Ok(result)
+        let (base_fee_per_gas, effective_pubdata_price): (Vec<U256>, Vec<U256>) =
+            result.into_iter().unzip();
+
+        Ok((base_fee_per_gas, effective_pubdata_price))
     }
 
     pub async fn get_block_details(

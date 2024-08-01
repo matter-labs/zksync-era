@@ -58,6 +58,7 @@ pub struct TransactionsDal<'c, 'a> {
 impl TransactionsDal<'_, '_> {
     /// FIXME: remove this function in prod
     pub async fn erase_l1_txs_history(&mut self) -> DalResult<()> {
+        // We need this to ensure that eth watch will start watching from the first block
         sqlx::query!(
             r#"
             UPDATE transactions

@@ -124,7 +124,7 @@ impl L1BatchCommitmentModeValidationTask {
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use zksync_eth_client::clients::MockEthereum;
+    use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
     use zksync_web3_decl::{client::MockClient, jsonrpsee::types::ErrorObject};
 
@@ -132,7 +132,7 @@ mod tests {
 
     fn mock_ethereum(token: ethabi::Token, err: Option<ClientError>) -> MockClient<L1> {
         let err_mutex = Mutex::new(err);
-        MockEthereum::builder()
+        MockSettlementLayer::builder()
             .with_fallible_call_handler(move |_, _| {
                 let err = mem::take(&mut *err_mutex.lock().unwrap());
                 if let Some(err) = err {

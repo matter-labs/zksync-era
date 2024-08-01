@@ -1,20 +1,23 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
+    marker::PhantomData,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use jsonrpsee::{core::ClientError, types::ErrorObject};
+use zksync_config::configs::api;
 use zksync_types::{
+    api::FeeHistory,
     ethabi,
     web3::{self, contract::Tokenize, BlockId},
-    Address, L1ChainId, H160, H256, U256, U64,
+    Address, L1ChainId, L2ChainId, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{DynClient, MockClient, L1};
+use zksync_web3_decl::client::{DynClient, MockClient, MockClientBuilder, Network, L1, L2};
 
 use crate::{
     types::{ContractCallError, SignedCallResult, SigningError},
-    BaseFees, BoundEthInterface, Options, RawTransactionBytes,
+    BaseFees, BoundEthInterface, L2Fees, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -119,7 +122,7 @@ impl MockEthereumInner {
     }
 
     fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
-        if address != MockEthereum::SENDER_ACCOUNT {
+        if address != MockSettlementLayer::<L1>::SENDER_ACCOUNT {
             unimplemented!("Getting nonce for custom account is not supported");
         }
 
@@ -208,19 +211,45 @@ impl MockExecutedTxHandle<'_> {
 type CallHandler =
     dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, ClientError> + Send + Sync;
 
+#[derive(Debug, Clone)]
+pub struct MockClientBaseFee {
+    pub base_fee_per_gas: u64,
+    pub base_fee_per_blob_gas: U256,
+    pub pubdata_price: U256,
+}
+
+impl From<MockClientBaseFee> for BaseFees {
+    fn from(value: MockClientBaseFee) -> Self {
+        Self {
+            base_fee_per_blob_gas: value.base_fee_per_blob_gas,
+            base_fee_per_gas: value.base_fee_per_gas,
+        }
+    }
+}
+
+impl From<MockClientBaseFee> for L2Fees {
+    fn from(value: MockClientBaseFee) -> Self {
+        Self {
+            base_fee_per_gas: value.base_fee_per_gas,
+            pubdata_price: value.pubdata_price,
+        }
+    }
+}
+
 /// Builder for [`MockEthereum`] client.
-pub struct MockEthereumBuilder {
+pub struct MockEthereumBuilder<Net: Network = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
-    base_fee_history: Vec<BaseFees>,
+    base_fee_history: Vec<MockClientBaseFee>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
     inner: Arc<RwLock<MockEthereumInner>>,
     call_handler: Box<CallHandler>,
+    _network: PhantomData<Net>,
 }
 
-impl fmt::Debug for MockEthereumBuilder {
+impl<Net: Network> fmt::Debug for MockEthereumBuilder<Net> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MockEthereumBuilder")
@@ -236,7 +265,7 @@ impl fmt::Debug for MockEthereumBuilder {
     }
 }
 
-impl Default for MockEthereumBuilder {
+impl<Net: Network> Default for MockEthereumBuilder<Net> {
     fn default() -> Self {
         Self {
             max_fee_per_gas: 100.into(),
@@ -247,13 +276,14 @@ impl Default for MockEthereumBuilder {
             call_handler: Box::new(|call, block_id| {
                 panic!("Unexpected eth_call: {call:?}, {block_id:?}");
             }),
+            _network: PhantomData,
         }
     }
 }
 
-impl MockEthereumBuilder {
+impl<Net: Network> MockEthereumBuilder<Net> {
     /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
-    pub fn with_fee_history(self, history: Vec<BaseFees>) -> Self {
+    pub fn with_fee_history(self, history: Vec<MockClientBaseFee>) -> Self {
         Self {
             base_fee_history: history,
             ..self
@@ -295,7 +325,7 @@ impl MockEthereumBuilder {
     }
 
     fn get_block_by_number(
-        fee_history: &[BaseFees],
+        fee_history: &[MockClientBaseFee],
         block: web3::BlockNumber,
     ) -> Option<web3::Block<H256>> {
         let web3::BlockNumber::Number(number) = block else {
@@ -314,14 +344,11 @@ impl MockEthereumBuilder {
         })
     }
 
-    fn build_client(self) -> MockClient<L1> {
-        const CHAIN_ID: L1ChainId = L1ChainId(9);
-
-        let base_fee_history = self.base_fee_history.clone();
+    fn build_client_inner(self, chaind_id: u64, network: Net) -> MockClientBuilder<Net> {
         let call_handler = self.call_handler;
 
-        MockClient::builder(CHAIN_ID.into())
-            .method("eth_chainId", || Ok(U64::from(CHAIN_ID.0)))
+        MockClient::builder(network)
+            .method("eth_chainId", move || Ok(U64::from(chaind_id)))
             .method("eth_blockNumber", {
                 let inner = self.inner.clone();
                 move || Ok(U64::from(inner.read().unwrap().block_number))
@@ -342,30 +369,6 @@ impl MockEthereumBuilder {
                 }
             })
             .method("eth_gasPrice", move || Ok(self.max_fee_per_gas))
-            .method(
-                "eth_feeHistory",
-                move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
-                    let web3::BlockNumber::Number(from_block) = newest_block else {
-                        panic!("Non-numeric newest block in `eth_feeHistory`");
-                    };
-                    let from_block = from_block.as_usize();
-                    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
-                    Ok(web3::FeeHistory {
-                        oldest_block: start_block.into(),
-                        base_fee_per_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| U256::from(fee.base_fee_per_gas))
-                            .collect(),
-                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| fee.base_fee_per_blob_gas)
-                            .collect(),
-                        gas_used_ratio: vec![],      // not used
-                        blob_gas_used_ratio: vec![], // not used
-                        reward: None,
-                    })
-                },
-            )
             .method("eth_call", {
                 let inner = self.inner.clone();
                 move |req, block| {
@@ -397,42 +400,127 @@ impl MockEthereumBuilder {
                     Ok(status.map(|status| status.receipt.clone()))
                 }
             })
+    }
+}
+
+pub trait SupportedMockEthNetwork: Network {
+    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self>;
+}
+impl SupportedMockEthNetwork for L1 {
+    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
+        const CHAIN_ID: L1ChainId = L1ChainId(9);
+
+        let base_fee_history = builder.base_fee_history.clone();
+
+        builder
+            .build_client_inner(CHAIN_ID.0, CHAIN_ID.into())
+            .method(
+                "eth_feeHistory",
+                move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
+                    let web3::BlockNumber::Number(from_block) = newest_block else {
+                        panic!("Non-numeric newest block in `eth_feeHistory`");
+                    };
+                    let from_block = from_block.as_usize();
+                    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
+                    Ok(web3::FeeHistory {
+                        oldest_block: start_block.into(),
+                        base_fee_per_gas: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| U256::from(fee.base_fee_per_gas))
+                            .collect(),
+                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| fee.base_fee_per_blob_gas)
+                            .collect(),
+                        gas_used_ratio: vec![],      // not used
+                        blob_gas_used_ratio: vec![], // not used
+                        reward: None,
+                    })
+                },
+            )
             .build()
     }
+}
 
-    /// Builds a mock Ethereum client.
-    pub fn build(self) -> MockEthereum {
-        MockEthereum {
+impl SupportedMockEthNetwork for L2 {
+    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
+        const CHAIN_ID: L2ChainId = L2ChainId(9);
+
+        let base_fee_history = builder.base_fee_history.clone();
+
+        builder
+            .build_client_inner(CHAIN_ID.0, CHAIN_ID.into())
+            .method(
+                "eth_feeHistory",
+                move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
+                    let web3::BlockNumber::Number(from_block) = newest_block else {
+                        panic!("Non-numeric newest block in `eth_feeHistory`");
+                    };
+                    let from_block = from_block.as_usize();
+                    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
+                    Ok(FeeHistory {
+                        oldest_block: start_block.into(),
+                        base_fee_per_gas: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| U256::from(fee.base_fee_per_gas))
+                            .collect(),
+                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| fee.base_fee_per_blob_gas)
+                            .collect(),
+                        gas_used_ratio: vec![],      // not used
+                        blob_gas_used_ratio: vec![], // not used
+                        pubdata_price: base_fee_history[start_block..=from_block]
+                            .iter()
+                            .map(|fee| fee.pubdata_price)
+                            .collect(),
+                        reward: None,
+                    })
+                },
+            )
+            .build()
+    }
+}
+
+impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
+    pub fn build(self) -> MockSettlementLayer<Net> {
+        MockSettlementLayer {
             max_fee_per_gas: self.max_fee_per_gas,
             max_priority_fee_per_gas: self.max_priority_fee_per_gas,
             non_ordering_confirmations: self.non_ordering_confirmations,
             inner: self.inner.clone(),
-            client: self.build_client(),
+            client: Net::build_client(self),
         }
     }
 }
 
 /// Mock Ethereum client.
 #[derive(Debug, Clone)]
-pub struct MockEthereum {
+pub struct MockSettlementLayer<Net: Network = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     non_ordering_confirmations: bool,
     inner: Arc<RwLock<MockEthereumInner>>,
-    client: MockClient<L1>,
+    client: MockClient<Net>,
 }
 
-impl Default for MockEthereum {
+impl Default for MockSettlementLayer<L1> {
     fn default() -> Self {
         Self::builder().build()
     }
 }
 
-impl MockEthereum {
+impl Default for MockSettlementLayer<L2> {
+    fn default() -> Self {
+        Self::builder().build()
+    }
+}
+
+impl<Net: Network> MockSettlementLayer<Net> {
     const SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
 
     /// Initializes a builder for a [`MockEthereum`] instance.
-    pub fn builder() -> MockEthereumBuilder {
+    pub fn builder() -> MockEthereumBuilder<Net> {
         MockEthereumBuilder::default()
     }
 
@@ -511,24 +599,27 @@ impl MockEthereum {
     }
 
     /// Converts this client into an immutable / contract-agnostic client.
-    pub fn into_client(self) -> MockClient<L1> {
+    pub fn into_client(self) -> MockClient<Net> {
         self.client
     }
 }
 
-impl AsRef<DynClient<L1>> for MockEthereum {
-    fn as_ref(&self) -> &DynClient<L1> {
+impl<Net: Network> AsRef<DynClient<Net>> for MockSettlementLayer<Net> {
+    fn as_ref(&self) -> &DynClient<Net> {
         &self.client
     }
 }
 
 #[async_trait::async_trait]
-impl BoundEthInterface for MockEthereum {
-    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+impl<Net: Network> BoundEthInterface<Net> for MockSettlementLayer<Net> {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface<Net>> {
         Box::new(self.clone())
     }
 
-    fn for_component(self: Box<Self>, _component_name: &'static str) -> Box<dyn BoundEthInterface> {
+    fn for_component(
+        self: Box<Self>,
+        _component_name: &'static str,
+    ) -> Box<dyn BoundEthInterface<Net>> {
         self
     }
 
@@ -575,22 +666,23 @@ mod tests {
     use super::*;
     use crate::{CallFunctionArgs, EthInterface};
 
-    fn base_fees(block: u64, blob: u64) -> BaseFees {
-        BaseFees {
+    fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> MockClientBaseFee {
+        MockClientBaseFee {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: U256::from(blob),
+            pubdata_price: U256::from(pubdata_price),
         }
     }
 
     #[tokio::test]
     async fn managing_block_number() {
-        let mock = MockEthereum::builder()
+        let mock = MockSettlementLayer::<L1>::builder()
             .with_fee_history(vec![
-                base_fees(0, 4),
-                base_fees(1, 3),
-                base_fees(2, 2),
-                base_fees(3, 1),
-                base_fees(4, 0),
+                base_fees(0, 4, 0),
+                base_fees(1, 3, 0),
+                base_fees(2, 2, 0),
+                base_fees(3, 1, 0),
+                base_fees(4, 0, 0),
             ])
             .build();
         let block_number = mock.client.block_number().await.unwrap();
@@ -615,7 +707,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_chain_id() {
-        let mock = MockEthereum::builder().build();
+        let mock = MockSettlementLayer::<L1>::builder().build();
         let chain_id = mock.client.fetch_chain_id().await.unwrap();
         assert_eq!(chain_id, L1ChainId(9));
     }
@@ -623,28 +715,49 @@ mod tests {
     #[tokio::test]
     async fn managing_fee_history() {
         let initial_fee_history = vec![
-            base_fees(1, 4),
-            base_fees(2, 3),
-            base_fees(3, 2),
-            base_fees(4, 1),
-            base_fees(5, 0),
+            base_fees(1, 4, 0),
+            base_fees(2, 3, 0),
+            base_fees(3, 2, 0),
+            base_fees(4, 1, 0),
+            base_fees(5, 0, 0),
         ];
-        let client = MockEthereum::builder()
+        let client = MockSettlementLayer::<L1>::builder()
             .with_fee_history(initial_fee_history.clone())
             .build();
         client.advance_block_number(4);
 
         let fee_history = client.as_ref().base_fee_history(4, 4).await.unwrap();
-        assert_eq!(fee_history, &initial_fee_history[1..=4]);
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=4]
+                .into_iter()
+                .cloned()
+                .map(BaseFees::from)
+                .collect::<Vec<_>>()
+        );
         let fee_history = client.as_ref().base_fee_history(2, 2).await.unwrap();
-        assert_eq!(fee_history, &initial_fee_history[1..=2]);
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=2]
+                .into_iter()
+                .cloned()
+                .map(BaseFees::from)
+                .collect::<Vec<_>>()
+        );
         let fee_history = client.as_ref().base_fee_history(3, 2).await.unwrap();
-        assert_eq!(fee_history, &initial_fee_history[2..=3]);
+        assert_eq!(
+            fee_history,
+            initial_fee_history[2..=3]
+                .into_iter()
+                .cloned()
+                .map(BaseFees::from)
+                .collect::<Vec<_>>()
+        );
     }
 
     #[tokio::test]
     async fn managing_transactions() {
-        let client = MockEthereum::builder()
+        let client = MockSettlementLayer::<L1>::builder()
             .with_non_ordering_confirmation(true)
             .build();
         client.advance_block_number(2);
@@ -697,7 +810,7 @@ mod tests {
 
     #[tokio::test]
     async fn calling_contracts() {
-        let client = MockEthereum::builder()
+        let client = MockSettlementLayer::builder()
             .with_call_handler(|req, _block_id| {
                 let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
                 let call_signature = &req.data.as_ref().unwrap().0[..4];
@@ -746,7 +859,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction_failure_reason() {
-        let client = MockEthereum::default();
+        let client = MockSettlementLayer::<L1>::default();
         let signed_tx = client
             .sign_prepared_tx(
                 vec![1, 2, 3],

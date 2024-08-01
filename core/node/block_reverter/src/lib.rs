@@ -469,7 +469,7 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
-        eth_client: &dyn BoundEthInterface,
+        eth_client: &dyn BoundEthInterface<L1>,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
         nonce: u64,

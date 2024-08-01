@@ -152,8 +152,16 @@ impl MainNodeBuilder {
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
-        let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
+        let query_eth_client_layer = QueryEthClientLayer::new(
+            genesis.l1_chain_id,
+            eth_config.l1_rpc_url,
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| x.gas_adjuster)
+                .and_then(|x| x.l2_mode)
+                .unwrap_or_default(),
+        );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }

@@ -73,15 +73,15 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError>;
 
-    fn ethereum_gateway(&self) -> &dyn BoundEthInterface;
+    fn ethereum_gateway(&self) -> &dyn BoundEthInterface<L1>;
 
-    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface>;
+    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface<L1>>;
 }
 
 #[derive(Debug)]
 pub(super) struct RealL1Interface {
-    pub ethereum_gateway: Box<dyn BoundEthInterface>,
-    pub ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
+    pub ethereum_gateway: Box<dyn BoundEthInterface<L1>>,
+    pub ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface<L1>>>,
     pub wait_confirmations: Option<u64>,
 }
 
@@ -90,6 +90,7 @@ impl RealL1Interface {
         self.ethereum_gateway().as_ref()
     }
 }
+
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
     async fn failure_reason(&self, tx_hash: H256) -> Option<FailureInfo> {
@@ -240,11 +241,11 @@ impl AbstractL1Interface for RealL1Interface {
         })
     }
 
-    fn ethereum_gateway(&self) -> &dyn BoundEthInterface {
+    fn ethereum_gateway(&self) -> &dyn BoundEthInterface<L1> {
         self.ethereum_gateway.as_ref()
     }
 
-    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface> {
+    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface<L1>> {
         self.ethereum_gateway_blobs.as_deref()
     }
 }

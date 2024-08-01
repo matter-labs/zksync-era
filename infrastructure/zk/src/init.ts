@@ -42,6 +42,7 @@ type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
     skipContractCompilation?: boolean;
+    skipJsPackages?: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
 };
@@ -49,6 +50,7 @@ const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
     skipContractCompilation,
+    skipJsPackages,
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
@@ -66,7 +68,9 @@ const initSetup = async ({
         await announced('Setting up containers', up(runObservability));
     }
 
-    await announced('Compiling JS packages', run.yarn());
+    if (!skipJsPackages) {
+        await announced('Compiling JS packages', run.yarn());
+    }
 
     if (!skipContractCompilation) {
         await Promise.all([
@@ -76,9 +80,9 @@ const initSetup = async ({
     }
 };
 
-const initDatabase = async (): Promise<void> => {
+const initDatabase = async (skipDbPreparation: boolean = false): Promise<void> => {
     await announced('Drop postgres db', db.drop({ core: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }, skipDbPreparation));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 };
@@ -148,12 +152,16 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
     validiumMode?: boolean;
+    skipDbPreparation?: boolean;
+    skipJsPackages?: boolean;
     localLegacyBridgeTesting?: boolean;
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
     skipContractCompilation,
+    skipDbPreparation,
+    skipJsPackages,
     skipVerifier,
     skipTestTokenDeployment,
     testTokenOptions,
@@ -171,7 +179,8 @@ export const initDevCmdAction = async ({
         skipSubmodulesCheckout,
         skipContractCompilation,
         runObservability,
-        deploymentMode
+        deploymentMode,
+        skipJsPackages
     });
     if (!skipVerifier) {
         await deployVerifier();
@@ -180,7 +189,7 @@ export const initDevCmdAction = async ({
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
-    await initDatabase();
+    await initDatabase(skipDbPreparation);
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
@@ -259,6 +268,8 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--skip-contract-compilation')
+    .option('--skip-db-preparation')
+    .option('--skip-js-packages')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')

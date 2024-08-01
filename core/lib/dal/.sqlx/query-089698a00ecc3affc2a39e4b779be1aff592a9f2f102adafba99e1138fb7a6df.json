@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                base_fee_per_gas,\n                gas_per_pubdata_limit\n            FROM\n                miniblocks\n            WHERE\n                number <= $1\n            ORDER BY\n                number DESC\n            LIMIT\n                $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "base_fee_per_gas",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 1,
+        "name": "gas_per_pubdata_limit",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "089698a00ecc3affc2a39e4b779be1aff592a9f2f102adafba99e1138fb7a6df"
+}

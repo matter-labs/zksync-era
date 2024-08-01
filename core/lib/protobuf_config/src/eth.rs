@@ -31,6 +31,7 @@ impl proto::PubdataSendingMode {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
             From::Custom => Self::Custom,
+            From::RelayedL2Calldata => Self::RelayedL2Calldata,
         }
     }
 
@@ -40,6 +41,7 @@ impl proto::PubdataSendingMode {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
             Self::Custom => To::Custom,
+            Self::RelayedL2Calldata => To::RelayedL2Calldata,
         }
     }
 }
@@ -177,6 +179,7 @@ impl ProtoRepr for proto::GasAdjuster {
             )
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
+            l2_mode: self.l2_mode,
         })
     }
 
@@ -198,6 +201,7 @@ impl ProtoRepr for proto::GasAdjuster {
             ),
             internal_pubdata_pricing_multiplier: Some(this.internal_pubdata_pricing_multiplier),
             max_blob_base_fee: this.max_blob_base_fee,
+            l2_mode: this.l2_mode,
         }
     }
 }

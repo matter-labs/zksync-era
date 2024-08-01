@@ -85,6 +85,7 @@ mod tests {
                     num_samples_for_blob_base_fee_estimate: 10,
                     internal_pubdata_pricing_multiplier: 1.0,
                     max_blob_base_fee: None,
+                    l2_mode: None,
                 }),
                 watcher: Some(EthWatchConfig {
                     confirmations_for_eth_event: Some(0),

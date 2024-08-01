@@ -1,9 +1,12 @@
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::{web3, Address, H256, U256, U64};
-use zksync_web3_decl::client::{ForNetwork, L1};
+use zksync_types::{
+    api::{BlockDetails, L1BatchDetails},
+    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+};
+use zksync_web3_decl::client::{ForNetwork, L1, L2};
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
-#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L1>))]
+#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork))]
 pub(super) trait L1EthNamespace {
     #[method(name = "chainId")]
     async fn chain_id(&self) -> RpcResult<U256>;
@@ -65,4 +68,17 @@ pub(super) trait L1EthNamespace {
         &self,
         hash: H256,
     ) -> RpcResult<Option<web3::TransactionReceipt>>;
+}
+
+/// Subset of the L2 `eth` namespace used by an L2 client. It may have the same
+/// methods as the L1 `eth` namespace, but with extended return values.
+#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))]
+pub(super) trait L2EthNamespace {
+    #[method(name = "feeHistory")]
+    async fn fee_history(
+        &self,
+        block_count: U64,
+        newest_block: web3::BlockNumber,
+        reward_percentiles: Option<Vec<f32>>,
+    ) -> RpcResult<zksync_types::api::FeeHistory>;
 }

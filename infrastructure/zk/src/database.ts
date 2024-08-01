@@ -5,7 +5,7 @@ export async function reset(opts: DbOpts) {
     await utils.confirmAction();
     await wait(opts);
     await drop(opts);
-    await setup(opts);
+    await setup(opts, false);
 }
 
 export enum DalPath {
@@ -143,10 +143,10 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string, shouldCheck: 
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function setup(opts: DbOpts) {
+export async function setup(opts: DbOpts, skipDbPreparation: boolean) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
-        await setupForDal(dalPath, dbUrl, true);
+        await setupForDal(dalPath, dbUrl, !skipDbPreparation);
     }
 }
 

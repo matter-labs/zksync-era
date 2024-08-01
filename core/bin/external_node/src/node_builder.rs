@@ -168,6 +168,8 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.eth_client_url.clone(),
+            // TODO: add this config for external node
+            true,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

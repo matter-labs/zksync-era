@@ -10,7 +10,7 @@ use zksync_types::{
     },
     Address, L1ChainId, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{DynClient, L1};
+use zksync_web3_decl::client::{DynClient, Network, L1};
 pub use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
@@ -154,6 +154,23 @@ pub trait EthInterface: Sync + Send {
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
 }
 
+/// Information about the base fees provided by the L1 client.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct L2Fees {
+    pub base_fee_per_gas: u64,
+    pub pubdata_price: U256,
+}
+
+#[async_trait]
+pub trait ZkSyncInterface: Sync + Send {
+    /// Returns vector of pubdata prices (in wei) for a zkSync-based network.
+    async fn l2_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<L2Fees>>;
+}
+
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
@@ -168,13 +185,18 @@ pub trait EthInterface: Sync + Send {
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 ///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt::Debug {
+pub trait BoundEthInterface<Net: Network>:
+    AsRef<DynClient<Net>> + 'static + Sync + Send + fmt::Debug
+{
     /// Clones this client.
-    fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface<Net>>;
 
     /// Tags this client as working for a specific component. The component name can be used in logging,
     /// metrics etc. The component name should be copied to the clones of this client, but should not be passed upstream.
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface>;
+    fn for_component(
+        self: Box<Self>,
+        component_name: &'static str,
+    ) -> Box<dyn BoundEthInterface<Net>>;
 
     /// ABI of the contract that is used by the implementer.
     fn contract(&self) -> &ethabi::Contract;
@@ -209,13 +231,13 @@ pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt:
     ) -> Result<SignedCallResult, SigningError>;
 }
 
-impl Clone for Box<dyn BoundEthInterface> {
+impl<Net: Network> Clone for Box<dyn BoundEthInterface<Net>> {
     fn clone(&self) -> Self {
         self.clone_boxed()
     }
 }
 
-impl dyn BoundEthInterface {
+impl<Net: Network> dyn BoundEthInterface<Net> {
     /// Returns the nonce of the `Self::sender_account()` at the specified block.
     pub async fn nonce_at(&self, block: BlockNumber) -> EnrichedClientResult<U256> {
         self.as_ref()
