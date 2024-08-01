@@ -223,7 +223,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 tp.l1_batch_number = $1
                 AND tp.status = $2
                 {}
-            ORDER BY tp.id
+            ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC
             "#,
             tee_type.map_or_else(String::new, |_| "AND tp.tee_type = $3".to_string())
         );
