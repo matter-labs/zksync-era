@@ -9720,6 +9720,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",

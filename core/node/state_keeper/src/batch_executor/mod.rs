@@ -3,13 +3,13 @@ use std::{error::Error as StdError, fmt, sync::Arc};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{
-    sync::{mpsc, oneshot, watch},
+    sync::{mpsc, oneshot},
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
-use zksync_state::{ReadStorageFactory, StorageViewCache};
+use zksync_state::{OwnedStorage, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -57,13 +57,13 @@ impl TxExecutionResult {
 /// by communicating with the externally initialized thread.
 #[async_trait]
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
+    // FIXME: why is it async?
     async fn init_batch(
         &mut self,
-        storage_factory: Arc<dyn ReadStorageFactory>,
+        storage: OwnedStorage,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle>;
+    ) -> BatchExecutorHandle;
 }
 
 #[derive(Debug)]
@@ -129,7 +129,7 @@ impl BatchExecutorHandle {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
-            .send(Command::ExecuteTx(Box::new(tx), response_sender))
+            .send(Command::ExecuteTx(Box::new(tx.clone()), response_sender))
             .await
             .is_err();
         if send_failed {

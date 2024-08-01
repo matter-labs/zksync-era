@@ -3,10 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
-use tokio::{
-    runtime::Handle,
-    sync::{mpsc, watch},
-};
+use tokio::{runtime::Handle, sync::mpsc};
 use zksync_multivm::{
     interface::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
@@ -17,7 +14,7 @@ use zksync_multivm::{
     MultiVMTracer, VmInstance,
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{ReadStorage, ReadStorageFactory, StorageView, WriteStorage};
+use zksync_state::{OwnedStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -54,11 +51,10 @@ impl MainBatchExecutor {
 impl BatchExecutor for MainBatchExecutor {
     async fn init_batch(
         &mut self,
-        storage_factory: Arc<dyn ReadStorageFactory>,
+        storage: OwnedStorage,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle> {
+    ) -> BatchExecutorHandle {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
@@ -68,21 +64,17 @@ impl BatchExecutor for MainBatchExecutor {
             commands: commands_receiver,
         };
 
-        let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            if let Some(storage) = Handle::current()
-                .block_on(
-                    storage_factory.access_storage(&stop_receiver, l1_batch_params.number - 1),
-                )
-                .context("failed accessing state keeper storage")?
-            {
-                executor.run(storage, l1_batch_params, system_env);
-            } else {
-                tracing::info!("Interrupted while trying to access state keeper storage");
-            }
+            let storage = match storage {
+                OwnedStorage::Static(storage) => storage,
+                OwnedStorage::Lending(ref storage) => Handle::current()
+                    .block_on(storage.borrow())
+                    .context("failed accessing state keeper storage")?,
+            };
+            executor.run(storage, l1_batch_params, system_env);
             anyhow::Ok(())
         });
-        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
+        BatchExecutorHandle::from_raw(handle, commands_sender)
     }
 }
 

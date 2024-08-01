@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::Debug,
+    fmt,
     sync::Arc,
     time::Duration,
 };
@@ -11,8 +11,8 @@ use tokio::sync::{watch, RwLock};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell,
-    RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
+    AsyncCatchupTask, BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage,
+    RocksdbCell, RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
@@ -20,7 +20,7 @@ use zksync_vm_utils::storage::L1BatchParamsProvider;
 use crate::{metrics::METRICS, VmRunnerIo};
 
 #[async_trait]
-pub trait StorageLoader: ReadStorageFactory {
+pub trait StorageLoader: 'static + Send + Sync + fmt::Debug {
     /// Loads next unprocessed L1 batch along with all transactions that VM runner needs to
     /// re-execute. These are the transactions that are included in a sealed L2 block belonging
     /// to a sealed L1 batch (with state keeper being the source of truth). The order of the
@@ -34,13 +34,7 @@ pub trait StorageLoader: ReadStorageFactory {
     async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<BatchExecuteData>>;
-
-    /// A workaround for Rust's limitations on upcasting coercion. See
-    /// https://github.com/rust-lang/rust/issues/65991.
-    ///
-    /// Should always be implementable as [`StorageLoader`] requires [`ReadStorageFactory`].
-    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory>;
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>>;
 }
 
 /// Data needed to execute an L1 batch.
@@ -85,13 +79,6 @@ struct State {
     storage: BTreeMap<L1BatchNumber, BatchData>,
 }
 
-impl State {
-    /// Whether this state can serve as a `ReadStorage` source for the given L1 batch.
-    fn can_be_used_for_l1_batch(&self, l1_batch_number: L1BatchNumber) -> bool {
-        l1_batch_number == self.l1_batch_number || self.storage.contains_key(&l1_batch_number)
-    }
-}
-
 impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
     /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
@@ -133,66 +120,34 @@ impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
     }
 }
 
-impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
-    async fn access_storage_inner(
-        &self,
-        _stop_receiver: &watch::Receiver<bool>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let state = self.state.read().await;
-        let Some(rocksdb) = &state.rocksdb else {
-            return Ok(Some(
-                PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
-                    .await
-                    .context("Failed accessing Postgres storage")?,
-            ));
-        };
-        if !state.can_be_used_for_l1_batch(l1_batch_number) {
-            tracing::debug!(
-                %l1_batch_number,
-                min_l1_batch = %state.l1_batch_number,
-                max_l1_batch = %state.storage.last_key_value().map(|(k, _)| *k).unwrap_or(state.l1_batch_number),
-                "Trying to access VM runner storage with L1 batch that is not available",
-            );
-            return Ok(None);
-        }
-        let batch_diffs = state
-            .storage
-            .iter()
-            .filter_map(|(x, y)| {
-                if x <= &l1_batch_number {
-                    Some(y.diff.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        Ok(Some(PgOrRocksdbStorage::RocksdbWithMemory(
-            RocksdbWithMemory {
-                rocksdb: rocksdb.clone(),
-                batch_diffs,
-            },
-        )))
-    }
-}
-
 #[async_trait]
 impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
     async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<BatchExecuteData>> {
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
         let state = self.state.read().await;
-        if state.rocksdb.is_none() {
+        let rocksdb = if let Some(rocksdb) = &state.rocksdb {
+            rocksdb
+        } else {
+            drop(state);
             let mut conn = self.pool.connection_tagged(self.io.name()).await?;
-            return load_batch_execute_data(
+            let batch_data = load_batch_execute_data(
                 &mut conn,
                 l1_batch_number,
                 &self.l1_batch_params_provider,
                 self.chain_id,
             )
-            .await;
-        }
+            .await?;
+
+            return Ok(batch_data.map(|data| {
+                (
+                    data,
+                    OwnedPostgresStorage::new(self.pool.clone(), l1_batch_number - 1).into(),
+                )
+            }));
+        };
+
         match state.storage.get(&l1_batch_number) {
             None => {
                 tracing::debug!(
@@ -203,24 +158,21 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
                 );
                 Ok(None)
             }
-            Some(batch_data) => Ok(Some(batch_data.execute_data.clone())),
+            Some(batch_data) => {
+                let data = batch_data.execute_data.clone();
+                let batch_diffs = state
+                    .storage
+                    .iter()
+                    .filter(|(&num, _)| num < l1_batch_number)
+                    .map(|(_, data)| data.diff.clone())
+                    .collect::<Vec<_>>();
+                let storage = PgOrRocksdbStorage::RocksdbWithMemory(RocksdbWithMemory {
+                    rocksdb: rocksdb.clone(),
+                    batch_diffs,
+                });
+                Ok(Some((data, storage.into())))
+            }
         }
-    }
-
-    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
-        self
-    }
-}
-
-#[async_trait]
-impl<Io: VmRunnerIo> ReadStorageFactory for VmRunnerStorage<Io> {
-    async fn access_storage(
-        &self,
-        stop_receiver: &watch::Receiver<bool>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        self.access_storage_inner(stop_receiver, l1_batch_number)
-            .await
     }
 }
 
