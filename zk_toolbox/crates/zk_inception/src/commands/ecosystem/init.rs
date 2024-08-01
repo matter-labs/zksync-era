@@ -26,13 +26,15 @@ use config::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ERA_OBSERBAVILITY_DIR,
-    ERA_OBSERBAVILITY_GIT_REPO,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode, WalletCreation};
 use xshell::{cmd, Shell};
 
-use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
+use super::{
+    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    setup_observability,
+};
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -46,8 +48,7 @@ use crate::{
         msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
-        MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_ERA_OBSERVABILITY_ALREADY_SETUP,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
@@ -72,7 +73,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
     if final_ecosystem_args.observability {
-        download_observability(shell)?;
+        setup_observability::run(shell)?;
     }
 
     let contracts_config = init(
@@ -385,24 +386,4 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
-}
-
-/// Downloads Grafana dashboards from the era-observability repo
-fn download_observability(shell: &Shell) -> anyhow::Result<()> {
-    let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
-    if shell.path_exists(path_to_era_observability.clone()) {
-        logger::info(MSG_ERA_OBSERVABILITY_ALREADY_SETUP);
-        return Ok(());
-    }
-
-    let spinner = Spinner::new(MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER);
-    git::clone(
-        shell,
-        shell.current_dir(),
-        ERA_OBSERBAVILITY_GIT_REPO,
-        ERA_OBSERBAVILITY_DIR,
-    )?;
-    spinner.finish();
-
-    Ok(())
 }
