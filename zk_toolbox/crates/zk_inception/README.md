@@ -9,6 +9,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception ecosystem create`↴](#zk_inception-ecosystem-create)
 - [`zk_inception ecosystem init`↴](#zk_inception-ecosystem-init)
 - [`zk_inception ecosystem change-default-chain`↴](#zk_inception-ecosystem-change-default-chain)
+- [`zk_inception ecosystem setup-observability`↴](#zk_inception-ecosystem-setup-observability)
 - [`zk_inception chain`↴](#zk_inception-chain)
 - [`zk_inception chain create`↴](#zk_inception-chain-create)
 - [`zk_inception chain init`↴](#zk_inception-chain-init)
@@ -67,6 +68,8 @@ Ecosystem related commands
 - `create` — Create a new ecosystem and chain, setting necessary configurations for later initialization
 - `init` — Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations
 - `change-default-chain` — Change the default chain
+- `setup-observability` — Setup observability for the ecosystem, downloading Grafana dashboards from the
+  era-observability repo
 
 ## `zk_inception ecosystem create`
 
@@ -162,6 +165,7 @@ Initialize ecosystem and chain, deploying necessary contracts and performing on-
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
 - `--dev` — Deploy ecosystem using all defaults. Suitable for local development
+- `-o`, `--observability` — Enable Grafana
 
 ## `zk_inception ecosystem change-default-chain`
 
@@ -172,6 +176,12 @@ Change the default chain
 ###### **Arguments:**
 
 - `<NAME>`
+
+## `zk_inception ecosystem setup-observability`
+
+Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo
+
+**Usage:** `zk_inception ecosystem setup-observability`
 
 ## `zk_inception chain`
 
@@ -520,7 +530,11 @@ Run external node
 
 Run containers for local development
 
-**Usage:** `zk_inception containers`
+**Usage:** `zk_inception containers [OPTIONS]`
+
+###### **Options:**
+
+- `-o`, `--observability` — Enable Grafana
 
 ## `zk_inception contract-verifier`
 
