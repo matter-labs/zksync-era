@@ -82,6 +82,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+        da_inclusion_data: None,
     }
 }
 
