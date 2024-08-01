@@ -61,7 +61,6 @@ message GasAdjuster {
   optional uint64 num_samples_for_blob_base_fee_estimate = 9; // required;
   optional double internal_pubdata_pricing_multiplier = 10; // required;
   optional uint64 max_blob_base_fee = 11; // optional; wei
-  optional bool l2_mode = 13; // optional
 }
 
 message ETHWatch {
