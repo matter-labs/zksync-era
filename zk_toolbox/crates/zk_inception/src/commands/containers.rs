@@ -5,12 +5,11 @@ use common::{docker, logger, spinner::Spinner};
 use config::{EcosystemConfig, DOCKER_COMPOSE_FILE, ERA_OBSERVABILITY_COMPOSE_FILE};
 use xshell::Shell;
 
+use super::args::ContainersArgs;
 use crate::messages::{
     MSG_CONTAINERS_STARTED, MSG_FAILED_TO_FIND_ECOSYSTEM_ERR, MSG_RETRY_START_CONTAINERS_PROMPT,
     MSG_STARTING_CONTAINERS, MSG_STARTING_DOCKER_CONTAINERS_SPINNER,
 };
-
-use super::args::ContainersArgs;
 
 pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
