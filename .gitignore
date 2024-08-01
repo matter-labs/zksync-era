@@ -114,3 +114,4 @@ prover/crates/bin/vk_setup_data_generator_server_fri/data/setup_*
 # Zk Toolbox
 chains/era/configs/*
 configs/*
+era-observability/
