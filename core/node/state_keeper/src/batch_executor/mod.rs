@@ -1,7 +1,6 @@
 use std::{error::Error as StdError, fmt, sync::Arc};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
@@ -55,10 +54,8 @@ impl TxExecutionResult {
 /// An abstraction that allows us to create different kinds of batch executors.
 /// The only requirement is to return a [`BatchExecutorHandle`], which does its work
 /// by communicating with the externally initialized thread.
-#[async_trait]
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
-    // FIXME: why is it async?
-    async fn init_batch(
+    fn init_batch(
         &mut self,
         storage: OwnedStorage,
         l1_batch_params: L1BatchEnv,

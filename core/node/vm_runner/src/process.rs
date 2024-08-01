@@ -180,10 +180,11 @@ impl VmRunner {
             };
             let updates_manager =
                 UpdatesManager::new(&batch_data.l1_batch_env, &batch_data.system_env);
-            let batch_executor = self
-                .batch_processor
-                .init_batch(storage, batch_data.l1_batch_env, batch_data.system_env)
-                .await;
+            let batch_executor = self.batch_processor.init_batch(
+                storage,
+                batch_data.l1_batch_env,
+                batch_data.system_env,
+            );
             let output_handler = self
                 .output_handler_factory
                 .create_handler(next_batch)

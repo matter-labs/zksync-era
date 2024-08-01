@@ -223,8 +223,7 @@ impl ZkSyncStateKeeper {
         };
         Ok(self
             .batch_executor_base
-            .init_batch(storage, l1_batch_env, system_env)
-            .await)
+            .init_batch(storage, l1_batch_env, system_env))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.

@@ -147,9 +147,7 @@ impl Tester {
             .await
             .expect("failed creating VM storage")
             .unwrap();
-        batch_executor
-            .init_batch(storage, l1_batch_env, system_env)
-            .await
+        batch_executor.init_batch(storage, l1_batch_env, system_env)
     }
 
     pub(super) async fn recover_batch_executor(

@@ -410,12 +410,11 @@ impl TestBatchExecutorBuilder {
     }
 }
 
-#[async_trait]
 impl BatchExecutor for TestBatchExecutorBuilder {
-    async fn init_batch(
+    fn init_batch(
         &mut self,
         _storage: OwnedStorage,
-        _l1batch_params: L1BatchEnv,
+        _l1_batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let (commands_sender, commands_receiver) = mpsc::channel(1);

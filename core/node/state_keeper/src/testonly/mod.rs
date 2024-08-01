@@ -1,7 +1,6 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
-use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
@@ -85,9 +84,8 @@ pub(crate) fn storage_view_cache() -> StorageViewCache {
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-#[async_trait]
 impl BatchExecutor for MockBatchExecutor {
-    async fn init_batch(
+    fn init_batch(
         &mut self,
         _storage: OwnedStorage,
         _l1batch_params: L1BatchEnv,

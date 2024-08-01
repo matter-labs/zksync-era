@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::mpsc};
 use zksync_multivm::{
@@ -47,9 +46,8 @@ impl MainBatchExecutor {
     }
 }
 
-#[async_trait]
 impl BatchExecutor for MainBatchExecutor {
-    async fn init_batch(
+    fn init_batch(
         &mut self,
         storage: OwnedStorage,
         l1_batch_params: L1BatchEnv,
