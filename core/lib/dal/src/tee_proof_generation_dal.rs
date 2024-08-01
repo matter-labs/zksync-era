@@ -22,7 +22,6 @@ enum TeeProofGenerationJobStatus {
     ReadyToBeProven,
     PickedByProver,
     Generated,
-    Skipped,
 }
 
 impl TeeProofGenerationDal<'_, '_> {
