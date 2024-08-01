@@ -80,18 +80,12 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         Ok(self.read().await.current)
     }
 
-    // FIXME: revert?
     async fn last_ready_to_be_loaded_batch(
         &self,
-        conn: &mut Connection<'_, Core>,
+        _conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
-        let sealed_batch = conn
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await?
-            .unwrap_or(L1BatchNumber(u32::MAX));
         let io = self.read().await;
-        Ok((io.current + io.max).min(sealed_batch))
+        Ok(io.current + io.max)
     }
 
     async fn mark_l1_batch_as_processing(

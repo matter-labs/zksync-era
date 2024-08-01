@@ -126,7 +126,7 @@ impl BatchExecutorHandle {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
-            .send(Command::ExecuteTx(Box::new(tx.clone()), response_sender))
+            .send(Command::ExecuteTx(Box::new(tx), response_sender))
             .await
             .is_err();
         if send_failed {
