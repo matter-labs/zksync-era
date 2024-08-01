@@ -18,9 +18,11 @@ use zksync_types::{
 };
 
 /// Maximum number of attempts to get L1 transaction receipt
+// TODO: move to the config
 const RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
 
 /// Number of seconds to sleep between the attempts
+// TODO: move to the config
 const RECEIPT_CHECKING_SLEEP_DURATION: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone)]
@@ -30,6 +32,7 @@ pub struct BaseTokenRatioPersister {
     base_token_address: Address,
     price_api_client: Arc<dyn PriceAPIClient>,
     eth_client: Box<dyn BoundEthInterface>,
+    //TODO: use multiplier setter account
     base_token_adjuster_account_address: Address,
     admin_contract: Contract,
     chain_admin_contract: Contract,
@@ -232,6 +235,7 @@ impl BaseTokenRatioPersister {
                 .context("failed getting receipt for `setTokenMultiplier` transaction")?;
             if let Some(receipt) = maybe_receipt {
                 if receipt.status == Some(1.into()) {
+                    tracing::info!("setTokenMultiplier persisten successfully");
                     return Ok(());
                 }
                 return Err(anyhow::Error::msg(format!(
