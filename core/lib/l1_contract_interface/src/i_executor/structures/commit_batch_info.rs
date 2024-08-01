@@ -220,8 +220,16 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
+
                 (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
-                    vec![PUBDATA_SOURCE_CUSTOM]
+                    let mut operator_da_input = vec![PUBDATA_SOURCE_CUSTOM];
+                    if let Some(da_inclusion_data) =
+                        &self.l1_batch_with_metadata.metadata.da_inclusion_data
+                    {
+                        operator_da_input.extend(da_inclusion_data);
+                    }
+
+                    operator_da_input
                 }
 
                 (L1BatchCommitmentMode::Rollup, PubdataDA::Calldata) => {
