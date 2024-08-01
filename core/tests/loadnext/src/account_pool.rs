@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, convert::TryFrom, str::FromStr, sync::Arc, time::Duration};
 
+use ethers::signers::LocalWallet;
 use once_cell::sync::OnceCell;
 use rand::Rng;
 use tokio::time::timeout;
@@ -72,6 +73,8 @@ pub struct TestWallet {
     pub deployed_contract_address: Arc<OnceCell<Address>>,
     /// RNG object derived from a common loadtest seed and the wallet private key.
     pub rng: LoadtestRng,
+
+    pub evm_wallet: LocalWallet,
 }
 
 /// Pool of accounts to be used in the test.
@@ -149,6 +152,10 @@ impl AccountPool {
                 let corrupted_wallet =
                     Wallet::with_http_client(&config.l2_rpc_address, corrupted_signer).unwrap();
 
+                let evm_wallet = format!("{:#x}", eth_credentials.eth_pk)
+                    .parse::<LocalWallet>()
+                    .unwrap();
+
                 addresses.push(wallet.address());
                 let account = TestWallet {
                     wallet: Arc::new(wallet),
@@ -156,6 +163,7 @@ impl AccountPool {
                     test_contract: test_contract.clone(),
                     deployed_contract_address: deployed_contract_address.clone(),
                     rng: rng.derive(eth_credentials.eth_pk),
+                    evm_wallet,
                 };
                 accounts.push_back(account);
             }
