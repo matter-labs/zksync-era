@@ -71,7 +71,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
-    if final_ecosystem_args.run_observability {
+    if final_ecosystem_args.observability {
         download_observability(shell)?;
     }
 

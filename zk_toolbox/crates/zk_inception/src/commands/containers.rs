@@ -19,7 +19,7 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     logger::info(MSG_STARTING_CONTAINERS);
 
     let spinner = Spinner::new(MSG_STARTING_DOCKER_CONTAINERS_SPINNER);
-    start_containers(shell, args.run_observability)?;
+    start_containers(shell, args.observability)?;
     spinner.finish();
 
     logger::outro(MSG_CONTAINERS_STARTED);
@@ -48,14 +48,14 @@ fn start_container(shell: &Shell, compose_file: &str, retry_msg: &str) -> anyhow
     Ok(())
 }
 
-pub fn start_containers(shell: &Shell, run_observability: bool) -> anyhow::Result<()> {
+pub fn start_containers(shell: &Shell, observability: bool) -> anyhow::Result<()> {
     start_container(
         shell,
         DOCKER_COMPOSE_FILE,
         MSG_RETRY_START_CONTAINERS_PROMPT,
     )?;
 
-    if !run_observability {
+    if !observability {
         return Ok(());
     }
     start_container(
