@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
