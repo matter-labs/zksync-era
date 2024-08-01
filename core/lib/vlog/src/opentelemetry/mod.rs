@@ -14,67 +14,87 @@ use tracing_subscriber::{registry::LookupSpan, EnvFilter, Layer};
 use url::Url;
 
 /// Information about the service.
-#[derive(Debug, Default)]
+///
+/// This information is initially filled as follows:
+/// - Fields will be attempted to fetch from environment variables. See [`ServiceDescriptor::fill_from_env`].
+/// - If not found, some default values will be chosen.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ServiceDescriptor {
     /// Name of the k8s pod.
-    pub k8s_pod_name: Option<String>,
+    /// If not provided directly or though env variable, the default value would be `zksync-0`.
+    pub k8s_pod_name: String,
     /// Name of the k8s namespace.
-    pub k8s_namespace_name: Option<String>,
+    /// If not provided directly or through env variable, the default value would be `local`.
+    pub k8s_namespace_name: String,
     /// Name of the service.
-    pub service_name: Option<String>,
+    /// If not provided directly or through env variable, the default value would be `zksync`.
+    pub service_name: String,
+}
+
+impl Default for ServiceDescriptor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ServiceDescriptor {
+    /// Environment variable to fetch the k8s pod name.
+    pub const K8S_POD_NAME_ENV_VAR: &'static str = "POD_NAME";
+    /// Environment variable to fetch the k8s namespace name.
+    pub const K8S_NAMESPACE_NAME_ENV_VAR: &'static str = "POD_NAMESPACE";
+    /// Environment variable to fetch the service name.
+    pub const SERVICE_NAME_ENV_VAR: &'static str = "SERVICE_NAME";
+    /// Default value for the k8s pod name.
+    pub const DEFAULT_K8S_POD_NAME: &'static str = "zksync-0";
+    /// Default value for the k8s namespace name.
+    pub const DEFAULT_K8S_NAMESPACE_NAME: &'static str = "local";
+    /// Default value for the service name.
+    pub const DEFAULT_SERVICE_NAME: &'static str = "zksync";
+
+    /// Creates a filled `ServiceDescriptor` object.
+    /// Fetched fields can be overridden.
     pub fn new() -> Self {
-        Self::default()
+        // Attempt fetching data from environment variables, and use defaults if not provided.
+        fn env_or(env_var: &str, default: &str) -> String {
+            std::env::var(env_var).unwrap_or_else(|_| default.to_string())
+        }
+        Self {
+            k8s_pod_name: env_or(Self::K8S_POD_NAME_ENV_VAR, Self::DEFAULT_K8S_POD_NAME),
+            k8s_namespace_name: env_or(
+                Self::K8S_NAMESPACE_NAME_ENV_VAR,
+                Self::DEFAULT_K8S_NAMESPACE_NAME,
+            ),
+            service_name: env_or(Self::SERVICE_NAME_ENV_VAR, Self::DEFAULT_SERVICE_NAME),
+        }
     }
 
     pub fn with_k8s_pod_name(mut self, k8s_pod_name: Option<String>) -> Self {
-        self.k8s_pod_name = k8s_pod_name;
+        if let Some(k8s_pod_name) = k8s_pod_name {
+            self.k8s_pod_name = k8s_pod_name;
+        }
         self
     }
 
     pub fn with_k8s_namespace_name(mut self, k8s_namespace_name: Option<String>) -> Self {
-        self.k8s_namespace_name = k8s_namespace_name;
+        if let Some(k8s_namespace_name) = k8s_namespace_name {
+            self.k8s_namespace_name = k8s_namespace_name;
+        }
         self
     }
 
     pub fn with_service_name(mut self, service_name: Option<String>) -> Self {
-        self.service_name = service_name;
-        self
-    }
-
-    /// Tries to fill empty fields from environment variables.
-    ///
-    /// The following environment variables are used:
-    /// - `POD_NAME`
-    /// - `POD_NAMESPACE`
-    /// - `SERVICE_NAME`
-    pub fn fill_from_env(mut self) -> Self {
-        if self.k8s_pod_name.is_none() {
-            self.k8s_pod_name = std::env::var("POD_NAME").ok();
-        }
-        if self.k8s_namespace_name.is_none() {
-            self.k8s_namespace_name = std::env::var("POD_NAMESPACE").ok();
-        }
-        if self.service_name.is_none() {
-            self.service_name = std::env::var("SERVICE_NAME").ok();
+        if let Some(service_name) = service_name {
+            self.service_name = service_name;
         }
         self
     }
 
     fn into_otlp_resource(self) -> Resource {
         let mut attributes = vec![];
-        if let Some(pod_name) = self.k8s_pod_name {
-            attributes.push(KeyValue::new(K8S_POD_NAME, pod_name));
-        }
-        if let Some(pod_namespace) = self.k8s_namespace_name {
-            attributes.push(KeyValue::new(K8S_NAMESPACE_NAME, pod_namespace));
-        }
-        if let Some(service_name) = self.service_name {
-            attributes.push(KeyValue::new(SERVICE_NAME, service_name));
-        }
+        attributes.push(KeyValue::new(K8S_POD_NAME, self.k8s_pod_name));
+        attributes.push(KeyValue::new(K8S_NAMESPACE_NAME, self.k8s_namespace_name));
+        attributes.push(KeyValue::new(SERVICE_NAME, self.service_name));
         Resource::new(attributes)
     }
 }
@@ -83,57 +103,114 @@ impl ServiceDescriptor {
 pub struct OpenTelemetry {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
     pub opentelemetry_level: OpenTelemetryLevel,
-    /// Opentelemetry HTTP collector endpoint.
-    pub otlp_endpoint: Url,
+    /// Opentelemetry HTTP collector endpoint for traces.
+    pub tracing_endpoint: Option<Url>,
+    /// Opentelemetry HTTP collector endpoint for logs.
+    pub logging_endpoint: Option<Url>,
     /// Information about service
-    pub service: Option<ServiceDescriptor>,
+    pub service: ServiceDescriptor,
 }
 
 impl OpenTelemetry {
     pub fn new(
         opentelemetry_level: &str,
-        otlp_endpoint: String,
+        tracing_endpoint: Option<String>,
+        logging_endpoint: Option<String>,
     ) -> Result<Self, OpenTelemetryLayerError> {
+        fn parse_url(url: Option<String>) -> Result<Option<Url>, OpenTelemetryLayerError> {
+            url.map(|v| {
+                v.parse()
+                    .map_err(|e| OpenTelemetryLayerError::InvalidUrl(v, e))
+            })
+            .transpose()
+        }
+
         Ok(Self {
             opentelemetry_level: opentelemetry_level.parse()?,
-            otlp_endpoint: otlp_endpoint
-                .parse()
-                .map_err(|e| OpenTelemetryLayerError::InvalidUrl(otlp_endpoint, e))?,
-            service: None,
+            tracing_endpoint: parse_url(tracing_endpoint)?,
+            logging_endpoint: parse_url(logging_endpoint)?,
+            service: ServiceDescriptor::new(),
         })
     }
 
+    /// Can be used to override the service descriptor used by the layer.
     pub fn with_service_descriptor(mut self, service: ServiceDescriptor) -> Self {
-        self.service = Some(service);
+        self.service = service;
         self
     }
 
-    pub(super) fn into_layer<S>(self) -> (opentelemetry_sdk::trace::TracerProvider, impl Layer<S>)
+    /// Prepares an exporter for OTLP logs and layer for the `tracing` library.
+    /// Will return `None` if no logging URL was provided.
+    ///
+    /// *Important*: we use `tracing` library to generate logs, and convert the logs
+    /// to OTLP format when exporting. However, `tracing` doesn't provide information
+    /// about timestamp of the log. While this value is optional in OTLP, some
+    /// collectors/processors may ignore logs without timestamp. Thus, you may need to
+    /// have a proxy collector, like `opentelemetry-collector-contrib` or `vector`, and
+    /// use the functionality there to set the timestamp. Here's example configuration
+    /// for `opentelemetry-collector-contrib`:
+    ///
+    /// ```text
+    /// processors:
+    ///  transform/set_time_unix_nano:
+    ///  log_statements:
+    ///    - context: log
+    ///      statements:
+    ///        - set(time_unix_nano, observed_time_unix_nano)
+    /// ```
+    pub(super) fn logs_layer<S>(
+        &self,
+    ) -> Option<(opentelemetry_sdk::logs::LoggerProvider, impl Layer<S>)>
     where
         S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     {
-        let filter = match self.opentelemetry_level {
-            OpenTelemetryLevel::OFF => EnvFilter::new("off"),
-            OpenTelemetryLevel::INFO => EnvFilter::new("info"),
-            OpenTelemetryLevel::DEBUG => EnvFilter::new("debug"),
-            OpenTelemetryLevel::TRACE => EnvFilter::new("trace"),
+        let Some(logging_endpoint) = self.logging_endpoint.clone() else {
+            return None;
         };
-        // `otel::tracing` should be a level info to emit opentelemetry trace & span
-        // `otel` set to debug to log detected resources, configuration read and inferred
-        let filter = filter
-            .add_directive("otel::tracing=trace".parse().unwrap())
-            .add_directive("otel=debug".parse().unwrap());
 
-        let service = self.service.unwrap_or_default().fill_from_env();
-        let service_name = service
-            .service_name
-            .clone()
-            .unwrap_or_else(|| "zksync_vlog".to_string());
-        let resource = service.into_otlp_resource();
+        let resource = self.service.clone().into_otlp_resource();
 
         let exporter = opentelemetry_otlp::new_exporter()
             .http()
-            .with_endpoint(self.otlp_endpoint)
+            .with_endpoint(logging_endpoint)
+            .build_log_exporter()
+            .expect("Failed to create OTLP exporter"); // URL is validated.
+
+        let provider = opentelemetry_sdk::logs::LoggerProvider::builder()
+            .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+            .with_resource(resource)
+            .build();
+
+        let layer =
+            opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(&provider);
+
+        Some((provider, layer))
+    }
+
+    /// Prepares an exporter for OTLP traces and layer for `tracing` library.
+    /// Will return `None` if no tracing URL was provided.
+    pub(super) fn tracing_layer<S>(
+        &self,
+    ) -> Option<(opentelemetry_sdk::trace::TracerProvider, impl Layer<S>)>
+    where
+        S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
+    {
+        let Some(tracing_endpoint) = self.tracing_endpoint.clone() else {
+            return None;
+        };
+        // `otel::tracing` should be a level info to emit opentelemetry trace & span
+        // `otel` set to debug to log detected resources, configuration read and inferred
+        let filter = self
+            .filter()
+            .add_directive("otel::tracing=trace".parse().unwrap())
+            .add_directive("otel=debug".parse().unwrap());
+
+        let service_name = self.service.service_name.clone();
+        let resource = self.service.clone().into_otlp_resource();
+
+        let exporter = opentelemetry_otlp::new_exporter()
+            .http()
+            .with_endpoint(tracing_endpoint)
             .build_span_exporter()
             .expect("Failed to create OTLP exporter"); // URL is validated.
 
@@ -155,7 +232,19 @@ impl OpenTelemetry {
             .with_tracer(tracer)
             .with_filter(filter);
 
-        (provider, layer)
+        Some((provider, layer))
+    }
+
+    /// Returns a filter for opentelemetry layer.
+    /// It's applied to the layer only, but note that there might be a global filter applied to the
+    /// whole subscriber.
+    fn filter(&self) -> EnvFilter {
+        match self.opentelemetry_level {
+            OpenTelemetryLevel::OFF => EnvFilter::new("off"),
+            OpenTelemetryLevel::INFO => EnvFilter::new("info"),
+            OpenTelemetryLevel::DEBUG => EnvFilter::new("debug"),
+            OpenTelemetryLevel::TRACE => EnvFilter::new("trace"),
+        }
     }
 }
 

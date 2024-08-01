@@ -25,8 +25,11 @@ pub struct ObservabilityBuilder {
 /// Guard for the observability subsystem.
 /// Releases configured integrations upon being dropped.
 pub struct ObservabilityGuard {
-    /// Opentelemetry provider. Can be used to force flush spans.
-    otlp_provider: Option<opentelemetry_sdk::trace::TracerProvider>,
+    /// Opentelemetry traces provider
+    otlp_tracing_provider: Option<opentelemetry_sdk::trace::TracerProvider>,
+    /// Opentelemetry logs provider
+    otlp_logging_provider: Option<opentelemetry_sdk::logs::LoggerProvider>,
+    /// Sentry client guard
     sentry_guard: Option<ClientInitGuard>,
 }
 
@@ -41,7 +44,15 @@ impl ObservabilityGuard {
             sentry_guard.flush(Some(FLUSH_TIMEOUT));
         }
 
-        if let Some(provider) = &self.otlp_provider {
+        if let Some(provider) = &self.otlp_tracing_provider {
+            for result in provider.force_flush() {
+                if let Err(err) = result {
+                    tracing::warn!("Flushing the spans failed: {err:?}");
+                }
+            }
+        }
+
+        if let Some(provider) = &self.otlp_logging_provider {
             for result in provider.force_flush() {
                 if let Err(err) = result {
                     tracing::warn!("Flushing the spans failed: {err:?}");
@@ -59,7 +70,12 @@ impl ObservabilityGuard {
         if let Some(sentry_guard) = &self.sentry_guard {
             sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
         }
-        if let Some(provider) = &self.otlp_provider {
+        if let Some(provider) = &self.otlp_tracing_provider {
+            if let Err(err) = provider.shutdown() {
+                tracing::warn!("Shutting down the provider failed: {err:?}");
+            }
+        }
+        if let Some(provider) = &self.otlp_logging_provider {
             if let Err(err) = provider.shutdown() {
                 tracing::warn!("Shutting down the provider failed: {err:?}");
             }
@@ -111,21 +127,30 @@ impl ObservabilityBuilder {
         let global_filter = logs.build_filter();
 
         let logs_layer = logs.into_layer();
-        let (otlp_provider, otlp_layer) = self
+        let (otlp_tracing_provider, otlp_tracing_layer) = self
             .opentelemetry_layer
-            .map(|layer| layer.into_layer())
+            .as_ref()
+            .map(|layer| layer.tracing_layer())
+            .flatten()
+            .unzip();
+        let (otlp_logging_provider, otlp_logging_layer) = self
+            .opentelemetry_layer
+            .map(|layer| layer.logs_layer())
+            .flatten()
             .unzip();
 
         tracing_subscriber::registry()
             .with(global_filter)
             .with(logs_layer)
-            .with(otlp_layer)
+            .with(otlp_tracing_layer)
+            .with(otlp_logging_layer)
             .init();
 
         let sentry_guard = self.sentry.map(|sentry| sentry.install());
 
         ObservabilityGuard {
-            otlp_provider,
+            otlp_tracing_provider,
+            otlp_logging_provider,
             sentry_guard,
         }
     }
