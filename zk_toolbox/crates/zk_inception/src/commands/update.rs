@@ -3,8 +3,8 @@ use std::path::Path;
 use anyhow::{Context, Ok};
 use common::{git, logger, spinner::Spinner};
 use config::{
-    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
-    SECRETS_FILE,
+    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
+    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 use xshell::Shell;
 
@@ -74,7 +74,7 @@ pub fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         )?;
     }
 
-    let path_to_era_observability = shell.current_dir().join("era-observability");
+    let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
     if shell.path_exists(path_to_era_observability.clone()) {
         let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
         git::pull(shell, path_to_era_observability)?;

@@ -26,7 +26,7 @@ use config::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ERA_OBSERBAVILITY_DIR,
 };
 use types::{L1Network, ProverMode, WalletCreation};
 use xshell::{cmd, Shell};
@@ -388,7 +388,7 @@ fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<
 
 /// Downloads Grafana dashboards from the era-observability repo
 fn download_observability(shell: &Shell) -> anyhow::Result<()> {
-    let path_to_era_observability = shell.current_dir().join("era-observability");
+    let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
     if shell.path_exists(path_to_era_observability.clone()) {
         logger::info(MSG_ERA_OBSERVABILITY_ALREADY_SETUP);
         return Ok(());
@@ -399,7 +399,7 @@ fn download_observability(shell: &Shell) -> anyhow::Result<()> {
         shell,
         shell.current_dir(),
         "git@github.com:matter-labs/era-observability.git",
-        "era-observability",
+        ERA_OBSERBAVILITY_DIR,
     )?;
     spinner.finish();
 
