@@ -90,7 +90,7 @@ pub struct EcosystemInitArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, help = MSG_RUN_OBSERVABILITY_HELP)]
+    #[clap(long, short = 'o', help = MSG_RUN_OBSERVABILITY_HELP)]
     pub run_observability: bool,
 }
 
