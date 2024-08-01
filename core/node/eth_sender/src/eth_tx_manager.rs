@@ -334,16 +334,22 @@ impl EthTxManager {
             // that `tx` is not mined and we should resend it.
             // We only resend the first un-mined transaction.
             if operator_nonce.latest <= tx.nonce {
+                let last_sent_at_block = storage
+                    .eth_sender_dal()
+                    .get_block_number_on_last_sent_attempt(tx.id)
+                    .await
+                    .unwrap();
+                // the transaction may still be included in last block, we shouldn't resend it yet
+                if last_sent_at_block >= Some(l1_block_numbers.latest.0) {
+                    continue;
+                }
+
                 // None means txs hasn't been sent yet
                 let first_sent_at_block = storage
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
                     .await
                     .unwrap();
-                // the transaction may still be included in block, we shouldn't resend it yet
-                if first_sent_at_block == Some(l1_block_numbers.latest.0) {
-                    continue;
-                }
                 return Ok(Some((
                     tx,
                     first_sent_at_block.unwrap_or(l1_block_numbers.latest.0),
@@ -500,9 +506,6 @@ impl EthTxManager {
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
 
-        // It's mandatory to set `last_known_l1_block` to zero, otherwise the first iteration
-        // will never check in-flight txs status
-        let mut last_known_l1_block = L1BlockNumber(0);
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
@@ -513,23 +516,7 @@ impl EthTxManager {
             let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
-            // We need to re-run the iteration even if the latest seen block number is the same as the previous one, since
-            // in case of a low-activity settlement layer network, new blocks may only be produced by the transactions from the operator itself.
-            self.send_new_eth_tx_for_all_operators(&mut storage, l1_block_numbers)
-                .await;
-
-            if last_known_l1_block < l1_block_numbers.latest {
-                // This function checks the status of the tx on the current block and if the tx,
-                // has not been yet accepted, we have to resend it with a higher price.
-                // And since tx can't be included into already generated block
-                // we don't need to check it more frequent than once per block.
-                self.update_tx_statuses_and_resend_it_for_all_operators(
-                    &mut storage,
-                    l1_block_numbers,
-                )
-                .await;
-                last_known_l1_block = l1_block_numbers.latest;
-            }
+            self.loop_iteration(&mut storage, l1_block_numbers).await;
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
@@ -607,31 +594,19 @@ impl EthTxManager {
         Ok(())
     }
 
-    pub(crate) async fn send_new_eth_tx_for_all_operators(
+    #[tracing::instrument(skip_all, name = "EthTxManager::loop_iteration")]
+    pub async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
         l1_block_numbers: L1BlockNumbers,
     ) {
-        for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
-            self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
-                .await;
-        }
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        name = "EthTxManager::update_tx_statuses_and_resend_it_for_all_operators"
-    )]
-    pub(crate) async fn update_tx_statuses_and_resend_it_for_all_operators(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
-        l1_block_numbers: L1BlockNumbers,
-    ) {
-        tracing::debug!("Update tx statuses at block {}", l1_block_numbers.latest);
+        tracing::debug!("Loop iteration at block {}", l1_block_numbers.latest);
         // We can treat those two operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction
         for operator_type in [OperatorType::NonBlob, OperatorType::Blob] {
+            self.send_new_eth_txs(storage, l1_block_numbers.latest, operator_type)
+                .await;
             let result = self
                 .update_statuses_and_resend_if_needed(storage, l1_block_numbers, operator_type)
                 .await;

@@ -528,6 +528,19 @@ impl EthSenderDal<'_, '_> {
         Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
+    pub async fn get_block_number_on_last_sent_attempt(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> sqlx::Result<Option<u32>> {
+        let sent_at_block = sqlx::query_scalar!(
+            "SELECT sent_at_block FROM eth_txs_history WHERE eth_tx_id = $1 AND sent_at_block IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+            eth_tx_id as i32
+        )
+            .fetch_optional(self.storage.conn())
+            .await?;
+        Ok(sent_at_block.flatten().map(|block| block as u32))
+    }
+
     pub async fn get_last_sent_eth_tx(
         &mut self,
         eth_tx_id: u32,

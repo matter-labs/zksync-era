@@ -406,13 +406,7 @@ impl EthSenderTester {
         self.gateway_blobs.advance_block_number(n);
         let tx_sent_before = self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count();
         self.manager
-            .send_new_eth_tx_for_all_operators(
-                &mut self.conn.connection().await.unwrap(),
-                self.get_block_numbers().await,
-            )
-            .await;
-        self.manager
-            .update_tx_statuses_and_resend_it_for_all_operators(
+            .loop_iteration(
                 &mut self.conn.connection().await.unwrap(),
                 self.get_block_numbers().await,
             )
