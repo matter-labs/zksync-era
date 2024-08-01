@@ -227,12 +227,15 @@ fn compute_batch_fee_model_input_v2(
     };
 
     tracing::debug!(
-        "Calculated gas prices L2: {} Pubdata: {}, L1 gas: {}, L1 pubdata: {}, L1 overhead: {}",
+        "Calculated gas prices L2: {} Pubdata: {}, L1 gas: {}, L1 pubdata: {}, L1 overhead: {}, max gas: {}, c_ohead: {}, p_ohead: {}",
         fair_l2_gas_price,
         fair_pubdata_price,
         l1_gas_price,
         l1_pubdata_price,
-        l1_batch_overhead_wei
+        l1_batch_overhead_wei,
+        max_gas_per_batch,
+        compute_overhead_part,
+        pubdata_overhead_part
     );
 
     PubdataIndependentBatchFeeModelInput {
