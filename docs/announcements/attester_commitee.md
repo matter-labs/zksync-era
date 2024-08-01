@@ -41,4 +41,4 @@ opening an issue in this repo or using any other communication channel). You can
 > [!WARNING]
 >
 > Never share your **private** keys. Make sure you are only sharing the **public** key. It looks like this:
-> `# attester:public:secp256k1:02e7b1f24fb58b770cb722bf08e9512c7d8667ec0befa37611eddafd0109656132 `
+> `# attester:public:secp256k1:02e7b1f24fb58b770cb722bf08e9512c7d8667ec0befa37611eddafd0109656132`
