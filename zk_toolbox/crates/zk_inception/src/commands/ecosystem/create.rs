@@ -107,7 +107,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
         initialize_docker(shell, &ecosystem_config)?;
-        start_containers(shell)?;
+        start_containers(shell, false)?;
         spinner.finish();
     }
 

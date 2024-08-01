@@ -1,8 +1,14 @@
 use anyhow::Context as _;
+use async_trait::async_trait;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_executor as executor;
+use zksync_consensus_executor::{
+    self as executor,
+    attestation::{AttestationStatusClient, AttestationStatusRunner},
+};
+use zksync_consensus_network::gossip;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
@@ -47,6 +53,7 @@ impl EN {
 
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
+            let genesis_hash = genesis.hash();
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
 
             conn.try_update_genesis(ctx, &genesis)
@@ -99,6 +106,18 @@ impl EN {
                 .wrap("BatchStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
+            let (attestation_status, runner) = {
+                AttestationStatusRunner::init(
+                    ctx,
+                    Box::new(MainNodeAttestationStatus(self.client.clone())),
+                    time::Duration::seconds(5),
+                    genesis_hash,
+                )
+                .await
+                .wrap("AttestationStatusRunner::init()")?
+            };
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
@@ -111,7 +130,9 @@ impl EN {
                         payload_manager: Box::new(store.clone()),
                     }),
                 attester,
+                attestation_status,
             };
+            tracing::info!("running the external node executor");
             executor.run(ctx).await?;
 
             Ok(())
@@ -173,6 +194,7 @@ impl EN {
     }
 
     /// Fetches genesis from the main node.
+    #[tracing::instrument(skip_all)]
     async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         let genesis = ctx
             .wait(self.client.fetch_consensus_genesis())
@@ -236,5 +258,36 @@ impl EN {
                 .await?;
         }
         Ok(())
+    }
+}
+
+/// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient].
+struct MainNodeAttestationStatus(Box<DynClient<L2>>);
+
+#[async_trait]
+impl AttestationStatusClient for MainNodeAttestationStatus {
+    async fn attestation_status(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<gossip::AttestationStatus>> {
+        match ctx.wait(self.0.fetch_attestation_status()).await? {
+            Ok(Some(status)) => {
+                // If this fails the AttestationStatusRunner will log it an retry it later,
+                // but it won't stop the whole node.
+                let status: consensus_dal::AttestationStatus =
+                    zksync_protobuf::serde::deserialize(&status.0)
+                        .context("deserialize(AttestationStatus")?;
+                let status = gossip::AttestationStatus {
+                    genesis: status.genesis,
+                    next_batch_to_attest: status.next_batch_to_attest,
+                };
+                Ok(Some(status))
+            }
+            Ok(None) => Ok(None),
+            Err(err) => {
+                tracing::warn!("AttestationStatus call to main node HTTP RPC failed: {err}");
+                Ok(None)
+            }
+        }
     }
 }

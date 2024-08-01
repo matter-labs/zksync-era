@@ -2,7 +2,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
-use zksync_types::{web3, Address, L1ChainId, L2BlockNumber, SLChainId, H256, U256, U64};
+use zksync_types::{web3, Address, L2BlockNumber, SLChainId, H256, U256, U64};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{
