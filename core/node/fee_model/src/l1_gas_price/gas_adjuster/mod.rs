@@ -332,7 +332,7 @@ impl GasAdjuster {
                 self.bound_pubdata_fee(calculated_price)
             }
             PubdataSendingMode::Calldata => self.bound_pubdata_fee(
-                self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE.into(),
+                (self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64) as f64,
             ),
             PubdataSendingMode::Custom => {
                 // Fix this when we have a better understanding of dynamic pricing for custom DA layers.

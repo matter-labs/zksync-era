@@ -650,7 +650,7 @@ impl IncorrectDataKind {
 
     async fn apply(
         self,
-        client: &MockEthereum,
+        client: &MockSettlementLayer,
         l1_batch: &L1BatchWithMetadata,
         commitment_mode: L1BatchCommitmentMode,
     ) -> H256 {

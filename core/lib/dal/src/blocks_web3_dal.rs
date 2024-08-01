@@ -5,6 +5,7 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
+    fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::{BlockHeader, Bytes},
@@ -575,7 +576,10 @@ impl BlocksWeb3Dal<'_, '_> {
             r#"
             SELECT
                 base_fee_per_gas,
-                fair_pubdata_price
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                protocol_version,
+                l1_gas_price
             FROM
                 miniblocks
             WHERE
@@ -595,9 +599,18 @@ impl BlocksWeb3Dal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| {
+            let fee_input = BatchFeeInput::for_protocol_version(
+                row.protocol_version
+                    .map(|x| (x as u16).try_into().unwrap())
+                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                row.l2_fair_gas_price as u64,
+                row.fair_pubdata_price.map(|x| x as u64),
+                row.l1_gas_price as u64,
+            );
+
             (
                 bigdecimal_to_u256(row.base_fee_per_gas),
-                bigdecimal_to_u256(row.fair_pubdata_price),
+                U256::from(fee_input.fair_pubdata_price()),
             )
         })
         .collect();

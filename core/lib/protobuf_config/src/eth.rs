@@ -199,8 +199,6 @@ impl ProtoRepr for proto::GasAdjuster {
             ),
             internal_pubdata_pricing_multiplier: Some(this.internal_pubdata_pricing_multiplier),
             max_blob_base_fee: this.max_blob_base_fee,
-            // TODO(EVM-676): support this field
-            l2_mode: None,
         }
     }
 }
