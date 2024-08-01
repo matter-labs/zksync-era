@@ -181,7 +181,7 @@ async fn submit_tee_proof() {
 
     assert!(oldest_batch_number.is_none());
 
-    // there should be one TEE proof in the db now
+    // there should be one SGX proof in the db now
 
     let proofs = proof_db_conn
         .tee_proof_generation_dal()
@@ -190,11 +190,9 @@ async fn submit_tee_proof() {
         .unwrap();
 
     assert_eq!(proofs.len(), 1);
+
     let proof = &proofs[0];
-    assert_eq!(
-        proof.tee_type.as_ref().unwrap(),
-        &tee_proof_request.0.tee_type
-    );
+
     assert_eq!(proof.proof.as_ref().unwrap(), &tee_proof_request.0.proof);
     assert_eq!(proof.attestation.as_ref().unwrap(), &attestation);
     assert_eq!(

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::{TeeProof, TransactionExecutionInfo},
@@ -48,12 +49,13 @@ impl UnstableNamespace {
             .map_err(DalError::generalize)?
             .into_iter()
             .map(|proof| TeeProof {
-                l1_batch_number: proof.l1_batch_number,
-                tee_type: proof.tee_type.unwrap(),
-                proof: proof.proof.unwrap_or_default(),
-                attestation: proof.attestation.unwrap_or_default(),
-                signature: proof.signature.unwrap_or_default(),
-                pubkey: proof.pubkey.unwrap_or_default(),
+                l1_batch_number,
+                tee_type,
+                pubkey: proof.pubkey,
+                signature: proof.signature,
+                proof: proof.proof,
+                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
+                attestation: proof.attestation,
             })
             .collect::<Vec<_>>())
     }

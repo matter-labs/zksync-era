@@ -813,6 +813,18 @@ pub struct Proof {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TeeProof {
+    pub l1_batch_number: L1BatchNumber,
+    pub tee_type: Option<TeeType>,
+    pub pubkey: Option<Vec<u8>>,
+    pub signature: Option<Vec<u8>>,
+    pub proof: Option<Vec<u8>>,
+    pub proved_at: DateTime<Utc>,
+    pub attestation: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionDetailedResult {
     pub transaction_hash: H256,
     pub storage_logs: Vec<ApiStorageLog>,
@@ -833,17 +845,6 @@ pub struct ApiStorageLog {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionExecutionInfo {
     pub execution_info: Value,
-}
-
-/// A "final" TEE proof that can be sent to the L1 contract.
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct TeeProof {
-    pub l1_batch_number: L1BatchNumber,
-    pub tee_type: TeeType,
-    pub proof: Vec<u8>,
-    pub attestation: Vec<u8>,
-    pub signature: Vec<u8>,
-    pub pubkey: Vec<u8>,
 }
 
 #[cfg(test)]

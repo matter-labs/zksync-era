@@ -7,9 +7,8 @@ use zksync_db_connection::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::{
-    models::storage_tee_proof::{StorageTeeProof, TmpStorageTeeProof},
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus,
-    Core,
+    models::storage_tee_proof::StorageTeeProof,
+    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus, Core,
 };
 
 #[derive(Debug)]
@@ -236,21 +235,7 @@ impl TeeProofGenerationDal<'_, '_> {
             query = query.bind(tee_type.to_string());
         }
 
-        let proofs: Vec<StorageTeeProof> = query
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row: TmpStorageTeeProof| StorageTeeProof {
-                l1_batch_number: batch_number,
-                tee_type,
-                pubkey: row.pubkey,
-                signature: row.signature,
-                proof: row.proof,
-                attestation: row.attestation,
-                proved_at: row.proved_at,
-            })
-            .collect();
+        let proofs: Vec<StorageTeeProof> = query.fetch_all(self.storage.conn()).await.unwrap();
 
         Ok(proofs)
     }
