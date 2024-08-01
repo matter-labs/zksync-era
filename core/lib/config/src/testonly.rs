@@ -397,6 +397,7 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
+            l2_mode: self.sample(rng),
         }
     }
 }

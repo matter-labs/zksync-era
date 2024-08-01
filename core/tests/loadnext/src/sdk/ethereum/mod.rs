@@ -127,7 +127,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &dyn BoundEthInterface {
+    pub fn client(&self) -> &dyn BoundEthInterface<L1> {
         &self.eth_client
     }
 

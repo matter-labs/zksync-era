@@ -1,8 +1,17 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
-use zksync_node_test_utils::create_l1_batch;
+use zksync_config::{
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
+    ContractsConfig, EthConfig, GasAdjusterConfig,
+};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::SyncMerkleTree;
+use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
+use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::L1BatchHeader,

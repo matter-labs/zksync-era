@@ -5,13 +5,17 @@ use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
     GasAdjusterConfig, GenesisConfig,
 };
-use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
+use zksync_node_fee_model::{
+    l1_gas_price::{GasAdjuster, GasAdjusterClient},
+    MainNodeFeeInputProvider,
+};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
     implementations::resources::{
         base_token_ratio_provider::BaseTokenRatioProviderResource,
-        eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        fee_input::FeeInputResource,
         l1_tx_params::L1TxParamsResource,
     },
     service::StopReceiver,
@@ -33,7 +37,8 @@ pub struct SequencerL1GasLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    pub eth_interface_client: EthInterfaceResource,
+    pub l2_inteface_client: Option<L2InterfaceResource>,
     /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
     #[context(default)]
     pub base_token_ratio_provider: BaseTokenRatioProviderResource,
@@ -75,7 +80,12 @@ impl WiringLayer for SequencerL1GasLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = input.eth_client.0;
+        let client = if self.gas_adjuster_config.l2_mode.unwrap_or_default() {
+            GasAdjusterClient::from_l2(input.l2_inteface_client.unwrap().0)
+        } else {
+            GasAdjusterClient::from_l1(input.eth_interface_client.0)
+        };
+
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,

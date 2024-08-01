@@ -74,6 +74,12 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
     }
 }
 
+// impl <S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
+//     fn as_ref(&self) -> &dyn EthInterface {
+//         self.query_client.as_ref() as &dyn EthInterface
+//     }
+// }
+
 impl<S: EthereumSigner> AsRef<DynClient<L1>> for SigningClient<S> {
     fn as_ref(&self) -> &DynClient<L1> {
         self.query_client.as_ref()
@@ -81,12 +87,15 @@ impl<S: EthereumSigner> AsRef<DynClient<L1>> for SigningClient<S> {
 }
 
 #[async_trait]
-impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
-    fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
+impl<S: EthereumSigner> BoundEthInterface<L1> for SigningClient<S> {
+    fn clone_boxed(&self) -> Box<dyn BoundEthInterface<L1>> {
         Box::new(self.clone())
     }
 
-    fn for_component(self: Box<Self>, component_name: &'static str) -> Box<dyn BoundEthInterface> {
+    fn for_component(
+        self: Box<Self>,
+        component_name: &'static str,
+    ) -> Box<dyn BoundEthInterface<L1>> {
         Box::new(Self {
             query_client: self.query_client.for_component(component_name),
             ..*self
@@ -148,7 +157,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
 
         let nonce = match options.nonce {
             Some(nonce) => nonce,
-            None => <dyn BoundEthInterface>::pending_nonce(self).await?,
+            None => <dyn BoundEthInterface<L1>>::pending_nonce(self).await?,
         };
 
         let gas = options.gas.unwrap_or_else(|| {

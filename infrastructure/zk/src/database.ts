@@ -5,7 +5,7 @@ export async function reset(opts: DbOpts) {
     await utils.confirmAction();
     await wait(opts);
     await drop(opts);
-    await setup(opts);
+    await setup(opts, false);
 }
 
 export enum DalPath {

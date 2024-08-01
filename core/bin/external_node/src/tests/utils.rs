@@ -1,7 +1,7 @@
 use tempfile::TempDir;
 use zksync_dal::CoreDal;
 use zksync_db_connection::connection_pool::TestTemplate;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_node_genesis::{insert_genesis_batch, GenesisBatchParams, GenesisParams};
 use zksync_types::{
     api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
@@ -119,7 +119,7 @@ pub(super) fn expected_health_components(components: &ComponentsToRun) -> Vec<&'
 }
 
 pub(super) fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
-    let mock = MockEthereum::builder().with_call_handler(move |call, _| {
+    let mock = MockSettlementLayer::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
             let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);

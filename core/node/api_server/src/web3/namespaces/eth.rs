@@ -3,13 +3,13 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockId, BlockNumber, GetLogsFilter, Transaction,
-        TransactionId, TransactionReceipt, TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
+        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3::{self, Bytes, FeeHistory, SyncInfo, SyncState},
+    web3::{Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -678,13 +678,15 @@ impl EthNamespace {
             .await?;
         self.set_block_diff(newest_l2_block);
 
-        let mut base_fee_per_gas = connection
+        let (mut base_fee_per_gas, mut effective_pubdata_price_history) = connection
             .blocks_web3_dal()
             .get_fee_history(newest_l2_block, block_count)
             .await
             .map_err(DalError::generalize)?;
+
         // DAL method returns fees in DESC order while we need ASC.
         base_fee_per_gas.reverse();
+        effective_pubdata_price_history.reverse();
 
         let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -702,12 +704,13 @@ impl EthNamespace {
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
-            oldest_block: web3::BlockNumber::Number(oldest_block.into()),
+            oldest_block: zksync_types::api::BlockNumber::Number(oldest_block.into()),
             base_fee_per_gas,
             gas_used_ratio,
             reward,
             base_fee_per_blob_gas,
             blob_gas_used_ratio,
+            pubdata_price: effective_pubdata_price_history,
         })
     }
 
