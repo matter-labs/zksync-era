@@ -59,6 +59,8 @@ pub enum InceptionSubcommands {
     /// Update zkSync
     #[command(alias = "u")]
     Update(UpdateArgs),
+    #[command(hide = true)]
+    Markdown,
 }
 
 #[derive(Parser, Debug)]
@@ -117,6 +119,9 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
             commands::contract_verifier::run(shell, args).await?
         }
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
+        InceptionSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Inception>();
+        }
     }
     Ok(())
 }

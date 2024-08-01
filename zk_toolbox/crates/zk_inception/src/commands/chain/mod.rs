@@ -32,7 +32,7 @@ pub enum ChainCommands {
     DeployL2Contracts(ForgeScriptArgs),
     /// Deploy Default Upgrader
     Upgrader(ForgeScriptArgs),
-    /// Initialize bridges on l2
+    /// Deploy paymaster smart contract
     #[command(alias = "paymaster")]
     DeployPaymaster(ForgeScriptArgs),
 }
