@@ -1,5 +1,5 @@
 use std::{
-    path::{self, Path, PathBuf},
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
@@ -45,7 +45,8 @@ use crate::{
         msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_ERA_OBSERVABILITY_ALREADY_SETUP,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
@@ -70,7 +71,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
     if final_ecosystem_args.run_observability {
-        setup_observability(shell, &ecosystem_config).await?;
+        download_observability(shell)?;
     }
 
     let contracts_config = init(
@@ -385,39 +386,22 @@ fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<
     Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }
 
-/// Setups Grafana
-async fn setup_observability(
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let path_to_observability = shell.create_dir("observability")?;
-
-    let path_to_dockprom = path_to_observability.join("dockprom");
-    let path_to_era_observability = path_to_observability.join("era-observability");
-    if !shell.path_exists(path_to_dockprom.clone()) {
-        git::clone(
-            shell,
-            path_to_observability.clone(),
-            "git@github.com:stefanprodan/dockprom.git",
-            "dockprom",
-        )?;
+/// Downloads Grafana dashboards from the era-observability repo
+fn download_observability(shell: &Shell) -> anyhow::Result<()> {
+    let path_to_era_observability = shell.current_dir().join("era-observability");
+    if shell.path_exists(path_to_era_observability.clone()) {
+        logger::info(MSG_ERA_OBSERVABILITY_ALREADY_SETUP);
+        return Ok(());
     }
-    if !shell.path_exists(path_to_era_observability.clone()) {
-        git::clone(
-            shell,
-            path_to_observability,
-            "git@github.com:matter-labs/era-observability.git",
-            "era-observability",
-        )?;
-    }
-    let path_to_era_dashboards = path_to_era_observability.join("dashboards");
-    let path_to_dockprom_dashboards = path_to_dockprom.join("grafana/provisioning/dashboards");
 
-    Cmd::new(cmd!(
+    let spinner = Spinner::new(MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER);
+    git::clone(
         shell,
-        "cp -R {path_to_era_dashboards}/ {path_to_dockprom_dashboards}"
-    ))
-    .run()?;
+        shell.current_dir(),
+        "git@github.com:matter-labs/era-observability.git",
+        "era-observability",
+    )?;
+    spinner.finish();
 
     Ok(())
 }
