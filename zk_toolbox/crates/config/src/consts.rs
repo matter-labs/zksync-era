@@ -28,7 +28,7 @@ pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
 
 /// Path to ecosystem contacts
-pub(crate) const ECOSYSTEM_PATH: &str = "etc/ecosystem";
+pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
 
 /// Path to l1 contracts foundry folder inside zksync-era
 pub(crate) const L1_CONTRACTS_FOUNDRY: &str = "contracts/l1-contracts";
