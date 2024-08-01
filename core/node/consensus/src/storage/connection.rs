@@ -106,7 +106,7 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `consensus_dal().insert_block_certificate()`.
-    #[tracing::instrument(skip_all, fields(block_number = %cert.message.proposal.number))]
+    #[tracing::instrument(skip_all, fields(l2_block = %cert.message.proposal.number))]
     pub async fn insert_block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
@@ -119,7 +119,7 @@ impl<'a> Connection<'a> {
 
     /// Wrapper for `consensus_dal().insert_batch_certificate()`,
     /// which additionally verifies that the batch hash matches the stored batch.
-    #[tracing::instrument(skip_all, fields(batch_number = %cert.message.number))]
+    #[tracing::instrument(skip_all, fields(l1_batch = %cert.message.number))]
     pub async fn insert_batch_certificate(
         &mut self,
         ctx: &ctx::Ctx,

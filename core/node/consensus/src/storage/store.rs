@@ -230,9 +230,7 @@ impl StoreRunner {
                                 });
                             }
                         }
-                        ctx.sleep(POLL_INTERVAL)
-                            .instrument(tracing::info_span!("sleep"))
-                            .await?;
+                        ctx.sleep(POLL_INTERVAL).await?;
 
                         anyhow::Ok(())
                     }
