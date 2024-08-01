@@ -3,7 +3,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state_keeper::MainBatchExecutor;
 
 use super::*;
-use crate::VmRunner;
+use crate::{ConcurrentOutputHandlerFactory, VmRunner};
 
 #[derive(Debug, Clone)]
 struct StorageWriterIo {
@@ -184,5 +184,32 @@ async fn storage_writer_works() {
     .unwrap();
     drop(conn);
 
-    write_storage_logs(pool).await;
+    write_storage_logs(pool.clone()).await;
+
+    // Re-run the VM on all batches to check that storage logs are persisted correctly
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let io = Arc::new(RwLock::new(IoMock {
+        current: L1BatchNumber(0),
+        max: 5,
+    }));
+    let loader = Arc::new(PostgresLoader(pool.clone()));
+    let (output_factory, output_factory_task) =
+        ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), TestOutputFactory::default());
+    let output_factory_handle = tokio::spawn(output_factory_task.run(stop_receiver.clone()));
+    let batch_executor = Box::new(MainBatchExecutor::new(false, false));
+    let vm_runner = VmRunner::new(
+        pool,
+        Box::new(io.clone()),
+        loader,
+        Box::new(output_factory),
+        batch_executor,
+    );
+
+    let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
+    wait::for_batch_progressively(io, L1BatchNumber(5), TEST_TIMEOUT)
+        .await
+        .unwrap();
+    stop_sender.send_replace(true);
+    output_factory_handle.await.unwrap().unwrap();
+    vm_runner_handle.await.unwrap().unwrap();
 }

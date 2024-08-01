@@ -2,14 +2,14 @@ use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
-use tokio::sync::{watch::Receiver, RwLock};
+use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
+use zksync_state::{OwnedPostgresStorage, OwnedStorage};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
@@ -32,40 +32,32 @@ mod process;
 mod storage;
 mod storage_writer;
 
+const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
 #[derive(Debug)]
 struct PostgresLoader(ConnectionPool<Core>);
-
-#[async_trait]
-impl ReadStorageFactory for PostgresLoader {
-    async fn access_storage(
-        &self,
-        _stop_receiver: &Receiver<bool>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let storage = PgOrRocksdbStorage::access_storage_pg(&self.0, l1_batch_number).await?;
-        Ok(Some(storage))
-    }
-}
 
 #[async_trait]
 impl StorageLoader for PostgresLoader {
     async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<BatchExecuteData>> {
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
         let mut conn = self.0.connection().await?;
-        load_batch_execute_data(
+        let Some(data) = load_batch_execute_data(
             &mut conn,
             l1_batch_number,
             &L1BatchParamsProvider::new(),
             L2ChainId::default(),
         )
-        .await
-    }
+        .await?
+        else {
+            return Ok(None);
+        };
 
-    fn upcast(self: Arc<Self>) -> Arc<dyn ReadStorageFactory> {
-        self
+        let storage = OwnedPostgresStorage::new(self.0.clone(), l1_batch_number - 1);
+        Ok(Some((data, storage.into())))
     }
 }
 
@@ -88,12 +80,18 @@ impl VmRunnerIo for Arc<RwLock<IoMock>> {
         Ok(self.read().await.current)
     }
 
+    // FIXME: revert?
     async fn last_ready_to_be_loaded_batch(
         &self,
-        _conn: &mut Connection<'_, Core>,
+        conn: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
+        let sealed_batch = conn
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await?
+            .unwrap_or(L1BatchNumber(u32::MAX));
         let io = self.read().await;
-        Ok(io.current + io.max)
+        Ok((io.current + io.max).min(sealed_batch))
     }
 
     async fn mark_l1_batch_as_processing(
@@ -182,7 +180,7 @@ mod wait {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct TestOutputFactory {
     delays: HashMap<L1BatchNumber, Duration>,
 }
@@ -193,11 +191,11 @@ impl OutputHandlerFactory for TestOutputFactory {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        let delay = self.delays.get(&l1_batch_number).copied();
         #[derive(Debug)]
         struct TestOutputHandler {
             delay: Option<Duration>,
         }
+
         #[async_trait]
         impl StateKeeperOutputHandler for TestOutputHandler {
             async fn handle_l2_block(
@@ -217,6 +215,8 @@ impl OutputHandlerFactory for TestOutputFactory {
                 Ok(())
             }
         }
+
+        let delay = self.delays.get(&l1_batch_number).copied();
         Ok(Box::new(TestOutputHandler { delay }))
     }
 }
