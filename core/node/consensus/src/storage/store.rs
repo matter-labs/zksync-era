@@ -187,9 +187,7 @@ impl StoreRunner {
                             .await
                             .wrap("block_certificates_range()")?;
                         blocks_persisted.update(range);
-                        ctx.sleep(POLL_INTERVAL)
-                            .instrument(tracing::info_span!("sleep"))
-                            .await?;
+                        ctx.sleep(POLL_INTERVAL).await?;
 
                         anyhow::Ok(())
                     }
@@ -252,7 +250,7 @@ impl StoreRunner {
                     async {
                         let cert = batch_certificates
                             .recv(ctx)
-                            .instrument(tracing::info_span!("wait_for_certificate"))
+                            .instrument(tracing::info_span!("wait_for_batch_certificate"))
                             .await?;
 
                         loop {
@@ -299,7 +297,7 @@ impl StoreRunner {
                 async {
                     let cert = block_certificates
                         .recv(ctx)
-                        .instrument(tracing::info_span!("wait_for_certificate"))
+                        .instrument(tracing::info_span!("wait_for_block_certificate"))
                         .await?;
                     // Wait for the block to be persisted, so that we can attach a cert to it.
                     // We may exit this loop without persisting the certificate in case the

@@ -71,11 +71,7 @@ impl EN {
             s.spawn_bg::<()>(async {
                 let old = genesis;
                 loop {
-                    if let Ok(new) = self
-                        .fetch_genesis(ctx)
-                        .instrument(tracing::info_span!("genesis_monitor_fetch"))
-                        .await
-                    {
+                    if let Ok(new) = self.fetch_genesis(ctx).await {
                         if new != old {
                             return Err(anyhow::format_err!(
                                 "genesis changed: old {old:?}, new {new:?}"
@@ -178,6 +174,7 @@ impl EN {
     }
 
     /// Fetches genesis from the main node.
+    #[tracing::instrument(skip_all)]
     async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         let genesis = ctx
             .wait(self.client.fetch_consensus_genesis())
