@@ -27,6 +27,7 @@ use config::{
         SaveConfigWithBasePath,
     },
     ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig, ERA_OBSERBAVILITY_DIR,
+    ERA_OBSERBAVILITY_GIT_REPO,
 };
 use types::{L1Network, ProverMode, WalletCreation};
 use xshell::{cmd, Shell};
@@ -398,7 +399,7 @@ fn download_observability(shell: &Shell) -> anyhow::Result<()> {
     git::clone(
         shell,
         shell.current_dir(),
-        "git@github.com:matter-labs/era-observability.git",
+        ERA_OBSERBAVILITY_GIT_REPO,
         ERA_OBSERBAVILITY_DIR,
     )?;
     spinner.finish();
