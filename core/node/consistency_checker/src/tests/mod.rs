@@ -45,6 +45,7 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
         raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
+    l1_batch.header.l2_to_l1_logs = vec![];
     l1_batch.metadata.bootloader_initial_content_commitment = None;
     l1_batch.metadata.events_queue_commitment = None;
     l1_batch
