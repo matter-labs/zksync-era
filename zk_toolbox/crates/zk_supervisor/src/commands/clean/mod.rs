@@ -45,6 +45,9 @@ pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::R
     let path_to_foundry = ecosystem_config.path_to_foundry();
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
+        .remove_path(path_to_foundry.join("broadcast"))
+        .context("broadcast")?;
+    shell
         .remove_path(path_to_foundry.join("artifacts"))
         .context("artifacts")?;
     shell

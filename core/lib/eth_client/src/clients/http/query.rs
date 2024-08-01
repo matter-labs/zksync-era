@@ -2,7 +2,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
-use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
+use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
 use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
@@ -16,7 +16,7 @@ impl<T> EthInterface for T
 where
     T: L1EthNamespaceClient + fmt::Debug + Send + Sync,
 {
-    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<SLChainId> {
         COUNTERS.call[&(Method::ChainId, self.component())].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();
         let raw_chain_id = self.chain_id().rpc_context("chain_id").await?;
@@ -25,7 +25,7 @@ where
             let err = ClientError::Custom(format!("invalid chainId: {err}"));
             EnrichedClientError::new(err, "chain_id").with_arg("chain_id", &raw_chain_id)
         })?;
-        Ok(L1ChainId(chain_id))
+        Ok(SLChainId(chain_id))
     }
 
     async fn nonce_at_for_account(

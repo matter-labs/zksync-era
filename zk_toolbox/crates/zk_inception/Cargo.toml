@@ -33,3 +33,4 @@ thiserror.workspace = true
 zksync_config.workspace = true
 slugify-rs.workspace = true
 zksync_basic_types.workspace = true
+clap-markdown.workspace = true
