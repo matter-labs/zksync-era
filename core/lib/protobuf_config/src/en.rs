@@ -18,6 +18,7 @@ impl ProtoRepr for proto::ExternalNode {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
+            sl_chain_id: None,
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,

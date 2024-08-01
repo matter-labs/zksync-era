@@ -8,7 +8,7 @@ use zksync_types::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
     },
-    Address, L1ChainId, H160, H256, U256, U64,
+    Address, SLChainId, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{DynClient, L1};
 pub use zksync_web3_decl::{
@@ -86,7 +86,7 @@ pub struct BaseFees {
 pub trait EthInterface: Sync + Send {
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
-    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<SLChainId>;
 
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
@@ -186,7 +186,7 @@ pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt:
     ///
     /// This value should be externally provided by the user rather than requested from the network
     /// to avoid accidental network mismatch.
-    fn chain_id(&self) -> L1ChainId;
+    fn chain_id(&self) -> SLChainId;
 
     /// Address of the account associated with the object implementing the trait.
     fn sender_account(&self) -> Address;
