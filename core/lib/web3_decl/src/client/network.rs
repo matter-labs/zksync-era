@@ -52,12 +52,6 @@ impl From<L2ChainId> for L2 {
     }
 }
 
-// /// Trait that defines that a network has interface compatible with Ethereum.
-// pub(crate) trait EthereumCompatibleNetwork: Network {}
-
-// impl EthereumCompatibleNetwork for L1 {}
-// impl EthereumCompatibleNetwork for L2 {}
-
 /// Associates a type with a particular type of RPC networks, such as Ethereum or ZKsync Era. RPC traits created using `jsonrpsee::rpc`
 /// can use `ForNetwork` as a client boundary to restrict which implementations can call their methods.
 pub trait ForNetwork {
