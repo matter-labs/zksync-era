@@ -475,7 +475,7 @@ Compressor: {}
 }
 
 #[tokio::test]
-async fn basic_batch_status() {
+async fn pli_status_complete() {
     let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
@@ -842,7 +842,7 @@ async fn basic_batch_status() {
 }
 
 #[tokio::test]
-async fn verbose_batch_status() {
+async fn pli_status_complete_verbose() {
     let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
     let mut connection = connection_pool.connection().await.unwrap();
 
