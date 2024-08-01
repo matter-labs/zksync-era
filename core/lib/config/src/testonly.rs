@@ -681,6 +681,7 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
         configs::OpentelemetryConfig {
             level: self.sample(rng),
             endpoint: self.sample(rng),
+            logs_endpoint: self.sample(rng),
         }
     }
 }
