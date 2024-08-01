@@ -18,7 +18,7 @@ import { RetryProvider } from './retry-provider';
 export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('0.08');
 // Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
 export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('0.5');
-export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('0.5');
+export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('5');
 
 // Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
 export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('50');
