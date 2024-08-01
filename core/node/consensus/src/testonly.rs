@@ -302,6 +302,11 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0.into())
     }
 
+    /// Batch of the `last_block`.
+    pub fn last_batch(&self) -> L1BatchNumber {
+        self.last_batch
+    }
+
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
     pub fn last_sealed_batch(&self) -> L1BatchNumber {

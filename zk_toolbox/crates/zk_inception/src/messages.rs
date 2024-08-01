@@ -49,6 +49,7 @@ pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
+pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -71,6 +72,9 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
+pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
+pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
+    "Downloading era observability...";
 
 pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
     format!("Initializing chain {chain_name}")
@@ -337,6 +341,7 @@ pub(super) const MSG_DIFF_EN_CONFIG: &str =
 pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
 pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
+pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
