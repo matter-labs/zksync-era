@@ -132,6 +132,16 @@ impl ChainCreateArgs {
             None
         };
 
+        let number_validator = |val: &String| -> Result<(), String> {
+            let Ok(val) = val.parse::<u64>() else {
+                return Err(MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR.to_string());
+            };
+            if val == 0 {
+                return Err(MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR.to_string());
+            }
+            Ok(())
+        };
+
         let base_token = if self.base_token_address.is_none()
             && self.base_token_price_denominator.is_none()
             && self.base_token_price_nominator.is_none()
@@ -160,12 +170,11 @@ impl ChainCreateArgs {
         } else {
             let address = self
                 .base_token_address
-                .map(|s| {
+                .and_then(|s| {
                     // NOTE: here would be better to return error, but the current function
                     // signature does not allow that.
                     H160::from_str(&s).ok()
                 })
-                .flatten()
                 .unwrap_or_else(|| Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask());
             let nominator = self.base_token_price_nominator.unwrap_or_else(|| {
                 Prompt::new(MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT)
@@ -220,14 +229,4 @@ pub struct ChainCreateArgsFinal {
 enum BaseTokenSelection {
     Eth,
     Custom,
-}
-
-fn number_validator(val: &String) -> Result<(), String> {
-    let Ok(val) = val.parse::<u64>() else {
-        return Err(MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR.to_string());
-    };
-    if val == 0 {
-        return Err(MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR.to_string());
-    }
-    Ok(())
 }
