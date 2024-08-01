@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
     str::FromStr,
 };
 
@@ -68,6 +68,10 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
+
+    if final_ecosystem_args.run_observability {
+        setup_observability(shell, &ecosystem_config).await?;
+    }
 
     let contracts_config = init(
         &mut final_ecosystem_args,
@@ -379,4 +383,41 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
+}
+
+/// Setups Grafana
+async fn setup_observability(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let path_to_observability = shell.create_dir("observability")?;
+
+    let path_to_dockprom = path_to_observability.join("dockprom");
+    let path_to_era_observability = path_to_observability.join("era-observability");
+    if !shell.path_exists(path_to_dockprom.clone()) {
+        git::clone(
+            shell,
+            path_to_observability.clone(),
+            "git@github.com:stefanprodan/dockprom.git",
+            "dockprom",
+        )?;
+    }
+    if !shell.path_exists(path_to_era_observability.clone()) {
+        git::clone(
+            shell,
+            path_to_observability,
+            "git@github.com:matter-labs/era-observability.git",
+            "era-observability",
+        )?;
+    }
+    let path_to_era_dashboards = path_to_era_observability.join("dashboards");
+    let path_to_dockprom_dashboards = path_to_dockprom.join("grafana/provisioning/dashboards");
+
+    Cmd::new(cmd!(
+        shell,
+        "cp -R {path_to_era_dashboards}/ {path_to_dockprom_dashboards}"
+    ))
+    .run()?;
+
+    Ok(())
 }

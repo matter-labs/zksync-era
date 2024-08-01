@@ -49,6 +49,7 @@ pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
+pub(super) const MSG_RUN_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
