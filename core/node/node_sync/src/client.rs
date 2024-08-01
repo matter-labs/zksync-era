@@ -46,7 +46,8 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig>;
 
-    async fn fetch_attestation_status(&self) -> EnrichedClientResult<en::AttestationStatus>;
+    async fn fetch_attestation_status(&self)
+        -> EnrichedClientResult<Option<en::AttestationStatus>>;
 }
 
 #[async_trait]
@@ -139,7 +140,9 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .await
     }
 
-    async fn fetch_attestation_status(&self) -> EnrichedClientResult<en::AttestationStatus> {
+    async fn fetch_attestation_status(
+        &self,
+    ) -> EnrichedClientResult<Option<en::AttestationStatus>> {
         self.attestation_status()
             .rpc_context("attestation_status")
             .await

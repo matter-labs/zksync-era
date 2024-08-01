@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package zksync.dal;
 
+import "zksync/roles/validator.proto";
+
 message Payload {
   // zksync-era ProtocolVersionId
   optional uint32 protocol_version = 9; // required; u16
@@ -113,4 +115,9 @@ message InputData {
 message PaymasterParams {
   optional bytes paymaster_address = 1; // required; H160
   optional bytes paymaster_input = 2; // required
+}
+
+message AttestationStatus {
+  optional roles.validator.GenesisHash genesis = 1; // required
+  optional uint64 next_batch_to_attest = 2; // required
 }
