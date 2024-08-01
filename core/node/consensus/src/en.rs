@@ -1,14 +1,11 @@
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{
     self as executor,
     attestation::{AttestationStatusClient, AttestationStatusRunner},
 };
-use zksync_consensus_roles::{
-    attester::{self, GenesisHash},
-    validator,
-};
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
@@ -267,7 +264,7 @@ impl EN {
 /// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient::next_batch_to_attest].
 struct MainNodeAttestationStatus {
     client: Box<DynClient<L2>>,
-    genesis: GenesisHash,
+    genesis: attester::GenesisHash,
 }
 
 #[async_trait]
@@ -283,7 +280,7 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
                         .context("deserialize(AttestationStatus)")?;
 
                 if status.genesis != self.genesis {
-                    return Err(anyhow!(
+                    return Err(anyhow::format_err!(
                         "the main node API has different genesis hash than the local one: {:?} != {:?}",
                         status.genesis,
                         self.genesis
