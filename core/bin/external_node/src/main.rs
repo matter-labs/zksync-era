@@ -841,7 +841,7 @@ async fn main() -> anyhow::Result<()> {
     let eth_client_url = &config.required.eth_client_url;
     let eth_client = Client::http(eth_client_url.clone())
         .context("failed creating JSON-RPC client for Ethereum")?
-        .for_network(config.required.l1_chain_id.into())
+        .for_network(config.required.settlement_layer_id().into())
         .build();
     let eth_client = Box::new(eth_client);
 
@@ -880,6 +880,7 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(
         config.required.l1_chain_id,
+        config.required.settlement_layer_id(),
         config.required.l2_chain_id,
         config.postgres.max_connections,
     );
@@ -985,7 +986,7 @@ async fn run_node(
     });
 
     let validate_chain_ids_task = ValidateChainIdsTask::new(
-        config.required.l1_chain_id,
+        config.required.settlement_layer_id(),
         config.required.l2_chain_id,
         eth_client.clone(),
         main_node_client.clone(),
