@@ -18,7 +18,7 @@ use crate::{
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "debug", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "debug", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 pub trait DebugNamespace {
     #[method(name = "traceBlockByNumber")]

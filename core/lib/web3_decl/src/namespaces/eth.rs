@@ -23,7 +23,7 @@ use crate::{
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 pub trait EthNamespace {
     #[method(name = "blockNumber")]

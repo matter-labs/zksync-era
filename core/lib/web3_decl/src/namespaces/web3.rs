@@ -10,7 +10,7 @@ use crate::client::{ForEthereumLikeNetwork, L2};
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "web3", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "web3", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 pub trait Web3Namespace {
     #[method(name = "clientVersion")]

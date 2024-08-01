@@ -12,7 +12,7 @@ use crate::client::{ForEthereumLikeNetwork, L2};
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "unstable", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "unstable", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 pub trait UnstableNamespace {
     #[method(name = "getTransactionExecutionInfo")]

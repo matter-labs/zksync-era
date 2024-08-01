@@ -12,7 +12,7 @@ use crate::client::{ForEthereumLikeNetwork, L2};
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "en", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 pub trait EnNamespace {
     #[method(name = "syncL2Block")]
