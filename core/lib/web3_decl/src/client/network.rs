@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use zksync_types::{L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 /// Marker trait for networks. Two standard network kinds are [`L1`] and [`L2`].
 ///
@@ -30,6 +30,12 @@ impl Network for L1 {
 impl From<SLChainId> for L1 {
     fn from(chain_id: SLChainId) -> Self {
         Self(Some(chain_id))
+    }
+}
+
+impl From<L1ChainId> for L1 {
+    fn from(chain_id: L1ChainId) -> Self {
+        Self(Some(chain_id.into()))
     }
 }
 

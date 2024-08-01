@@ -1,6 +1,6 @@
 use anyhow::Context;
-use zksync_types::{url::SensitiveUrl, SLChainId};
-use zksync_web3_decl::client::Client;
+use zksync_types::{url::SensitiveUrl, L2ChainId, SLChainId};
+use zksync_web3_decl::client::{Client, L1, L2};
 
 use crate::{
     implementations::resources::eth_interface::{EthInterfaceResource, L2InterfaceResource},

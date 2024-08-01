@@ -152,7 +152,7 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer = QueryEthClientLayer::new(
-            genesis.l1_chain_id,
+            genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
             self.configs
                 .eth

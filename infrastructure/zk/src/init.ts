@@ -64,9 +64,7 @@ const initSetup = async ({
         await announced('Setting up containers', up(runObservability));
     }
 
-    if (!skipJsPackages) {
-        await announced('Compiling JS packages', run.yarn());
-    }
+    await announced('Compiling JS packages', run.yarn());
 
     await Promise.all([
         announced('Building L1 L2 contracts', contract.build()),
@@ -147,7 +145,6 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     baseTokenName?: string;
     validiumMode?: boolean;
     skipDbPreparation?: boolean;
-    skipJsPackages?: boolean;
     localLegacyBridgeTesting?: boolean;
     shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
@@ -171,8 +168,7 @@ export const initDevCmdAction = async ({
         skipEnvSetup,
         skipSubmodulesCheckout,
         runObservability,
-        deploymentMode,
-        skipJsPackages
+        deploymentMode
     });
     if (!skipVerifier) {
         await deployVerifier();

@@ -11,7 +11,7 @@ use zksync_types::{
     api::FeeHistory,
     ethabi,
     web3::{self, contract::Tokenize, BlockId},
-    Address, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
+    Address, L1ChainId, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{DynClient, MockClient, MockClientBuilder, Network, L1, L2};
 
@@ -357,10 +357,11 @@ impl<Net: Network> MockEthereumBuilder<Net> {
         })
     }
 
-    fn build_client(self) -> MockClient<L1> {
-        const CHAIN_ID: SLChainId = SLChainId(9);
+    fn build_client_inner(self, chaind_id: u64, network: Net) -> MockClientBuilder<Net> {
+        let call_handler = self.call_handler;
 
         MockClient::builder(network)
+            .method("eth_chainId", move || Ok(U64::from(chaind_id)))
             .method("eth_blockNumber", {
                 let inner = self.inner.clone();
                 move || Ok(U64::from(inner.read().unwrap().block_number))
