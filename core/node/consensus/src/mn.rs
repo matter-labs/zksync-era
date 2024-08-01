@@ -66,9 +66,9 @@ pub async fn run_main_node(
                 ctx,
                 batch_store.clone(),
                 time::Duration::seconds(1),
+                block_store.genesis().hash(),
             )
             .await
-            .map_err(ctx::Error::Canceled)
             .wrap("AttestationStatusRunner::init_from_store()")?
         };
         s.spawn_bg(runner.run(ctx));

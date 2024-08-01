@@ -5,8 +5,10 @@ use zksync_consensus_executor::{
     self as executor,
     attestation::{AttestationStatusClient, AttestationStatusRunner},
 };
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_network::gossip;
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
@@ -107,14 +109,11 @@ impl EN {
             let (attestation_status, runner) = {
                 AttestationStatusRunner::init(
                     ctx,
-                    Box::new(MainNodeAttestationStatus {
-                        client: self.client.clone(),
-                        genesis: genesis_hash,
-                    }),
+                    Box::new(MainNodeAttestationStatus(self.client.clone())),
                     time::Duration::seconds(5),
+                    genesis_hash,
                 )
                 .await
-                .map_err(ctx::Error::Canceled)
                 .wrap("AttestationStatusRunner::init()")?
             };
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
@@ -261,34 +260,27 @@ impl EN {
     }
 }
 
-/// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient::next_batch_to_attest].
-struct MainNodeAttestationStatus {
-    client: Box<DynClient<L2>>,
-    genesis: attester::GenesisHash,
-}
+/// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient].
+struct MainNodeAttestationStatus(Box<DynClient<L2>>);
 
 #[async_trait]
 impl AttestationStatusClient for MainNodeAttestationStatus {
-    async fn next_batch_to_attest(
+    async fn attestation_status(
         &self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        match ctx.wait(self.client.fetch_attestation_status()).await? {
+    ) -> ctx::Result<Option<gossip::AttestationStatus>> {
+        match ctx.wait(self.0.fetch_attestation_status()).await? {
             Ok(Some(status)) => {
-                let status: zksync_dal::consensus_dal::AttestationStatus =
+                // If this fails the AttestationStatusRunner will log it an retry it later,
+                // but it won't stop the whole node.
+                let status: consensus_dal::AttestationStatus =
                     zksync_protobuf::serde::deserialize(&status.0)
-                        .context("deserialize(AttestationStatus)")?;
-
-                if status.genesis != self.genesis {
-                    return Err(anyhow::format_err!(
-                        "the main node API has different genesis hash than the local one: {:?} != {:?}",
-                        status.genesis,
-                        self.genesis
-                    )
-                    .into());
+                        .context("deserialize(AttestationStatus")?;
+                let status = gossip::AttestationStatus {
+                    genesis: status.genesis,
+                    next_batch_to_attest: status.next_batch_to_attest,
                 };
-
-                Ok(Some(status.next_batch_to_attest))
+                Ok(Some(status))
             }
             Ok(None) => Ok(None),
             Err(err) => {
