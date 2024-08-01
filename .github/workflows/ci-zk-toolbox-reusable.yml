@@ -67,7 +67,7 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose
 
-      - name: Create chain
+      - name: Create and initialize chain
         run: |
           ci_run zk_inception chain create \
           --chain-name chain_${{ matrix.deployment_mode }} \
@@ -80,6 +80,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default true \
           --ignore-prerequisites
+          ci_run chain init
 
       - name: Run server
         run: |
