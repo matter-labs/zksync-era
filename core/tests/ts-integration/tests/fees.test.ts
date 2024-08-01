@@ -168,7 +168,8 @@ testFees('Test fees', () => {
         const receipt = await (
             await alice.sendTransaction({
                 to: receiver,
-                value: BigInt(1)
+                value: BigInt(1),
+                gasLimit: 1000000
             })
         ).wait();
 
