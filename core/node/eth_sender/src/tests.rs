@@ -9,7 +9,7 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockEthereum, BaseFees};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
@@ -110,7 +110,7 @@ fn mock_multicall_response() -> Token {
 #[derive(Debug)]
 struct EthSenderTester {
     conn: ConnectionPool<Core>,
-    gateway: Box<MockEthereum>,
+    gateway: Box<MockSettlementLayer>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
     gas_adjuster: Arc<GasAdjuster>,
@@ -142,7 +142,7 @@ impl EthSenderTester {
             })
             .collect();
 
-        let gateway = MockEthereum::builder()
+        let gateway = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,

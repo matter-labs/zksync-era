@@ -9,7 +9,7 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockEthereum, BaseFees};
+use zksync_eth_client::clients::{MockClientBaseFee, MockSettlementLayer};
 use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
 use zksync_node_fee_model::{
     l1_gas_price::{GasAdjuster, GasAdjusterClient},
@@ -54,12 +54,15 @@ impl Tester {
         let block_fees = vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
         let base_fees = block_fees
             .into_iter()
-            .map(|base_fee_per_gas| BaseFees {
+            .map(|base_fee_per_gas| MockClientBaseFee {
                 base_fee_per_gas,
                 base_fee_per_blob_gas: 1.into(), // Not relevant for the test
+                pubdata_price: 0.into(),         // Not relevant for the test
             })
             .collect();
-        let eth_client = MockEthereum::builder().with_fee_history(base_fees).build();
+        let eth_client = MockSettlementLayer::builder()
+            .with_fee_history(base_fees)
+            .build();
 
         let gas_adjuster_config = GasAdjusterConfig {
             default_priority_fee_per_gas: 10,

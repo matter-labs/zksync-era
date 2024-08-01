@@ -29,7 +29,7 @@ impl Resource for L2InterfaceResource {
 
 /// A resource that provides L1 interface with signing capabilities to the service.
 #[derive(Debug, Clone)]
-pub struct BoundEthInterfaceResource(pub Box<dyn BoundEthInterface>);
+pub struct BoundEthInterfaceResource(pub Box<dyn BoundEthInterface<L1>>);
 
 impl Resource for BoundEthInterfaceResource {
     fn name() -> String {
@@ -39,7 +39,7 @@ impl Resource for BoundEthInterfaceResource {
 
 /// Same as `BoundEthInterfaceResource`, but for managing EIP-4844 blobs.
 #[derive(Debug, Clone)]
-pub struct BoundEthInterfaceForBlobsResource(pub Box<dyn BoundEthInterface>);
+pub struct BoundEthInterfaceForBlobsResource(pub Box<dyn BoundEthInterface<L1>>);
 
 impl Resource for BoundEthInterfaceForBlobsResource {
     fn name() -> String {

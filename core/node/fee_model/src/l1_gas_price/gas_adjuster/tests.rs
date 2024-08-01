@@ -2,8 +2,9 @@ use std::{collections::VecDeque, sync::RwLockReadGuard};
 
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::{clients::MockEthereum, BaseFees};
+use zksync_eth_client::clients::{MockClientBaseFee, MockSettlementLayer};
 use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_web3_decl::client::L2;
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
 use crate::l1_gas_price::GasAdjusterClient;
@@ -29,42 +30,34 @@ fn samples_queue() {
     assert_eq!(stats.samples, VecDeque::from([4, 5, 18, 18, 18]));
 }
 
-/// Check that we properly fetch base fees as block are mined
-#[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
-#[tokio::test]
-async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
-    // Helper function to read a value from adjuster
-    fn read<T>(statistics: &GasStatistics<T>) -> RwLockReadGuard<GasStatisticsInner<T>> {
-        statistics.0.read().unwrap()
-    }
+const TEST_BLOCK_FEES: [u64; 10] = [0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
+const TEST_BLOB_FEES: [u64; 10] = [
+    0,
+    393216,
+    393216,
+    393216 * 2,
+    393216,
+    393216 * 2,
+    393216 * 2,
+    393216 * 3,
+    393216 * 4,
+    393216,
+];
+const TEST_PUBDATA_PRICES: [u64; 10] = [
+    0,
+    493216,
+    493216,
+    493216 * 2,
+    493216,
+    493216 * 2,
+    493216 * 2,
+    493216 * 3,
+    493216 * 4,
+    493216,
+];
 
-    let block_fees = vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9];
-    let blob_fees = vec![
-        0,
-        393216,
-        393216,
-        393216 * 2,
-        393216,
-        393216 * 2,
-        393216 * 2,
-        393216 * 3,
-        393216 * 4,
-        393216,
-    ];
-    let base_fees = block_fees
-        .into_iter()
-        .zip(blob_fees)
-        .map(|(block, blob)| BaseFees {
-            base_fee_per_gas: block,
-            base_fee_per_blob_gas: blob.into(),
-        })
-        .collect();
-
-    let eth_client = MockEthereum::builder().with_fee_history(base_fees).build();
-    // 5 sampled blocks + additional block to account for latest block subtraction
-    eth_client.advance_block_number(6);
-
-    let config = GasAdjusterConfig {
+fn test_config(l2_mode: Option<bool>) -> GasAdjusterConfig {
+    GasAdjusterConfig {
         default_priority_fee_per_gas: 5,
         max_base_fee_samples: 5,
         pricing_formula_parameter_a: 1.5,
@@ -77,8 +70,36 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
         max_blob_base_fee: None,
-        l2_mode: None,
-    };
+        l2_mode,
+    }
+}
+
+/// Helper function to read a value from adjuster
+fn read<T>(statistics: &GasStatistics<T>) -> RwLockReadGuard<GasStatisticsInner<T>> {
+    statistics.0.read().unwrap()
+}
+
+/// Check that we properly fetch base fees as block are mined
+#[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
+#[tokio::test]
+async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
+    let base_fees = TEST_BLOCK_FEES
+        .into_iter()
+        .zip(TEST_BLOB_FEES)
+        .map(|(block, blob)| MockClientBaseFee {
+            base_fee_per_gas: block,
+            base_fee_per_blob_gas: blob.into(),
+            pubdata_price: 0.into(),
+        })
+        .collect();
+
+    let eth_client = MockSettlementLayer::builder()
+        .with_fee_history(base_fees)
+        .build();
+    // 5 sampled blocks + additional block to account for latest block subtraction
+    eth_client.advance_block_number(6);
+
+    let config = test_config(None);
     let adjuster = GasAdjuster::new(
         GasAdjusterClient::from_l1(Box::new(eth_client.clone().into_client())),
         config,
@@ -118,6 +139,70 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     assert_eq!(read(&adjuster.blob_base_fee_statistics).samples.len(), 3);
     assert_eq!(
         read(&adjuster.blob_base_fee_statistics).median(),
+        expected_median_blob_base_fee.into()
+    );
+}
+
+/// Check that we properly fetch base fees as block are mined
+#[test_casing(2, [L1BatchCommitmentMode::Rollup, L1BatchCommitmentMode::Validium])]
+#[tokio::test]
+async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
+    let base_fees = TEST_BLOCK_FEES
+        .into_iter()
+        .zip(TEST_PUBDATA_PRICES)
+        .map(|(block, pubdata)| MockClientBaseFee {
+            base_fee_per_gas: block,
+            base_fee_per_blob_gas: 0.into(),
+            pubdata_price: pubdata.into(),
+        })
+        .collect();
+
+    let eth_client = MockSettlementLayer::<L2>::builder()
+        .with_fee_history(base_fees)
+        .build();
+    // 5 sampled blocks + additional block to account for latest block subtraction
+    eth_client.advance_block_number(6);
+
+    let config = test_config(Some(true));
+    let adjuster = GasAdjuster::new(
+        GasAdjusterClient::from_l2(Box::new(eth_client.clone().into_client())),
+        config,
+        PubdataSendingMode::RelayedL2Calldata,
+        commitment_mode,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        read(&adjuster.base_fee_statistics).samples.len(),
+        config.max_base_fee_samples
+    );
+    assert_eq!(read(&adjuster.base_fee_statistics).median(), 6);
+
+    eprintln!("{:?}", read(&adjuster.l2_pubdata_price_statistics).samples);
+    let expected_median_blob_base_fee = 493216 * 2;
+    assert_eq!(
+        read(&adjuster.l2_pubdata_price_statistics).samples.len(),
+        config.num_samples_for_blob_base_fee_estimate
+    );
+    assert_eq!(
+        read(&adjuster.l2_pubdata_price_statistics).median(),
+        expected_median_blob_base_fee.into()
+    );
+
+    eth_client.advance_block_number(3);
+    adjuster.keep_updated().await.unwrap();
+
+    assert_eq!(
+        read(&adjuster.base_fee_statistics).samples.len(),
+        config.max_base_fee_samples
+    );
+    assert_eq!(read(&adjuster.base_fee_statistics).median(), 7);
+
+    let expected_median_blob_base_fee = 493216 * 3;
+    assert_eq!(read(&adjuster.l2_pubdata_price_statistics).samples.len(), 3);
+    assert_eq!(
+        read(&adjuster.l2_pubdata_price_statistics).median(),
         expected_median_blob_base_fee.into()
     );
 }
