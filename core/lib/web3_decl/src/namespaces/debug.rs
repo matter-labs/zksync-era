@@ -8,13 +8,13 @@ use zksync_types::{
 };
 
 use crate::{
-    client::{ForNetwork, L2},
+    client::{ForEthereumLikeNetwork, L2},
     types::H256,
 };
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "debug", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "debug", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),

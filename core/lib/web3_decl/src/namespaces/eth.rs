@@ -11,7 +11,7 @@ use zksync_types::{
 };
 
 use crate::{
-    client::{ForNetwork, L2},
+    client::{ForEthereumLikeNetwork, L2},
     types::{
         Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64,
     },
@@ -19,7 +19,7 @@ use crate::{
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),

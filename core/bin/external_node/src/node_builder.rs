@@ -169,8 +169,8 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
-            // TODO: add this config for external node
-            true,
+            // TODO(EVM-676): add this config for external node
+            false,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

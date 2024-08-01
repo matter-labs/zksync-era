@@ -60,15 +60,6 @@ impl From<Box<DynClient<L2>>> for GasAdjusterClient {
     }
 }
 
-macro_rules! relay {
-    ($self:ident, $method:ident $(, $args:expr)*) => {
-        match $self {
-            GasAdjusterClient::L1(inner) => inner.$method($($args),*),
-            GasAdjusterClient::L2(inner) => inner.$method($($args),*),
-        }
-    };
-}
-
 impl GasAdjusterClient {
     fn for_component(self, name: &'static str) -> Self {
         match self {
@@ -78,7 +69,10 @@ impl GasAdjusterClient {
     }
 
     async fn block_number(&self) -> EnrichedClientResult<U64> {
-        relay!(self, block_number).await
+        match self {
+            GasAdjusterClient::L1(inner) => inner.block_number().await,
+            GasAdjusterClient::L2(inner) => inner.block_number().await,
+        }
     }
 
     async fn base_fee_history(
@@ -335,40 +329,33 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.bound_blob_base_fee(calculated_price)
+                self.bound_pubdata_fee(calculated_price)
             }
-            PubdataSendingMode::Calldata => {
-                self.estimate_effective_gas_price() * self.pubdata_byte_gas()
-            }
+            PubdataSendingMode::Calldata => self.bound_pubdata_fee(
+                self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE.into(),
+            ),
             PubdataSendingMode::Custom => {
                 // Fix this when we have a better understanding of dynamic pricing for custom DA layers.
                 // GitHub issue: https://github.com/matter-labs/zksync-era/issues/2105
                 0
             }
             PubdataSendingMode::RelayedL2Calldata => {
-                self.bound_blob_base_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
+                self.bound_pubdata_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
             }
         }
     }
 
-    fn pubdata_byte_gas(&self) -> u64 {
-        match self.commitment_mode {
-            L1BatchCommitmentMode::Validium => 0,
-            L1BatchCommitmentMode::Rollup => L1_GAS_PER_PUBDATA_BYTE.into(),
-        }
-    }
-
-    // FIXME: shall we rename this method to the `bound_pubdata_fee`?
-    fn bound_blob_base_fee(&self, blob_base_fee: f64) -> u64 {
+    fn bound_pubdata_fee(&self, pubdata_fee: f64) -> u64 {
+        // We will treat the max blob base fee as the maximal fee that we can take for each byte of pubdata.
         let max_blob_base_fee = self.config.max_blob_base_fee();
         match self.commitment_mode {
             L1BatchCommitmentMode::Validium => 0,
             L1BatchCommitmentMode::Rollup => {
-                if blob_base_fee > max_blob_base_fee as f64 {
-                    tracing::error!("Blob base fee is too high: {blob_base_fee}, using max allowed: {max_blob_base_fee}");
+                if pubdata_fee > max_blob_base_fee as f64 {
+                    tracing::error!("Blob base fee is too high: {pubdata_fee}, using max allowed: {max_blob_base_fee}");
                     return max_blob_base_fee;
                 }
-                blob_base_fee as u64
+                pubdata_fee as u64
             }
         }
     }

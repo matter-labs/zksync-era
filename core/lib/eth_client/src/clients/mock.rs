@@ -134,7 +134,7 @@ impl MockEthereumInner {
     }
 
     fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
-        if address != MockSettlementLayer::<L1>::SENDER_ACCOUNT {
+        if address != MOCK_SENDER_ACCOUNT {
             unimplemented!("Getting nonce for custom account is not supported");
         }
 
@@ -249,8 +249,12 @@ impl From<MockClientBaseFee> for L2Fees {
     }
 }
 
+pub trait SupportedMockEthNetwork: Network {
+    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self>;
+}
+
 /// Builder for [`MockEthereum`] client.
-pub struct MockEthereumBuilder<Net: Network = L1> {
+pub struct MockEthereumBuilder<Net: SupportedMockEthNetwork = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     base_fee_history: Vec<MockClientBaseFee>,
@@ -262,7 +266,7 @@ pub struct MockEthereumBuilder<Net: Network = L1> {
     _network: PhantomData<Net>,
 }
 
-impl<Net: Network> fmt::Debug for MockEthereumBuilder<Net> {
+impl<Net: SupportedMockEthNetwork> fmt::Debug for MockEthereumBuilder<Net> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MockEthereumBuilder")
@@ -278,7 +282,7 @@ impl<Net: Network> fmt::Debug for MockEthereumBuilder<Net> {
     }
 }
 
-impl<Net: Network> Default for MockEthereumBuilder<Net> {
+impl<Net: SupportedMockEthNetwork> Default for MockEthereumBuilder<Net> {
     fn default() -> Self {
         Self {
             max_fee_per_gas: 100.into(),
@@ -294,7 +298,7 @@ impl<Net: Network> Default for MockEthereumBuilder<Net> {
     }
 }
 
-impl<Net: Network> MockEthereumBuilder<Net> {
+impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
     /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
     pub fn with_fee_history(self, history: Vec<MockClientBaseFee>) -> Self {
         Self {
@@ -414,11 +418,18 @@ impl<Net: Network> MockEthereumBuilder<Net> {
                 }
             })
     }
+
+    pub fn build(self) -> MockSettlementLayer<Net> {
+        MockSettlementLayer {
+            max_fee_per_gas: self.max_fee_per_gas,
+            max_priority_fee_per_gas: self.max_priority_fee_per_gas,
+            non_ordering_confirmations: self.non_ordering_confirmations,
+            inner: self.inner.clone(),
+            client: Net::build_client(self),
+        }
+    }
 }
 
-pub trait SupportedMockEthNetwork: Network {
-    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self>;
-}
 impl SupportedMockEthNetwork for L1 {
     fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
         const CHAIN_ID: L1ChainId = L1ChainId(9);
@@ -495,18 +506,6 @@ impl SupportedMockEthNetwork for L2 {
     }
 }
 
-impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
-    pub fn build(self) -> MockSettlementLayer<Net> {
-        MockSettlementLayer {
-            max_fee_per_gas: self.max_fee_per_gas,
-            max_priority_fee_per_gas: self.max_priority_fee_per_gas,
-            non_ordering_confirmations: self.non_ordering_confirmations,
-            inner: self.inner.clone(),
-            client: Net::build_client(self),
-        }
-    }
-}
-
 /// Mock Ethereum client.
 #[derive(Debug, Clone)]
 pub struct MockSettlementLayer<Net: Network = L1> {
@@ -529,9 +528,9 @@ impl Default for MockSettlementLayer<L2> {
     }
 }
 
-impl<Net: Network> MockSettlementLayer<Net> {
-    const SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
+const MOCK_SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
 
+impl<Net: SupportedMockEthNetwork> MockSettlementLayer<Net> {
     /// Initializes a builder for a [`MockEthereum`] instance.
     pub fn builder() -> MockEthereumBuilder<Net> {
         MockEthereumBuilder::default()
@@ -624,7 +623,7 @@ impl<Net: Network> AsRef<DynClient<Net>> for MockSettlementLayer<Net> {
 }
 
 #[async_trait::async_trait]
-impl<Net: Network> BoundEthInterface<Net> for MockSettlementLayer<Net> {
+impl<Net: SupportedMockEthNetwork> BoundEthInterface<Net> for MockSettlementLayer<Net> {
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface<Net>> {
         Box::new(self.clone())
     }
@@ -649,7 +648,7 @@ impl<Net: Network> BoundEthInterface<Net> for MockSettlementLayer<Net> {
     }
 
     fn sender_account(&self) -> Address {
-        Self::SENDER_ACCOUNT
+        MOCK_SENDER_ACCOUNT
     }
 
     async fn sign_prepared_tx_for_addr(
@@ -675,9 +674,10 @@ impl<Net: Network> BoundEthInterface<Net> for MockSettlementLayer<Net> {
 mod tests {
     use assert_matches::assert_matches;
     use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId};
+    use zksync_web3_decl::namespaces::EthNamespaceClient;
 
     use super::*;
-    use crate::{CallFunctionArgs, EthInterface};
+    use crate::{CallFunctionArgs, EthInterface, ZkSyncInterface};
 
     fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> MockClientBaseFee {
         MockClientBaseFee {
@@ -764,6 +764,49 @@ mod tests {
                 .into_iter()
                 .cloned()
                 .map(BaseFees::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn managing_fee_history_l2() {
+        let initial_fee_history = vec![
+            base_fees(1, 4, 11),
+            base_fees(2, 3, 12),
+            base_fees(3, 2, 13),
+            base_fees(4, 1, 14),
+            base_fees(5, 0, 15),
+        ];
+        let client = MockSettlementLayer::<L2>::builder()
+            .with_fee_history(initial_fee_history.clone())
+            .build();
+        client.advance_block_number(4);
+
+        let fee_history = client.as_ref().l2_fee_history(4, 4).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=4]
+                .into_iter()
+                .cloned()
+                .map(L2Fees::from)
+                .collect::<Vec<_>>()
+        );
+        let fee_history = client.as_ref().l2_fee_history(2, 2).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=2]
+                .into_iter()
+                .cloned()
+                .map(L2Fees::from)
+                .collect::<Vec<_>>()
+        );
+        let fee_history = client.as_ref().l2_fee_history(3, 2).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[2..=3]
+                .into_iter()
+                .cloned()
+                .map(L2Fees::from)
                 .collect::<Vec<_>>()
         );
     }

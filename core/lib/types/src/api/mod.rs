@@ -859,7 +859,6 @@ pub struct FeeHistory {
     /// by the maximum blob gas per block.
     #[serde(default)] // some node implementations skip empty lists
     pub blob_gas_used_ratio: Vec<f64>,
-
     /// An array of effective pubdata price. Note, that this field is L2-specific and only provided by L2 nodes.
     #[serde(default)]
     pub pubdata_price: Vec<U256>,

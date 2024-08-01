@@ -3,10 +3,10 @@ use zksync_types::{
     api::{BlockDetails, L1BatchDetails},
     web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
-use zksync_web3_decl::client::{ForNetwork, L1, L2};
+use zksync_web3_decl::client::{ForEthereumLikeNetwork, L1, L2};
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
-#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork))]
+#[rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork))]
 pub(super) trait L1EthNamespace {
     #[method(name = "chainId")]
     async fn chain_id(&self) -> RpcResult<U256>;
@@ -72,7 +72,7 @@ pub(super) trait L1EthNamespace {
 
 /// Subset of the L2 `eth` namespace used by an L2 client. It may have the same
 /// methods as the L1 `eth` namespace, but with extended return values.
-#[rpc(client, namespace = "eth", client_bounds(Self: ForNetwork<Net = L2>))]
+#[rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))]
 pub(super) trait L2EthNamespace {
     #[method(name = "feeHistory")]
     async fn fee_history(

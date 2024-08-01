@@ -163,7 +163,7 @@ pub struct L2Fees {
 
 #[async_trait]
 pub trait ZkSyncInterface: Sync + Send {
-    /// Returns vector of pubdata prices (in wei) for a zkSync-based network.
+    /// Returns vector of base fees and pubdata prices (in wei) for a zkSync-based network.
     async fn l2_fee_history(
         &self,
         upto_block: usize,
