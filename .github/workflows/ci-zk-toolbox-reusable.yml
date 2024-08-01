@@ -80,7 +80,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default true \
           --ignore-prerequisites
-          ci_run chain init \
+          ci_run zk_inception chain init \
           --deploy-paymaster \
           --l1-rpc-url=http://reth:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
