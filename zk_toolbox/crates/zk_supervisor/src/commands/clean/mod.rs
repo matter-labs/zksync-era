@@ -11,8 +11,11 @@ use crate::messages::{
 
 #[derive(Subcommand, Debug)]
 pub enum CleanCommands {
+    /// Remove containers and contracts cache
     All,
+    /// Remove containers and docker volumes
     Containers,
+    /// Remove contracts caches
     ContractsCache,
 }
 
