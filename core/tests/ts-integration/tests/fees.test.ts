@@ -18,6 +18,7 @@ import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { sendTransfers } from '../src/context-owner';
+import { Reporter } from '../src/reporter';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -68,12 +69,38 @@ testFees('Test fees', () => {
             alice._providerL1()
         );
 
+        const bridgehub = await mainWallet.getBridgehubContract();
+        const chainId = testMaster.environment().l2ChainId;
+        const baseTokenAddress = await bridgehub.baseToken(chainId);
+
         console.log(`Alice address ${alice.address}. Main wallet address: ${mainWallet.address}`);
-        await sendTransfers(
-            zksync.utils.ETH_ADDRESS,
-            mainWallet,
-            { alice: alice.privateKey },
-            ethers.parseEther('100')
+        console.log(
+            `Before deposit: Alice balance ${ethers.formatEther(
+                await alice.getBalance()
+            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
+        );
+        const depositTx = await mainWallet.deposit({
+            token: baseTokenAddress,
+            amount: ethers.parseEther('100'),
+            approveERC20: true,
+            approveBaseERC20: true
+        });
+        await depositTx.wait();
+        await Promise.all(
+            await sendTransfers(
+                zksync.utils.ETH_ADDRESS,
+                mainWallet,
+                { alice: alice.privateKey },
+                ethers.parseEther('100'),
+                undefined,
+                undefined,
+                new Reporter()
+            )
+        );
+        console.log(
+            `After deposit: Alice balance ${ethers.formatEther(
+                await alice.getBalance()
+            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
         );
     });
 
