@@ -11,7 +11,19 @@ export async function prover(options: string[]) {
     await db.resetTest({ core: false, prover: true });
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
 
-    let cmd = `cargo test --release --locked -- --test-threads=1 ${options.join(' ')}`;
+    let result = await utils.exec('cargo install --list');
+    let test_runner = 'cargo nextest run';
+
+    if (!result.stdout.includes('cargo-nextest')) {
+        console.warn(
+            chalk.bold.red(
+                `cargo-nextest is missing, please run "cargo install cargo-nextest". Falling back to "cargo test".`
+            )
+        );
+        test_runner = 'cargo test';
+    }
+
+    let cmd = `${test_runner} --release --locked -j 1 --${options.join(' ')}`;
     console.log(`running prover unit tests with '${cmd}'`);
     await utils.spawn(cmd);
 }
