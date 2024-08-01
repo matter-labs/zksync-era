@@ -67,15 +67,14 @@ testFees('Test fees', () => {
             alice._providerL2(),
             alice._providerL1()
         );
-        console.log(`Main wallet balance: ${await mainWallet.getBalance()}`);
 
         console.log(`Alice address ${alice.address}. Main wallet address: ${mainWallet.address}`);
-        // await sendTransfers(
-        //     zksync.utils.ETH_ADDRESS,
-        //     mainWallet,
-        //     { alice: alice.privateKey },
-        //     ethers.parseEther('100')
-        // );
+        await sendTransfers(
+            zksync.utils.ETH_ADDRESS,
+            mainWallet,
+            { alice: alice.privateKey },
+            ethers.parseEther('100')
+        );
     });
 
     afterAll(async () => {
