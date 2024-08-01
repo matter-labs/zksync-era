@@ -67,6 +67,8 @@ testFees('Test fees', () => {
             alice._providerL2(),
             alice._providerL1()
         );
+
+        console.log(`Alice address ${alice.address}. Main wallet address: ${mainWallet.address}`);
         await sendTransfers(
             zksync.utils.ETH_ADDRESS,
             mainWallet,
