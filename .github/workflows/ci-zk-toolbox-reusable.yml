@@ -80,13 +80,15 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default true \
           --ignore-prerequisites
+
           ci_run zk_inception chain init \
           --deploy-paymaster \
           --l1-rpc-url=http://reth:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --server-db-name=zksync_server_localhost_${{ matrix.deployment_mode }} \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --prover-db-name=zksync_prover_localhost_${{ matrix.deployment_mode }} \
+          --prover-db-name=zksync_prover_localhost_${{ matrix.deployment_mode }}
+          
           ci_run zk_inception update
 
       - name: Run server
