@@ -104,10 +104,6 @@ testFees('Test fees', () => {
         );
     });
 
-    afterAll(async () => {
-        await killServerAndWaitForShutdown(alice._providerL2());
-    });
-
     test('Test fees', async () => {
         const receiver = ethers.Wallet.createRandom().address;
 
@@ -191,7 +187,7 @@ testFees('Test fees', () => {
 
     test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
-        const l1GasPrice = 100_000_000_000n; /// set to 100 gwei
+        const l1GasPrice = 10_000_000_000n; /// set to 10 gwei
         await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
 
         const receipt = await (
@@ -202,7 +198,7 @@ testFees('Test fees', () => {
             })
         ).wait();
 
-        const expectedETHGasPrice = 100_000_000;
+        const expectedETHGasPrice = 100_000_000; /// 0.1 gwei (the minimum)
         const expectedCustomGasPrice = expectedETHGasPrice * 3.14;
 
         const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
