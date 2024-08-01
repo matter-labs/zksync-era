@@ -144,7 +144,6 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     testTokenOptions?: DeployTestTokensOptions;
     baseTokenName?: string;
     validiumMode?: boolean;
-    skipDbPreparation?: boolean;
     localLegacyBridgeTesting?: boolean;
     shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
