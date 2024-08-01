@@ -76,8 +76,8 @@ testFees('Test fees', () => {
     });
 
     afterAll(async () => {
-        await killServerAndWaitForShutdown(alice._providerL2())
-    })
+        await killServerAndWaitForShutdown(alice._providerL2());
+    });
 
     test('Test fees', async () => {
         const receiver = ethers.Wallet.createRandom().address;
