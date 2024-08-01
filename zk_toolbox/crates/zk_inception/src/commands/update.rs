@@ -1,11 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Ok};
-use common::{
-    git::{pull, submodule_update},
-    logger,
-    spinner::Spinner,
-};
+use common::{git, logger, spinner::Spinner};
 use config::{
     ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
     SECRETS_FILE,
@@ -17,7 +13,8 @@ use crate::messages::{
     msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
     MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
     MSG_DIFF_GENERAL_CONFIG, MSG_INVALID_KEY_TYPE_ERR, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-    MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+    MSG_UPDATING_ERA_OBSERVABILITY_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
+    MSG_ZKSYNC_UPDATED,
 };
 
 /// Holds the differences between two YAML configurations.
@@ -77,6 +74,13 @@ pub fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
         )?;
     }
 
+    let path_to_era_observability = shell.current_dir().join("era-observability");
+    if shell.path_exists(path_to_era_observability.clone()) {
+        let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
+        git::pull(shell, path_to_era_observability)?;
+        spinner.finish();
+    }
+
     logger::outro(MSG_ZKSYNC_UPDATED);
 
     Ok(())
@@ -86,10 +90,10 @@ fn update_repo(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()>
     let link_to_code = ecosystem.link_to_code.clone();
 
     let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
-    pull(shell, link_to_code.clone())?;
+    git::pull(shell, link_to_code.clone())?;
     spinner.finish();
     let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
-    submodule_update(shell, link_to_code.clone())?;
+    git::submodule_update(shell, link_to_code.clone())?;
     spinner.finish();
 
     Ok(())
