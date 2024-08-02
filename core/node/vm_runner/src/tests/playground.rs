@@ -2,7 +2,6 @@ use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
@@ -33,11 +32,9 @@ async fn run_playground(
         .unwrap();
     }
 
-    let mut batch_executor = MainBatchExecutor::new(false, false);
-    batch_executor.set_fast_vm_mode(FastVmMode::Shadow);
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
-        Box::new(batch_executor),
+        FastVmMode::Shadow,
         rocksdb_dir.path().to_str().unwrap().to_owned(),
         genesis_params.config().l2_chain_id,
         L1BatchNumber(0),
