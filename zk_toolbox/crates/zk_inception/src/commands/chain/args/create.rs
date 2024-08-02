@@ -1,5 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::{bail, Context};
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
@@ -12,15 +13,16 @@ use crate::{
     defaults::L2_CHAIN_ID,
     messages::{
         MSG_BASE_TOKEN_ADDRESS_HELP, MSG_BASE_TOKEN_ADDRESS_PROMPT,
-        MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT,
-        MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT,
-        MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP, MSG_CHAIN_ID_PROMPT,
-        MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
+        MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR, MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP,
+        MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT, MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP,
+        MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT, MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP,
+        MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
         MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
         MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
         MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
+        MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
+        MSG_WALLET_PATH_PROMPT,
     },
 };
 
@@ -69,7 +71,7 @@ impl ChainCreateArgs {
         self,
         number_of_chains: u32,
         l1_network: &L1Network,
-    ) -> ChainCreateArgsFinal {
+    ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
@@ -87,32 +89,39 @@ impl ChainCreateArgs {
                     .ask()
             });
 
-        // NOTE: should check if the option submitted is compatible with the network, but with the
-        // current function signature we can't return an error
-        let wallet_creation = self.wallet_creation.unwrap_or_else(|| {
+        let wallet_creation = if let Some(wallet) = self.wallet_creation {
+            if wallet == WalletCreation::Localhost && *l1_network != L1Network::Localhost {
+                bail!(MSG_WALLET_CREATION_VALIDATOR_ERR);
+            } else {
+                wallet
+            }
+        } else {
             PromptSelect::new(
                 MSG_WALLET_CREATION_PROMPT,
                 WalletCreation::iter().filter(|wallet| {
                     // Disable localhost wallets for external networks
-                    if l1_network == &L1Network::Localhost {
+                    if *l1_network == L1Network::Localhost {
                         true
                     } else {
-                        wallet != &WalletCreation::Localhost
+                        *wallet != WalletCreation::Localhost
                     }
                 }),
             )
             .ask()
-        });
+        };
 
         let prover_version = self.prover_mode.unwrap_or_else(|| {
             PromptSelect::new(MSG_PROVER_VERSION_PROMPT, ProverMode::iter()).ask()
         });
 
-        let l1_batch_commit_data_generator_mode = PromptSelect::new(
-            MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
-            L1BatchCommitmentModeInternal::iter(),
-        )
-        .ask();
+        let l1_batch_commit_data_generator_mode =
+            self.l1_batch_commit_data_generator_mode.unwrap_or_else(|| {
+                PromptSelect::new(
+                    MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
+                    L1BatchCommitmentModeInternal::iter(),
+                )
+                .ask()
+            });
 
         let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
             Some(self.wallet_path.unwrap_or_else(|| {
@@ -164,14 +173,12 @@ impl ChainCreateArgs {
                 }
             }
         } else {
-            let address = self
-                .base_token_address
-                .and_then(|s| {
-                    // NOTE: here would be better to return error, but the current function
-                    // signature does not allow that.
-                    H160::from_str(&s).ok()
-                })
-                .unwrap_or_else(|| Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask());
+            let address = if let Some(address) = self.base_token_address {
+                H160::from_str(&address).context(MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR)?
+            } else {
+                Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask()
+            };
+
             let nominator = self.base_token_price_nominator.unwrap_or_else(|| {
                 Prompt::new(MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT)
                     .validate_with(number_validator)
@@ -196,7 +203,7 @@ impl ChainCreateArgs {
                 .ask()
         });
 
-        ChainCreateArgsFinal {
+        Ok(ChainCreateArgsFinal {
             chain_name,
             chain_id,
             prover_version,
@@ -205,7 +212,7 @@ impl ChainCreateArgs {
             wallet_path,
             base_token,
             set_as_default,
-        }
+        })
     }
 }
 
@@ -238,7 +245,7 @@ impl FromStr for ChainId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         (s == "sequential")
-            .then(|| ChainId::Sequential)
+            .then_some(ChainId::Sequential)
             .or_else(|| s.parse::<u32>().ok().map(ChainId::Id))
             .ok_or_else(|| MSG_CHAIN_ID_VALIDATOR_ERR.to_string())
     }
