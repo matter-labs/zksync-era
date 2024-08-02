@@ -445,7 +445,8 @@ describe('Block reverting test', function () {
             values.lastExecutedL1BatchNumber.toString(),
             '--rollback-postgres',
             '--rollback-tree',
-            '--rollback-sk-cache'
+            '--rollback-sk-cache',
+            '--rollback-vm-runners-cache'
         ]);
 
         console.log('Start main node.');

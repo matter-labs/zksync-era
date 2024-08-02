@@ -237,7 +237,7 @@ describe('Block reverting test', function () {
 
         console.log('Rolling back DB..');
         await utils.spawn(
-            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache ${fileConfigFlags}`
+            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache --rollback-vm-runners-cache ${fileConfigFlags}`
         );
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
