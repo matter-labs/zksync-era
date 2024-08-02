@@ -88,8 +88,6 @@ jobs:
           --server-db-name=zksync_server_localhost_${{ matrix.deployment_mode }} \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_${{ matrix.deployment_mode }}
-          
-          ci_run zk_inception update
 
       - name: Run server
         run: |
