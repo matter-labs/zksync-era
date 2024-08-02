@@ -51,7 +51,7 @@ use zksync_web3_decl::{
             ErrorObjectOwned,
         },
     },
-    namespaces::{EnNamespaceClient, L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::*;

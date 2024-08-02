@@ -14,7 +14,7 @@ use crate::{
     sdk::{
         error::{ClientError, RpcError},
         types::FilterBuilder,
-        L2EthNamespaceClient,
+        EthNamespaceClient,
     },
 };
 

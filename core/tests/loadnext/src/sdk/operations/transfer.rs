@@ -8,7 +8,7 @@ use crate::sdk::{
     wallet::Wallet,
     web3::contract::Tokenize,
     zksync_types::{transaction_request::PaymasterParams, Execute, L2TxCommonData},
-    L2EthNamespaceClient, ZksNamespaceClient,
+    EthNamespaceClient, ZksNamespaceClient,
 };
 
 pub struct TransferBuilder<'a, S: EthereumSigner, P> {
@@ -24,7 +24,7 @@ pub struct TransferBuilder<'a, S: EthereumSigner, P> {
 impl<'a, S, P> TransferBuilder<'a, S, P>
 where
     S: EthereumSigner,
-    P: ZksNamespaceClient + L2EthNamespaceClient + Sync,
+    P: ZksNamespaceClient + EthNamespaceClient + Sync,
 {
     /// Initializes a transfer transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {

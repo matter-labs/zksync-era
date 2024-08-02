@@ -4,7 +4,7 @@ use zksync_types::{
 };
 
 use crate::sdk::{
-    error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, L2EthNamespaceClient,
+    error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, EthNamespaceClient,
     ZksNamespaceClient,
 };
 
@@ -22,7 +22,7 @@ pub struct ExecuteContractBuilder<'a, S: EthereumSigner, P> {
 impl<'a, S, P> ExecuteContractBuilder<'a, S, P>
 where
     S: EthereumSigner,
-    P: ZksNamespaceClient + L2EthNamespaceClient + Sync,
+    P: ZksNamespaceClient + EthNamespaceClient + Sync,
 {
     /// Initializes a change public key transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {

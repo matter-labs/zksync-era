@@ -10,7 +10,7 @@ use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    namespaces::{L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 #[cfg(test)]

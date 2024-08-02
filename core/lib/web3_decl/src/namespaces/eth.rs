@@ -25,7 +25,7 @@ use crate::{
     not(feature = "server"),
     rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
 )]
-pub trait L2EthNamespace {
+pub trait EthNamespace {
     #[method(name = "blockNumber")]
     async fn get_block_number(&self) -> RpcResult<U64>;
 

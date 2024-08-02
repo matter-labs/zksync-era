@@ -6,7 +6,7 @@ use crate::{
     account_pool::SyncWallet,
     all::AllWeighted,
     rng::{LoadtestRng, WeightedRandom},
-    sdk::L2EthNamespaceClient,
+    sdk::EthNamespaceClient,
 };
 
 /// Helper enum for generating random block number.

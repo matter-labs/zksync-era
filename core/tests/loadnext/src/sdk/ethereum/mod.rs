@@ -19,7 +19,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L1},
-    namespaces::{L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
 use crate::sdk::{
@@ -608,7 +608,7 @@ pub trait PriorityOpHolder {
     /// Returns the handle for the priority operation.
     fn priority_op_handle<'a, P>(&self, provider: &'a P) -> Option<SyncTransactionHandle<'a, P>>
     where
-        P: L2EthNamespaceClient + Sync,
+        P: EthNamespaceClient + Sync,
     {
         self.priority_op()
             .map(|op| SyncTransactionHandle::new(op.hash(), provider))

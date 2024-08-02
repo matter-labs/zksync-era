@@ -5,7 +5,7 @@ use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    namespaces::L2EthNamespaceClient,
+    namespaces::EthNamespaceClient,
 };
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
@@ -352,7 +352,7 @@ where
 #[async_trait::async_trait]
 impl<T> ZkSyncInterface for T
 where
-    T: L2EthNamespaceClient + fmt::Debug + Send + Sync,
+    T: EthNamespaceClient + fmt::Debug + Send + Sync,
 {
     async fn l2_fee_history(
         &self,

@@ -1,6 +1,6 @@
 pub use zksync_types::{self, ethabi, web3};
 pub use zksync_web3_decl::{
-    namespaces::{L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types,
 };
 

@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    namespaces::{EnNamespaceClient, L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 /// Client abstracting connection to the main node.

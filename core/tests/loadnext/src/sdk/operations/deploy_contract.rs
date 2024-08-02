@@ -3,7 +3,7 @@ use zksync_types::{
     l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_web3_decl::namespaces::L2EthNamespaceClient;
+use zksync_web3_decl::namespaces::EthNamespaceClient;
 
 use crate::sdk::{
     error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, zksync_types::fee::Fee,
@@ -24,7 +24,7 @@ pub struct DeployContractBuilder<'a, S: EthereumSigner, P> {
 impl<'a, S, P> DeployContractBuilder<'a, S, P>
 where
     S: EthereumSigner,
-    P: ZksNamespaceClient + L2EthNamespaceClient + Sync,
+    P: ZksNamespaceClient + EthNamespaceClient + Sync,
 {
     /// Initializes a change public key transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {

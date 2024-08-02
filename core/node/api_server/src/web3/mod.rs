@@ -23,7 +23,7 @@ use zksync_web3_decl::{
         MethodCallback, Methods, RpcModule,
     },
     namespaces::{
-        DebugNamespaceServer, EnNamespaceServer, EthPubSubServer, L2EthNamespaceServer,
+        DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, EthPubSubServer,
         NetNamespaceServer, SnapshotsNamespaceServer, UnstableNamespaceServer, Web3NamespaceServer,
         ZksNamespaceServer,
     },

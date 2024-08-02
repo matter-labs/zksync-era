@@ -187,7 +187,7 @@ mod tests {
     use super::*;
     use crate::{
         client::{MockClient, L2},
-        namespaces::L2EthNamespaceClient,
+        namespaces::EthNamespaceClient,
     };
 
     #[tokio::test]

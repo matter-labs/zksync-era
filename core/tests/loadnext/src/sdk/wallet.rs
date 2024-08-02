@@ -9,9 +9,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     client::{Client, L2},
-    namespaces::{
-        L2EthNamespaceClient, NetNamespaceClient, Web3NamespaceClient, ZksNamespaceClient,
-    },
+    namespaces::{EthNamespaceClient, NetNamespaceClient, Web3NamespaceClient, ZksNamespaceClient},
 };
 
 use crate::sdk::{
@@ -59,7 +57,7 @@ where
 impl<S, P> Wallet<S, P>
 where
     S: EthereumSigner,
-    P: L2EthNamespaceClient + ZksNamespaceClient + NetNamespaceClient + Web3NamespaceClient + Sync,
+    P: EthNamespaceClient + ZksNamespaceClient + NetNamespaceClient + Web3NamespaceClient + Sync,
 {
     pub fn new(provider: P, signer: Signer<S>) -> Self {
         Self { provider, signer }

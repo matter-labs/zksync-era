@@ -19,7 +19,7 @@ use zksync_web3_decl::{
         },
         rpc_params,
     },
-    namespaces::{L2EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::{BlockHeader, Bytes, PubSubFilter},
 };
 
