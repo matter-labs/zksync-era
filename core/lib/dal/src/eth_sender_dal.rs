@@ -199,7 +199,6 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: u32,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
     ) -> sqlx::Result<EthTx> {
@@ -213,14 +212,13 @@ impl EthSenderDal<'_, '_> {
                     nonce,
                     tx_type,
                     contract_address,
-                    predicted_gas_cost,
                     created_at,
                     updated_at,
                     from_addr,
                     blob_sidecar
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
+                ($1, $2, $3, $4, NOW(), NOW(), $5, $6)
             RETURNING
                 *
             "#,
@@ -228,7 +226,6 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            i64::from(predicted_gas_cost),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
@@ -440,8 +437,8 @@ impl EthSenderDal<'_, '_> {
 
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
-                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, '', now(), now()) \
                 RETURNING id",
                 tx_type.to_string()
             )
