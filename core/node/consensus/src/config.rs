@@ -147,6 +147,5 @@ pub(super) fn executor(
         rpc,
         // TODO: Add to configuration
         debug_page: None,
-        batch_poll_interval: time::Duration::seconds(1),
     })
 }
