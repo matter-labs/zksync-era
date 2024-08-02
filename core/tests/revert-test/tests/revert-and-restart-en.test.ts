@@ -180,7 +180,7 @@ class MainNode {
             replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
         }
 
-        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
         if (enableConsensus) {
             components += ',consensus';
         }
