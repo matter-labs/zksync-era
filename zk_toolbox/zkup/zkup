@@ -5,14 +5,13 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
 ZKT_BIN_DIR="$ZKT_DIR/bin"
 
-ZKUP_JOBS=""
-
 BINS=(zk_inception zk_supervisor)
 
 export RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}"
 
 main() {
   check_prerequisites
+  parse_args "$@"
 }
 
 PREREQUISITES=(cargo git curl)
@@ -32,6 +31,39 @@ check_prerequisites() {
 
 check_prerequisite() {
   command -v "$1" &>/dev/null
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+    --)               shift; break;;
+
+    -r | --repo)      shift; ZKUP_REPO=$1;;
+    -b | --branch)    shift; ZKUP_BRANCH=$1;;
+    -c | --commit)    shift; ZKUP_COMMIT=$1;;
+    -p | --path)      shift; ZKUP_LOCAL_REPO=$1;;
+    -v | --version)   shift; ZKUP_VERSION=$1;;
+    -a | --arch)      shift; ZKUP_ARCH=$1;;
+    -P | --platform)  shift; ZKUP_PLATFORM=$1;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      usage
+      exit 1
+      ;;
+    esac
+    shift
+  done
+}
+
+usage() {
+  cat 1>&2 <<EOF
+zkup - zkup installer
+Usage placeholder
+EOF
 }
 
 main "$@"
