@@ -104,7 +104,6 @@ impl BasicWitnessGenerator {
         }
     }
 
-    /// Although this function is asynchronous, it contains blocking code, so it should only be called from the `spawn_blocking` context.
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
         basic_job: BasicWitnessGeneratorJob,
@@ -190,13 +189,13 @@ impl JobProcessor for BasicWitnessGenerator {
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
-        let current_handle = tokio::runtime::Handle::current();
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn(async move {
             let block_number = job.block_number;
-            Ok(current_handle.block_on(
+            Ok(
                 Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number)),
-            ))
+                    .instrument(tracing::info_span!("basic_circuit", %block_number))
+                    .await,
+            )
         })
     }
 

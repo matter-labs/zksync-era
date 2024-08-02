@@ -91,7 +91,6 @@ impl NodeAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
     )]
-    /// Although this function is asynchronous, it contains blocking code, so it should only be called from the `spawn_blocking` context.
     pub async fn process_job_impl(
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
@@ -275,15 +274,9 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
         let object_store = self.object_store.clone();
-        let current_handle = tokio::runtime::Handle::current();
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
-        tokio::task::spawn_blocking(move || {
-            Ok(current_handle.block_on(Self::process_job_impl(
-                job,
-                started_at,
-                object_store,
-                max_circuits_in_flight,
-            )))
+        tokio::task::spawn(async move {
+            Ok(Self::process_job_impl(job, started_at, object_store, max_circuits_in_flight).await)
         })
     }
 
