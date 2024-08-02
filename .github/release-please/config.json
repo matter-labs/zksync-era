@@ -5,9 +5,6 @@
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "include-component-in-tag": true,
-  "plugins": [
-    "cargo-workspace"
-  ],
   "packages": {
     "core": {
       "release-type": "simple",
@@ -25,7 +22,10 @@
     },
     "zk_toolbox": {
       "release-type": "rust",
-      "component": "zk_toolbox"
+      "component": "zk_toolbox",
+      "plugins": [
+        "cargo-workspace"
+      ]
     }
   }
 }
