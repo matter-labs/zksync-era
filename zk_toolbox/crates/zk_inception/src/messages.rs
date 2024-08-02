@@ -133,6 +133,7 @@ pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
 pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
 pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
+pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";

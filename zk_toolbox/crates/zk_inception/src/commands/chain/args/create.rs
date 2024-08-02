@@ -15,12 +15,12 @@ use crate::{
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP, MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT,
         MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP, MSG_CHAIN_ID_PROMPT,
-        MSG_CHAIN_NAME_PROMPT, MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
-        MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
-        MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
-        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
-        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
-        MSG_WALLET_PATH_PROMPT,
+        MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
+        MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
+        MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
+        MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
+        MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
+        MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
 };
 
@@ -45,7 +45,7 @@ pub struct ChainCreateArgs {
     #[arg(long)]
     chain_name: Option<String>,
     #[clap(long, help = MSG_CHAIN_ID_HELP)]
-    chain_id: Option<u32>,
+    chain_id: Option<ChainId>,
     #[clap(long, help = MSG_PROVER_MODE_HELP, value_enum)]
     prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
@@ -77,10 +77,9 @@ impl ChainCreateArgs {
 
         let chain_id = self
             .chain_id
-            .map(|v| {
-                (v == 0)
-                    .then(|| L2_CHAIN_ID + number_of_chains)
-                    .unwrap_or(v)
+            .map(|v| match v {
+                ChainId::Sequential => L2_CHAIN_ID + number_of_chains,
+                ChainId::Id(v) => v,
             })
             .unwrap_or_else(|| {
                 Prompt::new(MSG_CHAIN_ID_PROMPT)
@@ -129,6 +128,16 @@ impl ChainCreateArgs {
             None
         };
 
+        let number_validator = |val: &String| -> Result<(), String> {
+            let Ok(val) = val.parse::<u64>() else {
+                return Err(MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR.to_string());
+            };
+            if val == 0 {
+                return Err(MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR.to_string());
+            }
+            Ok(())
+        };
+
         let base_token = if self.base_token_address.is_none()
             && self.base_token_price_denominator.is_none()
             && self.base_token_price_nominator.is_none()
@@ -157,12 +166,11 @@ impl ChainCreateArgs {
         } else {
             let address = self
                 .base_token_address
-                .map(|s| {
+                .and_then(|s| {
                     // NOTE: here would be better to return error, but the current function
                     // signature does not allow that.
                     H160::from_str(&s).ok()
                 })
-                .flatten()
                 .unwrap_or_else(|| Prompt::new(MSG_BASE_TOKEN_ADDRESS_PROMPT).ask());
             let nominator = self.base_token_price_nominator.unwrap_or_else(|| {
                 Prompt::new(MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT)
@@ -219,12 +227,19 @@ enum BaseTokenSelection {
     Custom,
 }
 
-fn number_validator(val: &String) -> Result<(), String> {
-    let Ok(val) = val.parse::<u64>() else {
-        return Err(MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR.to_string());
-    };
-    if val == 0 {
-        return Err(MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR.to_string());
+#[derive(Clone, Debug, Serialize, Deserialize)]
+enum ChainId {
+    Sequential,
+    Id(u32),
+}
+
+impl FromStr for ChainId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        (s == "sequential")
+            .then(|| ChainId::Sequential)
+            .or_else(|| s.parse::<u32>().ok().map(ChainId::Id))
+            .ok_or_else(|| MSG_CHAIN_ID_VALIDATOR_ERR.to_string())
     }
-    Ok(())
 }

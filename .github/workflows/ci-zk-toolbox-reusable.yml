@@ -108,7 +108,7 @@ jobs:
         run: |
           ci_run zk_inception chain create \
           --chain-name chain_rollup \
-          --chain-id 0 \
+          --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode  rollup \
