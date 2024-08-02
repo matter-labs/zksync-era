@@ -342,9 +342,13 @@ protective_reads_writer:
   first_processed_batch: 0
 
 basic_witness_input_producer:
-    db_path: "./db/main/basic_witness_input_producer"
-    window_size: 3
-    first_processed_batch: 0
+  db_path: "./db/main/basic_witness_input_producer"
+  window_size: 3
+  first_processed_batch: 0
+
+vm_playground:
+  db_path: "./db/main/vm_playground"
+  fast_vm_mode: SHADOW
 
 snapshot_recovery:
   enabled: false
