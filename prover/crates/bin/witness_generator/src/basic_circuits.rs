@@ -195,8 +195,7 @@ impl JobProcessor for BasicWitnessGenerator {
             Ok(current_handle.block_on(
                 Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
                     .instrument(tracing::info_span!("basic_circuit", %block_number)),
-                )
-            )
+            ))
         })
     }
 
