@@ -11,6 +11,7 @@ use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_gener
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -35,7 +36,6 @@ mod utils;
 
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]

@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Write as _},
+    sync::Arc,
 };
 
 use circuit_definitions::circuit_definitions::{
@@ -124,7 +125,7 @@ pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
-    object_store: &dyn ObjectStore,
+    object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {

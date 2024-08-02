@@ -10,6 +10,7 @@ use zksync_consensus_roles::{
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
+use zksync_dal::consensus_dal::AttestationStatus;
 use zksync_node_sync::MainNodeClient;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
@@ -615,8 +616,16 @@ async fn test_with_pruning(version: ProtocolVersionId) {
             .wait_for_batch(ctx, validator.last_sealed_batch())
             .await?;
 
+        // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
+        // does not look for where the last prune happened at, and thus if we prune the block genesis
+        // points at, we might never be able to start the Executor.
+        tracing::info!("Wait until the external node has all the batches we want to prune");
+        node_pool
+            .wait_for_batch(ctx, to_prune.next())
+            .await
+            .context("wait_for_batch()")?;
         tracing::info!("Prune some blocks and sync more");
-        validator_pool
+        node_pool
             .prune_batches(ctx, to_prune)
             .await
             .context("prune_batches")?;
@@ -675,45 +684,70 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
 async fn test_attestation_status_api(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+
     scope::run!(ctx, |ctx, s| async {
-        let validator_pool = ConnectionPool::test(false, version).await;
-        let (mut validator, runner) =
-            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
+        let pool = ConnectionPool::test(false, version).await;
+        let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
-        // API server needs at least 1 L1 batch to start.
-        validator.seal_batch().await;
-        let api = validator.connect(ctx).await?;
+        // Setup nontrivial genesis.
+        while sk.last_sealed_batch() < L1BatchNumber(3) {
+            sk.push_random_blocks(rng, 10).await;
+        }
+        let mut setup = SetupSpec::new(rng, 3);
+        setup.first_block = sk.last_block();
+        let first_batch = sk.last_batch();
+        let setup = Setup::from(setup);
+        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
+        conn.try_update_genesis(ctx, &setup.genesis)
+            .await
+            .wrap("try_update_genesis()")?;
+        // Make sure that the first_batch is actually sealed.
+        sk.seal_batch().await;
+        pool.wait_for_batch(ctx, first_batch).await?;
+
+        // Connect to API endpoint.
+        let api = sk.connect(ctx).await?;
+        let fetch_status = || async {
+            let s = api
+                .fetch_attestation_status()
+                .await?
+                .context("no attestation_status")?;
+            let s: AttestationStatus =
+                zksync_protobuf::serde::deserialize(&s.0).context("deserialize()")?;
+            anyhow::ensure!(s.genesis == setup.genesis.hash(), "genesis hash mismatch");
+            Ok(s)
+        };
 
         // If the main node has no L1 batch certificates,
-        // the first one to sign should be `last_sealed_batch`.
-        validator_pool
-            .wait_for_batch(ctx, validator.last_sealed_batch())
-            .await?;
-        let status = api.fetch_attestation_status().await?;
-        assert_eq!(status.next_batch_to_attest, validator.last_sealed_batch());
+        // then the first one to sign should be the batch with the `genesis.first_block`.
+        let status = fetch_status().await?;
+        assert_eq!(
+            status.next_batch_to_attest,
+            attester::BatchNumber(first_batch.0.into())
+        );
 
-        // Insert a cert, then check again.
-        validator_pool
-            .wait_for_batch(ctx, status.next_batch_to_attest)
-            .await?;
+        // Insert a (fake) cert, then check again.
         {
-            let mut conn = validator_pool.connection(ctx).await?;
-            let number = attester::BatchNumber(status.next_batch_to_attest.0.into());
+            let mut conn = pool.connection(ctx).await?;
+            let number = status.next_batch_to_attest;
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let genesis = conn.genesis(ctx).await?.unwrap().hash();
             let cert = attester::BatchQC {
                 signatures: attester::MultiSig::default(),
-                message: attester::Batch { number, hash },
+                message: attester::Batch {
+                    number,
+                    hash,
+                    genesis,
+                },
             };
             conn.insert_batch_certificate(ctx, &cert)
                 .await
                 .context("insert_batch_certificate()")?;
         }
-        let want = status.next_batch_to_attest + 1;
-        let got = api
-            .fetch_attestation_status()
-            .await
-            .context("fetch_attestation_status()")?;
+        let want = status.next_batch_to_attest.next();
+        let got = fetch_status().await?;
         assert_eq!(want, got.next_batch_to_attest);
 
         Ok(())

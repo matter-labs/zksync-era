@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 
 /// Marker trait for networks. Two standard network kinds are [`L1`] and [`L2`].
 ///
@@ -12,9 +12,10 @@ pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
     fn metric_label(&self) -> String;
 }
 
-/// L1 (i.e., Ethereum) network.
+/// L1-compatible (e.g., Ethereum) network.
+/// Note, that this network does not have to be an L1. It can be any network that is compatible with Ethereum JSON-RPC.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct L1(Option<L1ChainId>);
+pub struct L1(Option<SLChainId>);
 
 impl Network for L1 {
     fn metric_label(&self) -> String {
@@ -26,8 +27,8 @@ impl Network for L1 {
     }
 }
 
-impl From<L1ChainId> for L1 {
-    fn from(chain_id: L1ChainId) -> Self {
+impl From<SLChainId> for L1 {
+    fn from(chain_id: SLChainId) -> Self {
         Self(Some(chain_id))
     }
 }

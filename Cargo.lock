@@ -4160,6 +4160,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry-appender-tracing"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b84de945cb3a6f1e0d6317cbd998bbd0519ab00f4b790db67e0ff4fdcf7cedb6"
+dependencies = [
+ "opentelemetry",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opentelemetry-http"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8158,9 +8170,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50302b77192891256d180ff2551dc0c3bc4144958b49e9a16c50a0dc218958ba"
+checksum = "4cf1d63d29e467457781bc08763c0348ab86c7a14713df7af5e6cc3ba88632c3"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8193,9 +8205,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2325c7486a8280db1c26c10020350bead6eecb3de03f8bbfd878060f000cdce7"
+checksum = "5e8b6a76b90b909d9fec814ff980e03ea6179139821bd6edc3df3e1b08d8e765"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8215,9 +8227,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5cb8ed0d59593f6147085b77142628e459ba673aa4d48fce064d5b96e31eb36"
+checksum = "037bdb8bf5543676306b2faaa6dc60197a3f9335bbd1af1765d0eae4312ed427"
 dependencies = [
  "anyhow",
  "blst",
@@ -8239,11 +8251,12 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "247b70ec255781b3b740acb744236e771a192922ffbaa52c462b84c4ea67609f"
+checksum = "5fe50d7722e70f0ab5ca5af55a749b3c7f1207ce6e0320239699ff3384593690"
 dependencies = [
  "anyhow",
+ "async-trait",
  "rand 0.8.5",
  "tracing",
  "vise",
@@ -8259,9 +8272,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f10626b79885a9b096cd19ee83d85ef9b0554f061a9db6946f2b7c9d1b2f49ea"
+checksum = "6f89466c9523fcd1146d93a0d0b10d46b0388466c42bf4f18ca99a22ddcbe04b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8294,9 +8307,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ffe3e47d99eb943eb94f2f5c9d929b1192bf3e8d1434de0fa6f0090f9c1197e"
+checksum = "5ade360294fd4b8191adb24b034c9dd87742c70d1859a2a405d24f1d1fb5ecaf"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8316,9 +8329,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9ae9a0ec64ce9c0af346e50cc87dc257c30259101ce9675b408cb883e096087"
+checksum = "632a5a54e7359ff29ca34185859c766dab2d531e01f583d0b1bff343249254ef"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8336,9 +8349,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24dc6135abeefa80f617eb2903fe43d137d362bf673f0651b4894b17069d1fb1"
+checksum = "d12966b4cfa166abbc1d702640cefea59fa15f8509e2c959f06e2cfde97ef429"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8625,6 +8638,7 @@ dependencies = [
  "chrono",
  "once_cell",
  "test-casing",
+ "test-log",
  "thiserror",
  "tokio",
  "tracing",
@@ -8675,7 +8689,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.12.0"
+version = "24.13.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9275,9 +9289,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1e7c7820f290db565a1b4ff73aa1175cd7d31498fca8d859eb5aceebd33468c"
+checksum = "1eba9cb290dbef9542175ed5da58da349d9eb0efb4a2d41942e530e7c775a81b"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9296,9 +9310,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6cafeec1150ae91f1a37c8f0dce6b71b92b93e0c4153d32b4c37e2fd71bce2f"
+checksum = "6d02f1226c102c9ec0745fd65e51f0fc388ef8f20c7df192167462bad0524d2f"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -9322,6 +9336,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
@@ -9704,6 +9719,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "opentelemetry",
+ "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",

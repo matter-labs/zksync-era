@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_types::{url::SensitiveUrl, L1ChainId};
+use zksync_types::{url::SensitiveUrl, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
@@ -10,12 +10,12 @@ use crate::{
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
 pub struct QueryEthClientLayer {
-    chain_id: L1ChainId,
+    chain_id: SLChainId,
     web3_url: SensitiveUrl,
 }
 
 impl QueryEthClientLayer {
-    pub fn new(chain_id: L1ChainId, web3_url: SensitiveUrl) -> Self {
+    pub fn new(chain_id: SLChainId, web3_url: SensitiveUrl) -> Self {
         Self { chain_id, web3_url }
     }
 }
