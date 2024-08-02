@@ -91,6 +91,7 @@ impl NodeAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
     )]
+    /// Although this function is asynchronous, it contains blocking code, so it should only be called from the `spawn_blocking` context.
     pub async fn process_job_impl(
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,

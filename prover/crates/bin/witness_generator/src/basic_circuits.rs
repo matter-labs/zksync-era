@@ -104,6 +104,7 @@ impl BasicWitnessGenerator {
         }
     }
 
+    /// Although this function is asynchronous, it contains blocking code, so it should only be called from the `spawn_blocking` context.
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
         basic_job: BasicWitnessGeneratorJob,

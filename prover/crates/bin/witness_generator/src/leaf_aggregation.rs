@@ -93,6 +93,7 @@ impl LeafAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %leaf_job.block_number, circuit_id = %leaf_job.circuit_id)
     )]
+    /// Although this function is asynchronous, it contains blocking code, so it should only be called from the `spawn_blocking` context.
     pub async fn process_job_impl(
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
