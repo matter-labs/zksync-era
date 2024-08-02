@@ -673,7 +673,6 @@ impl<Net: SupportedMockEthNetwork> BoundEthInterface<Net> for MockSettlementLaye
 mod tests {
     use assert_matches::assert_matches;
     use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId};
-    use zksync_web3_decl::namespaces::EthNamespaceClient;
 
     use super::*;
     use crate::{CallFunctionArgs, EthInterface, ZkSyncInterface};
@@ -742,7 +741,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[1..=4]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(BaseFees::from)
                 .collect::<Vec<_>>()
@@ -751,7 +750,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[1..=2]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(BaseFees::from)
                 .collect::<Vec<_>>()
@@ -760,7 +759,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[2..=3]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(BaseFees::from)
                 .collect::<Vec<_>>()
@@ -785,7 +784,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[1..=4]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(L2Fees::from)
                 .collect::<Vec<_>>()
@@ -794,7 +793,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[1..=2]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(L2Fees::from)
                 .collect::<Vec<_>>()
@@ -803,7 +802,7 @@ mod tests {
         assert_eq!(
             fee_history,
             initial_fee_history[2..=3]
-                .into_iter()
+                .iter()
                 .cloned()
                 .map(L2Fees::from)
                 .collect::<Vec<_>>()
