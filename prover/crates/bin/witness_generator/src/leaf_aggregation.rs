@@ -156,12 +156,13 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
         let object_store = self.object_store.clone();
         let current_handle = tokio::runtime::Handle::current();
+        let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::task::spawn_blocking(move || {
             Ok(current_handle.block_on(Self::process_job_impl(
                 job,
                 started_at,
                 object_store,
-                self.config.max_circuits_in_flight,
+                max_circuits_in_flight,
             )))
         })
     }
