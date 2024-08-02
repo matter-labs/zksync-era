@@ -31,20 +31,11 @@ impl QueryEthClientLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
 pub struct Output {
-    query_client_l1: Client<L1>,
-    query_client_l2: Option<Client<L2>>,
-}
-
-impl IntoContext for Output {
-    fn into_context(self, context: &mut ServiceContext<'_>) -> Result<(), WiringError> {
-        context.insert_resource(EthInterfaceResource(Box::new(self.query_client_l1)))?;
-        if let Some(query_client_l2) = self.query_client_l2 {
-            context.insert_resource(L2InterfaceResource(Box::new(query_client_l2)))?;
-        }
-        Ok(())
-    }
+    query_client_l1: EthInterfaceResource,
+    query_client_l2: Option<L2InterfaceResource>,
 }
 
 #[async_trait::async_trait]
@@ -59,17 +50,19 @@ impl WiringLayer for QueryEthClientLayer {
     async fn wire(self, _input: Self::Input) -> Result<Output, WiringError> {
         // Both the L1 and L2 client have the same URL, but provide different type guarantees.
         Ok(Output {
-            query_client_l1: Client::http(self.web3_url.clone())
-                .context("Client::new()")?
-                .for_network(self.chain_id.into())
-                .build(),
+            query_client_l1: EthInterfaceResource(Box::new(
+                Client::http(self.web3_url.clone())
+                    .context("Client::new()")?
+                    .for_network(self.chain_id.into())
+                    .build(),
+            )),
             query_client_l2: if self.settlement_mode.is_gateway() {
-                Some(
+                Some(L2InterfaceResource(Box::new(
                     Client::http(self.web3_url.clone())
                         .context("Client::new()")?
                         .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
                         .build(),
-                )
+                )))
             } else {
                 None
             },
