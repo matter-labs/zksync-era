@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
+ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
+ZKT_BIN_DIR="$ZKT_DIR/bin"
+
+ZKUP_JOBS=""
+
+BINS=(zk_inception zk_supervisor)
+
+export RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}"
+
+main() {
+  check_prerequisites
+}
+
+PREREQUISITES=(cargo git curl)
+
+check_prerequisites() {
+  failed_prerequisites=()
+  for prerequisite in "${PREREQUISITES[@]}"; do
+    if ! check_prerequisite "$prerequisite"; then
+      failed_prerequisites+=("$prerequisite")
+    fi
+  done
+  if [ ${#failed_prerequisites[@]} -gt 0 ]; then
+    echo "The following prerequisites are missing: ${failed_prerequisites[*]}"
+    exit 1
+  fi
+}
+
+check_prerequisite() {
+  command -v "$1" &>/dev/null
+}
+
+main "$@"
