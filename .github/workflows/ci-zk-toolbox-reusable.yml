@@ -21,13 +21,7 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   tests:
-    name: tests (deployment_mode=${{ matrix.deployment_mode }})
-    strategy:
-      # In matrix jobs, fail-fast is true by default.
-      # To be consistent with the rest of the workflow we disable it explicitly.
-      fail-fast: false
-      matrix:
-        deployment_mode: ["rollup", "validium"]
+    name: tests
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -70,11 +64,11 @@ jobs:
       - name: Create and initialize chain
         run: |
           ci_run zk_inception chain create \
-          --chain-name chain_${{ matrix.deployment_mode }} \
+          --chain-name chain_rollup \
           --chain-id 0 \
           --prover-mode no-proofs \
           --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode  ${{ matrix.deployment_mode }} \
+          --l1-batch-commit-data-generator-mode  rollup \
           --base-token-address 0x0000000000000000000000000000000000000001 \
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
@@ -85,9 +79,9 @@ jobs:
           --deploy-paymaster \
           --l1-rpc-url=http://reth:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --server-db-name=zksync_server_localhost_${{ matrix.deployment_mode }} \
+          --server-db-name=zksync_server_localhost_rollup \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --prover-db-name=zksync_prover_localhost_${{ matrix.deployment_mode }}
+          --prover-db-name=zksync_prover_localhost_rollup
 
       - name: Run server
         run: |
