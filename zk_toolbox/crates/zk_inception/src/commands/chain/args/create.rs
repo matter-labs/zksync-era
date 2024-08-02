@@ -79,18 +79,20 @@ impl ChainCreateArgs {
                 .ask()
         });
 
-        let wallet_creation = PromptSelect::new(
-            MSG_WALLET_CREATION_PROMPT,
-            WalletCreation::iter().filter(|wallet| {
-                // Disable localhost wallets for external networks
-                if l1_network == &L1Network::Localhost {
-                    true
-                } else {
-                    wallet != &WalletCreation::Localhost
-                }
-            }),
-        )
-        .ask();
+        let wallet_creation = self.wallet_creation.unwrap_or_else(|| {
+            PromptSelect::new(
+                MSG_WALLET_CREATION_PROMPT,
+                WalletCreation::iter().filter(|wallet| {
+                    // Disable localhost wallets for external networks
+                    if l1_network == &L1Network::Localhost {
+                        true
+                    } else {
+                        wallet != &WalletCreation::Localhost
+                    }
+                }),
+            )
+            .ask()
+        });
 
         let prover_version = PromptSelect::new(MSG_PROVER_VERSION_PROMPT, ProverMode::iter()).ask();
 
@@ -100,7 +102,7 @@ impl ChainCreateArgs {
         )
         .ask();
 
-        let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
+        let wallet_path: Option<PathBuf> = if wallet_creation == WalletCreation::InFile {
             Some(self.wallet_path.unwrap_or_else(|| {
                 Prompt::new(MSG_WALLET_PATH_PROMPT)
                     .validate_with(|val: &String| {
