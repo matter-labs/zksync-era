@@ -541,6 +541,10 @@ export class TestContextOwner {
         this.reporter.finishAction();
     }
 
+    /**
+     * Waits until the VM playground processes all L1 batches. If the playground runs the new VM in the shadow mode, this means
+     * that there are no divergence in old and new VM execution. Outputs a warning if the VM playground isn't run or runs not in the shadow mode.
+     */
     private async waitForVmPlayground() {
         while (true) {
             const lastProcessedBatch = await this.lastPlaygroundBatch();
@@ -558,6 +562,10 @@ export class TestContextOwner {
         }
     }
 
+    /**
+     * Returns the number of the last L1 batch processed by the VM playground, taking it from the node health endpoint.
+     * Returns `undefined` if the VM playground isn't run or doesn't have the shadow mode.
+     */
     private async lastPlaygroundBatch() {
         interface VmPlaygroundHealth {
             readonly status: string;
@@ -599,6 +607,9 @@ export class TestContextOwner {
         this.reporter = new Reporter();
         try {
             if (this.env.nodeMode == NodeMode.Main && this.env.network === 'localhost') {
+                // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
+                // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
+                // processes all batches on the node.
                 this.reporter.startAction('Waiting for VM playground to catch up');
                 await this.waitForVmPlayground();
                 this.reporter.finishAction();
