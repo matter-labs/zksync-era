@@ -30,7 +30,7 @@ types = { path = "crates/types" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_protobuf = "=0.1.0-rc.5"
+zksync_protobuf = "=0.1.0-rc.6"
 
 # External dependencies
 anyhow = "1.0.82"
