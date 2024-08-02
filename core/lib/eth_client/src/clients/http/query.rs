@@ -3,12 +3,12 @@ use std::fmt;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
-use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
-
-use super::{
-    decl::{L1EthNamespaceClient, L2EthNamespaceClient},
-    Method, COUNTERS, LATENCIES,
+use zksync_web3_decl::{
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
+    namespaces::L2EthNamespaceClient,
 };
+
+use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
     BaseFees, EthInterface, L2Fees, RawTransactionBytes, ZkSyncInterface,
@@ -374,8 +374,8 @@ where
             let fee_history = self
                 .fee_history(
                     U64::from(chunk_size),
-                    web3::BlockNumber::from(chunk_end),
-                    None,
+                    zksync_types::api::BlockNumber::from(chunk_end),
+                    vec![],
                 )
                 .rpc_context("fee_history")
                 .with_arg("chunk_size", &chunk_size)

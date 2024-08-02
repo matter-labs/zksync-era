@@ -467,12 +467,12 @@ impl SupportedMockEthNetwork for L1 {
 
 impl SupportedMockEthNetwork for L2 {
     fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
-        const CHAIN_ID: L2ChainId = L2ChainId(9);
+        let chain_id: L2ChainId = 9u64.try_into().unwrap();
 
         let base_fee_history = builder.base_fee_history.clone();
 
         builder
-            .build_client_inner(CHAIN_ID.0, CHAIN_ID.into())
+            .build_client_inner(chain_id.as_u64(), chain_id.into())
             .method(
                 "eth_feeHistory",
                 move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {

@@ -77,7 +77,7 @@ impl Tester {
             num_samples_for_blob_base_fee_estimate: 10,
             internal_pubdata_pricing_multiplier: 1.0,
             max_blob_base_fee: None,
-            l2_mode: None,
+            settlement_mode: Default::default(),
         };
 
         GasAdjuster::new(

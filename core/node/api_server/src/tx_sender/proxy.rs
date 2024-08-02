@@ -16,7 +16,7 @@ use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Non
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
-    namespaces::EthNamespaceClient,
+    namespaces::L2EthNamespaceClient,
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};

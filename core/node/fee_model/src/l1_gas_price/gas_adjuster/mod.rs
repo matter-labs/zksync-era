@@ -138,7 +138,7 @@ impl GasAdjuster {
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
         // A runtime check to ensure consistent config.
-        if config.l2_mode.unwrap_or_default() {
+        if config.settlement_mode.is_gateway() {
             assert!(client.is_l2(), "Must be L2 client in L2 mode");
 
             assert!(

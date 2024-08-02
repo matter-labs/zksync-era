@@ -13,7 +13,7 @@ pub use self::{
     transfer::{create_transfer_calldata, TransferBuilder},
     withdraw::WithdrawBuilder,
 };
-use crate::sdk::{error::ClientError, EthNamespaceClient};
+use crate::sdk::{error::ClientError, L2EthNamespaceClient};
 
 mod deploy_contract;
 mod execute_contract;
@@ -37,7 +37,7 @@ pub struct SyncTransactionHandle<'a, P> {
 
 impl<'a, P> SyncTransactionHandle<'a, P>
 where
-    P: EthNamespaceClient + Sync,
+    P: L2EthNamespaceClient + Sync,
 {
     pub fn new(hash: H256, provider: &'a P) -> Self {
         Self {

@@ -9,14 +9,14 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
-    namespaces::EthNamespaceServer,
+    namespaces::L2EthNamespaceServer,
     types::{Filter, FilterChanges},
 };
 
 use crate::web3::EthNamespace;
 
 #[async_trait]
-impl EthNamespaceServer for EthNamespace {
+impl L2EthNamespaceServer for EthNamespace {
     async fn get_block_number(&self) -> RpcResult<U64> {
         self.get_block_number_impl()
             .await

@@ -177,7 +177,7 @@ impl ProtoRepr for proto::GasAdjuster {
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
             // TODO(EVM-676): support this field
-            l2_mode: None,
+            settlement_mode: Default::default(),
         })
     }
 

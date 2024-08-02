@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_types::{url::SensitiveUrl, L2ChainId, SLChainId};
+use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L2ChainId, SLChainId};
 use zksync_web3_decl::client::{Client, L1, L2};
 
 use crate::{
@@ -14,15 +14,19 @@ use crate::{
 pub struct QueryEthClientLayer {
     chain_id: SLChainId,
     web3_url: SensitiveUrl,
-    l2_mode: bool,
+    settlement_mode: SettlementMode,
 }
 
 impl QueryEthClientLayer {
-    pub fn new(chain_id: SLChainId, web3_url: SensitiveUrl, l2_mode: bool) -> Self {
+    pub fn new(
+        chain_id: SLChainId,
+        web3_url: SensitiveUrl,
+        settlement_mode: SettlementMode,
+    ) -> Self {
         Self {
             chain_id,
             web3_url,
-            l2_mode,
+            settlement_mode,
         }
     }
 }
@@ -59,11 +63,11 @@ impl WiringLayer for QueryEthClientLayer {
                 .context("Client::new()")?
                 .for_network(self.chain_id.into())
                 .build(),
-            query_client_l2: if self.l2_mode {
+            query_client_l2: if self.settlement_mode.is_gateway() {
                 Some(
                     Client::http(self.web3_url.clone())
                         .context("Client::new()")?
-                        .for_network(L2ChainId(self.chain_id.0).into())
+                        .for_network(L2ChainId::try_from(self.chain_id.0).unwrap().into())
                         .build(),
                 )
             } else {

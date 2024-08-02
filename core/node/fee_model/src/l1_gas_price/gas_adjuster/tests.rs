@@ -3,7 +3,7 @@ use std::{collections::VecDeque, sync::RwLockReadGuard};
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::{MockClientBaseFee, MockSettlementLayer};
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode};
 use zksync_web3_decl::client::L2;
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
@@ -56,7 +56,7 @@ const TEST_PUBDATA_PRICES: [u64; 10] = [
     493216,
 ];
 
-fn test_config(l2_mode: Option<bool>) -> GasAdjusterConfig {
+fn test_config(settlement_mode: SettlementMode) -> GasAdjusterConfig {
     GasAdjusterConfig {
         default_priority_fee_per_gas: 5,
         max_base_fee_samples: 5,
@@ -70,7 +70,7 @@ fn test_config(l2_mode: Option<bool>) -> GasAdjusterConfig {
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
         max_blob_base_fee: None,
-        l2_mode,
+        settlement_mode,
     }
 }
 
@@ -99,7 +99,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     // 5 sampled blocks + additional block to account for latest block subtraction
     eth_client.advance_block_number(6);
 
-    let config = test_config(None);
+    let config = test_config(SettlementMode::SettlesToL1);
     let adjuster = GasAdjuster::new(
         GasAdjusterClient::from_l1(Box::new(eth_client.clone().into_client())),
         config,
@@ -163,7 +163,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
     // 5 sampled blocks + additional block to account for latest block subtraction
     eth_client.advance_block_number(6);
 
-    let config = test_config(Some(true));
+    let config = test_config(SettlementMode::Gateway);
     let adjuster = GasAdjuster::new(
         GasAdjusterClient::from_l2(Box::new(eth_client.clone().into_client())),
         config,

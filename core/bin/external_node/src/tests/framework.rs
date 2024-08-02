@@ -127,9 +127,13 @@ impl WiringLayer for MockL1ClientLayer {
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
-        // TODO(EVM-676): configure the `l2_mode` here
-        QueryEthClientLayer::new(SLChainId(1), "https://example.com".parse().unwrap(), false)
-            .layer_name()
+        // TODO(EVM-676): configure the `settlement_mode` here
+        QueryEthClientLayer::new(
+            SLChainId(1),
+            "https://example.com".parse().unwrap(),
+            Default::default(),
+        )
+        .layer_name()
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {

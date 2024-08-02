@@ -11,7 +11,7 @@ use zksync_state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutp
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
-    namespaces::EthNamespaceClient,
+    namespaces::L2EthNamespaceClient,
 };
 
 /// `SyncState` is a structure that holds the state of the syncing process.

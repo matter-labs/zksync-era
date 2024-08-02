@@ -8,7 +8,7 @@ use crate::sdk::{
     error::ClientError,
     operations::{ExecuteContractBuilder, SyncTransactionHandle},
     wallet::Wallet,
-    EthNamespaceClient, ZksNamespaceClient,
+    L2EthNamespaceClient, ZksNamespaceClient,
 };
 
 pub struct WithdrawBuilder<'a, S: EthereumSigner, P> {
@@ -25,7 +25,7 @@ pub struct WithdrawBuilder<'a, S: EthereumSigner, P> {
 impl<'a, S, P> WithdrawBuilder<'a, S, P>
 where
     S: EthereumSigner,
-    P: ZksNamespaceClient + EthNamespaceClient + Sync,
+    P: ZksNamespaceClient + L2EthNamespaceClient + Sync,
 {
     /// Initializes a withdraw transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {

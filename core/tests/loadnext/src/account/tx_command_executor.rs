@@ -23,7 +23,7 @@ use crate::{
         utils::{
             get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
         },
-        EthNamespaceClient,
+        L2EthNamespaceClient,
     },
     utils::format_gwei,
 };

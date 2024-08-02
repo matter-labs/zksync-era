@@ -170,7 +170,7 @@ impl ExternalNodeBuilder {
             self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
             // TODO(EVM-676): add this config for external node
-            false,
+            Default::default(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

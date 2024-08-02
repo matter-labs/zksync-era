@@ -9,7 +9,7 @@ use zksync_types::{L2ChainId, SLChainId};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     error::ClientRpcContext,
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{L2EthNamespaceClient, ZksNamespaceClient},
 };
 
 /// Task that validates chain IDs using main node and Ethereum clients.
