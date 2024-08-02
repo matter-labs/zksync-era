@@ -16,6 +16,11 @@ main() {
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
+  elif [ -n "$ZKUP_REPO" ]; then
+    install_from_repo
+  else
+    echo "Either --path or --repo argument must be provided"
+    exit 1
   fi
 
   echo "zk_toolbox installed successfully"
@@ -74,6 +79,21 @@ Usage placeholder
 EOF
 }
 
+install_binaries() {
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
+    BINS=(zk_inception)
+  fi
+
+  for bin in "${BINS[@]}"; do
+    echo "Installing $bin"
+    ensure cargo install --path ./crates/$bin --force
+
+    # Remove old binary and create a symlink to the new one
+    rm -f "$ZKT_BIN_DIR/$bin"
+    ensure ln -s "$$PWD/target/release/$bin" "$ZKT_BIN_DIR/$bin"
+  done
+}
+
 install_local() {
   if [ ! -d "$ZKUP_PATH" ]; then
     echo "Path $ZKUP_PATH does not exist"
@@ -87,19 +107,38 @@ install_local() {
   echo "Installing zk_toolbox from $ZKUP_PATH"
   cd "$ZKUP_PATH"/zk_toolbox
 
+  install_binaries
+}
 
-  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
-    BINS=(zk_inception)
+install_from_repo() {
+  if [ -n "$ZKUP_PATH" ] || [ -n "$ZKUP_VERSION" ]; then
+    echo "Ignoring --path and --version arguments when installing from repository"
   fi
 
-  for bin in "${BINS[@]}"; do
-    echo "Installing $bin"
-    ensure cargo install --path ./crates/$bin --force
+  ZKUP_BRANCH=${ZKUP_BRANCH:-main}
+  REPO_PATH="$ZKT_DIR/$ZKUP_REPO"
+  
 
-    # Remove old binary and create a symlink to the new one
-    rm -f "$ZKT_BIN_DIR/$bin"
-    ensure ln -s "$$PWD/target/release/$bin" "$ZKT_BIN_DIR/$bin"
-  done
+  echo "Installing zk_toolbox from $ZKUP_REPO"
+  
+  if [ ! -d "$REPO_PATH" ]; then
+    AUTHOR=$(echo "$ZKUP_REPO" | cut -d'/' -f1 -)
+    mkdir -p "$ZKT_DIR/$AUTHOR"
+    cd "$ZKT_DIR/$AUTHOR"
+    ensure git clone "https://github.com/$ZKUP_REPO"
+  fi
+
+  cd "$REPO_PATH"
+
+  ensure git fetch origin "$ZKUP_BRANCH:remotes/origin/$ZKUP_BRANCH"
+  ensure git checkout "origin/$ZKUP_BRANCH"
+
+  if [ -n "$ZKUP_COMMIT" ]; then
+    ensure git checkout "$ZKUP_COMMIT"
+  fi
+
+  cd zk_toolbox
+  install_binaries
 }
 
 ensure() {
