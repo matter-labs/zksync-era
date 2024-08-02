@@ -189,7 +189,7 @@ impl JobProcessor for BasicWitnessGenerator {
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
-        tokio::task::spawn(async move {
+        tokio::spawn(async move {
             let block_number = job.block_number;
             Ok(
                 Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
