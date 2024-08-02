@@ -23,7 +23,7 @@ pub struct L2InterfaceResource(pub Box<DynClient<L2>>);
 
 impl Resource for L2InterfaceResource {
     fn name() -> String {
-        "common/l2_inteface".into()
+        "common/l2_interface".into()
     }
 }
 

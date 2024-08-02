@@ -81,9 +81,9 @@ impl WiringLayer for SequencerL1GasLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let client = if self.gas_adjuster_config.settlement_mode.is_gateway() {
-            GasAdjusterClient::from_l2(input.l2_inteface_client.unwrap().0)
+            input.l2_inteface_client.unwrap().0.into()
         } else {
-            GasAdjusterClient::from_l1(input.eth_interface_client.0)
+            input.eth_interface_client.0.into()
         };
 
         let adjuster = GasAdjuster::new(

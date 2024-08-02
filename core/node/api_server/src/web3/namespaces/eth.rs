@@ -9,7 +9,7 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3::{Bytes, SyncInfo, SyncState},
+    web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -704,12 +704,14 @@ impl EthNamespace {
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
-            oldest_block: zksync_types::api::BlockNumber::Number(oldest_block.into()),
-            base_fee_per_gas,
-            gas_used_ratio,
-            reward,
-            base_fee_per_blob_gas,
-            blob_gas_used_ratio,
+            inner: web3::FeeHistory {
+                oldest_block: zksync_types::web3::BlockNumber::Number(oldest_block.into()),
+                base_fee_per_gas,
+                gas_used_ratio,
+                reward,
+                base_fee_per_blob_gas,
+                blob_gas_used_ratio,
+            },
             pubdata_price: effective_pubdata_price_history,
         })
     }

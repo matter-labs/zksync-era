@@ -139,16 +139,16 @@ impl GasAdjuster {
     ) -> anyhow::Result<Self> {
         // A runtime check to ensure consistent config.
         if config.settlement_mode.is_gateway() {
-            assert!(client.is_l2(), "Must be L2 client in L2 mode");
+            anyhow::ensure!(client.is_l2(), "Must be L2 client in L2 mode");
 
-            assert!(
+            anyhow::ensure!(
                 matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
                 "Only relayed L2 calldata is available for L2 mode"
             );
         } else {
-            assert!(client.is_l1(), "Must be L1 client in L1 mode");
+            anyhow::ensure!(client.is_l1(), "Must be L1 client in L1 mode");
 
-            assert!(
+            anyhow::ensure!(
                 !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
                 "Relayed L2 calldata is only available in L2 mode"
             );
@@ -229,7 +229,7 @@ impl GasAdjuster {
                 fee_data.last().map(|fee| fee.base_fee_per_blob_gas)
             {
                 // Blob base fee overflows `u64` only in very extreme cases.
-                // It doesn't worth to observe exact value with metric because anyway values that can be used
+                // It isn't worth to observe exact value with metric because anyway values that can be used
                 // are capped by `self.config.max_blob_base_fee()` of `u64` type.
                 if current_blob_base_fee > U256::from(u64::MAX) {
                     tracing::error!("Failed to report current_blob_base_fee = {current_blob_base_fee}, it exceeds u64::MAX");
@@ -245,7 +245,7 @@ impl GasAdjuster {
             if let Some(current_l2_pubdata_price) = fee_data.last().map(|fee| fee.l2_pubdata_price)
             {
                 // L2 pubdata price overflows `u64` only in very extreme cases.
-                // It doesn't worth to observe exact value with metric because anyway values that can be used
+                // It isn't worth to observe exact value with metric because anyway values that can be used
                 // are capped by `self.config.max_blob_base_fee()` of `u64` type.
                 if current_l2_pubdata_price > U256::from(u64::MAX) {
                     tracing::error!("Failed to report current_l2_pubdata_price = {current_l2_pubdata_price}, it exceeds u64::MAX");
@@ -329,9 +329,9 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;
 
-                self.bound_pubdata_fee(calculated_price)
+                self.cap_pubdata_fee(calculated_price)
             }
-            PubdataSendingMode::Calldata => self.bound_pubdata_fee(
+            PubdataSendingMode::Calldata => self.cap_pubdata_fee(
                 (self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64) as f64,
             ),
             PubdataSendingMode::Custom => {
@@ -340,12 +340,12 @@ impl GasAdjuster {
                 0
             }
             PubdataSendingMode::RelayedL2Calldata => {
-                self.bound_pubdata_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
+                self.cap_pubdata_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
             }
         }
     }
 
-    fn bound_pubdata_fee(&self, pubdata_fee: f64) -> u64 {
+    fn cap_pubdata_fee(&self, pubdata_fee: f64) -> u64 {
         // We will treat the max blob base fee as the maximal fee that we can take for each byte of pubdata.
         let max_blob_base_fee = self.config.max_blob_base_fee();
         match self.commitment_mode {

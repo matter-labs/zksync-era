@@ -383,15 +383,16 @@ where
                 .await?;
 
             // Check that the lengths are the same.
-            if fee_history.base_fee_per_gas.len() != fee_history.pubdata_price.len() {
+            if fee_history.inner.base_fee_per_gas.len() != fee_history.pubdata_price.len() {
                 tracing::error!(
                     "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
-                    fee_history.base_fee_per_gas.len(),
+                    fee_history.inner.base_fee_per_gas.len(),
                     fee_history.pubdata_price.len()
                 );
             }
 
             for (base, pubdata_price) in fee_history
+                .inner
                 .base_fee_per_gas
                 .into_iter()
                 .zip(fee_history.pubdata_price)

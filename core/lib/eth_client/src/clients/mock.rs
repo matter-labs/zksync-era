@@ -482,22 +482,24 @@ impl SupportedMockEthNetwork for L2 {
                     let from_block = from_block.as_usize();
                     let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
                     Ok(FeeHistory {
-                        oldest_block: start_block.into(),
-                        base_fee_per_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| U256::from(fee.base_fee_per_gas))
-                            .collect(),
-                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| fee.base_fee_per_blob_gas)
-                            .collect(),
-                        gas_used_ratio: vec![],      // not used
-                        blob_gas_used_ratio: vec![], // not used
+                        inner: web3::FeeHistory {
+                            oldest_block: start_block.into(),
+                            base_fee_per_gas: base_fee_history[start_block..=from_block]
+                                .iter()
+                                .map(|fee| U256::from(fee.base_fee_per_gas))
+                                .collect(),
+                            base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
+                                .iter()
+                                .map(|fee| fee.base_fee_per_blob_gas)
+                                .collect(),
+                            gas_used_ratio: vec![],      // not used
+                            blob_gas_used_ratio: vec![], // not used
+                            reward: None,
+                        },
                         pubdata_price: base_fee_history[start_block..=from_block]
                             .iter()
                             .map(|fee| fee.pubdata_price)
                             .collect(),
-                        reward: None,
                     })
                 },
             )
