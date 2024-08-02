@@ -87,12 +87,6 @@ impl NodeAggregationWitnessGenerator {
         }
     }
 
-    // The number of node circuits to be processed in parallel.
-    // Allows us to easily adjust the balance between processing speed and memory usage.
-    // Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
-    // So processing of MAX_IN_FLIGHT_CIRCUITS == 100  should use ~3200 MB of RAM + some overhead during serialization.
-    const MAX_IN_FLIGHT_CIRCUITS: usize = 100;
-
     #[tracing::instrument(
         skip_all,
         fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
@@ -101,6 +95,7 @@ impl NodeAggregationWitnessGenerator {
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
         object_store: Arc<dyn ObjectStore>,
+        max_circuits_in_flight: usize,
     ) -> NodeAggregationArtifacts {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
         tracing::info!(
@@ -134,7 +129,7 @@ impl NodeAggregationWitnessGenerator {
             proofs_ids.len()
         );
 
-        let semaphore = Arc::new(Semaphore::new(Self::MAX_IN_FLIGHT_CIRCUITS));
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
         let mut handles = vec![];
         for (circuit_idx, (chunk, proofs_ids_for_chunk)) in job
@@ -281,7 +276,12 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         let object_store = self.object_store.clone();
         let current_handle = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
-            Ok(current_handle.block_on(Self::process_job_impl(job, started_at, object_store)))
+            Ok(current_handle.block_on(Self::process_job_impl(
+                job,
+                started_at,
+                object_store,
+                self.config.max_circuits_in_flight,
+            )))
         })
     }
 

@@ -59,6 +59,7 @@ async fn test_leaf_witness_gen() {
         job,
         Instant::now(),
         object_store.clone(),
+        500,
     )
     .await;
 
@@ -147,6 +148,7 @@ async fn test_node_witness_gen() {
         job,
         Instant::now(),
         object_store.clone(),
+        500,
     )
     .await;
     let aggregations = AggregationWrapper(artifacts.next_aggregations);

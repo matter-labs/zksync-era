@@ -97,6 +97,7 @@ impl LeafAggregationWitnessGenerator {
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
         object_store: Arc<dyn ObjectStore>,
+        max_circuits_in_flight: usize,
     ) -> LeafAggregationArtifacts {
         tracing::info!(
             "Starting witness generation of type {:?} for block {} with circuit {}",
@@ -104,7 +105,8 @@ impl LeafAggregationWitnessGenerator {
             leaf_job.block_number.0,
             leaf_job.circuit_id,
         );
-        process_leaf_aggregation_job(started_at, leaf_job, object_store).await
+        process_leaf_aggregation_job(started_at, leaf_job, object_store, max_circuits_in_flight)
+            .await
     }
 }
 
@@ -155,7 +157,12 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         let object_store = self.object_store.clone();
         let current_handle = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
-            Ok(current_handle.block_on(Self::process_job_impl(job, started_at, object_store)))
+            Ok(current_handle.block_on(Self::process_job_impl(
+                job,
+                started_at,
+                object_store,
+                self.config.max_circuits_in_flight,
+            )))
         })
     }
 
@@ -252,12 +259,6 @@ pub async fn prepare_leaf_aggregation_job(
     })
 }
 
-// The number of leaf circuits to be processed in parallel.
-// Allows us to easily adjust the balance between processing speed and memory usage.
-// Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
-// So processing of MAX_IN_FLIGHT_CIRCUITS == 100  should use ~3200 MB of RAM + some overhead during serialization.
-const MAX_IN_FLIGHT_CIRCUITS: usize = 100;
-
 #[tracing::instrument(
     skip_all,
     fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
@@ -266,6 +267,7 @@ pub async fn process_leaf_aggregation_job(
     started_at: Instant,
     job: LeafAggregationWitnessGeneratorJob,
     object_store: Arc<dyn ObjectStore>,
+    max_circuits_in_flight: usize,
 ) -> LeafAggregationArtifacts {
     let circuit_id = job.circuit_id;
     let queues = split_recursion_queue(job.closed_form_inputs.1);
@@ -286,7 +288,7 @@ pub async fn process_leaf_aggregation_job(
         proofs_ids.push(proofs_ids_for_queue);
     }
 
-    let semaphore = Arc::new(Semaphore::new(MAX_IN_FLIGHT_CIRCUITS));
+    let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
     let mut handles = vec![];
     for (circuit_idx, (queue, proofs_ids_for_queue)) in
