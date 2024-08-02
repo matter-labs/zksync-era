@@ -11,6 +11,12 @@ pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 /// By default, refetch ratio from db every 0.5 second
 pub const DEFAULT_CACHE_UPDATE_INTERVAL: u64 = 500;
 
+/// Default maximum number of attempts to get L1 transaction receipt
+const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
+
+/// Default number of seconds to sleep between the attempts
+const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 5_000;
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {
     /// How often to spark a new cycle of the ratio persister to fetch external prices and persis ratios.
@@ -20,6 +26,14 @@ pub struct BaseTokenAdjusterConfig {
     /// We (in memory) cache the ratio fetched from db. This interval defines frequency of refetch from db.
     #[serde(default = "BaseTokenAdjusterConfig::default_cache_update_interval")]
     pub price_cache_update_interval_ms: u64,
+
+    /// Maximum number of attempts to get L1 transaction receipt before failing over
+    #[serde(default = "BaseTokenAdjusterConfig::default_persister_receipt_checking_max_attempts")]
+    pub persister_l1_receipt_checking_max_attempts: u32,
+
+    /// Number of seconds to sleep between the attempts
+    #[serde(default = "BaseTokenAdjusterConfig::default_persister_l1_receipt_checking_sleep_ms")]
+    pub persister_l1_receipt_checking_sleep_ms: u64,
 }
 
 impl Default for BaseTokenAdjusterConfig {
@@ -27,6 +41,10 @@ impl Default for BaseTokenAdjusterConfig {
         Self {
             price_polling_interval_ms: Self::default_polling_interval(),
             price_cache_update_interval_ms: Self::default_cache_update_interval(),
+            persister_l1_receipt_checking_max_attempts:
+                Self::default_persister_receipt_checking_max_attempts(),
+            persister_l1_receipt_checking_sleep_ms:
+                Self::default_persister_l1_receipt_checking_sleep_ms(),
         }
     }
 }
@@ -44,8 +62,20 @@ impl BaseTokenAdjusterConfig {
         DEFAULT_CACHE_UPDATE_INTERVAL
     }
 
+    fn default_persister_receipt_checking_max_attempts() -> u32 {
+        DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS
+    }
+
+    fn default_persister_l1_receipt_checking_sleep_ms() -> u64 {
+        DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS
+    }
+
     pub fn price_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.price_cache_update_interval_ms)
+    }
+
+    pub fn persister_l1_receipt_checking_sleep_duration(&self) -> Duration {
+        Duration::from_millis(self.persister_l1_receipt_checking_sleep_ms)
     }
 
     #[deprecated]

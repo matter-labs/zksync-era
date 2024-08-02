@@ -17,14 +17,6 @@ use zksync_types::{
     Address, U256,
 };
 
-/// Maximum number of attempts to get L1 transaction receipt
-// TODO: move to the config
-const RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
-
-/// Number of seconds to sleep between the attempts
-// TODO: move to the config
-const RECEIPT_CHECKING_SLEEP_DURATION: Duration = Duration::from_secs(5);
-
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
@@ -227,7 +219,9 @@ impl BaseTokenRatioPersister {
 
         tracing::info!("`setTokenMultiplier` transaction hash {}", hash);
 
-        for i in 0..RECEIPT_CHECKING_MAX_ATTEMPTS {
+        let max_attempts = self.config.persister_l1_receipt_checking_max_attempts;
+        let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
+        for i in 0..max_attempts {
             let maybe_receipt = (*self.eth_client)
                 .as_ref()
                 .tx_receipt(hash)
@@ -247,13 +241,13 @@ impl BaseTokenRatioPersister {
                     "waiting for L1 transaction confirmation attempt {}...",
                     i + 1
                 );
-                tokio::time::sleep(RECEIPT_CHECKING_SLEEP_DURATION).await;
+                tokio::time::sleep(sleep_duration).await;
             }
         }
 
         return Err(anyhow::Error::msg(format!(
             "Unable to retrieve `setTokenMultiplier` transaction status in {} attempts",
-            RECEIPT_CHECKING_MAX_ATTEMPTS
+            max_attempts
         )));
     }
 }

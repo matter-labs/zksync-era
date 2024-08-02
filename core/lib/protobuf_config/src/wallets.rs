@@ -54,10 +54,15 @@ impl ProtoRepr for proto::Wallets {
             None
         };
 
-        let base_token_adjuster = if let Some(governor) = &self.governor {
+        let base_token_adjuster = if let Some(base_token_adjuster) = &self.base_token_adjuster {
             let wallet = Wallet::from_private_key_bytes(
-                parse_h256(required(&governor.private_key).context("governor")?)?,
-                governor.address.as_ref().and_then(|a| parse_h160(a).ok()),
+                parse_h256(
+                    required(&base_token_adjuster.private_key).context("base_token_adjuster")?,
+                )?,
+                base_token_adjuster
+                    .address
+                    .as_ref()
+                    .and_then(|a| parse_h160(a).ok()),
             )?;
             Some(BaseTokenAdjuster { wallet })
         } else {
@@ -102,7 +107,7 @@ impl ProtoRepr for proto::Wallets {
                 address: Some(format!("{:?}", state_keeper.fee_account.address())),
             });
 
-        let governor = if let Some(base_token_adjuster) = &this.base_token_adjuster {
+        let base_token_adjuster = if let Some(base_token_adjuster) = &this.base_token_adjuster {
             Some(create_pk_wallet(
                 base_token_adjuster.wallet.address(),
                 base_token_adjuster.wallet.private_key(),
@@ -115,7 +120,7 @@ impl ProtoRepr for proto::Wallets {
             blob_operator,
             operator,
             fee_account,
-            governor,
+            base_token_adjuster,
         }
     }
 }

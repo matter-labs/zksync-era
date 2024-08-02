@@ -15,5 +15,5 @@ message Wallets {
   optional PrivateKeyWallet operator = 1; // Private key is required
   optional PrivateKeyWallet blob_operator = 2; // Private key is required
   optional AddressWallet fee_account = 3; // Only address required for server
-  optional PrivateKeyWallet governor = 4; // Private key is required
+  optional PrivateKeyWallet base_token_adjuster = 4; // Private key is required
 }

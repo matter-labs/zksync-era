@@ -5,4 +5,6 @@ package zksync.config.base_token_adjuster;
 message BaseTokenAdjuster {
   optional uint64 price_polling_interval_ms = 1;
   optional uint64 price_cache_update_interval_ms = 2;
+  optional uint64 persister_l1_receipt_checking_sleep_ms = 3;
+  optional uint32 persister_l1_receipt_checking_max_attempts = 4;
 }
