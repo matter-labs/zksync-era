@@ -1,7 +1,7 @@
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_executor::{self as executor, attestation::AttestationStatusRunner, Attester};
+use zksync_consensus_executor::{self as executor, Attester};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
 
@@ -61,18 +61,6 @@ pub async fn run_main_node(
             .wrap("BatchStore::new()")?;
         s.spawn_bg(runner.run(ctx));
 
-        let (attestation_status, runner) = {
-            AttestationStatusRunner::init_from_store(
-                ctx,
-                batch_store.clone(),
-                time::Duration::seconds(1),
-                block_store.genesis().hash(),
-            )
-            .await
-            .wrap("AttestationStatusRunner::init_from_store()")?
-        };
-        s.spawn_bg(runner.run(ctx));
-
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
             block_store,
@@ -83,10 +71,7 @@ pub async fn run_main_node(
                 payload_manager: Box::new(store.clone()),
             }),
             attester,
-            attestation_status,
         };
-
-        tracing::info!("running the main node executor");
         executor.run(ctx).await
     })
     .await

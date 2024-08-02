@@ -56,13 +56,13 @@ tracing-subscriber = { version = "0.3" }
 vise = "0.1.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.2-rc.1"
-circuit_sequencer_api = "=0.150.2-rc.1"
-zkevm_test_harness = "=0.150.2-rc.1"
+circuit_definitions = "=0.150.2-rc.2"
+circuit_sequencer_api = "=0.150.2-rc.2"
+zkevm_test_harness = "=0.150.2-rc.2"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.0-gpu-wrapper.0" }
-shivini = "=0.150.2-rc.1"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.0-gpu-wrapper.1" }
+shivini = "=0.150.2-rc.2"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }

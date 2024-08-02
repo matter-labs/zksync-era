@@ -826,7 +826,7 @@ async fn main() -> anyhow::Result<()> {
     }
     // Note: when old code will be removed, observability must be build within
     // tokio context.
-    let _guard = config.observability.build_observability()?;
+    let guard = config.observability.build_observability()?;
 
     // Build L1 and L2 clients.
     let main_node_url = &config.required.main_node_url;
@@ -859,7 +859,7 @@ async fn main() -> anyhow::Result<()> {
         std::thread::spawn(move || {
             let node =
                 ExternalNodeBuilder::new(config)?.build(opt.components.0.into_iter().collect())?;
-            node.run()?;
+            node.run(guard)?;
             anyhow::Ok(())
         })
         .join()

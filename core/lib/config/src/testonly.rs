@@ -438,9 +438,9 @@ impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
     }
 }
 
-impl Distribution<configs::fri_prover::CloudType> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudType {
-        type T = configs::fri_prover::CloudType;
+impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
+        type T = configs::fri_prover::CloudConnectionMode;
         match rng.gen_range(0..1) {
             0 => T::GCP,
             _ => T::Local,

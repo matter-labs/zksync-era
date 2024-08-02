@@ -407,9 +407,9 @@ impl EthSenderTester {
         self.send_tx(tx, confirm).await
     }
 
-    pub async fn run_eth_sender_tx_manager_iteration(&mut self) {
-        self.gateway.advance_block_number(1);
-        self.gateway_blobs.advance_block_number(1);
+    pub async fn run_eth_sender_tx_manager_iteration_after_n_blocks(&mut self, n: u64) {
+        self.gateway.advance_block_number(n);
+        self.gateway_blobs.advance_block_number(n);
         let tx_sent_before = self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count();
         self.manager
             .loop_iteration(
@@ -419,6 +419,11 @@ impl EthSenderTester {
             .await;
         self.tx_sent_in_last_iteration_count =
             (self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count()) - tx_sent_before;
+    }
+
+    pub async fn run_eth_sender_tx_manager_iteration(&mut self) {
+        self.run_eth_sender_tx_manager_iteration_after_n_blocks(1)
+            .await;
     }
 
     async fn get_l1_batch_header_from_db(&mut self, number: L1BatchNumber) -> L1BatchHeader {
