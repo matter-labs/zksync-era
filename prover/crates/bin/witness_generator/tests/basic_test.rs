@@ -89,14 +89,14 @@ async fn test_leaf_witness_gen() {
         };
 
         let result = object_store
-            .get::<CircuitWrapper>(circuit_key.clone())
+            .get::<CircuitWrapper>(circuit_key)
             .await
-            .expect(&format!("result circuit missing: {}", idx));
+            .unwrap_or_else(|_| panic!("result circuit missing: {}", idx));
 
         let expected_result = expected_object_store
             .get::<CircuitWrapper>(circuit_key)
             .await
-            .expect(&format!("expected circuit missing: {}", idx));
+            .unwrap_or_else(|_| panic!("expected circuit missing: {}", idx));
 
         compare_serialized(&expected_result, &result);
     }
@@ -181,14 +181,14 @@ async fn test_node_witness_gen() {
         };
 
         let result = object_store
-            .get::<CircuitWrapper>(circuit_key.clone())
+            .get::<CircuitWrapper>(circuit_key)
             .await
-            .expect(&format!("result circuit missing: {}", idx));
+            .unwrap_or_else(|_| panic!("result circuit missing: {}", idx));
 
         let expected_result = expected_object_store
             .get::<CircuitWrapper>(circuit_key)
             .await
-            .expect(&format!("expected circuit missing: {}", idx));
+            .unwrap_or_else(|_| panic!("expected circuit missing: {}", idx));
 
         compare_serialized(&expected_result, &result);
     }
