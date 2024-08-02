@@ -7,9 +7,12 @@ ZKT_BIN_DIR="$ZKT_DIR/bin"
 
 ZKUP_SKIP_ZK_SUPERVISOR=0
 
+BINS=(zk_inception zk_supervisor)
+
 main() {
   check_prerequisites
   parse_args "$@"
+  mkdir -p "$ZKT_BIN_DIR"
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
@@ -84,10 +87,19 @@ install_local() {
   echo "Installing zk_toolbox from $ZKUP_PATH"
   cd "$ZKUP_PATH"/zk_toolbox
 
-  ensure cargo install --path ./crates/zk_inception --force
-  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 0 ]; then
-    ensure cargo install --path ./crates/zk_supervisor --force
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
+    BINS=(zk_inception)
   fi
+
+  for bin in "${BINS[@]}"; do
+    echo "Installing $bin"
+    ensure cargo install --path ./crates/$bin --force
+
+    # Remove old binary and create a symlink to the new one
+    rm -f "$ZKT_BIN_DIR/$bin"
+    ensure ln -s "$$PWD/target/release/$bin" "$ZKT_BIN_DIR/$bin"
+  done
 }
 
 ensure() {
