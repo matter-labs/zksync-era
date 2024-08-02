@@ -3,7 +3,7 @@ use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::Shell;
-use zksync_config::configs::fri_prover::CloudType;
+use zksync_config::configs::fri_prover::CloudConnectionMode;
 
 use super::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{
@@ -55,7 +55,7 @@ pub struct ProverInitArgs {
     pub setup_key_config: SetupKeyConfigTmp,
 
     #[clap(long)]
-    cloud_type: Option<InternalCloudType>,
+    cloud_type: Option<InternalCloudConnectionMode>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
@@ -69,16 +69,16 @@ enum ProofStoreConfig {
     Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Deserialize, Serialize,
 )]
 #[allow(clippy::upper_case_acronyms)]
-enum InternalCloudType {
+enum InternalCloudConnectionMode {
     GCP,
     Local,
 }
 
-impl From<InternalCloudType> for CloudType {
-    fn from(cloud_type: InternalCloudType) -> Self {
+impl From<InternalCloudConnectionMode> for CloudConnectionMode {
+    fn from(cloud_type: InternalCloudConnectionMode) -> Self {
         match cloud_type {
-            InternalCloudType::GCP => CloudType::GCP,
-            InternalCloudType::Local => CloudType::Local,
+            InternalCloudConnectionMode::GCP => CloudConnectionMode::GCP,
+            InternalCloudConnectionMode::Local => CloudConnectionMode::Local,
         }
     }
 }
@@ -166,7 +166,7 @@ pub struct ProverInitArgsFinal {
     pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
     pub bellman_cuda_config: InitBellmanCudaArgs,
-    pub cloud_type: CloudType,
+    pub cloud_type: CloudConnectionMode,
 }
 
 impl ProverInitArgs {
@@ -433,9 +433,9 @@ impl ProverInitArgs {
         self.bellman_cuda_config.clone().fill_values_with_prompt()
     }
 
-    fn get_cloud_type_with_prompt(&self) -> CloudType {
+    fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
         let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
-            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudType::iter()).ask()
+            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudConnectionMode::iter()).ask()
         });
 
         cloud_type.into()
