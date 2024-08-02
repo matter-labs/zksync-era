@@ -153,8 +153,9 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
         let object_store = self.object_store.clone();
-        tokio::task::spawn(async move {
-            Ok(Self::process_job_impl(job, started_at, object_store).await)
+        let current_handle = tokio::runtime::Handle::current();
+        tokio::task::spawn_blocking(move || {
+            Ok(current_handle.block_on(Self::process_job_impl(job, started_at, object_store)))
         })
     }
 
@@ -343,10 +344,12 @@ pub async fn process_leaf_aggregation_job(
         handles.push(handle);
     }
 
-    let mut circuit_ids_and_urls = vec![];
-    for handle in handles {
-        circuit_ids_and_urls.extend(handle.await.unwrap());
-    }
+    let circuit_ids_and_urls_results = futures::future::join_all(handles).await;
+    let circuit_ids_and_urls = circuit_ids_and_urls_results
+        .into_iter()
+        .map(|x| x.unwrap())
+        .flatten()
+        .collect();
 
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());

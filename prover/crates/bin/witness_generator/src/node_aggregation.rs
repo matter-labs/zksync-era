@@ -279,8 +279,9 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
         let object_store = self.object_store.clone();
-        tokio::task::spawn(async move {
-            Ok(Self::process_job_impl(job, started_at, object_store).await)
+        let current_handle = tokio::runtime::Handle::current();
+        tokio::task::spawn_blocking(move || {
+            Ok(current_handle.block_on(Self::process_job_impl(job, started_at, object_store)))
         })
     }
 

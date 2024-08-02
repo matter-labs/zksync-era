@@ -197,7 +197,7 @@ pub async fn save_node_aggregations_artifacts(
 
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
-    job_ids: &Vec<u32>,
+    job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut proofs = Vec::with_capacity(job_ids.len());

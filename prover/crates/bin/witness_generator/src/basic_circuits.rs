@@ -177,11 +177,13 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
-        tokio::spawn(async move {
+        let current_handle = tokio::runtime::Handle::current();
+        tokio::task::spawn_blocking(move || {
             let block_number = job.block_number;
-            Ok(Self::process_job_impl(object_store, job, started_at)
-                .instrument(tracing::info_span!("basic_circuit", %block_number))
-                .await)
+            Ok(current_handle.block_on(
+                Self::process_job_impl(object_store, job, started_at)
+                    .instrument(tracing::info_span!("basic_circuit", %block_number)),
+            ))
         })
     }
 
