@@ -155,7 +155,7 @@ fn main() -> anyhow::Result<()> {
 
     let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
 
-    let _observability_guard = {
+    let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = node.runtime_handle().enter();
         observability_config.install()?
@@ -163,11 +163,11 @@ fn main() -> anyhow::Result<()> {
 
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
-        node.only_genesis()?.run()?;
+        node.only_genesis()?.run(observability_guard)?;
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run()?;
+    node.build(opt.components.0)?.run(observability_guard)?;
     Ok(())
 }
 

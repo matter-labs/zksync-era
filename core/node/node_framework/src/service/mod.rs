@@ -4,6 +4,7 @@ use error::TaskError;
 use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
+use zksync_vlog::ObservabilityGuard;
 
 pub use self::{
     context::ServiceContext,
@@ -132,7 +133,13 @@ impl ZkStackService {
     ///
     /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
     /// of their occurrence.
-    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
+    ///
+    /// `observability_guard`, if provided, will be used to deinitialize the observability subsystem
+    /// as the very last step before exiting the node.
+    pub fn run(
+        mut self,
+        observability_guard: impl Into<Option<ObservabilityGuard>>,
+    ) -> Result<(), ZkStackServiceError> {
         self.wire()?;
 
         let TaskReprs {
@@ -145,6 +152,13 @@ impl ZkStackService {
         self.run_shutdown_hooks(shutdown_hooks);
 
         tracing::info!("Exiting the service");
+
+        if let Some(mut observability_guard) = observability_guard.into() {
+            // Make sure that the shutdown happens in the `tokio` context.
+            let _guard = self.runtime.enter();
+            observability_guard.shutdown();
+        }
+
         if self.errors.is_empty() {
             Ok(())
         } else {
