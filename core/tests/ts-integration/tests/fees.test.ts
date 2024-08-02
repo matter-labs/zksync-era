@@ -187,7 +187,7 @@ testFees('Test fees', () => {
 
     test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
-        const l1GasPrice = 10_000_000_000n; /// set to 10 gwei
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
         await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
 
         const receipt = await (
