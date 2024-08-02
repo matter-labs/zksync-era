@@ -55,7 +55,7 @@ impl ObservabilityGuard {
         if let Some(provider) = &self.otlp_logging_provider {
             for result in provider.force_flush() {
                 if let Err(err) = result {
-                    tracing::warn!("Flushing the spans failed: {err:?}");
+                    tracing::warn!("Flushing the logs failed: {err:?}");
                 }
             }
         }
@@ -72,12 +72,12 @@ impl ObservabilityGuard {
         }
         if let Some(provider) = &self.otlp_tracing_provider {
             if let Err(err) = provider.shutdown() {
-                tracing::warn!("Shutting down the provider failed: {err:?}");
+                tracing::warn!("Shutting down the OTLP tracing provider failed: {err:?}");
             }
         }
         if let Some(provider) = &self.otlp_logging_provider {
             if let Err(err) = provider.shutdown() {
-                tracing::warn!("Shutting down the provider failed: {err:?}");
+                tracing::warn!("Shutting down the OTLP logs provider failed: {err:?}");
             }
         }
     }
