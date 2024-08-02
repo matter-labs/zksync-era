@@ -81,7 +81,7 @@ install_local() {
     echo "Ignoring --branch, --commit and --version arguments when installing from local path"
   fi
 
-  echo "Installing zkup from $ZKUP_PATH"
+  echo "Installing zk_toolbox from $ZKUP_PATH"
   cd "$ZKUP_PATH"/zk_toolbox
 
   ensure cargo install --path ./crates/zk_inception --force
