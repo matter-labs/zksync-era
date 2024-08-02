@@ -5,8 +5,7 @@ use zksync_consensus_executor::{
     self as executor,
     attestation::{AttestationStatusClient, AttestationStatusRunner},
 };
-use zksync_consensus_network::gossip;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{
@@ -269,7 +268,7 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
     async fn attestation_status(
         &self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<gossip::AttestationStatus>> {
+    ) -> ctx::Result<Option<(attester::GenesisHash, attester::BatchNumber)>> {
         match ctx.wait(self.0.fetch_attestation_status()).await? {
             Ok(Some(status)) => {
                 // If this fails the AttestationStatusRunner will log it an retry it later,
@@ -277,11 +276,8 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
                 let status: consensus_dal::AttestationStatus =
                     zksync_protobuf::serde::deserialize(&status.0)
                         .context("deserialize(AttestationStatus")?;
-                let status = gossip::AttestationStatus {
-                    genesis: status.genesis,
-                    next_batch_to_attest: status.next_batch_to_attest,
-                };
-                Ok(Some(status))
+
+                Ok(Some((status.genesis, status.next_batch_to_attest)))
             }
             Ok(None) => Ok(None),
             Err(err) => {
