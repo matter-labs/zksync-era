@@ -26,7 +26,6 @@ use zksync_core_leftovers::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_eth_client::clients::{Client, L1};
 
 use crate::node_builder::MainNodeBuilder;
 

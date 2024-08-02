@@ -6,7 +6,6 @@ use std::{
 };
 
 use jsonrpsee::{core::ClientError, types::ErrorObject};
-use zksync_config::configs::api;
 use zksync_types::{
     api::FeeHistory,
     ethabi,

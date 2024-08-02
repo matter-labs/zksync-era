@@ -289,10 +289,7 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_base_token_adjuster::NoOpRatioProvider;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-    use zksync_eth_client::{
-        clients::{MockClientBaseFee, MockSettlementLayer},
-        BaseFees,
-    };
+    use zksync_eth_client::clients::{MockClientBaseFee, MockSettlementLayer};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
     use super::*;

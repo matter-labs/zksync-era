@@ -1,9 +1,6 @@
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::{
-    api::{BlockDetails, L1BatchDetails},
-    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
-};
-use zksync_web3_decl::client::{ForEthereumLikeNetwork, L1, L2};
+use zksync_types::{web3, Address, H256, U256, U64};
+use zksync_web3_decl::client::{ForEthereumLikeNetwork, L2};
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
 #[rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork))]

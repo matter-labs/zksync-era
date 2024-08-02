@@ -7,7 +7,7 @@ use zksync_config::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{MockClientBaseFee, MockSettlementLayer},
-    BaseFees, BoundEthInterface,
+    BoundEthInterface,
 };
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
