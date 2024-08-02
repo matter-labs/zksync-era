@@ -62,20 +62,21 @@ impl ObservabilityGuard {
     }
 
     /// Shutdown the observability subsystem.
-    /// It will stop the background tasks like collec
-    pub fn shutdown(&self) {
+    /// It will stop any background tasks and release resources.
+    pub fn shutdown(&mut self) {
         // We don't want to wait for too long.
         const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
-        if let Some(sentry_guard) = &self.sentry_guard {
+        // `take` here and below ensures that we don't have any access to the deinitialized resources.
+        if let Some(sentry_guard) = self.sentry_guard.take() {
             sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
         }
-        if let Some(provider) = &self.otlp_tracing_provider {
+        if let Some(provider) = self.otlp_tracing_provider.take() {
             if let Err(err) = provider.shutdown() {
                 tracing::warn!("Shutting down the OTLP tracing provider failed: {err:?}");
             }
         }
-        if let Some(provider) = &self.otlp_logging_provider {
+        if let Some(provider) = self.otlp_logging_provider.take() {
             if let Err(err) = provider.shutdown() {
                 tracing::warn!("Shutting down the OTLP logs provider failed: {err:?}");
             }
