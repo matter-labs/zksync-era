@@ -16,19 +16,18 @@ use url::Url;
 /// Information about the service.
 ///
 /// This information is initially filled as follows:
-/// - Fields will be attempted to fetch from environment variables. See [`ServiceDescriptor::fill_from_env`].
-/// - If not found, some default values will be chosen.
+/// - Fields will be attempted to fetch from environment variables.
+/// - If not found, a default values will be chosen.
+///
+/// For environment variable names and default values, see the constants in the struct.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ServiceDescriptor {
     /// Name of the k8s pod.
-    /// If not provided directly or though env variable, the default value would be `zksync-0`.
     pub k8s_pod_name: String,
     /// Name of the k8s namespace.
-    /// If not provided directly or through env variable, the default value would be `local`.
     pub k8s_namespace_name: String,
     /// Name of the service.
-    /// If not provided directly or through env variable, the default value would be `zksync`.
     pub service_name: String,
 }
 
