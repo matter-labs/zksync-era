@@ -24,7 +24,7 @@
       "component": "prover"
     },
     "zk_toolbox": {
-      "release-type": "cargo-workspace",
+      "release-type": "rust",
       "component": "zk_toolbox"
     }
   }
