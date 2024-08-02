@@ -24,7 +24,15 @@ const fileConfig = shouldLoadConfigFromFile();
 
 const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
 
-let serverComponents = ['api', 'tree', 'eth', 'state_keeper', 'commitment_generator', 'da_dispatcher', 'vm_runner_protective_reads'];
+let serverComponents = [
+    'api',
+    'tree',
+    'eth',
+    'state_keeper',
+    'commitment_generator',
+    'da_dispatcher',
+    'vm_runner_protective_reads'
+];
 
 const depositAmount = ethers.parseEther('0.001');
 
