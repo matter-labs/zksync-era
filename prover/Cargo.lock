@@ -48,7 +48,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "once_cell",
  "version_check",
- "zerocopy 0.7.35",
+ "zerocopy",
 ]
 
 [[package]]
@@ -956,7 +956,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.150.2-rc.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#40f1521575cb79dc26ebb6452a47ae7eef614b00"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#2428d92cb0bc99894d81113915cc9e3688df1f9e"
 dependencies = [
  "circuit_encodings 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
  "crossbeam 0.8.4",
@@ -1017,7 +1017,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.150.2-rc.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#40f1521575cb79dc26ebb6452a47ae7eef614b00"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#2428d92cb0bc99894d81113915cc9e3688df1f9e"
 dependencies = [
  "derivative",
  "serde",
@@ -1083,7 +1083,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.150.2-rc.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#40f1521575cb79dc26ebb6452a47ae7eef614b00"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#2428d92cb0bc99894d81113915cc9e3688df1f9e"
 dependencies = [
  "bellman_ce 0.7.0",
  "circuit_encodings 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
@@ -4243,11 +4243,12 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.18"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dee4364d9f3b902ef14fab8a1ddffb783a1cb6b4bba3bfc1fa3922732c7de97f"
+checksum = "2288c0e17cc8d342c712bb43a257a80ebffce59cdb33d5000d8348f3ec02528b"
 dependencies = [
- "zerocopy 0.6.6",
+ "zerocopy",
+ "zerocopy-derive",
 ]
 
 [[package]]
@@ -7287,32 +7288,12 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "854e949ac82d619ee9a14c66a1b674ac730422372ccb759ce0c39cabcf2bf8e6"
-dependencies = [
- "byteorder",
- "zerocopy-derive 0.6.6",
-]
-
-[[package]]
-name = "zerocopy"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
 dependencies = [
- "zerocopy-derive 0.7.35",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "125139de3f6b9d625c39e2efdd73d41bdac468ccd556556440e322be0e1bbd91"
-dependencies = [
- "proc-macro2 1.0.86",
- "quote 1.0.36",
- "syn 2.0.72",
+ "byteorder",
+ "zerocopy-derive",
 ]
 
 [[package]]
@@ -7656,7 +7637,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "0.150.2-rc.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#40f1521575cb79dc26ebb6452a47ae7eef614b00"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#2428d92cb0bc99894d81113915cc9e3688df1f9e"
 dependencies = [
  "bincode",
  "circuit_definitions 0.150.2-rc.1 (git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg)",
@@ -8001,7 +7982,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.150.2-rc.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#40f1521575cb79dc26ebb6452a47ae7eef614b00"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness?branch=vv-optimize-lwg-nwg#2428d92cb0bc99894d81113915cc9e3688df1f9e"
 dependencies = [
  "boojum",
  "derivative",
