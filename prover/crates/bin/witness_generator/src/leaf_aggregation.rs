@@ -330,7 +330,7 @@ pub async fn process_leaf_aggregation_job(
                 &leaf_params,
             );
 
-            let new_circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
+            save_recursive_layer_prover_input_artifacts(
                 job.block_number,
                 circuit_idx,
                 vec![circuit],
@@ -339,9 +339,7 @@ pub async fn process_leaf_aggregation_job(
                 &*object_store,
                 None,
             )
-            .await;
-
-            new_circuit_ids_and_urls
+            .await
         });
 
         handles.push(handle);
@@ -350,8 +348,7 @@ pub async fn process_leaf_aggregation_job(
     let circuit_ids_and_urls_results = futures::future::join_all(handles).await;
     let circuit_ids_and_urls = circuit_ids_and_urls_results
         .into_iter()
-        .map(|x| x.unwrap())
-        .flatten()
+        .flat_map(|x| x.unwrap())
         .collect();
 
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::LeafAggregation.into()]
