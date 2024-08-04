@@ -101,7 +101,9 @@ fn get_zksolc_path(link_to_code: &Path, version: &str) -> PathBuf {
 }
 
 fn get_zkvmsolc_path(link_to_code: &Path, version: &str) -> PathBuf {
-  link_to_code.join("etc/solc-bin/").join("zkVM-".to_owned() + version)
+    link_to_code
+        .join("etc/solc-bin/")
+        .join("zkVM-".to_owned() + version)
 }
 
 fn get_zkvyper_path(link_to_code: &Path, version: &str) -> PathBuf {
