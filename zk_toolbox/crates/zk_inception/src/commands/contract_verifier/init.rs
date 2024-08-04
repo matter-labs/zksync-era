@@ -22,6 +22,14 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
 
     download_binaries(
         shell,
+        args.zkvmsolc_releases,
+        get_zkvmsolc_path,
+        &link_to_code,
+        "solc",
+    )?;
+
+    download_binaries(
+        shell,
         args.zkvyper_releases,
         get_zkvyper_path,
         &link_to_code,
@@ -90,6 +98,10 @@ fn download_binary(
 
 fn get_zksolc_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code.join("etc/zksolc-bin/").join(version)
+}
+
+fn get_zkvmsolc_path(link_to_code: &Path, version: &str) -> PathBuf {
+  link_to_code.join("etc/solc-bin/").join("zkVM-".to_owned() + version)
 }
 
 fn get_zkvyper_path(link_to_code: &Path, version: &str) -> PathBuf {

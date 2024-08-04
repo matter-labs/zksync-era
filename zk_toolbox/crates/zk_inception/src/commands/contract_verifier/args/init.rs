@@ -6,11 +6,12 @@ use xshell::Shell;
 use super::releases::{get_releases_with_arch, Arch, Version};
 use crate::messages::{
     MSG_ARCH_NOT_SUPPORTED_ERR, MSG_FETCHING_VYPER_RELEASES_SPINNER,
-    MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_FETCHING_ZKVYPER_RELEASES_SPINNER,
-    MSG_FETCH_SOLC_RELEASES_SPINNER, MSG_GET_SOLC_RELEASES_ERR, MSG_GET_VYPER_RELEASES_ERR,
-    MSG_GET_ZKSOLC_RELEASES_ERR, MSG_GET_ZKVYPER_RELEASES_ERR, MSG_NO_VERSION_FOUND_ERR,
+    MSG_FETCHING_ZKSOLC_RELEASES_SPINNER, MSG_FETCHING_ZKVMSOLC_RELEASES_SPINNER,
+    MSG_FETCHING_ZKVYPER_RELEASES_SPINNER, MSG_FETCH_SOLC_RELEASES_SPINNER,
+    MSG_GET_SOLC_RELEASES_ERR, MSG_GET_VYPER_RELEASES_ERR, MSG_GET_ZKSOLC_RELEASES_ERR,
+    MSG_GET_ZKVMSOLC_RELEASES_ERR, MSG_GET_ZKVYPER_RELEASES_ERR, MSG_NO_VERSION_FOUND_ERR,
     MSG_OS_NOT_SUPPORTED_ERR, MSG_SOLC_VERSION_PROMPT, MSG_VYPER_VERSION_PROMPT,
-    MSG_ZKSOLC_VERSION_PROMPT, MSG_ZKVYPER_VERSION_PROMPT,
+    MSG_ZKSOLC_VERSION_PROMPT, MSG_ZKVMSOLC_VERSION_PROMPT, MSG_ZKVYPER_VERSION_PROMPT,
 };
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -18,6 +19,9 @@ pub struct InitContractVerifierArgs {
     /// Version of zksolc to install
     #[clap(long)]
     pub zksolc_version: Option<String>,
+    /// Version of zkVM solc to install
+    #[clap(long)]
+    pub zkvmsolc_version: Option<String>,
     /// Version of zkvyper to install
     #[clap(long)]
     pub zkvyper_version: Option<String>,
@@ -32,6 +36,7 @@ pub struct InitContractVerifierArgs {
 #[derive(Debug, Clone)]
 pub struct InitContractVerifierArgsFinal {
     pub zksolc_releases: Vec<Version>,
+    pub zkvmsolc_releases: Vec<Version>,
     pub zkvyper_releases: Vec<Version>,
     pub solc_releases: Vec<Version>,
     pub vyper_releases: Vec<Version>,
@@ -51,6 +56,14 @@ impl InitContractVerifierArgs {
             MSG_FETCHING_ZKSOLC_RELEASES_SPINNER,
         )
         .context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
+
+        let zkvmsolc_releases = get_releases_with_arch(
+            shell,
+            "matter-labs/era-solidity",
+            arch,
+            MSG_FETCHING_ZKVMSOLC_RELEASES_SPINNER,
+        )
+        .context(MSG_GET_ZKVMSOLC_RELEASES_ERR)?;
 
         let zkvyper_releases = get_releases_with_arch(
             shell,
@@ -83,6 +96,13 @@ impl InitContractVerifierArgs {
         )?;
         let zksolc_releases = get_releases_above_version(zksolc_releases, zksolc_version)?;
 
+        let zkvmsolc_version = select_min_version(
+            self.zkvmsolc_version,
+            zkvmsolc_releases.clone(),
+            MSG_ZKVMSOLC_VERSION_PROMPT,
+        )?;
+        let zkvmsolc_releases = get_releases_above_version(zkvmsolc_releases, zkvmsolc_version)?;
+
         let zkvyper_version = select_min_version(
             self.zkvyper_version,
             zkvyper_releases.clone(),
@@ -106,6 +126,7 @@ impl InitContractVerifierArgs {
 
         Ok(InitContractVerifierArgsFinal {
             zksolc_releases,
+            zkvmsolc_releases,
             zkvyper_releases,
             solc_releases,
             vyper_releases,
