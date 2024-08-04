@@ -6,23 +6,23 @@ use zksync_dal::consensus_dal;
 use crate::storage::{vm_reader::VMReader, CommitteeAttester, CommitteeValidator, ConnectionPool};
 
 #[derive(Debug)]
-pub struct Denormalizer {
+pub struct CommitteeExtractor {
     pool: ConnectionPool,
     reader: VMReader,
 }
 
-impl Denormalizer {
-    pub fn new(pool: ConnectionPool, reader: VMReader) -> Denormalizer {
+impl CommitteeExtractor {
+    pub fn new(pool: ConnectionPool, reader: VMReader) -> CommitteeExtractor {
         Self { pool, reader }
     }
 
     pub async fn run(mut self, ctx: &Ctx) -> anyhow::Result<()> {
-        tracing::info!("Running zksync_node_consensus::storage::Denormalizer");
+        tracing::info!("Running zksync_node_consensus::storage::CommitteeExtractor");
         let res = scope::run!(ctx, |ctx, s| async {
-            let mut next_batch = self.last_batch_committees(ctx).await?.next();
+            let mut next_batch = self.last_batch_committee(ctx).await?.next();
             loop {
                 self.wait_batch(ctx, next_batch).await?;
-                self.denormalize_batch_committees(ctx, next_batch).await?;
+                self.extract_batch_committee(ctx, next_batch).await?;
                 next_batch = next_batch.next();
             }
         })
@@ -33,7 +33,7 @@ impl Denormalizer {
         }
     }
 
-    async fn denormalize_batch_committees(
+    async fn extract_batch_committee(
         &mut self,
         ctx: &Ctx,
         batch_number: attester::BatchNumber,
@@ -57,7 +57,7 @@ impl Denormalizer {
             .await
             .context("read_attester_committee()")?;
 
-        let attester_committee = Self::transform_committees(attester_committee)?;
+        let attester_committee = Self::transform_committee(attester_committee)?;
 
         self.pool
             .connection(ctx)
@@ -68,7 +68,7 @@ impl Denormalizer {
         Ok(())
     }
 
-    async fn last_batch_committees(&mut self, ctx: &Ctx) -> ctx::Result<attester::BatchNumber> {
+    async fn last_batch_committee(&mut self, ctx: &Ctx) -> ctx::Result<attester::BatchNumber> {
         // TODO(moshababo): implement
         Ok(attester::BatchNumber(0))
     }
@@ -111,7 +111,7 @@ impl Denormalizer {
         Ok(Some(max))
     }
 
-    fn transform_committees(
+    fn transform_committee(
         committee: Vec<CommitteeAttester>,
     ) -> ctx::Result<consensus_dal::AttesterCommittee> {
         let attester_committee = consensus_dal::AttesterCommittee {

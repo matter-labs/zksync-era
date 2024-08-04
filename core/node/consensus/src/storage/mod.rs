@@ -23,7 +23,7 @@ use zksync_basic_types::{
     H160, U256,
 };
 
-pub(crate) mod denormalizer;
+pub(crate) mod committee_extractor;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]

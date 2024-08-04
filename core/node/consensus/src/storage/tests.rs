@@ -98,7 +98,7 @@ async fn test_vm_reader() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_denormalizer() {
+async fn test_committee_extractor() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -122,8 +122,8 @@ async fn test_denormalizer() {
             tx_sender.clone(),
             writer.deploy_tx.address,
         );
-        let denormalizer = super::denormalizer::Denormalizer::new(pool.clone(), reader);
-        s.spawn_bg(denormalizer.run(ctx));
+        let extractor = super::committee_extractor::CommitteeExtractor::new(pool.clone(), reader);
+        s.spawn_bg(extractor.run(ctx));
 
         let mut nodes: Vec<Vec<Token>> = Vec::new();
         let num_nodes = 5;
@@ -150,7 +150,7 @@ async fn test_denormalizer() {
         let batch_committees = pool
             .connection(ctx)
             .await?
-            .batch_committees(ctx, BatchNumber(3))
+            .batch_committee(ctx, BatchNumber(3))
             .await?;
         panic!("{:?}", batch_committees);
 

@@ -356,7 +356,7 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `consensus_dal().batch_committees()`.
-    pub async fn batch_committees(
+    pub async fn batch_committee(
         &mut self,
         ctx: &ctx::Ctx,
         batch_number: attester::BatchNumber,
