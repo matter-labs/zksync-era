@@ -39,7 +39,7 @@ impl Request<'_> {
         let result = loop {
             match f().await {
                 Ok(result) => break Ok(result),
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     if retries > max_retries {
                         tracing::warn!(%err, "Exhausted {max_retries} retries performing request; returning last error");
                         break Err(err);
@@ -142,7 +142,7 @@ mod test {
 
     fn transient_error() -> ObjectStoreError {
         ObjectStoreError::Other {
-            is_transient: true,
+            is_retriable: true,
             source: "oops".into(),
         }
     }

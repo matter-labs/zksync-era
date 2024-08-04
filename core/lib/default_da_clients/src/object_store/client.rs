@@ -40,7 +40,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
             .await
         {
             return Err(DAError {
-                is_transient: err.is_transient(),
+                is_transient: err.is_retriable(),
                 error: anyhow::Error::from(err),
             });
         }
@@ -66,7 +66,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
             }
 
             return Err(DAError {
-                is_transient: err.is_transient(),
+                is_transient: err.is_retriable(),
                 error: anyhow::Error::from(err),
             });
         }

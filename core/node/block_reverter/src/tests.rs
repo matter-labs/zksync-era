@@ -382,7 +382,7 @@ impl ObjectStore for ErroneousStore {
             .unwrap()
             .remove(&(bucket, key.to_owned()));
         Err(ObjectStoreError::Other {
-            is_transient: false,
+            is_retriable: false,
             source: "fatal error".into(),
         })
     }

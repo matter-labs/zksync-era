@@ -82,7 +82,7 @@ enum SnapshotsApplierError {
 
 impl SnapshotsApplierError {
     fn object_store(err: ObjectStoreError, context: String) -> Self {
-        if err.is_transient() {
+        if err.is_retriable() {
             Self::Retryable(anyhow::Error::from(err).context(context))
         } else {
             Self::Fatal(anyhow::Error::from(err).context(context))
