@@ -54,14 +54,10 @@ impl VMReader {
         ctx: &Ctx,
         block_id: BlockId,
     ) -> anyhow::Result<(Vec<CommitteeValidator>, Vec<CommitteeAttester>)> {
-        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
-        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
+        let block_args = self
+            .block_args(ctx, block_id)
             .await
-            .unwrap();
-        let block_args = BlockArgs::new(&mut conn, block_id, &start_info)
-            .await
-            .unwrap();
-
+            .context("block_args()")?;
         let validator_committee = self
             .read_validator_committee(block_args)
             .await
@@ -74,7 +70,18 @@ impl VMReader {
         Ok((validator_committee, attester_committee))
     }
 
-    async fn read_validator_committee(
+    pub async fn block_args(&self, ctx: &Ctx, block_id: BlockId) -> anyhow::Result<BlockArgs> {
+        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
+        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
+            .await
+            .unwrap();
+
+        BlockArgs::new(&mut conn, block_id, &start_info)
+            .await
+            .context("BlockArgs::new")
+    }
+
+    pub async fn read_validator_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeValidator>> {
@@ -93,7 +100,7 @@ impl VMReader {
         Ok(committee)
     }
 
-    async fn read_attester_committee(
+    pub async fn read_attester_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeAttester>> {

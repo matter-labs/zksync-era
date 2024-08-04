@@ -46,16 +46,23 @@ impl Denormalizer {
         let block_number =
             zksync_types::api::BlockNumber::Number(zksync_types::U64::from(max_l2_block.0));
         let block_id = zksync_types::api::BlockId::Number(block_number);
-        let (validator_committee, attester_committee) =
-            self.reader.read_committees(ctx, block_id).await?;
+        let block_args = self
+            .reader
+            .block_args(ctx, block_id)
+            .await
+            .context("block_args()")?;
+        let attester_committee = self
+            .reader
+            .read_attester_committee(block_args)
+            .await
+            .context("read_attester_committee()")?;
 
-        let (validator_committee, attester_committee) =
-            Self::transform_committees((validator_committee, attester_committee))?;
+        let attester_committee = Self::transform_committees(attester_committee)?;
 
         self.pool
             .connection(ctx)
             .await?
-            .insert_batch_committees(ctx, batch_number, validator_committee, attester_committee)
+            .insert_batch_committee(ctx, batch_number, attester_committee)
             .await?;
 
         Ok(())
@@ -105,27 +112,14 @@ impl Denormalizer {
     }
 
     fn transform_committees(
-        committees: (Vec<CommitteeValidator>, Vec<CommitteeAttester>),
-    ) -> ctx::Result<(
-        consensus_dal::ValidatorCommittee,
-        consensus_dal::AttesterCommittee,
-    )> {
-        let validator_committee = consensus_dal::ValidatorCommittee {
-            members: committees
-                .0
-                .into_iter()
-                .map(CommitteeValidator::try_into)
-                .collect::<Result<Vec<consensus_dal::Validator>, _>>()?,
-        };
-
+        committee: Vec<CommitteeAttester>,
+    ) -> ctx::Result<consensus_dal::AttesterCommittee> {
         let attester_committee = consensus_dal::AttesterCommittee {
-            members: committees
-                .1
+            members: committee
                 .into_iter()
                 .map(CommitteeAttester::try_into)
                 .collect::<Result<Vec<consensus_dal::Attester>, _>>()?,
         };
-
-        Ok((validator_committee, attester_committee))
+        Ok(attester_committee)
     }
 }

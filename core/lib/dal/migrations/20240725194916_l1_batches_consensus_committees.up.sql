@@ -1,6 +1,5 @@
 ALTER TABLE l1_batches_consensus
-ADD validator_committee JSONB NULL,
-ADD attester_committee JSONB NULL;
+ADD committee JSONB NOT NULL;
 
 ALTER TABLE l1_batches_consensus
 ALTER COLUMN certificate DROP NOT NULL;

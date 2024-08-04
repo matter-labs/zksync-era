@@ -325,15 +325,14 @@ impl ConsensusDal<'_, '_> {
         )?))
     }
 
-    pub async fn batch_committees(
+    pub async fn batch_committee(
         &mut self,
         batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<(consensus::ValidatorCommittee, consensus::AttesterCommittee)>> {
+    ) -> anyhow::Result<Option<AttesterCommittee>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                validator_committee,
-                attester_committee
+                committee
             FROM
                 l1_batches_consensus
             WHERE
@@ -341,7 +340,7 @@ impl ConsensusDal<'_, '_> {
             "#,
             i64::try_from(batch_number.0)?
         )
-        .instrument("batch_committees")
+        .instrument("batch_committee")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
@@ -349,10 +348,7 @@ impl ConsensusDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some((
-            zksync_protobuf::serde::deserialize(row.validator_committee.unwrap())?,
-            zksync_protobuf::serde::deserialize(row.attester_committee.unwrap())?,
-        )))
+        Ok(Some(zksync_protobuf::serde::deserialize(row.committee)?))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -437,39 +433,23 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_batch_committees(
+    pub async fn insert_batch_committee(
         &mut self,
         number: BatchNumber,
-        validator_committee: consensus::ValidatorCommittee,
-        attester_committee: consensus::AttesterCommittee,
+        committee: AttesterCommittee,
     ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (
-                    l1_batch_number,
-                    certificate,
-                    validator_committee,
-                    attester_committee,
-                    created_at,
-                    updated_at
-                )
+                l1_batches_consensus (l1_batch_number, certificate, committee, created_at, updated_at)
             VALUES
-                ($1, NULL, $2, $3, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
-            SET
-                validator_committee = EXCLUDED.validator_committee,
-                attester_committee = EXCLUDED.attester_committee,
-                updated_at = NOW();
+                ($1, NULL, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::try_from(number.0).context("overflow")?.into(),
-            zksync_protobuf::serde::serialize(&validator_committee, serde_json::value::Serializer)
-                .unwrap(),
-            zksync_protobuf::serde::serialize(&attester_committee, serde_json::value::Serializer)
-                .unwrap(),
+            zksync_protobuf::serde::serialize(&committee, serde_json::value::Serializer).unwrap(),
         )
-        .instrument("insert_batch_committees")
+        .instrument("insert_batch_committee")
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -489,22 +469,12 @@ impl ConsensusDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
-            INSERT INTO
-                l1_batches_consensus (
-                    l1_batch_number,
-                    certificate,
-                    validator_committee,
-                    attester_committee,
-                    created_at,
-                    updated_at
-                )
-            VALUES
-                ($1, $2, NULL, NULL, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
+            UPDATE l1_batches_consensus
             SET
-                certificate = EXCLUDED.certificate,
-                updated_at = NOW();
+                certificate = $2,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.

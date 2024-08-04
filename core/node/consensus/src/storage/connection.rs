@@ -138,19 +138,18 @@ impl<'a> Connection<'a> {
             .map_err(E::Other)?)
     }
 
-    /// Wrapper for `consensus_dal().insert_batch_committees()`.
-    pub async fn insert_batch_committees(
+    /// Wrapper for `consensus_dal().insert_batch_committee()`.
+    pub async fn insert_batch_committee(
         &mut self,
         ctx: &ctx::Ctx,
         number: BatchNumber,
-        validator_committee: consensus_dal::ValidatorCommittee,
-        attester_committee: consensus_dal::AttesterCommittee,
+        committee: consensus_dal::AttesterCommittee,
     ) -> ctx::Result<()> {
-        ctx.wait(self.0.consensus_dal().insert_batch_committees(
-            number,
-            validator_committee,
-            attester_committee,
-        ))
+        ctx.wait(
+            self.0
+                .consensus_dal()
+                .insert_batch_committee(number, committee),
+        )
         .await??;
         Ok(())
     }
@@ -361,14 +360,9 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         batch_number: attester::BatchNumber,
-    ) -> ctx::Result<
-        Option<(
-            consensus_dal::ValidatorCommittee,
-            consensus_dal::AttesterCommittee,
-        )>,
-    > {
+    ) -> ctx::Result<Option<consensus_dal::AttesterCommittee>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().batch_committees(batch_number))
+            .wait(self.0.consensus_dal().batch_committee(batch_number))
             .await?
             .context("batch_committees()")?)
     }
