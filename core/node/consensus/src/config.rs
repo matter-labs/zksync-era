@@ -63,7 +63,6 @@ impl GenesisSpec {
                 Ok(validator::WeightedValidator {
                     key: Text::new(&v.key.0).decode().context("key").context(i)?,
                     weight: v.weight,
-                    pop: Signature::decode(Text::new("")).unwrap(), // TODO(moshababo): implement
                 })
             })
             .collect::<anyhow::Result<_>>()

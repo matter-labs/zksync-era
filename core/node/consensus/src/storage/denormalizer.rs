@@ -1,6 +1,7 @@
 use anyhow::Context;
 use zksync_concurrency::{ctx, ctx::Ctx, scope, time};
 use zksync_consensus_roles::{attester, validator};
+use zksync_dal::consensus_dal;
 
 use crate::storage::{vm_reader::VMReader, CommitteeAttester, CommitteeValidator, ConnectionPool};
 
@@ -105,21 +106,24 @@ impl Denormalizer {
 
     fn transform_committees(
         committees: (Vec<CommitteeValidator>, Vec<CommitteeAttester>),
-    ) -> ctx::Result<(validator::ValidatorCommittee, attester::AttesterCommittee)> {
-        let validator_committee = validator::ValidatorCommittee {
+    ) -> ctx::Result<(
+        consensus_dal::ValidatorCommittee,
+        consensus_dal::AttesterCommittee,
+    )> {
+        let validator_committee = consensus_dal::ValidatorCommittee {
             members: committees
                 .0
                 .into_iter()
                 .map(CommitteeValidator::try_into)
-                .collect::<Result<Vec<validator::WeightedValidator>, _>>()?,
+                .collect::<Result<Vec<consensus_dal::Validator>, _>>()?,
         };
 
-        let attester_committee = attester::AttesterCommittee {
+        let attester_committee = consensus_dal::AttesterCommittee {
             members: committees
                 .1
                 .into_iter()
                 .map(CommitteeAttester::try_into)
-                .collect::<Result<Vec<attester::WeightedAttester>, _>>()?,
+                .collect::<Result<Vec<consensus_dal::Attester>, _>>()?,
         };
 
         Ok((validator_committee, attester_committee))

@@ -87,14 +87,14 @@ pub struct CommitteeValidator {
     pub pop: Vec<u8>,
 }
 
-impl TryInto<validator::WeightedValidator> for CommitteeValidator {
+impl TryInto<consensus_dal::Validator> for CommitteeValidator {
     type Error = anyhow::Error;
 
-    fn try_into(self) -> Result<validator::WeightedValidator, Self::Error> {
-        Ok(validator::WeightedValidator {
-            key: validator::PublicKey::decode(&self.pub_key).unwrap(),
+    fn try_into(self) -> Result<consensus_dal::Validator, Self::Error> {
+        Ok(consensus_dal::Validator {
+            pub_key: validator::PublicKey::decode(&self.pub_key).unwrap(),
             weight: self.weight as u64,
-            pop: validator::Signature::decode(&self.pop).unwrap(),
+            proof_of_possession: validator::Signature::decode(&self.pop).unwrap(),
         })
     }
 }
@@ -139,12 +139,12 @@ pub struct CommitteeAttester {
     pub pub_key: Vec<u8>,
 }
 
-impl TryInto<attester::WeightedAttester> for CommitteeAttester {
+impl TryInto<consensus_dal::Attester> for CommitteeAttester {
     type Error = anyhow::Error;
 
-    fn try_into(self) -> Result<attester::WeightedAttester, Self::Error> {
-        Ok(attester::WeightedAttester {
-            key: attester::PublicKey::decode(&self.pub_key).unwrap(),
+    fn try_into(self) -> Result<consensus_dal::Attester, Self::Error> {
+        Ok(consensus_dal::Attester {
+            pub_key: attester::PublicKey::decode(&self.pub_key).unwrap(),
             weight: self.weight as u64,
         })
     }

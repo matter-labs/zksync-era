@@ -1,12 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{
-    attester,
-    attester::{AttesterCommittee, BatchNumber},
-    validator,
-    validator::ValidatorCommittee,
-};
+use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -148,8 +143,8 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: BatchNumber,
-        validator_committee: ValidatorCommittee,
-        attester_committee: AttesterCommittee,
+        validator_committee: consensus_dal::ValidatorCommittee,
+        attester_committee: consensus_dal::AttesterCommittee,
     ) -> ctx::Result<()> {
         ctx.wait(self.0.consensus_dal().insert_batch_committees(
             number,
@@ -366,7 +361,12 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         batch_number: attester::BatchNumber,
-    ) -> ctx::Result<Option<(validator::ValidatorCommittee, attester::AttesterCommittee)>> {
+    ) -> ctx::Result<
+        Option<(
+            consensus_dal::ValidatorCommittee,
+            consensus_dal::AttesterCommittee,
+        )>,
+    > {
         Ok(ctx
             .wait(self.0.consensus_dal().batch_committees(batch_number))
             .await?

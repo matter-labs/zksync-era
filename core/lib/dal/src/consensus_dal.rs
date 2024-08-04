@@ -1,10 +1,7 @@
 use anyhow::Context as _;
 use bigdecimal::Zero as _;
 use zksync_consensus_roles::{
-    attester,
-    attester::{AttesterCommittee, BatchNumber},
-    validator,
-    validator::{ValidatorCommittee, WeightedValidator},
+    attester, attester::BatchNumber, validator, validator::WeightedValidator,
 };
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -15,8 +12,8 @@ use zksync_db_connection::{
 use zksync_protobuf::ProtoFmt;
 use zksync_types::L2BlockNumber;
 
-pub use crate::consensus::Payload;
-use crate::{Core, CoreDal};
+pub use crate::consensus::{Attester, AttesterCommittee, Payload, Validator, ValidatorCommittee};
+use crate::{consensus, Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -331,7 +328,7 @@ impl ConsensusDal<'_, '_> {
     pub async fn batch_committees(
         &mut self,
         batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<(validator::ValidatorCommittee, attester::AttesterCommittee)>> {
+    ) -> anyhow::Result<Option<(consensus::ValidatorCommittee, consensus::AttesterCommittee)>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -443,8 +440,8 @@ impl ConsensusDal<'_, '_> {
     pub async fn insert_batch_committees(
         &mut self,
         number: BatchNumber,
-        validator_committee: ValidatorCommittee,
-        attester_committee: AttesterCommittee,
+        validator_committee: consensus::ValidatorCommittee,
+        attester_committee: consensus::AttesterCommittee,
     ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
