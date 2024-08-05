@@ -1,10 +1,13 @@
 use anyhow::Context;
 use zksync_concurrency::{ctx, ctx::Ctx, scope, time};
-use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
+use zksync_consensus_roles::{attester, validator};
 use zksync_dal::consensus_dal;
 use zksync_node_api_server::execution_sandbox::BlockArgs;
 
-use crate::storage::{vm_reader::VMReader, CommitteeAttester, CommitteeValidator, ConnectionPool};
+use crate::storage::{
+    registry_contract::{abi::CommitteeAttester, vm_reader::VMReader},
+    ConnectionPool,
+};
 
 #[derive(Debug)]
 pub struct CommitteeExtractor {

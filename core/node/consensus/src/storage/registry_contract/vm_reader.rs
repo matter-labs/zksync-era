@@ -11,16 +11,17 @@ use zksync_node_api_server::{
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::BlockId,
-    ethabi::{Address, Contract, Token},
+    ethabi::{Address, Contract},
     fee::Fee,
     l2::L2Tx,
     transaction_request::CallOverrides,
     Nonce, U256,
 };
-use zksync_web3_decl::types::H160;
 
-use super::{CommitteeAttester, CommitteeValidator};
-use crate::storage::ConnectionPool;
+use crate::storage::{
+    registry_contract::abi::{CommitteeAttester, CommitteeValidator},
+    ConnectionPool,
+};
 
 /// A struct for reading data from consensus L2 contracts.
 #[derive(Debug)]
