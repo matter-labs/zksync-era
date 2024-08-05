@@ -20,6 +20,7 @@ main() {
     install_from_repo
   fi
 
+  add_to_path
   echo "zk_toolbox installed successfully"
 }
 
@@ -45,14 +46,32 @@ check_prerequisite() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-    --)               shift; break;;
+    --)
+      shift
+      break
+      ;;
 
-    -p | --path)      shift; ZKUP_PATH=$1;;
-    -r | --repo)      shift; ZKUP_REPO=$1;;
-    -b | --branch)    shift; ZKUP_BRANCH=$1;;
-    -c | --commit)    shift; ZKUP_COMMIT=$1;;
-    -v | --version)   shift; ZKUP_VERSION=$1;;
-    --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1;;
+    -p | --path)
+      shift
+      ZKUP_PATH=$1
+      ;;
+    -r | --repo)
+      shift
+      ZKUP_REPO=$1
+      ;;
+    -b | --branch)
+      shift
+      ZKUP_BRANCH=$1
+      ;;
+    -c | --commit)
+      shift
+      ZKUP_COMMIT=$1
+      ;;
+    -v | --version)
+      shift
+      ZKUP_VERSION=$1
+      ;;
+    --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1 ;;
     -h | --help)
       usage
       exit 0
@@ -93,11 +112,7 @@ install_local() {
 
   for bin in "${BINS[@]}"; do
     echo "Installing $bin"
-    ensure cargo install --path ./crates/$bin --force
-
-    # Remove old binary and create a symlink to the new one
-    rm -f "$ZKT_BIN_DIR/$bin"
-    ensure ln -s "$$PWD/target/release/$bin" "$ZKT_BIN_DIR/$bin"
+    ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
   done
 }
 
@@ -107,7 +122,7 @@ install_from_repo() {
   fi
 
   ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
-  
+
   echo "Installing zk_toolbox from $ZKUP_REPO"
 
   if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
@@ -118,22 +133,60 @@ install_from_repo() {
     if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
       echo "Ignoring --commit and --branch arguments when installing by version"
     fi
-    ensure cargo install --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
   elif [ -n "$ZKUP_COMMIT" ]; then
     if [ -n "$ZKUP_BRANCH" ]; then
       echo "Ignoring --branch argument when installing by commit"
     fi
-    ensure cargo install --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
   elif [ -n "$ZKUP_BRANCH" ]; then
-    ensure cargo install --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
   else
-    ensure cargo install --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
   fi
 }
 
-
 ensure() {
   if ! "$@"; then err "command failed: $*"; fi
+}
+
+add_to_path() {
+  if [[ ":$PATH:" == *":${ZKT_BIN_DIR}:"* ]]; then
+    echo "zkup: found ${ZKT_BIN_DIR} in PATH"
+    return 0
+  fi
+
+  case $SHELL in
+  */zsh)
+    PROFILE="${ZDOTDIR-"$HOME"}/.zshenv"
+    ;;
+  */bash)
+    PROFILE="$HOME/.bashrc"
+    ;;
+  */fish)
+    PROFILE="$HOME/.config/fish/config.fish"
+    ;;
+  */ash)
+    PROFILE="$HOME/.profile"
+    ;;
+  *)
+    echo "zkup: could not detect shell, manually add ${ZKT_BIN_DIR} to your PATH."
+    return 1
+    ;;
+  esac
+
+  if [[ ! -f "$PROFILE" ]]; then
+    echo "zkup: Profile file $PROFILE does not exist, creating it."
+    touch "$PROFILE"
+  fi
+
+  if [[ "$SHELL" == *"/fish"* ]]; then
+    echo -e "\n# Added by zkup\nfish_add_path -a $ZKT_BIN_DIR" >>"$PROFILE"
+    echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE using fish_add_path."
+  else
+    echo -e "\n# Added by zkup\nexport PATH=\"\$PATH:$ZKT_BIN_DIR\"" >>"$PROFILE"
+    echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE."
+  fi
 }
 
 main "$@"
