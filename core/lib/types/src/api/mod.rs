@@ -842,7 +842,7 @@ pub struct FeeHistory {
     pub inner: zksync_basic_types::web3::FeeHistory,
     /// An array of effective pubdata price. Note, that this field is L2-specific and only provided by L2 nodes.
     #[serde(default)]
-    pub pubdata_price: Vec<U256>,
+    pub l2_pubdata_price: Vec<U256>,
 }
 
 #[cfg(test)]

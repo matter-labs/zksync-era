@@ -350,7 +350,7 @@ macro_rules! impl_l1_eth_fee_interface {
                         let fees = BaseFees {
                             base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
                             base_fee_per_blob_gas: blob,
-                            pubdata_price: 0.into()
+                            l2_pubdata_price: 0.into()
                         };
                         history.push(fees)
                     }
@@ -366,71 +366,8 @@ macro_rules! impl_l1_eth_fee_interface {
 impl_l1_eth_fee_interface!(Box::<DynClient::<L1>>);
 impl_l1_eth_fee_interface!(MockClient::<L1>);
 
-// #[async_trait::async_trait]
-// impl<T: L1Client> EthFeeInterface for T {
-//     async fn base_fee_history(
-//         &self,
-//         upto_block: usize,
-//         block_count: usize,
-//     ) -> EnrichedClientResult<Vec<BaseFees>> {
-//         COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
-//         let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
-//         let mut history = Vec::with_capacity(block_count);
-//         let from_block = upto_block.saturating_sub(block_count);
-
-//         // Here we are requesting `fee_history` from blocks
-//         // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
-//         // starting from the oldest block.
-//         for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
-//             let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
-//             let chunk_size = chunk_end - chunk_start;
-
-//             let fee_history = self
-//                 .fee_history(
-//                     U64::from(chunk_size),
-//                     web3::BlockNumber::from(chunk_end),
-//                     None,
-//                 )
-//                 .rpc_context("fee_history")
-//                 .with_arg("chunk_size", &chunk_size)
-//                 .with_arg("block", &chunk_end)
-//                 .await?;
-
-//             // Check that the lengths are the same.
-//             // Per specification, the values should always be provided, and must be 0 for blocks
-//             // prior to EIP-4844.
-//             // https://ethereum.github.io/execution-apis/api-documentation/
-//             if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-//                 tracing::error!(
-//                     "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
-//                     fee_history.base_fee_per_gas.len(),
-//                     fee_history.base_fee_per_blob_gas.len()
-//                 );
-//             }
-
-//             for (base, blob) in fee_history
-//                 .base_fee_per_gas
-//                 .into_iter()
-//                 .zip(fee_history.base_fee_per_blob_gas)
-//             {
-//                 let fees = BaseFees {
-//                     base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
-//                     base_fee_per_blob_gas: blob,
-//                 };
-//                 history.push(fees)
-//             }
-//         }
-
-//         latency.observe();
-//         Ok(history)
-//     }
-// }
-
-pub trait L2Client: EthNamespaceClient + EthInterface + ForEthereumLikeNetwork<Net = L2> {}
-impl L2Client for Box<DynClient<L2>> {}
-
 #[async_trait::async_trait]
-impl<T: L2Client> EthFeeInterface for T {
+impl EthFeeInterface for Box<DynClient<L2>> {
     async fn base_fee_history(
         &self,
         upto_block: usize,
@@ -448,36 +385,36 @@ impl<T: L2Client> EthFeeInterface for T {
             let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
             let chunk_size = chunk_end - chunk_start;
 
-            let fee_history = self
-                .fee_history(
-                    U64::from(chunk_size),
-                    zksync_types::api::BlockNumber::from(chunk_end),
-                    vec![],
-                )
-                .rpc_context("fee_history")
-                .with_arg("chunk_size", &chunk_size)
-                .with_arg("block", &chunk_end)
-                .await?;
+            let fee_history = EthNamespaceClient::fee_history(
+                self,
+                U64::from(chunk_size),
+                zksync_types::api::BlockNumber::from(chunk_end),
+                vec![],
+            )
+            .rpc_context("fee_history")
+            .with_arg("chunk_size", &chunk_size)
+            .with_arg("block", &chunk_end)
+            .await?;
 
             // Check that the lengths are the same.
-            if fee_history.inner.base_fee_per_gas.len() != fee_history.pubdata_price.len() {
+            if fee_history.inner.base_fee_per_gas.len() != fee_history.l2_pubdata_price.len() {
                 tracing::error!(
                     "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
                     fee_history.inner.base_fee_per_gas.len(),
-                    fee_history.pubdata_price.len()
+                    fee_history.l2_pubdata_price.len()
                 );
             }
 
-            for (base, pubdata_price) in fee_history
+            for (base, l2_pubdata_price) in fee_history
                 .inner
                 .base_fee_per_gas
                 .into_iter()
-                .zip(fee_history.pubdata_price)
+                .zip(fee_history.l2_pubdata_price)
             {
                 let fees = BaseFees {
                     base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
                     base_fee_per_blob_gas: 0.into(),
-                    pubdata_price,
+                    l2_pubdata_price,
                 };
                 history.push(fees)
             }

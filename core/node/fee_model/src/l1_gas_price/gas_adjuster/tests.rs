@@ -89,7 +89,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         .map(|(block, blob)| BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: blob.into(),
-            pubdata_price: 0.into(),
+            l2_pubdata_price: 0.into(),
         })
         .collect();
 
@@ -153,7 +153,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         .map(|(block, pubdata)| BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: 0.into(),
-            pubdata_price: pubdata.into(),
+            l2_pubdata_price: pubdata.into(),
         })
         .collect();
 

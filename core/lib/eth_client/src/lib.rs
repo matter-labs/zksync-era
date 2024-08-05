@@ -72,7 +72,7 @@ pub struct BaseFees {
     // Base fee per blob gas. It is zero on networks that do not support blob transactions (e.g. L2s).
     pub base_fee_per_blob_gas: U256,
     // The price (in wei) for relaying the pubdata to L1. It is non-zero only for L2 settlement layers.
-    pub pubdata_price: U256,
+    pub l2_pubdata_price: U256,
 }
 
 /// Common Web3 interface, as seen by the core applications.

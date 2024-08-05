@@ -57,7 +57,7 @@ impl Tester {
             .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
                 base_fee_per_blob_gas: 1.into(), // Not relevant for the test
-                pubdata_price: 0.into(),         // Not relevant for the test
+                l2_pubdata_price: 0.into(),      // Not relevant for the test
             })
             .collect();
         let eth_client = MockSettlementLayer::builder()

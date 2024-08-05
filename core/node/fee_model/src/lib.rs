@@ -749,7 +749,7 @@ mod tests {
         BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: blob,
-            pubdata_price: pubdata,
+            l2_pubdata_price: pubdata,
         }
     }
 

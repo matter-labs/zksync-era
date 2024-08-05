@@ -152,7 +152,7 @@ impl EthSenderTester {
             .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
                 base_fee_per_blob_gas: 0.into(),
-                pubdata_price: 0.into(),
+                l2_pubdata_price: 0.into(),
             })
             .collect();
 
@@ -161,7 +161,7 @@ impl EthSenderTester {
                 std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
-                    pubdata_price: 0.into(),
+                    l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
                 .chain(history.clone())
@@ -181,7 +181,7 @@ impl EthSenderTester {
                 std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
-                    pubdata_price: 0.into(),
+                    l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
                 .chain(history)

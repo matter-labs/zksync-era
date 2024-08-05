@@ -157,7 +157,7 @@ impl GasAdjuster {
         let l2_pubdata_price_statistics = GasStatistics::new(
             config.num_samples_for_blob_base_fee_estimate,
             current_block,
-            fee_history.iter().map(|fee| fee.pubdata_price),
+            fee_history.iter().map(|fee| fee.l2_pubdata_price),
         );
 
         Ok(Self {
@@ -220,7 +220,8 @@ impl GasAdjuster {
             self.blob_base_fee_statistics
                 .add_samples(fee_data.iter().map(|fee| fee.base_fee_per_blob_gas));
 
-            if let Some(current_l2_pubdata_price) = fee_data.last().map(|fee| fee.pubdata_price) {
+            if let Some(current_l2_pubdata_price) = fee_data.last().map(|fee| fee.l2_pubdata_price)
+            {
                 // L2 pubdata price overflows `u64` only in very extreme cases.
                 // It isn't worth to observe exact value with metric because anyway values that can be used
                 // are capped by `self.config.max_blob_base_fee()` of `u64` type.
@@ -233,7 +234,7 @@ impl GasAdjuster {
                 }
             }
             self.l2_pubdata_price_statistics
-                .add_samples(fee_data.iter().map(|fee| fee.pubdata_price));
+                .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
         }
         Ok(())
     }

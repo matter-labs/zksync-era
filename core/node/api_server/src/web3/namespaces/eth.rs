@@ -712,7 +712,7 @@ impl EthNamespace {
                 base_fee_per_blob_gas,
                 blob_gas_used_ratio,
             },
-            pubdata_price: effective_pubdata_price_history,
+            l2_pubdata_price: effective_pubdata_price_history,
         })
     }
 

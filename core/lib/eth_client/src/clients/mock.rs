@@ -473,9 +473,9 @@ impl SupportedMockEthNetwork for L2 {
                             blob_gas_used_ratio: vec![], // not used
                             reward: None,
                         },
-                        pubdata_price: base_fee_history[start_block..=from_block]
+                        l2_pubdata_price: base_fee_history[start_block..=from_block]
                             .iter()
-                            .map(|fee| fee.pubdata_price)
+                            .map(|fee| fee.l2_pubdata_price)
                             .collect(),
                     })
                 },
@@ -659,7 +659,7 @@ mod tests {
         BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: U256::from(blob),
-            pubdata_price: U256::from(pubdata_price),
+            l2_pubdata_price: U256::from(pubdata_price),
         }
     }
 
