@@ -229,6 +229,8 @@ impl AbstractL1Interface for RealL1Interface {
                         OperatorType::Gateway => Some(EIP_1559_TX_TYPE.into()),
                     };
                     if tx.blob_sidecar.is_some() {
+                        //sanity check
+                        assert_eq!(opt.transaction_type, Some(EIP_4844_TX_TYPE.into()));
                         opt.max_fee_per_blob_gas = blob_gas_price;
                         opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
                             EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s

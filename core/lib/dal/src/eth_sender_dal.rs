@@ -63,11 +63,10 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
         &mut self,
     ) -> sqlx::Result<usize> {
-        let txs = sqlx::query_as!(
-            StorageEthTx,
+        let count = sqlx::query!(
             r#"
             SELECT
-                *
+                COUNT(*)
             FROM
                 eth_txs
             WHERE
@@ -75,9 +74,11 @@ impl EthSenderDal<'_, '_> {
                 AND is_gateway = FALSE
             "#
         )
-        .fetch_all(self.storage.conn())
-        .await?;
-        Ok(txs.len())
+        .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
     }
 
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {

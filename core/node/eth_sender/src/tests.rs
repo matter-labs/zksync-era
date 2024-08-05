@@ -455,7 +455,7 @@ async fn switching_to_gateway_while_some_transactions_were_in_flight_should_caus
     // sanity check
     tester.assert_inflight_txs_count_equals(1).await;
 
-    tester.switch_to_gateway();
+    tester.switch_to_using_gateway();
     tester.run_eth_sender_tx_manager_iteration().await;
 }
 
@@ -481,7 +481,7 @@ async fn switching_to_gateway_works_for_most_basic_scenario() {
     // sanity check
     tester.assert_inflight_txs_count_equals(0).await;
 
-    tester.switch_to_gateway();
+    tester.switch_to_using_gateway();
     tester.run_eth_sender_tx_manager_iteration().await;
 
     first_l1_batch.save_prove_tx(&mut tester).await;
