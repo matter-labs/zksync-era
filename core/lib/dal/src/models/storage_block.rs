@@ -272,7 +272,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                     .ok_or(L1BatchMetadataError::Incomplete("aggregation_root"))?,
             ),
             da_inclusion_data: batch.inclusion_data,
-            verify_da_inclusion: batch.verify_inclusion.unwrap_or_default(),
+            verify_da_inclusion: batch.verify_inclusion,
         })
     }
 }

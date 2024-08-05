@@ -223,7 +223,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
                 (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
                     let mut operator_da_input = vec![PUBDATA_SOURCE_CUSTOM];
-                    if self.l1_batch_with_metadata.metadata.verify_da_inclusion {
+                    if Some(true) == self.l1_batch_with_metadata.metadata.verify_da_inclusion {
                         operator_da_input.extend(
                             &self
                                 .l1_batch_with_metadata
