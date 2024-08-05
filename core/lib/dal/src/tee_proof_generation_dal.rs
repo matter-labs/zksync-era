@@ -1,3 +1,5 @@
+#![doc = include_str!("../doc/TeeProofGenerationDal.md")]
+
 use std::time::Duration;
 
 use zksync_db_connection::{

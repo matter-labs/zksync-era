@@ -1,3 +1,5 @@
+#![doc = include_str!("../doc/ProofGenerationDal.md")]
+
 use std::time::Duration;
 
 use strum::{Display, EnumString};
