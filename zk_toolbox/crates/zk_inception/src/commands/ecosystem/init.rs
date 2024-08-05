@@ -31,7 +31,10 @@ use config::{
 use types::{L1Network, ProverMode, WalletCreation};
 use xshell::{cmd, Shell};
 
-use super::args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal};
+use super::{
+    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    setup_observability,
+};
 use crate::{
     accept_ownership::accept_owner,
     commands::{
@@ -68,6 +71,10 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
+
+    if final_ecosystem_args.observability {
+        setup_observability::run(shell)?;
+    }
 
     let contracts_config = init(
         &mut final_ecosystem_args,

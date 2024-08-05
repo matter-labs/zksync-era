@@ -104,6 +104,26 @@ zk_inception ecosystem change-default-chain
 IMPORTANT: Currently, you cannot use an existing ecosystem to register a new chain. This feature will be added in the
 future.
 
+#### Observability
+
+To setup [era-observability](https://github.com/matter-labs/era-observability):
+
+```bash
+zk_inception ecosystem setup-observability
+```
+
+Or run:
+
+```bash
+zk_inception ecosystem init --observability
+```
+
+To start observability containers:
+
+```bash
+zk_inception containers --observability
+```
+
 ### ZK Chain
 
 #### Create

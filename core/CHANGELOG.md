@@ -1,5 +1,15 @@
 # Changelog
 
+## [24.14.0](https://github.com/matter-labs/zksync-era/compare/core-v24.13.0...core-v24.14.0) (2024-08-01)
+
+
+### Features
+
+* Adding SLChainID ([#2547](https://github.com/matter-labs/zksync-era/issues/2547)) ([656e830](https://github.com/matter-labs/zksync-era/commit/656e830e4fd60b5ace87dfc1604a102f06ae59e1))
+* **consensus:** add tracing instrumentation to consensus store ([#2546](https://github.com/matter-labs/zksync-era/issues/2546)) ([1e53940](https://github.com/matter-labs/zksync-era/commit/1e53940d5592410be34e56f48469065c516fcb54))
+* Poll the main node for the next batch to sign (BFT-496) ([#2544](https://github.com/matter-labs/zksync-era/issues/2544)) ([22cf820](https://github.com/matter-labs/zksync-era/commit/22cf820abbd14b852dffe60f6b564713fe4c8919))
+* Support sending logs via OTLP ([#2556](https://github.com/matter-labs/zksync-era/issues/2556)) ([1d206c0](https://github.com/matter-labs/zksync-era/commit/1d206c0af8f28eb00eb1498d6f2cdbb45ffef72a))
+
 ## [24.13.0](https://github.com/matter-labs/zksync-era/compare/core-v24.12.0...core-v24.13.0) (2024-07-31)
 
 
