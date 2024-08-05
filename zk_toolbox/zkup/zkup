@@ -22,7 +22,7 @@ main() {
     install_from_repo
   fi
 
-  say "zk_toolbox installed successfully"
+  success "zk_toolbox installed successfully"
 }
 
 PREREQUISITES=(cargo git)
@@ -178,6 +178,10 @@ say() {
   local rest=$(echo "$1" | sed 's/^[^ ]* //')
 
   echo -e "\033[1;32m$action\033[0m $rest"
+}
+
+success() {
+  echo -e "\033[1;32m$1\033[0m"
 }
 
 warn() {
