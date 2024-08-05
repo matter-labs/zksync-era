@@ -8,7 +8,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -34,7 +34,7 @@ use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
-        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper, AggregationWrapperLegacy,
     },
 };
 
@@ -444,10 +444,32 @@ async fn get_artifacts(
         circuit_id: metadata.circuit_id,
         depth: metadata.depth,
     };
-    object_store
-        .get(key)
-        .await
-        .unwrap_or_else(|_| panic!("node aggregation job artifacts missing: {:?}", key))
+    let result = object_store.get(key).await;
+
+    // TODO: remove after transition
+    match result {
+        Ok(aggregation_wrapper) => return aggregation_wrapper,
+        Err(error) => {
+            // probably legacy struct is saved in GCS
+            if let ObjectStoreError::Serialization(_) = error {
+                let legacy_wrapper: AggregationWrapperLegacy =
+                    object_store.get(key).await.unwrap_or_else(|inner_error| {
+                        panic!(
+                            "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
+                            key, inner_error
+                        )
+                    });
+
+                let result = AggregationWrapper {
+                    0: legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect(),
+                };
+
+                return result;
+            } else {
+                panic!("node aggregation job artifacts missing: {:?}", key)
+            }
+        }
+    }
 }
 
 #[tracing::instrument(
