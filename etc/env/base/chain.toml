@@ -90,8 +90,8 @@ fee_model_version = "V2"
 validation_computational_gas_limit = 300000
 save_call_traces = true
 
-bootloader_hash = "0x010008ed576845050c510b3f03d6bb95be7b1b2fbccde986d6dd47838c828b16"
-default_aa_hash = "0x0100055d16f15378f8338471eef7af52def45925e83f98affc0ee7883e34c494"
+bootloader_hash = "0x010008edc25c33fdfc4e89cac46a55195cd23bbc176da30dc637e7ed7420d19d"
+default_aa_hash = "0x0100055de356de05b75c83195567a6688d9050a17b58ccc5c5c91d05cd2bfb6d"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data
