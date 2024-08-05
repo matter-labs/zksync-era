@@ -10,10 +10,10 @@ ZKUP_SKIP_ZK_SUPERVISOR=0
 BINS=(zk_inception zk_supervisor)
 
 main() {
-  say "Installing zk_toolbox"
-
-  check_prerequisites
   parse_args "$@"
+
+  say "Installing zk_toolbox"
+  check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
 
   if [ -n "$ZKUP_PATH" ]; then
@@ -90,9 +90,23 @@ parse_args() {
 }
 
 usage() {
-  cat 1>&2 <<EOF
-zkup - zkup installer
-Usage placeholder
+  cat <<EOF
+zkup - A tool for managing zk_toolbox installation.
+
+Usage: $(basename "$0") [OPTIONS]
+
+Options:
+  -p, --path <path>         Specify a local path to install zk_toolbox from. Ignored if --repo is provided.
+  -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
+  -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
+  -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
+  -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
+  --skip-zk-supervisor      Skip installation of the zk_supervisor binary.
+  -h, --help                Show this help message and exit.
+
+Examples:
+  $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
+  $(basename "$0") --path /path/to/local/zk_toolbox --skip-zk-supervisor
 EOF
 }
 
