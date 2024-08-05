@@ -42,11 +42,10 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
-
     // Give `PRIVATE_KEY` some money
+    let balance = U256::from(10u32).pow(U256::from(32)); //10^32 wei
     let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
-    storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
-
+    storage.set_value(key, zksync_utils::u256_to_h256(balance));
     storage
 });
 
@@ -107,22 +106,21 @@ impl BenchmarkingVm {
 
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
-
         let count = Rc::new(RefCell::new(0));
-
         self.0.inspect((), VmExecutionMode::OneTx);
-
         count.take()
     }
 }
 
 pub fn get_deploy_tx(code: &[u8]) -> Transaction {
-    get_deploy_tx_with_gas_limit(code, 30_000_000)
+    get_deploy_tx_with_gas_limit(code, 30_000_000, 0)
 }
 
-pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32) -> Transaction {
+pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32, nonce: u32) -> Transaction {
+    let mut salt = vec![0_u8; 32];
+    salt[28..32].copy_from_slice(&nonce.to_be_bytes());
     let params = [
-        Token::FixedBytes(vec![0u8; 32]),
+        Token::FixedBytes(salt),
         Token::FixedBytes(hash_bytecode(code).0.to_vec()),
         Token::Bytes([].to_vec()),
     ];
@@ -135,7 +133,7 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32) -> Transaction 
     let mut signed = L2Tx::new_signed(
         CONTRACT_DEPLOYER_ADDRESS,
         calldata,
-        Nonce(0),
+        Nonce(nonce),
         Fee {
             gas_limit: U256::from(gas_limit),
             max_fee_per_gas: U256::from(250_000_000),
