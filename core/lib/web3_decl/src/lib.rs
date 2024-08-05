@@ -1,4 +1,4 @@
-//! `zksync_web3_decl` is a collection of common types required for zkSync Web3 API
+//! `zksync_web3_decl` is a collection of common types required for ZKsync Web3 API
 //! and also `jsonrpsee`-based declaration of server and client traits.
 //!
 //! Web3 namespaces are declared in `namespaces` module.

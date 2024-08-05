@@ -1,13 +1,13 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use common::config::global_config;
 use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 
-use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_DATABASE_MUST_BE_PRESENTED};
 
 const CORE_DAL_PATH: &str = "core/lib/dal";
-const PROVER_DAL_PATH: &str = "prover/prover_dal";
+const PROVER_DAL_PATH: &str = "prover/crates/lib/prover_dal";
 
 #[derive(Debug, Clone)]
 pub struct SelectedDals {
@@ -46,7 +46,13 @@ pub fn get_prover_dal(shell: &Shell) -> anyhow::Result<Dal> {
 
     Ok(Dal {
         path: PROVER_DAL_PATH.to_string(),
-        url: secrets.database.prover_url.clone(),
+        url: secrets
+            .database
+            .as_ref()
+            .context(MSG_DATABASE_MUST_BE_PRESENTED)?
+            .prover_url()?
+            .expose_url()
+            .clone(),
     })
 }
 
@@ -55,7 +61,13 @@ pub fn get_core_dal(shell: &Shell) -> anyhow::Result<Dal> {
 
     Ok(Dal {
         path: CORE_DAL_PATH.to_string(),
-        url: secrets.database.server_url.clone(),
+        url: secrets
+            .database
+            .as_ref()
+            .context(MSG_DATABASE_MUST_BE_PRESENTED)?
+            .master_url()?
+            .expose_url()
+            .clone(),
     })
 }
 

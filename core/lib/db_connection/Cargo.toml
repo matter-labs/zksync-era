@@ -1,6 +1,7 @@
 [package]
 name = "zksync_db_connection"
-version = "0.1.0"
+description = "ZKsync Postgres connection wrappers"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -36,3 +37,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+test-casing.workspace = true

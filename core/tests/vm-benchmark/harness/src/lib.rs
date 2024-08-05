@@ -1,14 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
-use multivm::{
+use once_cell::sync::Lazy;
+use zksync_contracts::{deployer_contract, BaseSystemContracts};
+use zksync_multivm::{
     interface::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
 };
-use once_cell::sync::Lazy;
-use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
     block::L2BlockHasher,
@@ -69,7 +69,7 @@ impl BenchmarkingVm {
         let timestamp = unix_timestamp_ms();
 
         Self(Vm::new(
-            multivm::interface::L1BatchEnv {
+            zksync_multivm::interface::L1BatchEnv {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
@@ -86,7 +86,7 @@ impl BenchmarkingVm {
                     max_virtual_blocks_to_create: 100,
                 },
             },
-            multivm::interface::SystemEnv {
+            zksync_multivm::interface::SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
@@ -174,7 +174,7 @@ mod tests {
 
         assert!(matches!(
             res.result,
-            multivm::interface::ExecutionResult::Success { .. }
+            zksync_multivm::interface::ExecutionResult::Success { .. }
         ));
     }
 }

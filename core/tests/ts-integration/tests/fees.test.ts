@@ -11,16 +11,15 @@
  */
 import * as utils from 'utils';
 import * as fs from 'fs';
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber, ethers } from 'ethers';
+import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { keccak256 } from 'ethers/lib/utils';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 
-const UINT32_MAX = BigNumber.from(2).pow(32).sub(1);
-const MAX_GAS_PER_PUBDATA = 50_000;
+const UINT32_MAX = 2n ** 32n - 1n;
+const MAX_GAS_PER_PUBDATA = 50_000n;
 
 const logs = fs.createWriteStream('fees.log', { flags: 'a' });
 
@@ -33,21 +32,21 @@ const testFees = describe.skip;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-          5_000_000_000, // 5 gwei
-          10_000_000_000 // 10 gwei
+          5_000_000_000n, // 5 gwei
+          10_000_000_000n // 10 gwei
       ]
     : [
-          1_000_000_000, // 1 gwei
-          5_000_000_000, // 5 gwei
-          10_000_000_000, // 10 gwei
-          25_000_000_000, // 25 gwei
-          50_000_000_000, // 50 gwei
-          100_000_000_000, // 100 gwei
-          200_000_000_000, // 200 gwei
-          400_000_000_000, // 400 gwei
-          800_000_000_000, // 800 gwei
-          1_000_000_000_000, // 1000 gwei
-          2_000_000_000_000 // 2000 gwei
+          1_000_000_000n, // 1 gwei
+          5_000_000_000n, // 5 gwei
+          10_000_000_000n, // 10 gwei
+          25_000_000_000n, // 25 gwei
+          50_000_000_000n, // 50 gwei
+          100_000_000_000n, // 100 gwei
+          200_000_000_000n, // 200 gwei
+          400_000_000_000n, // 400 gwei
+          800_000_000_000n, // 800 gwei
+          1_000_000_000_000n, // 1000 gwei
+          2_000_000_000_000n // 2000 gwei
       ];
 
 testFees('Test fees', () => {
@@ -72,28 +71,36 @@ testFees('Test fees', () => {
         const feeTestL1Receipt = await (
             await alice.ethWallet().sendTransaction({
                 to: receiver,
-                value: BigNumber.from(1)
+                value: 1n
             })
         ).wait();
 
+        if (feeTestL1Receipt === null) {
+            throw new Error('Failed to send ETH transaction');
+        }
+
         const feeTestL1ReceiptERC20 = await (
             await alice.ethWallet().sendTransaction({
-                to: aliceErc20.address,
-                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)])
+                to: aliceErc20.getAddress(),
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n])
             })
         ).wait();
+
+        if (feeTestL1ReceiptERC20 === null) {
+            throw new Error('Failed to send ERC20 transaction');
+        }
 
         // Warming up slots for the receiver
         await (
             await alice.sendTransaction({
                 to: receiver,
-                value: BigNumber.from(1)
+                value: BigInt(1)
             })
         ).wait();
 
         await (
             await alice.sendTransaction({
-                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
                 to: tokenDetails.l2Address
             })
         ).wait();
@@ -112,21 +119,21 @@ testFees('Test fees', () => {
                 [
                     {
                         to: ethers.Wallet.createRandom().address,
-                        value: BigNumber.from(1)
+                        value: 1n
                     },
                     {
                         to: receiver,
-                        value: BigNumber.from(1)
+                        value: 1n
                     },
                     {
                         data: aliceErc20.interface.encodeFunctionData('transfer', [
                             ethers.Wallet.createRandom().address,
-                            BigNumber.from(1)
+                            1n
                         ]),
                         to: tokenDetails.l2Address
                     },
                     {
-                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, BigNumber.from(1)]),
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
                         to: tokenDetails.l2Address
                     }
                 ],
@@ -149,14 +156,14 @@ testFees('Test fees', () => {
 
         // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
 
-        const minimalL2GasPrice = BigNumber.from(testMaster.environment().minimalL2GasPrice);
+        const minimalL2GasPrice = testMaster.environment().minimalL2GasPrice;
 
         // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
         //
         // Note, that in case, any sort of overhead is present in the l2 fair gas price calculation, the final
         // gas per pubdata may be lower than 50_000. Here we assume that it is not the case, but we'll double check
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
-        const requiredPubdataPrice = minimalL2GasPrice.mul(100_000);
+        const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
         await setInternalL1GasPrice(
             alice._providerL2(),
@@ -167,25 +174,25 @@ testFees('Test fees', () => {
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
         // Firstly, let's test a successful transaction.
-        const largeData = ethers.utils.randomBytes(90_000);
+        const largeData = ethers.randomBytes(90_000);
         const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
-        expect(tx.gasLimit.gt(UINT32_MAX)).toBeTruthy();
+        expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
         const receipt = await tx.wait();
-        expect(receipt.gasUsed.gt(UINT32_MAX)).toBeTruthy();
+        expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
         // Let's also check that the same transaction would work as eth_call
         const systemContextArtifact = getTestContract('ISystemContext');
         const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
         const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
-        expect(systemContextGasPerPubdataByte.toNumber()).toEqual(MAX_GAS_PER_PUBDATA);
+        expect(systemContextGasPerPubdataByte).toEqual(MAX_GAS_PER_PUBDATA);
 
-        const dataHash = await l1Messenger.callStatic.sendToL1(largeData, { type: 0 });
-        expect(dataHash).toEqual(keccak256(largeData));
+        const dataHash = await l1Messenger.sendToL1.staticCall(largeData, { type: 0 });
+        expect(dataHash).toEqual(ethers.keccak256(largeData));
 
         // Secondly, let's test an unsuccessful transaction with large refund.
 
         // The size of the data has increased, so the previous gas limit is not enough.
-        const largerData = ethers.utils.randomBytes(91_000);
+        const largerData = ethers.randomBytes(91_000);
         const gasToPass = receipt.gasUsed;
         const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
             gasLimit: gasToPass,
@@ -197,7 +204,7 @@ testFees('Test fees', () => {
             throw new Error('The transaction should have reverted');
         } catch {
             const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
-            expect(gasToPass.sub(receipt.gasUsed).gt(UINT32_MAX)).toBeTruthy();
+            expect(gasToPass - receipt!.gasUsed > UINT32_MAX).toBeTruthy();
         }
     });
 
@@ -211,9 +218,9 @@ testFees('Test fees', () => {
 
 async function appendResults(
     sender: zksync.Wallet,
-    originalL1Receipts: ethers.providers.TransactionReceipt[],
-    transactionRequests: ethers.providers.TransactionRequest[],
-    newL1GasPrice: number,
+    originalL1Receipts: ethers.TransactionReceipt[],
+    transactionRequests: ethers.TransactionRequest[],
+    newL1GasPrice: bigint,
     reports: string[]
 ): Promise<string[]> {
     // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
@@ -238,28 +245,28 @@ async function appendResults(
 
 async function updateReport(
     sender: zksync.Wallet,
-    l1Receipt: ethers.providers.TransactionReceipt,
-    transactionRequest: ethers.providers.TransactionRequest,
-    newL1GasPrice: number,
+    l1Receipt: ethers.TransactionReceipt,
+    transactionRequest: ethers.TransactionRequest,
+    newL1GasPrice: bigint,
     oldReport: string
 ): Promise<string> {
-    const expectedL1Price = +ethers.utils.formatEther(l1Receipt.gasUsed.mul(newL1GasPrice));
+    const expectedL1Price = +ethers.formatEther(l1Receipt.gasUsed * newL1GasPrice);
 
-    const estimatedL2GasPrice = await sender.getGasPrice();
+    const estimatedL2GasPrice = await sender.provider.getGasPrice();
     const estimatedL2GasLimit = await sender.estimateGas(transactionRequest);
-    const estimatedPrice = estimatedL2GasPrice.mul(estimatedL2GasLimit);
+    const estimatedPrice = estimatedL2GasPrice * estimatedL2GasLimit;
 
     const balanceBefore = await sender.getBalance();
     const transaction = await sender.sendTransaction(transactionRequest);
     console.log(`Sending transaction: ${transaction.hash}`);
     await transaction.wait();
     const balanceAfter = await sender.getBalance();
-    const balanceDiff = balanceBefore.sub(balanceAfter);
+    const balanceDiff = balanceBefore - balanceAfter;
 
-    const l2PriceAsNumber = +ethers.utils.formatEther(balanceDiff);
-    const l2EstimatedPriceAsNumber = +ethers.utils.formatEther(estimatedPrice);
+    const l2PriceAsNumber = +ethers.formatEther(balanceDiff);
+    const l2EstimatedPriceAsNumber = +ethers.formatEther(estimatedPrice);
 
-    const gasReport = `Gas price ${newL1GasPrice / 1000000000} gwei:
+    const gasReport = `Gas price ${newL1GasPrice / 1000000000n} gwei:
     L1 cost ${expectedL1Price},
     L2 estimated cost: ${l2EstimatedPriceAsNumber}
     Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
@@ -300,7 +307,7 @@ async function setInternalL1GasPrice(
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,state_keeper';
+    let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
 
     if (newPubdataPrice) {
@@ -318,7 +325,7 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    const zkSyncServer = utils.background(command, [null, logs, logs]);
+    const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
 
     if (disconnect) {
         zkSyncServer.unref();

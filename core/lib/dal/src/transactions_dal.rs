@@ -73,6 +73,20 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        // We need this to ensure that the operators' nonce is not too high.
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs
+            SET
+                nonce = 0
+            WHERE
+                nonce IS NOT NULL;
+            "#
+        )
+        .instrument("erase_l1_txs_history")
+        .execute(self.storage)
+        .await?;
+
         Ok(())
     }
 

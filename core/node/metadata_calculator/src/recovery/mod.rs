@@ -261,8 +261,10 @@ impl AsyncTreeRecovery {
                 .acquire()
                 .await
                 .context("semaphore is never closed")?;
-            Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?;
-            options.events.chunk_recovered();
+            if Self::recover_key_chunk(&tree, snapshot.l2_block, chunk, pool, stop_receiver).await?
+            {
+                options.events.chunk_recovered();
+            }
             anyhow::Ok(())
         });
         future::try_join_all(chunk_tasks).await?;
@@ -279,7 +281,9 @@ impl AsyncTreeRecovery {
         let actual_root_hash = tree.root_hash().await;
         anyhow::ensure!(
             actual_root_hash == snapshot.expected_root_hash,
-            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}",
+            "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {:?}. \
+             If pruning is enabled and the tree is initialized some time after node recovery, \
+             this is caused by snapshot storage logs getting pruned; this setup is currently not supported",
             snapshot.expected_root_hash
         );
         let tree = tree.finalize().await?;
@@ -336,20 +340,21 @@ impl AsyncTreeRecovery {
         Ok(output)
     }
 
+    /// Returns `Ok(true)` if the chunk was recovered, `Ok(false)` if the recovery process was interrupted.
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_l2_block: L2BlockNumber,
         key_chunk: ops::RangeInclusive<H256>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
         let mut storage = pool.connection_tagged("metadata_calculator").await?;
         acquire_connection_latency.observe();
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         let entries_latency =
@@ -366,7 +371,7 @@ impl AsyncTreeRecovery {
         );
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         // Sanity check: all entry keys must be distinct. Otherwise, we may end up writing non-final values
@@ -396,7 +401,7 @@ impl AsyncTreeRecovery {
         lock_tree_latency.observe();
 
         if *stop_receiver.borrow() {
-            return Ok(());
+            return Ok(false);
         }
 
         let extend_tree_latency =
@@ -406,7 +411,7 @@ impl AsyncTreeRecovery {
         tracing::debug!(
             "Extended Merkle tree with entries for chunk {key_chunk:?} in {extend_tree_latency:?}"
         );
-        Ok(())
+        Ok(true)
     }
 }
 

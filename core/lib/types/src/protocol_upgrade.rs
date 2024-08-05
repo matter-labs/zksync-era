@@ -10,7 +10,7 @@ use zksync_basic_types::{
 };
 use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
-    ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
+    ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION, DIAMOND_CUT,
 };
 use zksync_utils::h256_to_u256;
 
@@ -30,10 +30,6 @@ pub struct Call {
     pub value: U256,
     /// The calldata to be executed on the `target` address.
     pub data: Vec<u8>,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
-    pub eth_hash: H256,
-    /// Block in which Ethereum transaction was included.
-    pub eth_block: u64,
 }
 
 impl std::fmt::Debug for Call {
@@ -42,8 +38,6 @@ impl std::fmt::Debug for Call {
             .field("target", &self.target)
             .field("value", &self.value)
             .field("data", &hex::encode(&self.data))
-            .field("eth_hash", &self.eth_hash)
-            .field("eth_block", &self.eth_block)
             .finish()
     }
 }
@@ -101,8 +95,17 @@ impl From<abi::VerifierParams> for VerifierParams {
 }
 
 impl ProtocolUpgrade {
+    pub fn try_from_diamond_cut(diamond_cut_data: &[u8]) -> anyhow::Result<Self> {
+        // Unwraps are safe because we have validated the input against the function signature.
+        let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
+            .clone()
+            .into_tuple()
+            .unwrap();
+        Self::try_from_init_calldata(&diamond_cut_tokens[2].clone().into_bytes().unwrap())
+    }
+
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
-    fn try_from_init_calldata(init_calldata: &[u8], eth_block: u64) -> anyhow::Result<Self> {
+    fn try_from_init_calldata(init_calldata: &[u8]) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
@@ -126,7 +129,7 @@ impl ProtocolUpgrade {
                     Transaction::try_from(abi::Transaction::L1 {
                         tx: upgrade.l2_protocol_upgrade_tx,
                         factory_deps: upgrade.factory_deps,
-                        eth_block,
+                        eth_block: 0,
                     })
                     .context("Transaction::try_from()")?
                     .try_into()
@@ -154,16 +157,13 @@ pub fn decode_genesis_upgrade_event(
     let factory_deps = next()
         .into_array()
         .context("factory_deps")
-        .unwrap()
-        // todo proper error
-        // .map_err(|e| ethabi::Error::Other(&e.to_sting().as_ref().into()))?
+        .map_err(|_| ethabi::Error::InvalidData)?
         .into_iter()
         .enumerate()
         .map(|(i, t)| t.into_bytes().context(i))
         .collect::<Result<Vec<Vec<u8>>, _>>()
         .context("factory_deps")
-        .unwrap();
-    // .map_err(|e| ethabi::Error::Other(e.to_string()))?;
+        .map_err(|_| ethabi::Error::InvalidData)?;
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
@@ -222,7 +222,6 @@ impl TryFrom<Call> for ProtocolUpgrade {
         ProtocolUpgrade::try_from_init_calldata(
             // Unwrap is safe because we have validated the input against the function signature.
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-            call.eth_block,
         )
         .context("ProtocolUpgrade::try_from_init_calldata()")
     }
@@ -248,14 +247,6 @@ impl TryFrom<Log> for GovernanceOperation {
             ethabi::decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
         // Extract `GovernanceOperation` data.
         let mut decoded_governance_operation = decoded.remove(1).into_tuple().unwrap();
-
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
 
         let calls = decoded_governance_operation.remove(0).into_array().unwrap();
         let predecessor = H256::from_slice(
@@ -283,8 +274,6 @@ impl TryFrom<Log> for GovernanceOperation {
                         .unwrap(),
                     value: decoded_governance_operation.remove(0).into_uint().unwrap(),
                     data: decoded_governance_operation.remove(0).into_bytes().unwrap(),
-                    eth_hash,
-                    eth_block,
                 }
             })
             .collect();
@@ -375,7 +364,7 @@ pub struct ProtocolUpgradeTxCommonData {
     pub gas_per_pubdata_limit: U256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
-    /// Tx hash of the transaction in the zkSync network. Calculated as the encoded transaction data hash.
+    /// Tx hash of the transaction in the ZKsync network. Calculated as the encoded transaction data hash.
     pub canonical_tx_hash: H256,
     /// The amount of ETH that should be minted with this transaction
     pub to_mint: U256,
@@ -510,6 +499,7 @@ mod tests {
             transaction_log_index: Default::default(),
             log_type: Default::default(),
             removed: Default::default(),
+            block_timestamp: Default::default(),
         };
         let decoded_op: GovernanceOperation = correct_log.clone().try_into().unwrap();
         assert_eq!(decoded_op.calls.len(), 1);

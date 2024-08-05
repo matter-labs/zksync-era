@@ -31,7 +31,7 @@ pub enum TransactionType {
     LegacyTransaction = 0,
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
-    // EIP 712 transaction with additional fields specified for zkSync
+    // EIP 712 transaction with additional fields specified for ZKsync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     InteropTransaction = INTEROP_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,

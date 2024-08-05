@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::configs::{
-    chain::OperationsManagerConfig,
+    chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::CoreDal;
@@ -102,7 +102,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     // Add all logs from the genesis L1 batch to `logs` so that they cover all state keys.
     let genesis_logs = storage
         .storage_logs_dal()
-        .get_touched_slots_for_l1_batch(L1BatchNumber(0))
+        .get_touched_slots_for_executed_l1_batch(L1BatchNumber(0))
         .await
         .unwrap();
     let genesis_logs = genesis_logs
@@ -113,7 +113,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     drop(storage);
 
     // Ensure that metadata for L1 batch #1 is present in the DB.
-    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool).await;
+    let (calculator, _) = setup_calculator(&temp_dir.path().join("init"), pool, true).await;
     let l1_batch_root_hash = run_calculator(calculator).await;
 
     SnapshotRecoveryStatus {
@@ -306,6 +306,10 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
+        &StateKeeperConfig {
+            protective_reads_persistence_enabled: true,
+            ..Default::default()
+        },
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await
@@ -358,7 +362,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
                 .iter()
                 .chain(&new_logs)
                 .enumerate()
-                .map(|(i, log)| TreeInstruction::write(log.key, i as u64 + 1, log.value))
+                .map(|(i, log)| {
+                    TreeInstruction::write(log.key.hashed_key_u256(), i as u64 + 1, log.value)
+                })
                 .collect();
             let expected_new_root_hash =
                 ZkSyncTree::process_genesis_batch(&all_tree_instructions).root_hash;

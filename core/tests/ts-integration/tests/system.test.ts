@@ -5,17 +5,16 @@
  * Stuff related to the edge cases, bootloader and system contracts normally expected to go here.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { BigNumberish, BytesLike } from 'ethers';
-import { hashBytecode, serialize } from 'zksync-ethers/build/utils';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
 import { isNetworkLocalL2 } from 'utils';
+import { BigNumberish } from 'ethers';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -65,9 +64,9 @@ describe('System behavior checks', () => {
         );
 
         const sender = zksync.Wallet.createRandom().address;
-        const hash = ethers.utils.randomBytes(32);
-        const salt = ethers.utils.randomBytes(32);
-        const input = ethers.utils.randomBytes(128);
+        const hash = ethers.randomBytes(32);
+        const salt = ethers.randomBytes(32);
+        const input = ethers.randomBytes(128);
         const nonce = 5;
 
         const create2AddressBySDK = zksync.utils.create2Address(sender, hash, salt, input);
@@ -81,7 +80,7 @@ describe('System behavior checks', () => {
 
     test('Should accept transactions with small gasPerPubdataByte', async () => {
         const smallGasPerPubdata = 1;
-        const senderNonce = await alice.getTransactionCount();
+        const senderNonce = await alice.getNonce();
 
         // A safe low value to determine whether we can run this test.
         // It's higher than `smallGasPerPubdata` to not make the test flaky.
@@ -108,7 +107,7 @@ describe('System behavior checks', () => {
         }
     });
 
-    test('Should check that bootloader utils: Legacy tx hash', async () => {
+    test('Should check bootloader utils: Legacy tx hash', async () => {
         const bootloaderUtils = bootloaderUtilsContract();
 
         // Testing the correctness of calculating the legacy tx hashes
@@ -121,12 +120,12 @@ describe('System behavior checks', () => {
             gasLimit: 50000
         });
         const txBytes = await alice.signTransaction(legacyTx);
-        const parsedTx = zksync.utils.parseTransaction(txBytes);
+        const parsedTx = ethers.Transaction.from(txBytes);
+
         const txData = signedTxToTransactionData(parsedTx)!;
 
         const expectedTxHash = parsedTx.hash;
-        delete legacyTx.from;
-        const expectedSignedHash = ethers.utils.keccak256(serialize(legacyTx));
+        const expectedSignedHash = ethers.keccak256(parsedTx.unsignedSerialized);
 
         const proposedHashes = await bootloaderUtils.getTransactionHashes(txData);
         expect(proposedHashes.txHash).toEqual(expectedTxHash);
@@ -147,12 +146,12 @@ describe('System behavior checks', () => {
             gasPrice: 55000
         });
         const signedEip2930Tx = await alice.signTransaction(eip2930Tx);
-        const parsedEIP2930tx = zksync.utils.parseTransaction(signedEip2930Tx);
+        const parsedEIP2930tx = ethers.Transaction.from(signedEip2930Tx);
 
         const EIP2930TxData = signedTxToTransactionData(parsedEIP2930tx)!;
-        delete eip2930Tx.from;
+
         const expectedEIP2930TxHash = parsedEIP2930tx.hash;
-        const expectedEIP2930SignedHash = ethers.utils.keccak256(serialize(eip2930Tx));
+        const expectedEIP2930SignedHash = ethers.keccak256(parsedEIP2930tx.unsignedSerialized);
 
         const proposedEIP2930Hashes = await bootloaderUtils.getTransactionHashes(EIP2930TxData);
         expect(proposedEIP2930Hashes.txHash).toEqual(expectedEIP2930TxHash);
@@ -173,12 +172,12 @@ describe('System behavior checks', () => {
             maxPriorityFeePerGas: 100
         });
         const signedEip1559Tx = await alice.signTransaction(eip1559Tx);
-        const parsedEIP1559tx = zksync.utils.parseTransaction(signedEip1559Tx);
+        const parsedEIP1559tx = ethers.Transaction.from(signedEip1559Tx);
 
         const EIP1559TxData = signedTxToTransactionData(parsedEIP1559tx)!;
-        delete eip1559Tx.from;
+
         const expectedEIP1559TxHash = parsedEIP1559tx.hash;
-        const expectedEIP1559SignedHash = ethers.utils.keccak256(serialize(eip1559Tx));
+        const expectedEIP1559SignedHash = ethers.keccak256(parsedEIP1559tx.unsignedSerialized);
 
         const proposedEIP1559Hashes = await bootloaderUtils.getTransactionHashes(EIP1559TxData);
         expect(proposedEIP1559Hashes.txHash).toEqual(expectedEIP1559TxHash);
@@ -200,7 +199,7 @@ describe('System behavior checks', () => {
             }
         });
         const signedEip712Tx = await alice.signTransaction(eip712Tx);
-        const parsedEIP712tx = zksync.utils.parseTransaction(signedEip712Tx);
+        const parsedEIP712tx = zksync.utils.parseEip712(signedEip712Tx);
 
         const eip712TxData = signedTxToTransactionData(parsedEIP712tx)!;
         const expectedEIP712TxHash = parsedEIP712tx.hash;
@@ -222,13 +221,17 @@ describe('System behavior checks', () => {
 
         const l2Token = testMaster.environment().erc20Token.l2Address;
         const l1Token = testMaster.environment().erc20Token.l1Address;
-        const amount = 1;
+        const amount = 1n;
 
         // Fund Bob's account.
         await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         testMaster.reporter.debug('Sent L2 token to Bob');
         await alice
-            .transfer({ amount: L2_DEFAULT_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
+            .transfer({
+                amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n,
+                to: bob.address,
+                token: zksync.utils.L2_BASE_TOKEN_ADDRESS
+            })
             .then((tx) => tx.wait());
         testMaster.reporter.debug('Sent ethereum on L2 to Bob');
 
@@ -253,9 +256,9 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug(
             `Obtained withdrawal receipt for Bob: blockNumber=${bobReceipt.blockNumber}, l1BatchNumber=${bobReceipt.l1BatchNumber}, status=${bobReceipt.status}`
         );
-        await expect(alice.finalizeWithdrawal(aliceReceipt.transactionHash)).toBeAccepted([aliceChange]);
+        await expect(alice.finalizeWithdrawal(aliceReceipt.hash)).toBeAccepted([aliceChange]);
         testMaster.reporter.debug('Finalized withdrawal for Alice');
-        await expect(alice.finalizeWithdrawal(bobReceipt.transactionHash)).toBeAccepted([bobChange]);
+        await expect(alice.finalizeWithdrawal(bobReceipt.hash)).toBeAccepted([bobChange]);
         testMaster.reporter.debug('Finalized withdrawal for Bob');
     });
 
@@ -268,18 +271,20 @@ describe('System behavior checks', () => {
 
         const l2Token = testMaster.environment().erc20Token.l2Address;
         const l1Token = testMaster.environment().erc20Token.l1Address;
-        const amount = 1;
+        const amount = 1n;
 
         // Prepare matcher modifiers. These modifiers would record the *current* Alice's balance, so after
         // the first finalization the diff would be (compared to now) `amount`, and after the second -- `amount*2`.
         const change1 = await shouldChangeTokenBalances(l1Token, [{ wallet: alice, change: amount }], { l1: true });
-        const change2 = await shouldChangeTokenBalances(l1Token, [{ wallet: alice, change: amount * 2 }], { l1: true });
+        const change2 = await shouldChangeTokenBalances(l1Token, [{ wallet: alice, change: amount * 2n }], {
+            l1: true
+        });
         testMaster.reporter.debug('Prepared token balance modifiers');
 
         // Maximize chances of including transactions into the same block by first creating both promises
         // and only then awaiting them. This is still probabilistic though: if this test becomes flaky,
         // most likely there exists a very big problem in the system.
-        const nonce = await alice.getTransactionCount();
+        const nonce = await alice.getNonce();
         testMaster.reporter.debug(`Obtained Alice's nonce: ${nonce}`);
         const withdrawal1 = alice
             .withdraw({ token: l2Token, amount, overrides: { nonce } })
@@ -295,18 +300,18 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug(
             `Obtained withdrawal receipt #2: blockNumber=${receipt2.blockNumber}, l1BatchNumber=${receipt2.l1BatchNumber}, status=${receipt2.status}`
         );
-        await expect(alice.finalizeWithdrawal(receipt1.transactionHash)).toBeAccepted([change1]);
+        await expect(alice.finalizeWithdrawal(receipt1.hash)).toBeAccepted([change1]);
         testMaster.reporter.debug('Finalized withdrawal #1');
-        await expect(alice.finalizeWithdrawal(receipt2.transactionHash)).toBeAccepted([change2]);
+        await expect(alice.finalizeWithdrawal(receipt2.hash)).toBeAccepted([change2]);
         testMaster.reporter.debug('Finalized withdrawal #2');
     });
 
     test('should accept transaction with duplicated factory dep', async () => {
         const bytecode = contracts.counter.bytecode;
         // We need some bytecodes that weren't deployed before to test behavior properly.
-        const dep1 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
-        const dep2 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
-        const dep3 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        const dep1 = ethers.concat([bytecode, ethers.randomBytes(64)]);
+        const dep2 = ethers.concat([bytecode, ethers.randomBytes(64)]);
+        const dep3 = ethers.concat([bytecode, ethers.randomBytes(64)]);
         await expect(
             alice.sendTransaction({
                 to: alice.address,
@@ -325,34 +330,40 @@ describe('System behavior checks', () => {
         // The current gas per pubdata depends on a lot of factors, so it wouldn't be sustainable to check the exact value.
         // We'll just check that it is greater than zero.
         if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup) {
-            expect(currentGasPerPubdata.toNumber()).toBeGreaterThan(0);
+            expect(currentGasPerPubdata).toBeGreaterThan(0n);
         } else {
-            expect(currentGasPerPubdata.toNumber()).toEqual(0);
+            expect(currentGasPerPubdata).toEqual(0n);
         }
     });
 
     it('should reject transaction with huge gas limit', async () => {
-        await expect(
-            alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(51) })
-        ).toBeRejected('exceeds block gas limit');
+        await expect(alice.sendTransaction({ to: alice.address, gasLimit: 2n ** 51n })).toBeRejected(
+            'exceeds block gas limit'
+        );
     });
 
     it('Create2Factory should work', async () => {
         // For simplicity, we'll just deploy a contract factory
-        const salt = ethers.utils.randomBytes(32);
+        const salt = ethers.randomBytes(32);
 
         const bytecode = await alice.provider.getCode(BUILTIN_CREATE2_FACTORY_ADDRESS);
         const abi = getTestContract('ICreate2Factory').abi;
-        const hash = hashBytecode(bytecode);
+        const hash = zksync.utils.hashBytecode(bytecode);
 
         const contractFactory = new ethers.Contract(BUILTIN_CREATE2_FACTORY_ADDRESS, abi, alice);
 
-        const deploymentTx = await (await contractFactory.create2(salt, hash, [])).wait();
+        const deploymentTx = await (await contractFactory.create2(salt, hash, new Uint8Array(0))).wait();
 
         const deployedAddresses = zksync.utils.getDeployedContracts(deploymentTx);
         expect(deployedAddresses.length).toEqual(1);
         const deployedAddress = deployedAddresses[0];
-        const correctCreate2Address = zksync.utils.create2Address(contractFactory.address, hash, salt, []);
+        const contractFactoryAddress = await contractFactory.getAddress();
+        const correctCreate2Address = zksync.utils.create2Address(
+            contractFactoryAddress,
+            hash,
+            salt,
+            new Uint8Array(0)
+        );
 
         expect(deployedAddress.deployedAddress.toLocaleLowerCase()).toEqual(correctCreate2Address.toLocaleLowerCase());
         expect(await alice.provider.getCode(deployedAddress.deployedAddress)).toEqual(bytecode);
@@ -364,7 +375,7 @@ describe('System behavior checks', () => {
 
     function bootloaderUtilsContract() {
         const BOOTLOADER_UTILS_ADDRESS = '0x000000000000000000000000000000000000800c';
-        const BOOTLOADER_UTILS = new ethers.utils.Interface(
+        const BOOTLOADER_UTILS = new ethers.Interface(
             require(`${
                 testMaster.environment().pathToHome
             }/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
@@ -395,29 +406,16 @@ export interface TransactionData {
     // it would allow easier proof integration (in case we will need
     // some special circuit for preprocessing transactions).
     reserved: BigNumberish[];
-    data: BytesLike;
-    signature: BytesLike;
-    factoryDeps: BytesLike[];
-    paymasterInput: BytesLike;
+    data: ethers.BytesLike;
+    signature: ethers.BytesLike;
+    factoryDeps: ethers.BytesLike[];
+    paymasterInput: ethers.BytesLike;
     // Reserved dynamic type for the future use-case. Using it should be avoided,
     // But it is still here, just in case we want to enable some additional functionality.
-    reservedDynamic: BytesLike;
+    reservedDynamic: ethers.BytesLike;
 }
 
-function signedTxToTransactionData(tx: ethers.Transaction) {
-    // Transform legacy transaction's `v` part of the signature
-    // to a single byte used in the packed eth signature
-    function unpackV(v: number) {
-        if (v >= 35) {
-            const chainId = Math.floor((v - 35) / 2);
-            return v - chainId * 2 - 8;
-        } else if (v <= 1) {
-            return 27 + v;
-        }
-
-        throw new Error('Invalid `v`');
-    }
-
+function signedTxToTransactionData(tx: ethers.TransactionLike) {
     function legacyTxToTransactionData(tx: any): TransactionData {
         return {
             txType: 0,
@@ -432,7 +430,7 @@ function signedTxToTransactionData(tx: ethers.Transaction) {
             value: tx.value || 0,
             reserved: [tx.chainId || 0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.utils.hexConcat([tx.r, tx.s, new Uint8Array([unpackV(tx.v)])]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'
@@ -453,7 +451,7 @@ function signedTxToTransactionData(tx: ethers.Transaction) {
             value: tx.value || 0,
             reserved: [0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.utils.hexConcat([tx.r, tx.s, unpackV(tx.v)]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'
@@ -474,7 +472,7 @@ function signedTxToTransactionData(tx: ethers.Transaction) {
             value: tx.value || 0,
             reserved: [0, 0, 0, 0],
             data: tx.data!,
-            signature: ethers.utils.hexConcat([tx.r, tx.s, unpackV(tx.v)]),
+            signature: tx.signature.serialized,
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: '0x'
@@ -496,7 +494,7 @@ function signedTxToTransactionData(tx: ethers.Transaction) {
             reserved: [0, 0, 0, 0],
             data: tx.data!,
             signature: tx.customData.customSignature,
-            factoryDeps: tx.customData.factoryDeps.map(hashBytecode),
+            factoryDeps: tx.customData.factoryDeps.map(zksync.utils.hashBytecode),
             paymasterInput: tx.customData.paymasterParams?.paymasterInput || '0x',
             reservedDynamic: '0x'
         };

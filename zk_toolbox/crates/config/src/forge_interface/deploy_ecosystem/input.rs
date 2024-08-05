@@ -6,11 +6,11 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use types::ChainId;
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
     ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
@@ -61,6 +61,8 @@ impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
+impl ZkToolboxConfig for InitialDeploymentConfig {}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
     pub tokens: Vec<Erc20DeploymentTokensConfig>,
@@ -69,6 +71,8 @@ pub struct Erc20DeploymentConfig {
 impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
+
+impl ZkToolboxConfig for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {
@@ -79,21 +83,21 @@ impl Default for Erc20DeploymentConfig {
                     symbol: String::from("DAI"),
                     decimals: 18,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000,
+                    mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("WBTC"),
                     symbol: String::from("WBTC"),
                     decimals: 8,
                     implementation: String::from("TestnetERC20Token.sol"),
-                    mint: 10000000000,
+                    mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
                 Erc20DeploymentTokensConfig {
                     name: String::from("Wrapped Ether"),
                     symbol: String::from("WETH"),
                     decimals: 18,
                     implementation: String::from("WETH9.sol"),
-                    mint: 0,
+                    mint: U256::zero(),
                 },
             ],
         }
@@ -106,26 +110,26 @@ pub struct Erc20DeploymentTokensConfig {
     pub symbol: String,
     pub decimals: u64,
     pub implementation: String,
-    pub mint: u64,
+    pub mint: U256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1Config {
-    pub era_chain_id: ChainId,
+    pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
 }
 
-impl FileConfig for DeployL1Config {}
+impl ZkToolboxConfig for DeployL1Config {}
 
 impl DeployL1Config {
     pub fn new(
         genesis_config: &GenesisConfig,
         wallets_config: &WalletsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
-        era_chain_id: ChainId,
+        era_chain_id: L2ChainId,
         testnet_verifier: bool,
     ) -> Self {
         Self {
@@ -147,16 +151,17 @@ impl DeployL1Config {
                     .diamond_init_max_pubdata_per_batch,
                 diamond_init_minimal_l2_gas_price: initial_deployment_config
                     .diamond_init_minimal_l2_gas_price,
-                bootloader_hash: genesis_config.bootloader_hash,
-                default_aa_hash: genesis_config.default_aa_hash,
+                bootloader_hash: genesis_config.bootloader_hash.unwrap(),
+                default_aa_hash: genesis_config.default_aa_hash.unwrap(),
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
                     .diamond_init_pubdata_pricing_mode,
-                genesis_batch_commitment: genesis_config.genesis_batch_commitment,
-                genesis_rollup_leaf_index: genesis_config.genesis_rollup_leaf_index,
-                genesis_root: genesis_config.genesis_root,
-                latest_protocol_version: genesis_config.genesis_protocol_semantic_version.pack(),
+                // These values are not optional in genesis config with file based configuration
+                genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
+                genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
+                genesis_root: genesis_config.genesis_root_hash.unwrap(),
+                latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
                 recursion_circuits_set_vks_hash: H256::zero(),
                 recursion_leaf_level_vk_hash: H256::zero(),
                 recursion_node_level_vk_hash: H256::zero(),
@@ -181,7 +186,7 @@ pub struct ContractsDeployL1Config {
     pub create2_factory_addr: Option<Address>,
     pub validator_timelock_execution_delay: u64,
     pub genesis_root: H256,
-    pub genesis_rollup_leaf_index: u32,
+    pub genesis_rollup_leaf_index: u64,
     pub genesis_batch_commitment: H256,
     pub latest_protocol_version: U256,
     pub recursion_node_level_vk_hash: H256,
@@ -209,14 +214,16 @@ pub struct DeployErc20Config {
     pub create2_factory_salt: H256,
     pub create2_factory_addr: Address,
     pub tokens: HashMap<String, TokenDeployErc20Config>,
+    pub additional_addresses_for_minting: Vec<Address>,
 }
 
-impl FileConfig for DeployErc20Config {}
+impl ZkToolboxConfig for DeployErc20Config {}
 
 impl DeployErc20Config {
     pub fn new(
         erc20_deployment_config: &Erc20DeploymentConfig,
         contracts_config: &ContractsConfig,
+        additional_addresses_for_minting: Vec<Address>,
     ) -> Self {
         let mut tokens = HashMap::new();
         for token in &erc20_deployment_config.tokens {
@@ -235,6 +242,7 @@ impl DeployErc20Config {
             create2_factory_addr: contracts_config.create2_factory_addr,
             create2_factory_salt: contracts_config.create2_factory_salt,
             tokens,
+            additional_addresses_for_minting,
         }
     }
 }
@@ -245,5 +253,5 @@ pub struct TokenDeployErc20Config {
     pub symbol: String,
     pub decimals: u64,
     pub implementation: String,
-    pub mint: u64,
+    pub mint: U256,
 }

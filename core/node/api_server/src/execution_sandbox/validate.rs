@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use anyhow::Context as _;
-use multivm::{
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
     tracers::{
         validator::{self, ValidationTracer, ValidationTracerParams},
@@ -10,7 +11,6 @@ use multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{Address, ExternalTx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
@@ -72,6 +72,7 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
+                None,
                 |vm, tx, protocol_version| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();

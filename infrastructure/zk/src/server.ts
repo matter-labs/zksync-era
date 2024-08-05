@@ -7,35 +7,25 @@ import * as db from './database';
 import * as env from './env';
 // import { time } from 'console';
 
-export async function server(
-    rebuildTree: boolean,
-    uring: boolean,
-    components?: string,
-    useNodeFramework?: boolean,
-    timeToLive?: string
-) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, timeToLive?: string) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components || useNodeFramework) {
+    if (rebuildTree || components) {
         options += ' --';
-    }
-    if (rebuildTree) {
-        clean('db');
-        options += ' --rebuild-tree';
     }
     if (components) {
         options += ` --components=${components}`;
-    }
-    if (useNodeFramework) {
-        options += ' --use-node-framework';
     }
     if (!timeToLive) {
         await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
     } else {
         console.log('Starting server');
-        const child = utils.background(`cargo run --bin zksync_server --release ${options}`);
+        const child = utils.background({
+            command: `cargo run --bin zksync_server --release ${options}`,
+            stdio: [null, 'inherit', 'inherit']
+        });
 
         const promise = new Promise((resolve, reject) => {
             child.on('error', reject);
@@ -120,13 +110,11 @@ export async function genesisFromBinary() {
 export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
-    .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     // FIXME: remove this option once it is removed from the server
     .option('--clear-l1-txs-history', 'clear l1 txs history')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
-    .option('--use-node-framework', 'use node framework for server')
     .option('--time-to-live <time-to-live>', 'time to live for the server')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
@@ -135,7 +123,7 @@ export const serverCommand = new Command('server')
         } else if (cmd.clearL1TxsHistory) {
             await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework, cmd.timeToLive);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive);
         }
     });
 

@@ -1,13 +1,13 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
 use anyhow::Context as _;
-use multivm::{
+use tracing::{span, Level};
+use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
     MultiVMTracer,
 };
-use tracing::{span, Level};
-use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
     ExecuteTransactionCommon, ExternalTx, Nonce, PackedEthSignature, Transaction, U256,
@@ -17,6 +17,7 @@ use super::{
     apply, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs,
     VmPermit,
 };
+use crate::execution_sandbox::api::state_override::StateOverride;
 
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
@@ -112,6 +113,7 @@ impl TransactionExecutor {
         connection_pool: ConnectionPool<Core>,
         tx: Transaction,
         block_args: BlockArgs,
+        state_override: Option<StateOverride>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         if let Self::Mock(mock_executor) = self {
@@ -130,6 +132,7 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
+                state_override,
                 |vm, tx, _| {
                     let storage_invocation_tracer =
                         StorageInvocations::new(execution_args.missed_storage_invocation_limit);
@@ -171,6 +174,7 @@ impl TransactionExecutor {
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
         let execution_args = TxExecutionArgs::for_eth_call(
             call_overrides.enforced_base_fee,
@@ -190,6 +194,7 @@ impl TransactionExecutor {
                 connection_pool,
                 tx.into(),
                 block_args,
+                state_override,
                 custom_tracers,
             )
             .await?;

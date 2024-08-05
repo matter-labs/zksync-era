@@ -9,17 +9,15 @@ use std::{
     collections::VecDeque,
     iter,
     marker::PhantomData,
-    ops::Range,
+    ops::RangeTo,
     sync::{Arc, Mutex},
 };
-
-use once_cell::sync::OnceCell;
 
 #[cfg(test)]
 mod tests;
 
 use zksync_basic_types::H256;
-use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
+use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 
 /// Maximum supported depth of the tree. 32 corresponds to `2^32` elements in the tree, which
 /// we unlikely to ever hit.
@@ -192,28 +190,20 @@ where
     /// Returns the root hash and the Merkle proofs for a range of leafs.
     /// The range is 0..length, where `0` is the leftmost untrimmed leaf (i.e. leaf under `self.start_index`).
     /// # Panics
-    /// Panics if `length` is 0 or greater than the number of leaves in the tree.
+    /// Panics if `range.end` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
         &self,
-        range: Range<usize>,
+        range: RangeTo<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
-        assert!(range.start < range.end, "invalid range");
-        assert!(
-            range.end - 1 <= self.hashes.len(),
-            "range index out of bounds"
-        );
+        assert!(range.end > 0, "empty range");
+        assert!(range.end <= self.hashes.len(), "range index out of bounds");
         let mut right_path = vec![];
-        let mut left_path = vec![];
-        // TODO: refactor, instead of calling this twice
-        // TODO: maybe actually we don't need this? investigate if we have to trim asynchronously
-        // or we can do it right away after getting the proof
-        self.compute_merkle_root_and_path(range.start, Some(&mut left_path), Some(Side::Left));
         let root_hash = self.compute_merkle_root_and_path(
             range.end - 1,
             Some(&mut right_path),
             Some(Side::Right),
         );
-        (root_hash, left_path, right_path)
+        (root_hash, self.cache.clone(), right_path)
     }
 
     /// Adds a raw hash to the tree (replaces leftmost empty leaf).
@@ -326,18 +316,36 @@ enum Side {
 pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Returns the hash of an empty subtree with the given depth.
     /// Implementations are encouraged to cache the returned values.
-    fn empty_subtree_hash(&self, depth: usize) -> H256;
+    fn empty_subtree_hash(&self, depth: usize) -> H256 {
+        // static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
+        // EMPTY_TREE_HASHES.get_or_init(||
+
+        compute_empty_tree_hashes(self.empty_leaf_hash())[depth] //)[depth]
+    }
+
+    /// Returns an empty hash
+    fn empty_leaf_hash(&self) -> H256;
 }
 
 impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
-    fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_HASHES.get_or_init(|| compute_empty_tree_hashes(self.hash_bytes(&[0; 88])))[depth]
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 88])
     }
 }
 
-/// Given the leaf hash, computes successive hashes of empty subtrees up to the maximum depth.
-pub fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
+impl HashEmptySubtree<[u8; 96]> for KeccakHasher {
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 96])
+    }
+}
+
+// impl HashEmptySubtree<H256> for KeccakHasher {
+//     fn empty_leaf_hash(&self) -> H256 {
+//         self.hash_bytes(&self.0)
+//     }
+// }
+
+fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(KeccakHasher.compress(hash, hash))
     })
@@ -368,7 +376,7 @@ where
 
     pub fn merkle_root_and_paths_for_range(
         &self,
-        range: Range<usize>,
+        range: RangeTo<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
         self.0
             .lock()

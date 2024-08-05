@@ -18,6 +18,6 @@ pub enum VmVersion {
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::Vm1_5_0IncreasedBootloaderMemory
+        Self::VmSyncLayer
     }
 }

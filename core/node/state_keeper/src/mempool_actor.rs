@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
@@ -192,7 +192,7 @@ mod tests {
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .insert_storage_logs(L2BlockNumber(0), &[nonce_log])
             .await
             .unwrap();
 
@@ -352,7 +352,7 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![nonce_log])])
+            .append_storage_logs(L2BlockNumber(0), &[nonce_log])
             .await
             .unwrap();
         storage

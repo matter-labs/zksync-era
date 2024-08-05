@@ -1,16 +1,16 @@
-//! This module aims to provide a genesis setup for the zkSync Era network.
+//! This module aims to provide a genesis setup for the ZKsync Era network.
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, GENESIS_UPGRADE_EVENT};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
+use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
@@ -161,6 +161,7 @@ impl GenesisParams {
     }
 }
 
+#[derive(Debug)]
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,
@@ -230,12 +231,13 @@ pub async fn insert_genesis_batch(
         .into_iter()
         .partition(|log_query| log_query.rw_flag);
 
-    let storage_logs: Vec<TreeInstruction<StorageKey>> = deduplicated_writes
+    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
         .iter()
         .enumerate()
         .map(|(index, log)| {
             TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)),
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+                    .hashed_key_u256(),
                 (index + 1) as u64,
                 u256_to_h256(log.written_value),
             )
@@ -277,6 +279,10 @@ pub async fn insert_genesis_batch(
         commitment: block_commitment.hash().commitment,
         rollup_last_leaf_index,
     })
+}
+
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
 }
 
 pub async fn ensure_genesis_state(
@@ -427,14 +433,10 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
-    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
-    let mut storage = pool.connection().await?;
-
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
 

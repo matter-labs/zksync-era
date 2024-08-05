@@ -77,9 +77,11 @@ fn test_publish_and_clear_state() {
         .with_random_rich_accounts(1)
         .build();
 
+    let account = &mut vm.rich_accounts[0];
+
     // Firstly, deploy tx. It should publish the bytecode of the "test contract"
     let counter = read_test_contract();
-    let account = &mut vm.rich_accounts[0];
+
     let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
     // We do not use compression here, to have the bytecode published in full.
     vm.vm.push_transaction_with_compression(tx, false);

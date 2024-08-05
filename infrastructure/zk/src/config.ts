@@ -9,6 +9,7 @@ import { ethers } from 'ethers';
 import { getTestAccounts } from './run';
 import * as utils from 'utils';
 import { unpackStringSemVer } from 'utils';
+import { clean } from './clean';
 
 function loadConfigFile(configPath: string, stack: string[] = []) {
     if (stack.includes(configPath)) {
@@ -137,7 +138,7 @@ export function pushConfig(environment?: string, diff?: string) {
 
     env.modify('API_WEB3_JSON_RPC_HTTP_URL', `http://127.0.0.1:${3050 + 2 * difference}`, l2InitFile, false);
     env.modify('API_WEB3_JSON_RPC_WS_PORT', `${3050 + 1 + 2 * difference}`, l2InitFile, false);
-    env.modify('API_WEB3_JSON_RPC_WS_URL', `http://127.0.0.1:${3050 + 1 + 2 * difference}`, l2InitFile, false);
+    env.modify('API_WEB3_JSON_RPC_WS_URL', `ws://127.0.0.1:${3050 + 1 + 2 * difference}`, l2InitFile, false);
 
     env.modify('API_EXPLORER_PORT', `${3070 + 2 * difference}`, l2InitFile, false);
     env.modify('API_EXPLORER_URL', `http://127.0.0.1:${3070 + 2 * difference}`, l2InitFile, false);
@@ -270,6 +271,8 @@ command
             .replace('CONTRACTS_ERA_CHAIN_ID="270"', 'CONTRACTS_ERA_CHAIN_ID="9"');
 
         const configFile = `etc/env/configs/${envName}.toml`;
+
+        clean(`etc/env/l2-inits/${envName}.init.env`);
 
         fs.writeFileSync(configFile, template);
 

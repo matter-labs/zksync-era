@@ -3,10 +3,7 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
-use multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
-    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-};
+use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
@@ -15,17 +12,25 @@ use zksync_contracts::{
     test_contracts::LoadnextContractExecutionParams,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_genesis::create_genesis_l1_batch;
-use zksync_node_test_utils::prepare_recovery_snapshot;
+use zksync_multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
+    vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
+use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
+use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, get_code_key, get_known_code_key,
-    protocol_version::ProtocolSemanticVersion, snapshots::SnapshotRecoveryStatus,
+    block::L2BlockHasher,
+    ethabi::Token,
+    get_code_key, get_known_code_key,
+    protocol_version::ProtocolSemanticVersion,
+    snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     storage_writes_deduplicator::StorageWritesDeduplicator,
-    system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
+    system_contracts::get_system_smart_contracts,
+    utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-    StorageKey, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -94,6 +99,22 @@ impl Tester {
 
     pub(super) fn set_config(&mut self, config: TestConfig) {
         self.config = config;
+    }
+
+    /// Extension of `create_batch_executor` that allows us to run some initial transactions to bootstrap the state.
+    pub(super) async fn create_batch_executor_with_init_transactions(
+        &mut self,
+        storage_type: StorageType,
+        transactions: &[Transaction],
+    ) -> BatchExecutorHandle {
+        let mut executor = self.create_batch_executor(storage_type).await;
+
+        for txn in transactions {
+            let res = executor.execute_tx(txn.clone()).await.unwrap();
+            assert_matches!(res, TxExecutionResult::Success { .. });
+        }
+
+        executor
     }
 
     /// Creates a batch executor instance with the specified storage type.
@@ -287,7 +308,7 @@ impl Tester {
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![storage_log])])
+                .append_storage_logs(L2BlockNumber(0), &[storage_log])
                 .await
                 .unwrap();
             if storage
@@ -299,7 +320,7 @@ impl Tester {
             {
                 storage
                     .storage_logs_dedup_dal()
-                    .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                    .insert_initial_writes(L1BatchNumber(0), &[storage_log.key.hashed_key()])
                     .await
                     .unwrap();
             }
@@ -484,7 +505,7 @@ pub(super) struct StorageSnapshot {
     pub l2_block_number: L2BlockNumber,
     pub l2_block_hash: H256,
     pub l2_block_timestamp: u64,
-    pub storage_logs: HashMap<StorageKey, H256>,
+    pub storage_logs: HashMap<H256, H256>,
     pub factory_deps: HashMap<H256, Vec<u8>>,
 }
 
@@ -494,6 +515,7 @@ impl StorageSnapshot {
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
         transaction_count: u32,
+        transactions: &[Transaction],
     ) -> Self {
         let mut tester = Tester::new(connection_pool.clone());
         tester.genesis().await;
@@ -531,6 +553,30 @@ impl StorageSnapshot {
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
 
+        for transaction in transactions {
+            let tx_hash = transaction.hash(); // probably incorrect
+            let res = executor.execute_tx(transaction.clone()).await.unwrap();
+            if let TxExecutionResult::Success { tx_result, .. } = res {
+                let storage_logs = &tx_result.logs.storage_logs;
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
+            } else {
+                panic!("Unexpected tx execution result: {res:?}");
+            };
+
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
+                l2_block_env.timestamp,
+                l2_block_env.prev_block_hash,
+            );
+            hasher.push_tx_hash(tx_hash);
+
+            l2_block_env.number += 1;
+            l2_block_env.timestamp += 1;
+            l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
+        }
+
         for _ in 0..transaction_count {
             let tx = alice.execute();
             let tx_hash = tx.hash(); // probably incorrect
@@ -538,7 +584,7 @@ impl StorageSnapshot {
             if let TxExecutionResult::Success { tx_result, .. } = res {
                 let storage_logs = &tx_result.logs.storage_logs;
                 storage_writes_deduplicator
-                    .apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
             } else {
                 panic!("Unexpected tx execution result: {res:?}");
             };
@@ -558,12 +604,12 @@ impl StorageSnapshot {
 
         let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
-        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();
         all_logs.extend(
             modified_entries
                 .into_iter()
-                .map(|(key, slot)| (key, u256_to_h256(slot.value))),
+                .map(|(key, slot)| (key.hashed_key(), slot.value)),
         );
 
         // Compute the hash of the last (fictive) L2 block in the batch.
@@ -590,17 +636,23 @@ impl StorageSnapshot {
         let snapshot_logs: Vec<_> = self
             .storage_logs
             .into_iter()
-            .map(|(key, value)| StorageLog::new_write_log(key, value))
+            .enumerate()
+            .map(|(i, (key, value))| SnapshotStorageLog {
+                key,
+                value,
+                l1_batch_number_of_initial_write: L1BatchNumber(1),
+                enumeration_index: i as u64 + 1,
+            })
             .collect();
         let mut storage = connection_pool.connection().await.unwrap();
-        let mut snapshot = prepare_recovery_snapshot(
-            &mut storage,
+
+        let snapshot = Snapshot::new(
             L1BatchNumber(1),
             self.l2_block_number,
-            &snapshot_logs,
-        )
-        .await;
-
+            snapshot_logs,
+            GenesisParams::mock(),
+        );
+        let mut snapshot = recover(&mut storage, snapshot).await;
         snapshot.l2_block_hash = self.l2_block_hash;
         snapshot.l2_block_timestamp = self.l2_block_timestamp;
 
@@ -616,7 +668,7 @@ impl StorageSnapshot {
 async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
     storage
         .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[(H256::zero(), vec![log])])
+        .append_storage_logs(L2BlockNumber(0), &[log])
         .await
         .unwrap();
 
@@ -629,7 +681,7 @@ async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageL
     {
         storage
             .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key])
+            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
             .await
             .unwrap();
     }

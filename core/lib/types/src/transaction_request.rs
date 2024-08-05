@@ -407,7 +407,9 @@ impl TransactionRequest {
     }
 
     // returns packed eth signature if it is present
-    fn get_packed_signature(&self) -> Result<PackedEthSignature, SerializationTransactionError> {
+    pub fn get_packed_signature(
+        &self,
+    ) -> Result<PackedEthSignature, SerializationTransactionError> {
         let packed_v = self
             .v
             .ok_or(SerializationTransactionError::IncompleteSignature)?

@@ -1,6 +1,6 @@
 //! Ethereum watcher polls the Ethereum node for the relevant events, such as priority operations (aka L1 transactions),
 //! protocol upgrades etc.
-//! New events are accepted to the zkSync network once they have the sufficient amount of L1 confirmations.
+//! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
 use std::time::Duration;
 
@@ -23,6 +23,7 @@ use self::{
     },
     metrics::{PollStage, METRICS},
 };
+use crate::event_processors::DecentralizedUpgradesEventProcessor;
 
 mod client;
 mod event_processors;
@@ -51,6 +52,7 @@ impl EthWatch {
     pub async fn new(
         diamond_proxy_addr: Address,
         governance_contract: &Contract,
+        chain_admin_contract: &Contract,
         mut client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
@@ -68,9 +70,14 @@ impl EthWatch {
             state.last_seen_protocol_version,
             governance_contract,
         );
+        let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
+            state.last_seen_protocol_version,
+            chain_admin_contract,
+        );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(governance_upgrades_processor),
+            Box::new(decentralized_upgrades_processor),
         ];
 
         let topics = event_processors
@@ -161,7 +168,7 @@ impl EthWatch {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(level = "trace", skip_all)]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,

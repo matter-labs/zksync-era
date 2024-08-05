@@ -39,14 +39,15 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "IStateTransitionManager.sol/IStateTransitionManager.json",
 );
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/",
-    "chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "state-transition/chain-interfaces",
+    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const _IERC20_CONTRACT_FILE: &str =
@@ -135,6 +136,10 @@ pub fn governance_contract() -> Contract {
     load_contract_for_both_compilers(GOVERNANCE_CONTRACT_FILE)
 }
 
+pub fn chain_admin_contract() -> Contract {
+    load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
+}
+
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -188,6 +193,12 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn l2_message_root() -> Contract {
+    load_contract(
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+    )
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
@@ -830,6 +841,63 @@ pub static ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new
           }
         ],
         "name": "upgradeChainFromVersion",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static DIAMOND_CUT: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "diamondCut",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

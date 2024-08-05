@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use multivm::utils::get_used_bootloader_memory_bytes;
 use zk_evm_1_3_3::{
     aux_structures::Timestamp as Timestamp_1_3_3,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_3_3,
@@ -15,6 +14,7 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp as Timestamp_1_5_0,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
 };
+use zksync_multivm::utils::get_used_bootloader_memory_bytes;
 use zksync_types::{zk_evm_types::LogQuery, ProtocolVersionId, VmVersion, H256, U256};
 use zksync_utils::expand_memory_contents;
 

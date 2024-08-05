@@ -38,7 +38,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use anyhow::Context as _;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use crate::storage::PersistenceThreadHandle;
 use crate::{

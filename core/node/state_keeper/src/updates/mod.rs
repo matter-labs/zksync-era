@@ -1,8 +1,9 @@
-use multivm::{
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
 };
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_state::StorageViewCache;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -35,6 +36,7 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
+    storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -59,6 +61,7 @@ impl UpdatesManager {
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
+            storage_view_cache: None,
         }
     }
 
@@ -66,7 +69,7 @@ impl UpdatesManager {
         self.batch_timestamp
     }
 
-    pub(crate) fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
+    pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
         self.base_system_contract_hashes
     }
 
@@ -100,7 +103,7 @@ impl UpdatesManager {
         }
     }
 
-    pub(crate) fn protocol_version(&self) -> ProtocolVersionId {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
     }
 
@@ -153,6 +156,14 @@ impl UpdatesManager {
         self.l1_batch.finished = Some(finished_batch);
 
         latency.observe();
+    }
+
+    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
+        self.storage_view_cache = Some(storage_view_cache);
+    }
+
+    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
+        self.storage_view_cache.clone()
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
@@ -224,7 +235,7 @@ mod tests {
         let tx = create_transaction(10, 100);
         updates_manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             new_block_gas_count(),
             ExecutionMetrics::default(),

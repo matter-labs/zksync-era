@@ -1,6 +1,7 @@
 use std::fmt;
 
-use zksync_contracts::verifier_contract;
+use anyhow::Context;
+use zksync_contracts::{state_transition_manager_contract, verifier_contract};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
@@ -27,6 +28,11 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
+    /// Returns upgrade diamond cut by packed protocol version.
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
 }
@@ -42,8 +48,10 @@ pub struct EthHttpQueryClient {
     topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
+    new_upgrade_cut_data_signature: H256,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
+    chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -53,11 +61,12 @@ impl EthHttpQueryClient {
         client: Box<DynClient<L1>>,
         diamond_proxy_addr: Address,
         state_transition_manager_address: Option<Address>,
+        chain_admin_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
             diamond_proxy_addr,
             governance_address
         );
@@ -66,7 +75,13 @@ impl EthHttpQueryClient {
             topics: Vec::new(),
             diamond_proxy_addr,
             state_transition_manager_address,
+            chain_admin_address,
             governance_address,
+            new_upgrade_cut_data_signature: state_transition_manager_contract()
+                .event("NewUpgradeCutData")
+                .context("NewUpgradeCutData event is missing in ABI")
+                .unwrap()
+                .signature(),
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
         }
@@ -84,6 +99,7 @@ impl EthHttpQueryClient {
                     Some(self.diamond_proxy_addr),
                     Some(self.governance_address),
                     self.state_transition_manager_address,
+                    self.chain_admin_address,
                 ]
                 .into_iter()
                 .flatten()
@@ -108,6 +124,29 @@ impl EthClient for EthHttpQueryClient {
             .for_contract(verifier_address, &self.verifier_contract_abi)
             .call(self.client.as_ref())
             .await
+    }
+
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let filter = FilterBuilder::default()
+            .address(vec![state_transition_manager_address])
+            .from_block(BlockNumber::Earliest)
+            .to_block(BlockNumber::Latest)
+            .topics(
+                Some(vec![self.new_upgrade_cut_data_signature]),
+                Some(vec![packed_version]),
+                None,
+                None,
+            )
+            .build();
+        let logs = self.client.logs(&filter).await?;
+        Ok(logs.into_iter().next().map(|log| log.data.0))
     }
 
     async fn get_events(

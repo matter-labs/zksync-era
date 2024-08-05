@@ -1,18 +1,40 @@
 use zksync_config::configs::vm_runner::ProtectiveReadsWriterConfig;
+use zksync_node_framework_derive::FromContext;
 use zksync_types::L2ChainId;
-use zksync_vm_runner::ProtectiveReadsWriter;
+use zksync_vm_runner::{
+    ConcurrentOutputHandlerFactoryTask, ProtectiveReadsIo, ProtectiveReadsWriter, StorageSyncTask,
+};
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    IntoContext,
 };
 
+/// Wiring layer for protective reads writer.
 #[derive(Debug)]
 pub struct ProtectiveReadsWriterLayer {
     protective_reads_writer_config: ProtectiveReadsWriterConfig,
     zksync_network_id: L2ChainId,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub protective_reads_writer: ProtectiveReadsWriter,
+    #[context(task)]
+    pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
+    #[context(task)]
+    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
 }
 
 impl ProtectiveReadsWriterLayer {
@@ -29,12 +51,15 @@ impl ProtectiveReadsWriterLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for ProtectiveReadsWriterLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "vm_runner_protective_reads"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let master_pool = context.get_resource::<PoolResource<MasterPool>>().await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let master_pool = input.master_pool;
 
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
             // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
@@ -56,27 +81,21 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
         )
         .await?;
 
-        context.add_task(Box::new(tasks.loader_task));
-        context.add_task(Box::new(tasks.output_handler_factory_task));
-        context.add_task(Box::new(ProtectiveReadsWriterTask {
+        Ok(Output {
             protective_reads_writer,
-        }));
-        Ok(())
+            loader_task: tasks.loader_task,
+            output_handler_factory_task: tasks.output_handler_factory_task,
+        })
     }
 }
 
-#[derive(Debug)]
-struct ProtectiveReadsWriterTask {
-    protective_reads_writer: ProtectiveReadsWriter,
-}
-
 #[async_trait::async_trait]
-impl Task for ProtectiveReadsWriterTask {
+impl Task for ProtectiveReadsWriter {
     fn id(&self) -> TaskId {
         "vm_runner/protective_reads_writer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.protective_reads_writer.run(&stop_receiver.0).await
+        (*self).run(&stop_receiver.0).await
     }
 }

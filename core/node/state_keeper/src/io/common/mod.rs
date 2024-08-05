@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
 use super::PendingBatchData;
