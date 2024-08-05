@@ -69,8 +69,10 @@ impl Options {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BaseFees {
     pub base_fee_per_gas: u64,
+    // Base fee per blob gas. It is zero on networks that do not support blob transactions (e.g. L2s).
     pub base_fee_per_blob_gas: U256,
-    // pub pubdata_price: U256,
+    // The price (in wei) for relaying the pubdata to L1. It is non-zero only for L2 settlement layers.
+    pub pubdata_price: U256,
 }
 
 /// Common Web3 interface, as seen by the core applications.
@@ -156,23 +158,6 @@ pub trait EthFeeInterface: EthInterface {
         from_block: usize,
         block_count: usize,
     ) -> EnrichedClientResult<Vec<BaseFees>>;
-}
-
-/// Information about the base fees provided by the L1 client.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct L2Fees {
-    pub base_fee_per_gas: u64,
-    pub pubdata_price: U256,
-}
-
-#[async_trait]
-pub trait ZkSyncInterface: Sync + Send {
-    /// Returns vector of base fees and pubdata prices (in wei) for a zkSync-based network.
-    async fn l2_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<L2Fees>>;
 }
 
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to

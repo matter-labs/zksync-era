@@ -18,7 +18,7 @@ use zksync_web3_decl::client::{
 
 use crate::{
     types::{ContractCallError, SignedCallResult, SigningError},
-    BaseFees, BoundEthInterface, EthInterface, L2Fees, Options, RawTransactionBytes,
+    BaseFees, BoundEthInterface, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -225,31 +225,6 @@ impl MockExecutedTxHandle<'_> {
 type CallHandler =
     dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, ClientError> + Send + Sync;
 
-#[derive(Debug, Clone)]
-pub struct MockClientBaseFee {
-    pub base_fee_per_gas: u64,
-    pub base_fee_per_blob_gas: U256,
-    pub pubdata_price: U256,
-}
-
-impl From<MockClientBaseFee> for BaseFees {
-    fn from(value: MockClientBaseFee) -> Self {
-        Self {
-            base_fee_per_blob_gas: value.base_fee_per_blob_gas,
-            base_fee_per_gas: value.base_fee_per_gas,
-        }
-    }
-}
-
-impl From<MockClientBaseFee> for L2Fees {
-    fn from(value: MockClientBaseFee) -> Self {
-        Self {
-            base_fee_per_gas: value.base_fee_per_gas,
-            pubdata_price: value.pubdata_price,
-        }
-    }
-}
-
 pub trait SupportedMockEthNetwork: Network {
     fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self>;
 }
@@ -258,7 +233,7 @@ pub trait SupportedMockEthNetwork: Network {
 pub struct MockEthereumBuilder<Net: SupportedMockEthNetwork = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
-    base_fee_history: Vec<MockClientBaseFee>,
+    base_fee_history: Vec<BaseFees>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
@@ -301,7 +276,7 @@ impl<Net: SupportedMockEthNetwork> Default for MockEthereumBuilder<Net> {
 
 impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
     /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
-    pub fn with_fee_history(self, history: Vec<MockClientBaseFee>) -> Self {
+    pub fn with_fee_history(self, history: Vec<BaseFees>) -> Self {
         Self {
             base_fee_history: history,
             ..self
@@ -343,7 +318,7 @@ impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
     }
 
     fn get_block_by_number(
-        fee_history: &[MockClientBaseFee],
+        fee_history: &[BaseFees],
         block: web3::BlockNumber,
     ) -> Option<web3::Block<H256>> {
         let web3::BlockNumber::Number(number) = block else {
@@ -678,10 +653,10 @@ mod tests {
     use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId};
 
     use super::*;
-    use crate::{CallFunctionArgs, EthFeeInterface, EthInterface, ZkSyncInterface};
+    use crate::{CallFunctionArgs, EthFeeInterface, EthInterface};
 
-    fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> MockClientBaseFee {
-        MockClientBaseFee {
+    fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> BaseFees {
+        BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: U256::from(blob),
             pubdata_price: U256::from(pubdata_price),

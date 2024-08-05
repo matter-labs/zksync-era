@@ -12,7 +12,7 @@ use zksync_web3_decl::{
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
-    BaseFees, EthFeeInterface, EthInterface, L2Fees, RawTransactionBytes, ZkSyncInterface,
+    BaseFees, EthFeeInterface, EthInterface, RawTransactionBytes,
 };
 
 const FEE_HISTORY_MAX_REQUEST_CHUNK: usize = 1024;
@@ -293,80 +293,149 @@ where
     }
 }
 
-pub trait L1Client: L1EthNamespaceClient + EthInterface + ForEthereumLikeNetwork<Net = L1> {}
-impl L1Client for Box<DynClient<L1>> {}
-impl L1Client for MockClient<L1> {}
+// pub trait L1Client: L1EthNamespaceClient + EthInterface + ForEthereumLikeNetwork<Net = L1> {}
 
-#[async_trait::async_trait]
-impl<T: L1Client> EthFeeInterface for T {
-    async fn base_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>> {
-        COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
-        let mut history = Vec::with_capacity(block_count);
-        let from_block = upto_block.saturating_sub(block_count);
+// impl L1Client for Box<DynClient<L1>> {}
+// impl L1Client for MockClient<L1> {}
 
-        // Here we are requesting `fee_history` from blocks
-        // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
-        // starting from the oldest block.
-        for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
-            let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
-            let chunk_size = chunk_end - chunk_start;
+macro_rules! impl_l1_eth_fee_interface {
+    ($type:ty) => {
+        #[async_trait::async_trait]
+        impl EthFeeInterface for $type {
+            async fn base_fee_history(
+                &self,
+                upto_block: usize,
+                block_count: usize,
+            ) -> EnrichedClientResult<Vec<BaseFees>> {
+                COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
+                let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+                let mut history = Vec::with_capacity(block_count);
+                let from_block = upto_block.saturating_sub(block_count);
 
-            let fee_history = self
-                .fee_history(
-                    U64::from(chunk_size),
-                    web3::BlockNumber::from(chunk_end),
-                    None,
-                )
-                .rpc_context("fee_history")
-                .with_arg("chunk_size", &chunk_size)
-                .with_arg("block", &chunk_end)
-                .await?;
+                // Here we are requesting `fee_history` from blocks
+                // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
+                // starting from the oldest block.
+                for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+                    let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+                    let chunk_size = chunk_end - chunk_start;
 
-            // Check that the lengths are the same.
-            // Per specification, the values should always be provided, and must be 0 for blocks
-            // prior to EIP-4844.
-            // https://ethereum.github.io/execution-apis/api-documentation/
-            if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-                tracing::error!(
-                    "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
-                    fee_history.base_fee_per_gas.len(),
-                    fee_history.base_fee_per_blob_gas.len()
-                );
-            }
+                    let fee_history = self
+                        .fee_history(
+                            U64::from(chunk_size),
+                            web3::BlockNumber::from(chunk_end),
+                            None,
+                        )
+                        .rpc_context("fee_history")
+                        .with_arg("chunk_size", &chunk_size)
+                        .with_arg("block", &chunk_end)
+                        .await?;
 
-            for (base, blob) in fee_history
-                .base_fee_per_gas
-                .into_iter()
-                .zip(fee_history.base_fee_per_blob_gas)
-            {
-                let fees = BaseFees {
-                    base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
-                    base_fee_per_blob_gas: blob,
-                };
-                history.push(fees)
+                    // Check that the lengths are the same.
+                    // Per specification, the values should always be provided, and must be 0 for blocks
+                    // prior to EIP-4844.
+                    // https://ethereum.github.io/execution-apis/api-documentation/
+                    if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
+                        tracing::error!(
+                            "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+                            fee_history.base_fee_per_gas.len(),
+                            fee_history.base_fee_per_blob_gas.len()
+                        );
+                    }
+
+                    for (base, blob) in fee_history
+                        .base_fee_per_gas
+                        .into_iter()
+                        .zip(fee_history.base_fee_per_blob_gas)
+                    {
+                        let fees = BaseFees {
+                            base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                            base_fee_per_blob_gas: blob,
+                            pubdata_price: 0.into()
+                        };
+                        history.push(fees)
+                    }
+                }
+
+                latency.observe();
+                Ok(history)
             }
         }
-
-        latency.observe();
-        Ok(history)
-    }
+    };
 }
+
+impl_l1_eth_fee_interface!(Box::<DynClient::<L1>>);
+impl_l1_eth_fee_interface!(MockClient::<L1>);
+
+// #[async_trait::async_trait]
+// impl<T: L1Client> EthFeeInterface for T {
+//     async fn base_fee_history(
+//         &self,
+//         upto_block: usize,
+//         block_count: usize,
+//     ) -> EnrichedClientResult<Vec<BaseFees>> {
+//         COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
+//         let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+//         let mut history = Vec::with_capacity(block_count);
+//         let from_block = upto_block.saturating_sub(block_count);
+
+//         // Here we are requesting `fee_history` from blocks
+//         // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
+//         // starting from the oldest block.
+//         for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+//             let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+//             let chunk_size = chunk_end - chunk_start;
+
+//             let fee_history = self
+//                 .fee_history(
+//                     U64::from(chunk_size),
+//                     web3::BlockNumber::from(chunk_end),
+//                     None,
+//                 )
+//                 .rpc_context("fee_history")
+//                 .with_arg("chunk_size", &chunk_size)
+//                 .with_arg("block", &chunk_end)
+//                 .await?;
+
+//             // Check that the lengths are the same.
+//             // Per specification, the values should always be provided, and must be 0 for blocks
+//             // prior to EIP-4844.
+//             // https://ethereum.github.io/execution-apis/api-documentation/
+//             if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
+//                 tracing::error!(
+//                     "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+//                     fee_history.base_fee_per_gas.len(),
+//                     fee_history.base_fee_per_blob_gas.len()
+//                 );
+//             }
+
+//             for (base, blob) in fee_history
+//                 .base_fee_per_gas
+//                 .into_iter()
+//                 .zip(fee_history.base_fee_per_blob_gas)
+//             {
+//                 let fees = BaseFees {
+//                     base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+//                     base_fee_per_blob_gas: blob,
+//                 };
+//                 history.push(fees)
+//             }
+//         }
+
+//         latency.observe();
+//         Ok(history)
+//     }
+// }
 
 pub trait L2Client: EthNamespaceClient + EthInterface + ForEthereumLikeNetwork<Net = L2> {}
 impl L2Client for Box<DynClient<L2>> {}
 
 #[async_trait::async_trait]
-impl<T: L2Client> ZkSyncInterface for T {
-    async fn l2_fee_history(
+impl<T: L2Client> EthFeeInterface for T {
+    async fn base_fee_history(
         &self,
         upto_block: usize,
         block_count: usize,
-    ) -> EnrichedClientResult<Vec<L2Fees>> {
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
         COUNTERS.call[&(Method::L2FeeHistory, self.component())].inc();
         let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
         let mut history = Vec::with_capacity(block_count);
@@ -405,8 +474,9 @@ impl<T: L2Client> ZkSyncInterface for T {
                 .into_iter()
                 .zip(fee_history.pubdata_price)
             {
-                let fees = L2Fees {
+                let fees = BaseFees {
                     base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                    base_fee_per_blob_gas: 0.into(),
                     pubdata_price,
                 };
                 history.push(fees)

@@ -5,10 +5,7 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{MockClientBaseFee, MockSettlementLayer},
-    BoundEthInterface,
-};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -152,7 +149,7 @@ impl EthSenderTester {
 
         let history: Vec<_> = history
             .into_iter()
-            .map(|base_fee_per_gas| MockClientBaseFee {
+            .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
                 base_fee_per_blob_gas: 0.into(),
                 pubdata_price: 0.into(),
@@ -161,7 +158,7 @@ impl EthSenderTester {
 
         let gateway = MockSettlementLayer::builder()
             .with_fee_history(
-                std::iter::repeat_with(|| MockClientBaseFee {
+                std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
                     pubdata_price: 0.into(),
@@ -181,7 +178,7 @@ impl EthSenderTester {
 
         let gateway_blobs = MockSettlementLayer::builder()
             .with_fee_history(
-                std::iter::repeat_with(|| MockClientBaseFee {
+                std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
                     pubdata_price: 0.into(),

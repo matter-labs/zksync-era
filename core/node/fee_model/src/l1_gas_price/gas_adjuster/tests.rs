@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::RwLockReadGuard};
 
 use test_casing::test_casing;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::clients::{MockClientBaseFee, MockSettlementLayer};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode};
 use zksync_web3_decl::client::L2;
 
@@ -86,7 +86,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     let base_fees = TEST_BLOCK_FEES
         .into_iter()
         .zip(TEST_BLOB_FEES)
-        .map(|(block, blob)| MockClientBaseFee {
+        .map(|(block, blob)| BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: blob.into(),
             pubdata_price: 0.into(),
@@ -150,7 +150,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
     let base_fees = TEST_BLOCK_FEES
         .into_iter()
         .zip(TEST_PUBDATA_PRICES)
-        .map(|(block, pubdata)| MockClientBaseFee {
+        .map(|(block, pubdata)| BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: 0.into(),
             pubdata_price: pubdata.into(),
