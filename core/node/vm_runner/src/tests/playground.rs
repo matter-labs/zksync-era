@@ -1,8 +1,8 @@
 use test_casing::test_casing;
 use tokio::sync::watch;
+use zksync_health_check::HealthStatus;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
@@ -33,11 +33,9 @@ async fn run_playground(
         .unwrap();
     }
 
-    let mut batch_executor = MainBatchExecutor::new(false, false);
-    batch_executor.set_fast_vm_mode(FastVmMode::Shadow);
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
-        Box::new(batch_executor),
+        FastVmMode::Shadow,
         rocksdb_dir.path().to_str().unwrap().to_owned(),
         genesis_params.config().l2_chain_id,
         L1BatchNumber(0),
@@ -62,6 +60,7 @@ async fn run_playground(
             .unwrap(),
         L1BatchNumber(1)
     );
+    let mut health_check = playground.health_check();
 
     let mut completed_batches = playground_io.subscribe_to_completed_batches();
     let task_handles = [
@@ -78,6 +77,16 @@ async fn run_playground(
         .wait_for(|&number| number == L1BatchNumber(1))
         .await
         .unwrap();
+    health_check
+        .wait_for(|health| {
+            if !matches!(health.status(), HealthStatus::Ready) {
+                return false;
+            }
+            let health_details = health.details().unwrap();
+            assert_eq!(health_details["vm_mode"], "shadow");
+            health_details["last_processed_batch"] == 1_u64
+        })
+        .await;
 
     // Check that playground I/O works correctly.
     assert_eq!(

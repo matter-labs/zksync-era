@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use zksync_config::configs::ExperimentalVmPlaygroundConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
     impls::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask},
@@ -9,7 +8,10 @@ use zksync_vm_runner::{
 };
 
 use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource,
+        pools::{MasterPool, PoolResource},
+    },
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
@@ -32,6 +34,8 @@ impl VmPlaygroundLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -55,7 +59,10 @@ impl WiringLayer for VmPlaygroundLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let Input { master_pool } = input;
+        let Input {
+            master_pool,
+            app_health,
+        } = input;
 
         // - 1 connection for `StorageSyncTask` which can hold a long-term connection in case it needs to
         //   catch up cache.
@@ -64,18 +71,20 @@ impl WiringLayer for VmPlaygroundLayer {
         // - 1 connection for the only running VM instance.
         let connection_pool = master_pool.get_custom(3).await?;
 
-        let mut batch_executor = Box::new(MainBatchExecutor::new(false, false));
-        batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
-
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
-            batch_executor,
+            self.config.fast_vm_mode,
             self.config.db_path,
             self.zksync_network_id,
             self.config.first_processed_batch,
             self.config.reset,
         )
         .await?;
+
+        app_health
+            .0
+            .insert_component(playground.health_check())
+            .map_err(WiringError::internal)?;
 
         Ok(Output {
             output_handler_factory_task: tasks.output_handler_factory_task,

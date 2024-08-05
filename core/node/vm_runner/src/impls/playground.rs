@@ -6,26 +6,40 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use serde::Serialize;
 use tokio::{
     fs,
     sync::{oneshot, watch},
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
 
 use crate::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
     StorageSyncTask, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
 
+#[derive(Debug, Serialize)]
+struct VmPlaygroundHealth {
+    vm_mode: FastVmMode,
+    last_processed_batch: L1BatchNumber,
+}
+
+impl From<VmPlaygroundHealth> for Health {
+    fn from(health: VmPlaygroundHealth) -> Self {
+        Health::from(HealthStatus::Ready).with_details(health)
+    }
+}
+
 /// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor: Box<dyn BatchExecutor>,
+    batch_executor: MainBatchExecutor,
     rocksdb_path: String,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -39,14 +53,14 @@ impl VmPlayground {
     /// Creates a new playground.
     pub async fn new(
         pool: ConnectionPool<Core>,
-        batch_executor: Box<dyn BatchExecutor>,
+        vm_mode: FastVmMode,
         rocksdb_path: String,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
         reset_state: bool,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
         tracing::info!(
-            "Starting VM playground with executor {batch_executor:?}, first processed batch is #{first_processed_batch} \
+            "Starting VM playground with mode {vm_mode:?}, first processed batch is #{first_processed_batch} \
              (reset processing: {reset_state:?})"
         );
 
@@ -59,9 +73,14 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(first_processed_batch)
         };
 
+        let mut batch_executor = MainBatchExecutor::new(false, false);
+        batch_executor.set_fast_vm_mode(vm_mode);
+
         let io = VmPlaygroundIo {
             cursor_file_path,
+            vm_mode,
             latest_processed_batch: Arc::new(watch::channel(latest_processed_batch).0),
+            health_updater: Arc::new(ReactiveHealthCheck::new("vm_playground").1),
         };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(
@@ -90,6 +109,11 @@ impl VmPlayground {
                 output_handler_factory_task,
             },
         ))
+    }
+
+    /// Returns a health check for this component.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.io.health_updater.subscribe()
     }
 
     #[cfg(test)]
@@ -123,6 +147,8 @@ impl VmPlayground {
             .with_context(|| format!("cannot create dir `{}`", self.rocksdb_path))?;
 
         if let Some(reset_to_batch) = self.reset_to_batch {
+            self.io.health_updater.update(HealthStatus::Affected.into());
+
             self.reset_rocksdb_cache(reset_to_batch).await?;
             self.io
                 .write_cursor(reset_to_batch)
@@ -130,6 +156,8 @@ impl VmPlayground {
                 .context("failed resetting VM playground state")?;
             tracing::info!("Finished resetting playground state");
         }
+
+        self.io.update_health();
 
         let (loader, loader_task) = VmRunnerStorage::new(
             self.pool.clone(),
@@ -144,7 +172,7 @@ impl VmPlayground {
             Box::new(self.io),
             Arc::new(loader),
             Box::new(self.output_handler_factory),
-            self.batch_executor,
+            Box::new(self.batch_executor),
         );
         vm_runner.run(stop_receiver).await
     }
@@ -184,9 +212,11 @@ pub struct VmPlaygroundTasks {
 #[derive(Debug, Clone)]
 pub struct VmPlaygroundIo {
     cursor_file_path: PathBuf,
+    vm_mode: FastVmMode,
     // We don't read this value from the cursor file in the `VmRunnerIo` implementation because reads / writes
     // aren't guaranteed to be atomic.
     latest_processed_batch: Arc<watch::Sender<L1BatchNumber>>,
+    health_updater: Arc<HealthUpdater>,
 }
 
 impl VmPlaygroundIo {
@@ -216,6 +246,14 @@ impl VmPlaygroundIo {
                     self.cursor_file_path.display()
                 )
             })
+    }
+
+    fn update_health(&self) {
+        let health = VmPlaygroundHealth {
+            vm_mode: self.vm_mode,
+            last_processed_batch: *self.latest_processed_batch.borrow(),
+        };
+        self.health_updater.update(health.into());
     }
 
     #[cfg(test)]
@@ -268,6 +306,7 @@ impl VmRunnerIo for VmPlaygroundIo {
         self.write_cursor(l1_batch_number).await?;
         // We should only update the in-memory value after the write to the cursor file succeeded.
         self.latest_processed_batch.send_replace(l1_batch_number);
+        self.update_health();
         Ok(())
     }
 }
