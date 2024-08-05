@@ -1,9 +1,13 @@
-use zksync_types::{ExecuteTransactionCommon, Transaction};
+use zksync_state::ReadStorage;
+use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
-use crate::interface::{
-    CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+use crate::{
+    interface::{
+        CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+    },
+    vm_fast::Vm,
 };
 
 #[derive(Debug, Clone)]
@@ -179,6 +183,30 @@ impl TransactionTestInfo {
     }
 }
 
+// TODO this doesn't include all the state of ModifiedWorld
+#[derive(Debug, PartialEq)]
+struct VmStateDump {
+    state: vm2::State,
+    storage_writes: Vec<((H160, U256), U256)>,
+    events: Box<[vm2::Event]>,
+}
+
+impl<S: ReadStorage> Vm<S> {
+    fn dump_state(&self) -> VmStateDump {
+        VmStateDump {
+            state: self.inner.state.clone(),
+            storage_writes: self
+                .inner
+                .world_diff
+                .get_storage_state()
+                .iter()
+                .map(|(k, v)| (*k, *v))
+                .collect(),
+            events: self.inner.world_diff.events().into(),
+        }
+    }
+}
+
 impl VmTester {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
@@ -197,16 +225,17 @@ impl VmTester {
         &mut self,
         tx_test_info: TransactionTestInfo,
     ) -> VmExecutionResultAndLogs {
-        let inner_state_before = self.vm.dump_state();
         self.vm.make_snapshot();
+        let inner_state_before = self.vm.dump_state();
         self.vm.push_transaction(tx_test_info.tx.clone());
         let result = self.vm.execute(VmExecutionMode::OneTx);
         tx_test_info.verify_result(&result);
         if tx_test_info.should_rollback() {
             self.vm.rollback_to_the_latest_snapshot();
             let inner_state_after = self.vm.dump_state();
-            assert_eq!(
-                inner_state_before, inner_state_after,
+            pretty_assertions::assert_eq!(
+                inner_state_before,
+                inner_state_after,
                 "Inner state before and after rollback should be equal"
             );
         } else {
