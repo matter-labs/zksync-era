@@ -1,6 +1,8 @@
 # zkup - zk_toolbox Installer
 
-`zkup` is a script designed to simplify the installation of [zk_toolbox](https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox). It allows you to install the tool from a local directory or directly from a GitHub repository.
+`zkup` is a script designed to simplify the installation of
+[zk_toolbox](https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox). It allows you to install the tool from a
+local directory or directly from a GitHub repository.
 
 ## Getting Started
 
@@ -42,11 +44,16 @@ The `zkup` script provides various options for installing `zk_toolbox`:
 
 ### Local Installation
 
-If you provide a local path using the `-p` or `--path` option, `zkup` will install `zk_toolbox` from that directory. Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in this case to preserve git state.
+If you provide a local path using the `-p` or `--path` option, `zkup` will install `zk_toolbox` from that directory.
+Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in this case to
+preserve git state.
 
 ### Repository Installation
 
-By default, `zkup` installs `zk_toolbox` from the "matter-labs/zksync-era" GitHub repository. You can specify a different repository, branch, commit, or version using the respective options. If multiple arguments are provided, `zkup` will prioritize them as follows:
+By default, `zkup` installs `zk_toolbox` from the "matter-labs/zksync-era" GitHub repository. You can specify a
+different repository, branch, commit, or version using the respective options. If multiple arguments are provided,
+`zkup` will prioritize them as follows:
+
 - `--version`
 - `--commit`
 - `--branch`
