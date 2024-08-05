@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -136,6 +136,22 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
             .await?
             .map_err(E::Other)?)
+    }
+
+    /// Wrapper for `consensus_dal().insert_batch_committee()`.
+    pub async fn insert_batch_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: BatchNumber,
+        committee: consensus_dal::AttesterCommittee,
+    ) -> ctx::Result<()> {
+        ctx.wait(
+            self.0
+                .consensus_dal()
+                .insert_batch_committee(number, committee),
+        )
+        .await??;
+        Ok(())
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
@@ -316,6 +332,17 @@ impl<'a> Connection<'a> {
             .map(|nr| attester::BatchNumber(nr.0 as u64)))
     }
 
+    /// Wrapper for `consensus_dal().next_batch_to_extract_committee()`.
+    pub async fn next_batch_to_extract_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<attester::BatchNumber> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().next_batch_to_extract_committee())
+            .await?
+            .context("next_batch_to_extract_committee()")?)
+    }
+
     /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
     pub async fn get_last_batch_certificate_number(
         &mut self,
@@ -337,6 +364,18 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().batch_certificate(number))
             .await?
             .context("batch_certificate()")?)
+    }
+
+    /// Wrapper for `consensus_dal().batch_committees()`.
+    pub async fn batch_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+        batch_number: attester::BatchNumber,
+    ) -> ctx::Result<Option<consensus_dal::AttesterCommittee>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_committee(batch_number))
+            .await?
+            .context("batch_committees()")?)
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

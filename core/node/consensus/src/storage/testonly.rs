@@ -3,12 +3,12 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, ctx::Ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
-use zksync_contracts::{consensus_l2_contracts, BaseSystemContracts};
+use zksync_contracts::{consensus_l2_contracts, BaseSystemContracts, TestContract};
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_state_keeper::testonly::fee;
-use zksync_test_account::{Account, TxType};
+use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{Address, Contract, Token},
@@ -193,113 +193,5 @@ impl ConnectionPool {
             .await
             .context("hard_prune_batches_range()")?;
         Ok(())
-    }
-}
-
-/// A struct for writing to consensus L2 contracts.
-#[derive(Debug)]
-pub struct VMWriter {
-    pool: ConnectionPool,
-    node: StateKeeper,
-    account: Account,
-}
-
-impl VMWriter {
-    /// Constructs a new `VMWriter` instance.
-    pub fn new(pool: ConnectionPool, node: StateKeeper, account: Account) -> Self {
-        Self {
-            pool,
-            node,
-            account,
-        }
-    }
-
-    /// Deploys the consensus registry contract and adds nodes to it.
-    pub async fn deploy_and_add_nodes(
-        &mut self,
-        ctx: &Ctx,
-        owner: Address,
-        nodes: &[&[Token]],
-    ) -> Address {
-        let registry_contract = consensus_l2_contracts::load_consensus_registry_contract_in_test();
-
-        let mut txs: Vec<Transaction> = vec![];
-        let deploy_tx = self.account.get_deploy_tx_with_factory_deps(
-            &registry_contract.bytecode,
-            Some(&[Token::Address(owner)]),
-            vec![],
-            TxType::L2,
-        );
-        txs.push(deploy_tx.tx);
-        for node in nodes {
-            let tx = self.gen_tx_add(&registry_contract.contract, deploy_tx.address, node);
-            txs.push(tx);
-        }
-        txs.push(
-            self.gen_tx_set_validator_committee(deploy_tx.address, &registry_contract.contract),
-        );
-        txs.push(
-            self.gen_tx_set_attester_committee(deploy_tx.address, &registry_contract.contract),
-        );
-
-        self.node.push_block(&txs).await;
-        self.pool
-            .wait_for_payload(ctx, self.node.last_block())
-            .await
-            .unwrap();
-
-        deploy_tx.address
-    }
-
-    fn gen_tx_add(
-        &mut self,
-        contract: &Contract,
-        contract_address: Address,
-        input: &[Token],
-    ) -> Transaction {
-        let calldata = contract
-            .function("add")
-            .unwrap()
-            .encode_input(input)
-            .unwrap();
-        self.gen_tx(contract_address, calldata)
-    }
-
-    fn gen_tx_set_validator_committee(
-        &mut self,
-        contract_address: Address,
-        contract: &Contract,
-    ) -> Transaction {
-        let calldata = contract
-            .function("setValidatorCommittee")
-            .unwrap()
-            .short_signature()
-            .to_vec();
-        self.gen_tx(contract_address, calldata)
-    }
-
-    fn gen_tx_set_attester_committee(
-        &mut self,
-        contract_address: Address,
-        contract: &Contract,
-    ) -> Transaction {
-        let calldata = contract
-            .function("setAttesterCommittee")
-            .unwrap()
-            .short_signature()
-            .to_vec();
-        self.gen_tx(contract_address, calldata)
-    }
-
-    fn gen_tx(&mut self, contract_address: Address, calldata: Vec<u8>) -> Transaction {
-        self.account.get_l2_tx_for_execute(
-            Execute {
-                contract_address,
-                calldata,
-                value: Default::default(),
-                factory_deps: vec![],
-            },
-            Some(fee(10_000_000)),
-        )
     }
 }

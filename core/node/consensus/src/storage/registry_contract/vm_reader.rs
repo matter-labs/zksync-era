@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use zksync_basic_types::{
-    ethabi::Bytes,
-    web3::contract::{Detokenize, Error, Tokenizable, Tokenize},
-};
+use zksync_basic_types::web3::contract::{Detokenize, Tokenize};
 use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
 use zksync_contracts::consensus_l2_contracts;
 use zksync_node_api_server::{
@@ -14,15 +11,17 @@ use zksync_node_api_server::{
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::BlockId,
-    ethabi::{Address, Contract, Token},
+    ethabi::{Address, Contract},
     fee::Fee,
     l2::L2Tx,
     transaction_request::CallOverrides,
     Nonce, U256,
 };
-use zksync_web3_decl::types::H160;
 
-use crate::storage::ConnectionPool;
+use crate::storage::{
+    registry_contract::abi::{CommitteeAttester, CommitteeValidator},
+    ConnectionPool,
+};
 
 /// A struct for reading data from consensus L2 contracts.
 #[derive(Debug)]
@@ -56,14 +55,10 @@ impl VMReader {
         ctx: &Ctx,
         block_id: BlockId,
     ) -> anyhow::Result<(Vec<CommitteeValidator>, Vec<CommitteeAttester>)> {
-        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
-        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
+        let block_args = self
+            .block_args(ctx, block_id)
             .await
-            .unwrap();
-        let block_args = BlockArgs::new(&mut conn, block_id, &start_info)
-            .await
-            .unwrap();
-
+            .context("block_args()")?;
         let validator_committee = self
             .read_validator_committee(block_args)
             .await
@@ -76,7 +71,31 @@ impl VMReader {
         Ok((validator_committee, attester_committee))
     }
 
-    async fn read_validator_committee(
+    pub async fn block_args(&self, ctx: &Ctx, block_id: BlockId) -> anyhow::Result<BlockArgs> {
+        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
+        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
+            .await
+            .unwrap();
+
+        BlockArgs::new(&mut conn, block_id, &start_info)
+            .await
+            .context("BlockArgs::new")
+    }
+
+    pub async fn contract_deployed(&self, block_args: BlockArgs) -> bool {
+        let func = self
+            .registry_contract
+            .function("attesterCommitteeSize")
+            .unwrap()
+            .clone();
+
+        let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
+
+        let res = self.eth_call(block_args, tx).await;
+        res.len() > 0
+    }
+
+    pub async fn read_validator_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeValidator>> {
@@ -95,7 +114,7 @@ impl VMReader {
         Ok(committee)
     }
 
-    async fn read_attester_committee(
+    pub async fn read_attester_committee(
         &self,
         block_args: BlockArgs,
     ) -> anyhow::Result<Vec<CommitteeAttester>> {
@@ -194,7 +213,7 @@ impl VMReader {
             enforced_base_fee: None,
         };
         self.tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, None)
             .await
             .unwrap()
     }
@@ -215,80 +234,5 @@ impl VMReader {
             vec![],
             Default::default(),
         )
-    }
-}
-
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub struct CommitteeValidator {
-    pub node_owner: Address,
-    pub weight: usize,
-    pub pub_key: Vec<u8>,
-    pub pop: Vec<u8>,
-}
-
-impl Detokenize for CommitteeValidator {
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
-        Ok(Self {
-            node_owner: H160::from_token(
-                tokens
-                    .get(0)
-                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
-                    .clone(),
-            )?,
-            weight: U256::from_token(
-                tokens
-                    .get(1)
-                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
-                    .clone(),
-            )?
-            .as_usize(),
-            pub_key: Bytes::from_token(
-                tokens
-                    .get(2)
-                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
-                    .clone(),
-            )?,
-            pop: Bytes::from_token(
-                tokens
-                    .get(3)
-                    .ok_or_else(|| Error::Other("tokens[3] missing".to_string()))?
-                    .clone(),
-            )?,
-        })
-    }
-}
-
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub struct CommitteeAttester {
-    pub weight: usize,
-    pub node_owner: Address,
-    pub pub_key: Vec<u8>,
-}
-
-impl Detokenize for CommitteeAttester {
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self, Error> {
-        Ok(Self {
-            weight: U256::from_token(
-                tokens
-                    .get(0)
-                    .ok_or_else(|| Error::Other("tokens[0] missing".to_string()))?
-                    .clone(),
-            )?
-            .as_usize(),
-            node_owner: H160::from_token(
-                tokens
-                    .get(1)
-                    .ok_or_else(|| Error::Other("tokens[1] missing".to_string()))?
-                    .clone(),
-            )?,
-            pub_key: Bytes::from_token(
-                tokens
-                    .get(2)
-                    .ok_or_else(|| Error::Other("tokens[2] missing".to_string()))?
-                    .clone(),
-            )?,
-        })
     }
 }

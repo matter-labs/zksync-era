@@ -1,16 +1,19 @@
 use anyhow::Context as _;
 use bigdecimal::Zero as _;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{
+    attester, attester::BatchNumber, validator, validator::WeightedValidator,
+};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::ProtoFmt;
 use zksync_types::L2BlockNumber;
 
-pub use crate::consensus::Payload;
-use crate::{Core, CoreDal};
+pub use crate::consensus::{Attester, AttesterCommittee, Payload, Validator, ValidatorCommittee};
+use crate::{consensus, Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -317,7 +320,36 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        let Some(certificate) = row.certificate else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(certificate)?))
+    }
+
+    pub async fn batch_committee(
+        &mut self,
+        batch_number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<AttesterCommittee>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                committee
+            FROM
+                l1_batches_consensus
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(batch_number.0)?
+        )
+        .instrument("batch_committee")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(zksync_protobuf::serde::deserialize(row.committee)?))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -402,6 +434,32 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_batch_committee(
+        &mut self,
+        number: BatchNumber,
+        committee: AttesterCommittee,
+    ) -> anyhow::Result<()> {
+        let res = sqlx::query!(
+            r#"
+            INSERT INTO
+                l1_batches_consensus (l1_batch_number, certificate, committee, created_at, updated_at)
+            VALUES
+                ($1, NULL, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            i64::try_from(number.0).context("overflow")?.into(),
+            zksync_protobuf::serde::serialize(&committee, serde_json::value::Serializer).unwrap(),
+        )
+        .instrument("insert_batch_committee")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        if res.rows_affected().is_zero() {
+            tracing::debug!(l1_batch_number = ?number, "duplicate batch certificate");
+        }
+        Ok(())
+    }
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// No verification is performed - it cannot be performed due to circular dependency on
@@ -412,11 +470,12 @@ impl ConsensusDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
-            INSERT INTO
-                l1_batches_consensus (l1_batch_number, certificate, created_at, updated_at)
-            VALUES
-                ($1, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
+            UPDATE l1_batches_consensus
+            SET
+                certificate = $2,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.
@@ -443,6 +502,8 @@ impl ConsensusDal<'_, '_> {
                 MAX(l1_batch_number) AS "number"
             FROM
                 l1_batches_consensus
+            WHERE
+                certificate IS NOT NULL
             "#
         )
         .instrument("get_last_batch_certificate_number")
@@ -489,6 +550,45 @@ impl ConsensusDal<'_, '_> {
         // Otherwise start with 0.
         // Note that main node doesn't start from snapshot
         // and doesn't have prunning enabled.
+        Ok(attester::BatchNumber(0))
+    }
+
+    pub async fn get_last_batch_committee_number(
+        &mut self,
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                l1_batches_consensus
+            "#
+        )
+        .instrument("get_last_batch_committee_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        let Some(n) = row.number else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            n.try_into().context("overflow")?,
+        )))
+    }
+
+    pub async fn next_batch_to_extract_committee(
+        &mut self,
+    ) -> anyhow::Result<attester::BatchNumber> {
+        // First batch that we don't have a committee for.
+        if let Some(last) = self
+            .get_last_batch_committee_number()
+            .await
+            .context("get_last_batch_certificate_number()")?
+        {
+            return Ok(last + 1);
+        }
+
         Ok(attester::BatchNumber(0))
     }
 }

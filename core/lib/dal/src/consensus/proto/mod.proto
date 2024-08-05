@@ -114,3 +114,22 @@ message PaymasterParams {
   optional bytes paymaster_address = 1; // required; H160
   optional bytes paymaster_input = 2; // required
 }
+
+message Validator {
+  optional bytes pub_key = 1; // required
+  optional uint64 weight = 2; // required
+  optional bytes proof_of_possession = 3; // required
+}
+
+message Attester {
+  optional bytes pub_key = 1; // required
+  optional uint64 weight = 2; // required
+}
+
+message ValidatorCommittee {
+   repeated Validator members = 1; // required
+}
+
+message AttesterCommittee {
+   repeated Attester members = 1; // required
+}
