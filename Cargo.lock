@@ -8142,8 +8142,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90030afb16897fe17f2528f0cb20b3780b0205f18ec19da9c1f874a21a89168a"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8176,8 +8177,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37f8ba37ac2c66236eaafc0e8a6b4ae678969740902e7b9e5779d0763b1d7879"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8197,8 +8199,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdf6e89e6383e0378ba5127803d42341445f8818cbb23ee6b883eb43dedb1fc1"
 dependencies = [
  "anyhow",
  "blst",
@@ -8220,8 +8223,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b43bf87ae7b886e5b3ec085b03d7e1899f593ec356101ef25693c40aa707ef5a"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8240,8 +8244,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfd39251b0895d83384bcca94046cd754a24a9bc1c67fb2ae5a217c6179f58c5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8274,8 +8279,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8592baad6dc76f5541e58505d4f219ce030d677b03bee24674615988535a0d41"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8295,8 +8301,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "221f633957dc8ade745790d4fbade01b381d8a885b8952375958c9d3d7b55c34"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8314,8 +8321,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7b8bc7de3caae2beb2d028354bd81ca7b8e9a1efebe2d64b3a572c353591f49"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9253,8 +9261,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb83b2e32c60ae856712785ca41483900b6c3c6f5945fe3daa440c72610ca76e"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -9273,8 +9282,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.6"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5363c8a3e55bd89695e86c2b66bf8a4377d1764e#5363c8a3e55bd89695e86c2b66bf8a4377d1764e"
+version = "0.1.0-rc.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f249e905b65f354cb3399ce727712302b2290866ff443527e33e42ec14ee9ffe"
 dependencies = [
  "anyhow",
  "heck 0.5.0",

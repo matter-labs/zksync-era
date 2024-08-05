@@ -6347,9 +6347,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cf1d63d29e467457781bc08763c0348ab86c7a14713df7af5e6cc3ba88632c3"
+checksum = "90030afb16897fe17f2528f0cb20b3780b0205f18ec19da9c1f874a21a89168a"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6381,9 +6381,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d12966b4cfa166abbc1d702640cefea59fa15f8509e2c959f06e2cfde97ef429"
+checksum = "b7b8bc7de3caae2beb2d028354bd81ca7b8e9a1efebe2d64b3a572c353591f49"
 dependencies = [
  "anyhow",
  "rand",
@@ -6432,9 +6432,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1eba9cb290dbef9542175ed5da58da349d9eb0efb4a2d41942e530e7c775a81b"
+checksum = "eb83b2e32c60ae856712785ca41483900b6c3c6f5945fe3daa440c72610ca76e"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6453,9 +6453,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d02f1226c102c9ec0745fd65e51f0fc388ef8f20c7df192167462bad0524d2f"
+checksum = "f249e905b65f354cb3399ce727712302b2290866ff443527e33e42ec14ee9ffe"
 dependencies = [
  "anyhow",
  "heck",

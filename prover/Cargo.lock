@@ -7722,9 +7722,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cf1d63d29e467457781bc08763c0348ab86c7a14713df7af5e6cc3ba88632c3"
+checksum = "90030afb16897fe17f2528f0cb20b3780b0205f18ec19da9c1f874a21a89168a"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -7757,9 +7757,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "037bdb8bf5543676306b2faaa6dc60197a3f9335bbd1af1765d0eae4312ed427"
+checksum = "fdf6e89e6383e0378ba5127803d42341445f8818cbb23ee6b883eb43dedb1fc1"
 dependencies = [
  "anyhow",
  "blst",
@@ -7781,9 +7781,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ade360294fd4b8191adb24b034c9dd87742c70d1859a2a405d24f1d1fb5ecaf"
+checksum = "8592baad6dc76f5541e58505d4f219ce030d677b03bee24674615988535a0d41"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7803,9 +7803,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "632a5a54e7359ff29ca34185859c766dab2d531e01f583d0b1bff343249254ef"
+checksum = "221f633957dc8ade745790d4fbade01b381d8a885b8952375958c9d3d7b55c34"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7823,9 +7823,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d12966b4cfa166abbc1d702640cefea59fa15f8509e2c959f06e2cfde97ef429"
+checksum = "b7b8bc7de3caae2beb2d028354bd81ca7b8e9a1efebe2d64b3a572c353591f49"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8133,9 +8133,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1eba9cb290dbef9542175ed5da58da349d9eb0efb4a2d41942e530e7c775a81b"
+checksum = "eb83b2e32c60ae856712785ca41483900b6c3c6f5945fe3daa440c72610ca76e"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8154,9 +8154,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d02f1226c102c9ec0745fd65e51f0fc388ef8f20c7df192167462bad0524d2f"
+checksum = "f249e905b65f354cb3399ce727712302b2290866ff443527e33e42ec14ee9ffe"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
