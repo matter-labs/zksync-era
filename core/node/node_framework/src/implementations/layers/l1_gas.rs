@@ -5,10 +5,7 @@ use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
     GasAdjusterConfig, GenesisConfig,
 };
-use zksync_node_fee_model::{
-    l1_gas_price::{GasAdjuster, GasAdjusterClient},
-    MainNodeFeeInputProvider,
-};
+use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{

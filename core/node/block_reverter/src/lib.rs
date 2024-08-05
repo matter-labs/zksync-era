@@ -9,7 +9,6 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.
 pub use zksync_eth_client as eth_client;
 use zksync_eth_client::{
-    clients::{DynClient, L1},
     BoundEthInterface, CallFunctionArgs, EthInterface, L1EthBoundInterface, Options,
 };
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -542,7 +541,7 @@ impl BlockReverter {
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())
-            .call(eth_client as &dyn EthInterface)
+            .call(eth_client)
             .await
             .with_context(|| {
                 format!("failed calling `{function_name}` for contract {contract_address:?}")

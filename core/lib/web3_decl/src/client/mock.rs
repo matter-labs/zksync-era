@@ -14,7 +14,7 @@ use jsonrpsee::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{boxed::RawParams, EthereumLikeNetwork, ForEthereumLikeNetwork, Network, TaggedClient};
+use super::{boxed::RawParams, ForEthereumLikeNetwork, Network, TaggedClient};
 
 /// Object-safe counterpart to [`Handler`]. We need it because async closures aren't available on stable Rust.
 #[async_trait]

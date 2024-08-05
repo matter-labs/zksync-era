@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
 use zksync_web3_decl::{
-    client::{Client, DynClient, EthereumLikeNetwork, ForEthereumLikeNetwork, MockClient, L1, L2},
+    client::{DynClient, ForEthereumLikeNetwork, MockClient, L1, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::EthNamespaceClient,
 };
@@ -293,11 +293,6 @@ where
     }
 }
 
-// pub trait L1Client: L1EthNamespaceClient + EthInterface + ForEthereumLikeNetwork<Net = L1> {}
-
-// impl L1Client for Box<DynClient<L1>> {}
-// impl L1Client for MockClient<L1> {}
-
 macro_rules! impl_l1_eth_fee_interface {
     ($type:ty) => {
         #[async_trait::async_trait]
@@ -366,64 +361,74 @@ macro_rules! impl_l1_eth_fee_interface {
 impl_l1_eth_fee_interface!(Box::<DynClient::<L1>>);
 impl_l1_eth_fee_interface!(MockClient::<L1>);
 
-#[async_trait::async_trait]
-impl EthFeeInterface for Box<DynClient<L2>> {
-    async fn base_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>> {
-        COUNTERS.call[&(Method::L2FeeHistory, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
-        let mut history = Vec::with_capacity(block_count);
-        let from_block = upto_block.saturating_sub(block_count);
+macro_rules! impl_l2_eth_fee_interface {
+    ($type:ty) => {
+        #[async_trait::async_trait]
+        impl EthFeeInterface for $type {
+            async fn base_fee_history(
+                &self,
+                upto_block: usize,
+                block_count: usize,
+            ) -> EnrichedClientResult<Vec<BaseFees>> {
+                COUNTERS.call[&(Method::L2FeeHistory, self.component())].inc();
+                let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+                let mut history = Vec::with_capacity(block_count);
+                let from_block = upto_block.saturating_sub(block_count);
 
-        // Here we are requesting `fee_history` from blocks
-        // `(from_block; upto_block)` in chunks of size `FEE_HISTORY_MAX_REQUEST_CHUNK`
-        // starting from the oldest block.
-        for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
-            let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
-            let chunk_size = chunk_end - chunk_start;
+                // Here we are requesting `fee_history` from blocks
+                // `(from_block; upto_block)` in chunks of size `FEE_HISTORY_MAX_REQUEST_CHUNK`
+                // starting from the oldest block.
+                for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK)
+                {
+                    let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+                    let chunk_size = chunk_end - chunk_start;
 
-            let fee_history = EthNamespaceClient::fee_history(
-                self,
-                U64::from(chunk_size),
-                zksync_types::api::BlockNumber::from(chunk_end),
-                vec![],
-            )
-            .rpc_context("fee_history")
-            .with_arg("chunk_size", &chunk_size)
-            .with_arg("block", &chunk_end)
-            .await?;
+                    let fee_history = EthNamespaceClient::fee_history(
+                        self,
+                        U64::from(chunk_size),
+                        zksync_types::api::BlockNumber::from(chunk_end),
+                        vec![],
+                    )
+                    .rpc_context("fee_history")
+                    .with_arg("chunk_size", &chunk_size)
+                    .with_arg("block", &chunk_end)
+                    .await?;
 
-            // Check that the lengths are the same.
-            if fee_history.inner.base_fee_per_gas.len() != fee_history.l2_pubdata_price.len() {
-                tracing::error!(
-                    "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
-                    fee_history.inner.base_fee_per_gas.len(),
-                    fee_history.l2_pubdata_price.len()
-                );
-            }
+                    // Check that the lengths are the same.
+                    if fee_history.inner.base_fee_per_gas.len()
+                        != fee_history.l2_pubdata_price.len()
+                    {
+                        tracing::error!(
+                            "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
+                            fee_history.inner.base_fee_per_gas.len(),
+                            fee_history.l2_pubdata_price.len()
+                        );
+                    }
 
-            for (base, l2_pubdata_price) in fee_history
-                .inner
-                .base_fee_per_gas
-                .into_iter()
-                .zip(fee_history.l2_pubdata_price)
-            {
-                let fees = BaseFees {
-                    base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
-                    base_fee_per_blob_gas: 0.into(),
-                    l2_pubdata_price,
-                };
-                history.push(fees)
+                    for (base, l2_pubdata_price) in fee_history
+                        .inner
+                        .base_fee_per_gas
+                        .into_iter()
+                        .zip(fee_history.l2_pubdata_price)
+                    {
+                        let fees = BaseFees {
+                            base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                            base_fee_per_blob_gas: 0.into(),
+                            l2_pubdata_price,
+                        };
+                        history.push(fees)
+                    }
+                }
+
+                latency.observe();
+                Ok(history)
             }
         }
-
-        latency.observe();
-        Ok(history)
-    }
+    };
 }
+
+impl_l2_eth_fee_interface!(Box::<DynClient::<L2>>);
+impl_l2_eth_fee_interface!(MockClient::<L2>);
 
 /// Non-panicking conversion to u64.
 fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {

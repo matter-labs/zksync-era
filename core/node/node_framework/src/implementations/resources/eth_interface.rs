@@ -1,4 +1,4 @@
-use zksync_eth_client::{BoundEthInterface, L1EthBoundInterface};
+use zksync_eth_client::L1EthBoundInterface;
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::resource::Resource;

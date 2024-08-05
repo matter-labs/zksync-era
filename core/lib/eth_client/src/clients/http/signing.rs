@@ -76,7 +76,7 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
 
 impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
     fn as_ref(&self) -> &(dyn EthInterface + 'static) {
-        &self.query_client as &dyn EthInterface
+        &self.query_client
     }
 }
 

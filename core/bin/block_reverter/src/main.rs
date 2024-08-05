@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{
     eth_client::{
-        clients::{Client, DynClient, PKSigningClient, L1},
+        clients::{Client, PKSigningClient, L1},
         EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,

@@ -10,7 +10,6 @@ use zksync_types::{
     },
     Address, SLChainId, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{DynClient, Network, L1};
 pub use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,

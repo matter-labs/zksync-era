@@ -4,8 +4,8 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    clients::L1, encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus,
-    L1EthBoundInterface, RawTransactionBytes,
+    encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, L1EthBoundInterface,
+    RawTransactionBytes,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;

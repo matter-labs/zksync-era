@@ -1,6 +1,6 @@
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{web3, Address, H256, U256, U64};
-use zksync_web3_decl::client::{ForEthereumLikeNetwork, L2};
+use zksync_web3_decl::client::ForEthereumLikeNetwork;
 
 /// Subset of the L1 `eth` namespace used by the L1 client.
 #[rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork))]

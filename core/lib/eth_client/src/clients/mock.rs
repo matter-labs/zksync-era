@@ -13,7 +13,7 @@ use zksync_types::{
     Address, L1ChainId, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
 use zksync_web3_decl::client::{
-    DynClient, EthereumLikeNetwork, MockClient, MockClientBuilder, Network, L1, L2,
+    EthereumLikeNetwork, MockClient, MockClientBuilder, Network, L1, L2,
 };
 
 use crate::{
@@ -596,7 +596,7 @@ impl<Net: SupportedMockEthNetwork> MockSettlementLayer<Net> {
 
 impl<T: EthereumLikeNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
     fn as_ref(&self) -> &(dyn EthInterface + 'static) {
-        &self.client as &dyn EthInterface
+        &self.client
     }
 }
 
@@ -721,7 +721,6 @@ mod tests {
             initial_fee_history[1..=4]
                 .iter()
                 .cloned()
-                .map(BaseFees::from)
                 .collect::<Vec<_>>()
         );
         let fee_history = client.client.base_fee_history(2, 2).await.unwrap();
@@ -730,7 +729,6 @@ mod tests {
             initial_fee_history[1..=2]
                 .iter()
                 .cloned()
-                .map(BaseFees::from)
                 .collect::<Vec<_>>()
         );
         let fee_history = client.client.base_fee_history(3, 2).await.unwrap();
@@ -739,53 +737,49 @@ mod tests {
             initial_fee_history[2..=3]
                 .iter()
                 .cloned()
-                .map(BaseFees::from)
                 .collect::<Vec<_>>()
         );
     }
 
-    // #[tokio::test]
-    // async fn managing_fee_history_l2() {
-    //     let initial_fee_history = vec![
-    //         base_fees(1, 4, 11),
-    //         base_fees(2, 3, 12),
-    //         base_fees(3, 2, 13),
-    //         base_fees(4, 1, 14),
-    //         base_fees(5, 0, 15),
-    //     ];
-    //     let client = MockSettlementLayer::<L2>::builder()
-    //         .with_fee_history(initial_fee_history.clone())
-    //         .build();
-    //     client.advance_block_number(4);
+    #[tokio::test]
+    async fn managing_fee_history_l2() {
+        let initial_fee_history = vec![
+            base_fees(1, 0, 11),
+            base_fees(2, 0, 12),
+            base_fees(3, 0, 13),
+            base_fees(4, 0, 14),
+            base_fees(5, 0, 15),
+        ];
+        let client = MockSettlementLayer::<L2>::builder()
+            .with_fee_history(initial_fee_history.clone())
+            .build();
+        client.advance_block_number(4);
 
-    //     let fee_history = client.as_ref().l2_fee_history(4, 4).await.unwrap();
-    //     assert_eq!(
-    //         fee_history,
-    //         initial_fee_history[1..=4]
-    //             .iter()
-    //             .cloned()
-    //             .map(L2Fees::from)
-    //             .collect::<Vec<_>>()
-    //     );
-    //     let fee_history = client.as_ref().l2_fee_history(2, 2).await.unwrap();
-    //     assert_eq!(
-    //         fee_history,
-    //         initial_fee_history[1..=2]
-    //             .iter()
-    //             .cloned()
-    //             .map(L2Fees::from)
-    //             .collect::<Vec<_>>()
-    //     );
-    //     let fee_history = client.as_ref().l2_fee_history(3, 2).await.unwrap();
-    //     assert_eq!(
-    //         fee_history,
-    //         initial_fee_history[2..=3]
-    //             .iter()
-    //             .cloned()
-    //             .map(L2Fees::from)
-    //             .collect::<Vec<_>>()
-    //     );
-    // }
+        let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=4]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+        let fee_history = client.client.base_fee_history(2, 2).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[1..=2]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+        let fee_history = client.client.base_fee_history(3, 2).await.unwrap();
+        assert_eq!(
+            fee_history,
+            initial_fee_history[2..=3]
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+    }
 
     #[tokio::test]
     async fn managing_transactions() {

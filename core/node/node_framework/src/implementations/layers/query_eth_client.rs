@@ -1,10 +1,9 @@
 use anyhow::Context;
 use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L2ChainId, SLChainId};
-use zksync_web3_decl::client::{Client, L1, L2};
+use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::eth_interface::{EthInterfaceResource, L2InterfaceResource},
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };

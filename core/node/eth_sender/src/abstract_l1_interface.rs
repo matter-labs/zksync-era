@@ -3,7 +3,6 @@ use std::fmt;
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo,
     L1EthBoundInterface, Options, RawTransactionBytes, SignedCallResult,
 };
