@@ -97,8 +97,8 @@ impl StoredObject for AggregationWrapper {
     serialize_using_bincode!();
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
 /// TODO: remove after transition
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct AggregationWrapperLegacy(
     pub  Vec<(
         u64,

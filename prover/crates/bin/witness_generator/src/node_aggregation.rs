@@ -456,7 +456,7 @@ async fn get_artifacts(
                     object_store.get(key).await.unwrap_or_else(|inner_error| {
                         panic!(
                             "node aggregation job artifacts getting error. Key: {:?}, errors: {:?} {:?}",
-                            key,serialization_error, inner_error
+                            key, serialization_error, inner_error
                         )
                     });
                 AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
