@@ -11,7 +11,7 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_PORT_OFFSET_HELP,
     },
 };
 
@@ -28,7 +28,7 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
+    #[clap(long, help = MSG_PORT_OFFSET_HELP)]
     pub port_offset: Option<u16>,
 }
 
