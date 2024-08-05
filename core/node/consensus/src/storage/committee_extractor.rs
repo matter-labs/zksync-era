@@ -1,7 +1,8 @@
 use anyhow::Context;
 use zksync_concurrency::{ctx, ctx::Ctx, scope, time};
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_dal::consensus_dal;
+use zksync_node_api_server::execution_sandbox::BlockArgs;
 
 use crate::storage::{vm_reader::VMReader, CommitteeAttester, CommitteeValidator, ConnectionPool};
 
@@ -33,11 +34,11 @@ impl CommitteeExtractor {
         }
     }
 
-    async fn extract_batch_committee(
+    async fn batch_max_l2_block_args(
         &mut self,
         ctx: &Ctx,
         batch_number: attester::BatchNumber,
-    ) -> ctx::Result<()> {
+    ) -> anyhow::Result<BlockArgs> {
         let max_l2_block = self
             .get_max_l2_block_of_l1_batch(ctx, batch_number)
             .await?
@@ -46,23 +47,39 @@ impl CommitteeExtractor {
         let block_number =
             zksync_types::api::BlockNumber::Number(zksync_types::U64::from(max_l2_block.0));
         let block_id = zksync_types::api::BlockId::Number(block_number);
-        let block_args = self
-            .reader
+
+        self.reader
             .block_args(ctx, block_id)
             .await
-            .context("block_args()")?;
-        let attester_committee = self
-            .reader
-            .read_attester_committee(block_args)
-            .await
-            .context("read_attester_committee()")?;
+            .context("block_args()")
+    }
 
-        let attester_committee = Self::transform_committee(attester_committee)?;
+    async fn extract_batch_committee(
+        &mut self,
+        ctx: &Ctx,
+        batch_number: attester::BatchNumber,
+    ) -> ctx::Result<()> {
+        let block_args = self.batch_max_l2_block_args(ctx, batch_number).await?;
+        let contract_attester_committee = match self.reader.contract_deployed(block_args).await {
+            false => vec![],
+            true => self
+                .reader
+                .read_attester_committee(block_args)
+                .await
+                .context("read_attester_committee()")?,
+        };
+
+        let db_attester_committee = consensus_dal::AttesterCommittee {
+            members: contract_attester_committee
+                .into_iter()
+                .map(CommitteeAttester::try_into)
+                .collect::<Result<Vec<consensus_dal::Attester>, _>>()?,
+        };
 
         self.pool
             .connection(ctx)
             .await?
-            .insert_batch_committee(ctx, batch_number, attester_committee)
+            .insert_batch_committee(ctx, batch_number, db_attester_committee)
             .await?;
 
         Ok(())
@@ -109,17 +126,5 @@ impl CommitteeExtractor {
         };
 
         Ok(Some(max))
-    }
-
-    fn transform_committee(
-        committee: Vec<CommitteeAttester>,
-    ) -> ctx::Result<consensus_dal::AttesterCommittee> {
-        let attester_committee = consensus_dal::AttesterCommittee {
-            members: committee
-                .into_iter()
-                .map(CommitteeAttester::try_into)
-                .collect::<Result<Vec<consensus_dal::Attester>, _>>()?,
-        };
-        Ok(attester_committee)
     }
 }

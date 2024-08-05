@@ -81,6 +81,19 @@ impl VMReader {
             .context("BlockArgs::new")
     }
 
+    pub async fn contract_deployed(&self, block_args: BlockArgs) -> bool {
+        let func = self
+            .registry_contract
+            .function("attesterCommitteeSize")
+            .unwrap()
+            .clone();
+
+        let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
+
+        let res = self.eth_call(block_args, tx).await;
+        res.len() > 0
+    }
+
     pub async fn read_validator_committee(
         &self,
         block_args: BlockArgs,

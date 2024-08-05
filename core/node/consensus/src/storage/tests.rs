@@ -129,9 +129,9 @@ async fn test_committee_extractor() {
         let mut expected_batch_committee: Vec<(L1BatchNumber, AttesterCommittee)> = vec![];
         let mut batch_number;
 
-        // batch_number = writer.seal_batch_and_wait(ctx).await;
-        // expected_batch_committee.push((batch_number, AttesterCommittee::default()));
-        //
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, AttesterCommittee::default()));
+
         writer.deploy().await;
         batch_number = writer.seal_batch_and_wait(ctx).await;
         expected_batch_committee.push((batch_number, AttesterCommittee::default()));
