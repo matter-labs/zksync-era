@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
 use bigdecimal::BigDecimal;
-use bincode::Error;
 use itertools::Itertools;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
@@ -19,8 +18,9 @@ use zksync_types::{
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     xl2::XL2Tx,
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, Transaction, H256, INTEROP_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, ExecuteTransactionCommon, ExternalTx, L1BatchNumber, L1BlockNumber, L2BlockNumber,
+    PriorityOpId, ProtocolVersionId, Transaction, H160, H256, INTEROP_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -305,6 +305,17 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_transaction_external(
+        &mut self,
+        tx: &ExternalTx,
+        exec_info: TransactionExecutionMetrics,
+    ) -> DalResult<L2TxSubmissionResult> {
+        match tx {
+            ExternalTx::L2Tx(tx) => self.insert_transaction_l2(tx, exec_info).await,
+            ExternalTx::XL2Tx(tx) => self.insert_transaction_xl2(tx, exec_info).await,
+        }
+    }
+
     pub async fn insert_transaction_l2(
         &mut self,
         tx: &L2Tx,
@@ -554,7 +565,7 @@ impl TransactionsDal<'_, '_> {
         // let max_priority_fee_per_gas =
         //     u256_to_big_decimal(tx.common_data.max_priority_fee_per_gas);
         let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.gas_per_pubdata_limit);
-        let tx_format = INTEROP_TX_TYPE as i32;
+        let tx_format = i32::from(INTEROP_TX_TYPE);
         // let signature = &tx.common_data.signature;
         let nonce = tx.common_data.serial_id.0 as i64;
         let input_data = &tx
@@ -565,6 +576,8 @@ impl TransactionsDal<'_, '_> {
             .data;
         let value = u256_to_big_decimal(tx.execute.value);
         // let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
+        let paymaster_address = H160::zero();
+        let paymaster = paymaster_address.0.as_ref();
         // let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
         let secs = (tx.received_timestamp_ms / 1000) as i64;
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
@@ -596,6 +609,8 @@ impl TransactionsDal<'_, '_> {
                     tx_format,
                     contract_address,
                     value,
+                    paymaster,
+                    paymaster_input,
                     execution_info,
                     received_at,
                     created_at,
@@ -615,8 +630,10 @@ impl TransactionsDal<'_, '_> {
                     $9,
                     $10,
                     $11,
-                    JSONB_BUILD_OBJECT('gas_used', $12::BIGINT, 'storage_writes', $13::INT, 'contracts_used', $14::INT),
-                    $15,
+                    $12,
+                    $13,
+                    JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
+                    $17,
                     NOW(),
                     NOW()
                 )
@@ -632,9 +649,11 @@ impl TransactionsDal<'_, '_> {
                 tx_format = $9,
                 contract_address = $10,
                 value = $11,
-                execution_info = JSONB_BUILD_OBJECT('gas_used', $12::BIGINT, 'storage_writes', $13::INT, 'contracts_used', $14::INT),
+                paymaster = $12,
+                paymaster_input = $13,
+                execution_info = JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
                 in_mempool = FALSE,
-                received_at = $15,
+                received_at = $17,
                 created_at = NOW(),
                 updated_at = NOW(),
                 error = NULL
@@ -665,8 +684,8 @@ impl TransactionsDal<'_, '_> {
             tx_format,
             contract_address,
             value,
-            // &paymaster,
-            // &paymaster_input,
+            paymaster,
+            vec![],
             exec_info.gas_used as i64,
             (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
             exec_info.contracts_used as i32,

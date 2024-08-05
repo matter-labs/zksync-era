@@ -273,16 +273,17 @@ impl RpcState {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(ExternalTx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
-
+        const INTEROP_TX_TYPE_SMALLU64: u64 = INTEROP_TX_TYPE as u64;
+        const INTEROP_TX_TYPE_U64: U64 = U64([INTEROP_TX_TYPE_SMALLU64]);
         match tx_request.transaction_type {
-            Some(U64(u64(INTEROP_TX_TYPE))) => Ok((
+            Some(INTEROP_TX_TYPE_U64) => Ok((
                 ExternalTx::XL2Tx(XL2Tx::from_request(
                     tx_request,
                     self.api_config.max_tx_size,
                 )?),
                 hash,
             )),
-            default => Ok((
+            _ => Ok((
                 ExternalTx::L2Tx(L2Tx::from_request(tx_request, self.api_config.max_tx_size)?),
                 hash,
             )),

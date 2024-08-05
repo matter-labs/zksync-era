@@ -24,7 +24,7 @@ use crate::{
 
 pub mod error;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
 #[repr(u8)]
 pub enum OpProcessingType {
     Common = 0,
@@ -49,7 +49,7 @@ impl Default for OpProcessingType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum PriorityQueueType {
     #[default]

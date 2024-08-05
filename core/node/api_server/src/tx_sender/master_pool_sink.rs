@@ -54,7 +54,7 @@ impl TxSink for MasterPoolSink {
         let result = match self.master_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
                 .transactions_dal()
-                .insert_transaction_l2(tx, execution_metrics)
+                .insert_transaction_external(tx, execution_metrics)
                 .await
                 .map(|submission_res_handle| {
                     APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();

@@ -339,6 +339,9 @@ impl From<L2Tx> for TransactionRequest {
             access_list: None,
             eip712_meta: None,
             chain_id: tx.common_data.extract_chain_id(),
+            merkle_proof: None,
+            full_fee: None,
+            to_mint: None,
         };
         match tx_type as u8 {
             LEGACY_TX_TYPE => {}

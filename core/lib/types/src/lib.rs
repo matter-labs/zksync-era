@@ -24,6 +24,7 @@ use zksync_utils::{
 };
 
 use crate::{
+    api::TransactionRequest,
     l2::{L2Tx, TransactionType},
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     xl2::XL2Tx,
@@ -90,7 +91,7 @@ pub const PROTOCOL_UPGRADE_TX_TYPE: u8 = 0xfe;
 /// Denotes the first byte of the interop transaction.
 pub const INTEROP_TX_TYPE: u8 = 0xfd;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum ExternalTx {
     L2Tx(L2Tx),
     XL2Tx(XL2Tx),
@@ -101,6 +102,13 @@ impl ExternalTx {
         match self {
             ExternalTx::L2Tx(tx) => tx.set_input(input, hash),
             ExternalTx::XL2Tx(tx) => tx.set_input(input, hash),
+        }
+    }
+
+    pub fn input_data(&self) -> Option<&[u8]> {
+        match self {
+            ExternalTx::L2Tx(tx) => tx.common_data.input_data(),
+            ExternalTx::XL2Tx(tx) => tx.common_data.input_data(),
         }
     }
 
@@ -130,6 +138,76 @@ impl ExternalTx {
         match self {
             ExternalTx::L2Tx(tx) => tx.common_data.initiator_address,
             ExternalTx::XL2Tx(tx) => tx.common_data.sender,
+        }
+    }
+
+    pub fn nonce(&self) -> Nonce {
+        match self {
+            ExternalTx::L2Tx(tx) => tx.common_data.nonce,
+            ExternalTx::XL2Tx(_tx) => Nonce(0), // todo
+        }
+    }
+
+    pub fn max_fee_per_gas(&self) -> U256 {
+        match self {
+            ExternalTx::L2Tx(tx) => tx.common_data.fee.max_fee_per_gas,
+            ExternalTx::XL2Tx(tx) => tx.common_data.max_fee_per_gas,
+        }
+    }
+
+    pub fn gas_per_pubdata_limit(&self) -> U256 {
+        match self {
+            ExternalTx::L2Tx(tx) => tx.common_data.fee.gas_per_pubdata_limit,
+            ExternalTx::XL2Tx(tx) => tx.common_data.gas_per_pubdata_limit,
+        }
+    }
+
+    pub fn received_timestamp_ms(&self) -> u64 {
+        match self {
+            ExternalTx::L2Tx(tx) => tx.received_timestamp_ms,
+            ExternalTx::XL2Tx(tx) => tx.received_timestamp_ms,
+        }
+    }
+
+    /// Returns the payer for L2 transaction and 0 for L1 transactions
+    pub fn payer(&self) -> Address {
+        match self {
+            ExternalTx::XL2Tx(tx) => tx.common_data.sender,
+            ExternalTx::L2Tx(tx) => {
+                let paymaster = tx.common_data.paymaster_params.paymaster;
+                if paymaster == Address::default() {
+                    tx.common_data.initiator_address
+                } else {
+                    paymaster
+                }
+            }
+        }
+    }
+}
+
+impl From<ExternalTx> for TransactionRequest {
+    fn from(tx: ExternalTx) -> Self {
+        match tx {
+            ExternalTx::L2Tx(tx) => TransactionRequest::from(tx),
+            ExternalTx::XL2Tx(tx) => TransactionRequest::from(tx),
+        }
+    }
+}
+
+impl From<ExternalTx> for Transaction {
+    fn from(tx: ExternalTx) -> Self {
+        match tx {
+            ExternalTx::L2Tx(tx) => Transaction::from(tx),
+            ExternalTx::XL2Tx(tx) => Transaction::from(tx),
+        }
+    }
+}
+
+impl From<ExternalTx> for api::Transaction {
+    fn from(tx: ExternalTx) -> Self {
+        match tx {
+            ExternalTx::L2Tx(tx) => api::Transaction::from(tx),
+            ExternalTx::XL2Tx(tx) => api::Transaction::from(tx),
         }
     }
 }
@@ -298,15 +376,6 @@ impl fmt::Display for ExecuteTransactionCommon {
             ExecuteTransactionCommon::ProtocolUpgrade(data) => {
                 write!(f, "ProtocolUpgradeTxCommonData: {:?}", data)
             }
-        }
-    }
-}
-
-impl From<ExternalTx> for Transaction {
-    fn from(tx: ExternalTx) -> Self {
-        match tx {
-            ExternalTx::L2Tx(tx) => Transaction::from(tx),
-            ExternalTx::XL2Tx(tx) => Transaction::from(tx),
         }
     }
 }

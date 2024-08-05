@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 
 // use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, L1BlockNumber, PriorityOpId, H256, U256};
+use zksync_basic_types::{Address, L1BlockNumber, PriorityOpId, H160, H256, U256, U64};
 
 // use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 // use zksync_mini_merkle_tree::{compute_empty_tree_hashes, HashEmptySubtree};
@@ -13,15 +13,22 @@ use zksync_basic_types::{Address, L1BlockNumber, PriorityOpId, H256, U256};
 // };
 use super::Transaction;
 use crate::{
+    api,
     // abi, ethabi,
+    api::TransactionRequest,
+    fee::Fee,
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
+    transaction_request::PaymasterParams,
     tx::Execute,
-    // xl2::error::XL2TxParseError,
+    web3::Bytes,
     ExecuteTransactionCommon, // INTEROP_TX_TYPE,
     InputData,
+    // xl2::error::XL2TxParseError,
+    Nonce,
+    INTEROP_TX_TYPE,
 };
 
 pub mod error;
@@ -52,7 +59,7 @@ struct XL2TxCommonDataSerde {
     pub eth_block: u64,
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct XL2TxCommonData {
     /// Sender of the transaction.
     pub sender: Address,
@@ -193,11 +200,15 @@ impl XL2TxCommonData {
     }
 
     pub fn tx_format(&self) -> TransactionType {
-        TransactionType::PriorityOpTransaction
+        TransactionType::InteropTransaction
+    }
+
+    pub fn input_data(&self) -> Option<&[u8]> {
+        self.input.as_ref().map(|input| &*input.data)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct XL2Tx {
     pub execute: Execute,
     pub common_data: XL2TxCommonData,
@@ -211,6 +222,48 @@ pub struct XL2Tx {
 //     }
 // }
 
+impl From<XL2Tx> for TransactionRequest {
+    fn from(tx: XL2Tx) -> Self {
+        let tx_type = INTEROP_TX_TYPE as u32;
+        // let (v, r, s) = signature_to_vrs(&tx.common_data.signature, tx_type);
+
+        let mut base_tx_req = TransactionRequest {
+            nonce: U256::from(0),
+            from: Some(tx.common_data.sender),
+            to: Some(tx.execute.contract_address),
+            value: tx.execute.value,
+            gas_price: tx.common_data.max_fee_per_gas,
+            max_priority_fee_per_gas: None,
+            gas: tx.common_data.gas_limit,
+            input: Bytes(tx.execute.calldata),
+            v: None,
+            r: None,
+            s: None,
+            raw: None,
+            transaction_type: None,
+            access_list: None,
+            eip712_meta: None,
+            chain_id: Some(270), // todo
+            merkle_proof: None,
+            full_fee: Some(tx.common_data.full_fee),
+            to_mint: Some(tx.common_data.to_mint),
+        };
+
+        base_tx_req.transaction_type = Some(U64::from(tx_type));
+        base_tx_req.max_priority_fee_per_gas = None;
+        base_tx_req.eip712_meta = Some(api::Eip712Meta {
+            gas_per_pubdata: tx.common_data.gas_per_pubdata_limit,
+            factory_deps: tx.execute.factory_deps,
+            custom_signature: None,
+            paymaster_params: Some(PaymasterParams {
+                paymaster: H160::default(),
+                paymaster_input: vec![],
+            }),
+        });
+        base_tx_req
+    }
+}
+
 impl From<XL2Tx> for Transaction {
     fn from(tx: XL2Tx) -> Self {
         let XL2Tx {
@@ -223,6 +276,41 @@ impl From<XL2Tx> for Transaction {
             execute,
             received_timestamp_ms,
             raw_bytes: None,
+        }
+    }
+}
+
+impl From<XL2Tx> for api::Transaction {
+    fn from(tx: XL2Tx) -> Self {
+        // let tx_type = INTEROP_TX_TYPE as u32;
+        let (v, r, s) =
+            // if let Ok(sig) = PackedEthSignature::deserialize_packed(&tx.common_data.signature) {
+            //     (
+            //         Some(U64::from(sig.v())),
+            //         Some(U256::from(sig.r())),
+            //         Some(U256::from(sig.s())),
+            //     )
+            // } else {
+                (None, None, None);
+        // };
+
+        Self {
+            hash: tx.hash(),
+            chain_id: U256::from(270), // todo
+            nonce: U256::from(0),
+            from: Some(tx.common_data.sender),
+            to: Some(tx.execute.contract_address),
+            value: tx.execute.value,
+            gas_price: Some(tx.common_data.max_fee_per_gas),
+            max_priority_fee_per_gas: None, // Some(tx.common_data.max_priority_fee_per_gas),
+            max_fee_per_gas: Some(tx.common_data.max_fee_per_gas),
+            gas: tx.common_data.gas_limit,
+            input: Bytes(tx.execute.calldata),
+            v,
+            r,
+            s,
+            transaction_type: Some(U64([INTEROP_TX_TYPE as u64])),
+            ..Default::default()
         }
     }
 }
@@ -289,9 +377,10 @@ impl XL2Tx {
     pub fn new(
         contract_address: Address,
         calldata: Vec<u8>,
-        // nonce: Nonce,
-        // fee: Fee,
-        // initiator_address: Address,
+        nonce: Nonce,
+        fee: Fee,
+        full_fee: U256,
+        initiator_address: Address,
         value: U256,
         factory_deps: Vec<Vec<u8>>,
         // paymaster_params: PaymasterParams,
@@ -314,13 +403,13 @@ impl XL2Tx {
             // },
             // todo
             common_data: XL2TxCommonData {
-                sender: Default::default(),
-                serial_id: Default::default(),
+                sender: initiator_address,
+                serial_id: PriorityOpId(nonce.0 as u64),
                 layer_2_tip_fee: Default::default(),
-                full_fee: Default::default(),
-                max_fee_per_gas: Default::default(),
-                gas_limit: Default::default(),
-                gas_per_pubdata_limit: Default::default(),
+                full_fee,
+                max_fee_per_gas: fee.max_fee_per_gas,
+                gas_limit: fee.gas_limit,
+                gas_per_pubdata_limit: fee.gas_per_pubdata_limit,
                 op_processing_type: Default::default(),
                 priority_queue_type: Default::default(),
                 canonical_tx_hash: Default::default(),

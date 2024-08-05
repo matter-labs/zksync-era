@@ -33,7 +33,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            enforced_base_fee: Some(tx.max_fee_per_gas().as_u64()),
             missed_storage_invocation_limit: usize::MAX,
         }
     }
