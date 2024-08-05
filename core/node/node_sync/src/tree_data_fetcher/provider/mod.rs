@@ -135,7 +135,7 @@ impl L1DataProvider {
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
     /// The guess is based on the L1 batch seal timestamp.
     async fn guess_l1_commit_block_number(
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         l1_batch_seal_timestamp: u64,
     ) -> EnrichedClientResult<(U64, usize)> {
         let l1_batch_seal_timestamp = U256::from(l1_batch_seal_timestamp);
@@ -171,7 +171,7 @@ impl L1DataProvider {
 
     /// Gets a block that should be present on L1.
     async fn get_block(
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         number: web3::BlockNumber,
     ) -> EnrichedClientResult<(U64, U256)> {
         let block = eth_client.block(number.into()).await?.ok_or_else(|| {
@@ -218,11 +218,9 @@ impl TreeDataProvider for L1DataProvider {
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
-                    self.eth_client.as_ref(),
-                    l1_batch_seal_timestamp,
-                )
-                .await?;
+                let (approximate_block, steps) =
+                    Self::guess_l1_commit_block_number(&self.eth_client, l1_batch_seal_timestamp)
+                        .await?;
                 tracing::debug!(
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"

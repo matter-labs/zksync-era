@@ -678,7 +678,7 @@ mod tests {
     use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId};
 
     use super::*;
-    use crate::{CallFunctionArgs, EthInterface, ZkSyncInterface};
+    use crate::{CallFunctionArgs, EthFeeInterface, EthInterface, ZkSyncInterface};
 
     fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> MockClientBaseFee {
         MockClientBaseFee {
@@ -740,7 +740,7 @@ mod tests {
             .build();
         client.advance_block_number(4);
 
-        let fee_history = client.as_ref().base_fee_history(4, 4).await.unwrap();
+        let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
         assert_eq!(
             fee_history,
             initial_fee_history[1..=4]
@@ -749,7 +749,7 @@ mod tests {
                 .map(BaseFees::from)
                 .collect::<Vec<_>>()
         );
-        let fee_history = client.as_ref().base_fee_history(2, 2).await.unwrap();
+        let fee_history = client.client.base_fee_history(2, 2).await.unwrap();
         assert_eq!(
             fee_history,
             initial_fee_history[1..=2]
@@ -758,7 +758,7 @@ mod tests {
                 .map(BaseFees::from)
                 .collect::<Vec<_>>()
         );
-        let fee_history = client.as_ref().base_fee_history(3, 2).await.unwrap();
+        let fee_history = client.client.base_fee_history(3, 2).await.unwrap();
         assert_eq!(
             fee_history,
             initial_fee_history[2..=3]

@@ -96,16 +96,6 @@ pub trait EthInterface: Sync + Send + Debug {
         block: BlockNumber,
     ) -> EnrichedClientResult<U256>;
 
-    /// Collects the base fee history for the specified block range.
-    ///
-    /// Returns 1 value for each block in range, assuming that these blocks exist.
-    /// Will return an error if the `from_block + block_count` is beyond the head block.
-    async fn base_fee_history(
-        &self,
-        from_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>>;
-
     /// Returns the `base_fee_per_gas` value for the currently pending L1 block.
     async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256>;
 
@@ -153,6 +143,19 @@ pub trait EthInterface: Sync + Send + Debug {
 
     /// Returns the block header for the specified block number or hash.
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
+}
+
+#[async_trait::async_trait]
+pub trait EthFeeInterface: EthInterface {
+    /// Collects the base fee history for the specified block range.
+    ///
+    /// Returns 1 value for each block in range, assuming that these blocks exist.
+    /// Will return an error if the `from_block + block_count` is beyond the head block.
+    async fn base_fee_history(
+        &self,
+        from_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>>;
 }
 
 /// Information about the base fees provided by the L1 client.

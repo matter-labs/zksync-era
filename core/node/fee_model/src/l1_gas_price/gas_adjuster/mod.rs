@@ -7,7 +7,7 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_eth_client::{EnrichedClientResult, EthInterface, ZkSyncInterface};
+use zksync_eth_client::{EnrichedClientResult, EthFeeInterface, EthInterface, ZkSyncInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
