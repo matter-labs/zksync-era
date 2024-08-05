@@ -4,7 +4,8 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_multivm::{
     interface::{
-        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        ExecutionResult, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
+        VmInterface, VmInterfaceHistoryEnabled,
     },
     utils::get_max_gas_per_pubdata_byte,
     vm_fast::Vm,
@@ -103,6 +104,20 @@ impl BenchmarkingVm {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
         self.0.execute(VmExecutionMode::OneTx)
+    }
+
+    pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
+        self.0.pop_snapshot_no_rollback();
+        self.0.make_snapshot();
+        let (compression_result, tx_result) =
+            self.0
+                .inspect_transaction_with_bytecode_compression((), tx.clone(), true);
+        compression_result.expect("compressing bytecodes failed");
+
+        if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
+            self.0.rollback_to_the_latest_snapshot();
+        }
+        tx_result
     }
 
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
