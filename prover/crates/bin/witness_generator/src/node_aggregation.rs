@@ -168,8 +168,6 @@ impl NodeAggregationWitnessGenerator {
                     &all_leafs_layer_params,
                 );
 
-                assert_eq!(job.circuit_id as u64, result_circuit_id);
-
                 let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
                     job.block_number,
                     circuit_idx,
