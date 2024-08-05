@@ -76,7 +76,7 @@ pub enum NodeRole {
 ///
 /// - State of the Postgres database
 /// - State of the Merkle tree
-/// - State of the state keeper cache
+/// - State of the RocksDB storage cache
 /// - Object store for protocol snapshots
 ///
 /// In addition, it can revert the state of the Ethereum contract (if the reverted L1 batches were committed).
@@ -88,7 +88,7 @@ pub struct BlockReverter {
     allow_rolling_back_executed_batches: bool,
     connection_pool: ConnectionPool<Core>,
     should_roll_back_postgres: bool,
-    state_keeper_cache_path: Option<String>,
+    storage_cache_paths: Vec<String>,
     merkle_tree_path: Option<String>,
     snapshots_object_store: Option<Arc<dyn ObjectStore>>,
 }
@@ -100,7 +100,7 @@ impl BlockReverter {
             allow_rolling_back_executed_batches: false,
             connection_pool,
             should_roll_back_postgres: false,
-            state_keeper_cache_path: None,
+            storage_cache_paths: Vec::new(),
             merkle_tree_path: None,
             snapshots_object_store: None,
         }
@@ -126,8 +126,8 @@ impl BlockReverter {
         self
     }
 
-    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: String) -> &mut Self {
-        self.state_keeper_cache_path = Some(path);
+    pub fn add_rocksdb_storage_path_to_rollback(&mut self, path: String) -> &mut Self {
+        self.storage_cache_paths.push(path);
         self
     }
 
@@ -218,19 +218,15 @@ impl BlockReverter {
             }
         }
 
-        if let Some(state_keeper_cache_path) = &self.state_keeper_cache_path {
-            let sk_cache_exists = fs::try_exists(state_keeper_cache_path)
-                .await
-                .with_context(|| {
-                    format!(
-                        "cannot check whether state keeper cache path `{state_keeper_cache_path}` exists"
-                    )
-                })?;
+        for storage_cache_path in &self.storage_cache_paths {
+            let sk_cache_exists = fs::try_exists(storage_cache_path).await.with_context(|| {
+                format!("cannot check whether storage cache path `{storage_cache_path}` exists")
+            })?;
             anyhow::ensure!(
                 sk_cache_exists,
-                "Path with state keeper cache DB doesn't exist at `{state_keeper_cache_path}`"
+                "Path with storage cache DB doesn't exist at `{storage_cache_path}`"
             );
-            self.roll_back_state_keeper_cache(last_l1_batch_to_keep, state_keeper_cache_path)
+            self.roll_back_storage_cache(last_l1_batch_to_keep, storage_cache_path)
                 .await?;
         }
         Ok(())
@@ -263,26 +259,26 @@ impl BlockReverter {
         Ok(())
     }
 
-    /// Rolls back changes in the state keeper cache.
-    async fn roll_back_state_keeper_cache(
+    /// Rolls back changes in the storage cache.
+    async fn roll_back_storage_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
-        state_keeper_cache_path: &str,
+        storage_cache_path: &str,
     ) -> anyhow::Result<()> {
-        tracing::info!("Opening DB with state keeper cache at `{state_keeper_cache_path}`");
-        let sk_cache = RocksdbStorage::builder(state_keeper_cache_path.as_ref())
+        tracing::info!("Opening DB with storage cache at `{storage_cache_path}`");
+        let sk_cache = RocksdbStorage::builder(storage_cache_path.as_ref())
             .await
-            .context("failed initializing state keeper cache")?;
+            .context("failed initializing storage cache")?;
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.connection().await?;
-            tracing::info!("Rolling back state keeper cache");
+            tracing::info!("Rolling back storage cache");
             sk_cache
                 .roll_back(&mut storage, last_l1_batch_to_keep)
                 .await
-                .context("failed rolling back state keeper cache")?;
+                .context("failed rolling back storage cache")?;
         } else {
-            tracing::info!("Nothing to roll back in state keeper cache");
+            tracing::info!("Nothing to roll back in storage cache");
         }
         Ok(())
     }
@@ -353,9 +349,20 @@ impl BlockReverter {
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
             .await?;
+        tracing::info!("Rolling back initial writes");
         transaction
             .blocks_dal()
             .delete_initial_writes(last_l1_batch_to_keep)
+            .await?;
+        tracing::info!("Rolling back vm_runner_protective_reads");
+        transaction
+            .vm_runner_dal()
+            .delete_protective_reads(last_l1_batch_to_keep)
+            .await?;
+        tracing::info!("Rolling back vm_runner_bwip");
+        transaction
+            .vm_runner_dal()
+            .delete_bwip_data(last_l1_batch_to_keep)
             .await?;
         tracing::info!("Rolling back L2 blocks");
         transaction
