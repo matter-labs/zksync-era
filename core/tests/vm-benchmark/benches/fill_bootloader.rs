@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, BenchmarkingVm,
+    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_transfer_tx, BenchmarkingVm,
 };
 
 const GAS_LIMIT: u32 = 30_000_000;
@@ -25,7 +25,27 @@ fn bench_fill_bootloader(c: &mut Criterion) {
     for txs_in_batch in TXS_IN_BATCH {
         group.throughput(Throughput::Elements(*txs_in_batch as u64));
         group.bench_with_input(
-            BenchmarkId::new("simple_contract", txs_in_batch),
+            BenchmarkId::new("deploy_simple_contract", txs_in_batch),
+            txs_in_batch,
+            |bencher, &txs_in_batch| {
+                bencher.iter(|| {
+                    let mut vm = BenchmarkingVm::new();
+                    for (i, tx) in txs[..txs_in_batch].iter().enumerate() {
+                        let result = vm.run_transaction(black_box(tx)).result;
+                        assert!(!result.is_failed(), "{result:?} on tx #{i}");
+                    }
+                })
+            },
+        );
+    }
+
+    drop(txs);
+    let txs: Vec<_> = (0..max_txs).map(get_transfer_tx).collect();
+
+    for txs_in_batch in TXS_IN_BATCH {
+        group.throughput(Throughput::Elements(*txs_in_batch as u64));
+        group.bench_with_input(
+            BenchmarkId::new("transfer", txs_in_batch),
             txs_in_batch,
             |bencher, &txs_in_batch| {
                 bencher.iter(|| {

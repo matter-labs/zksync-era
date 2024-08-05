@@ -99,6 +99,7 @@ impl BenchmarkingVm {
         ))
     }
 
+    // FIXME: optionally incorporate snapshot workflow
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
         self.0.execute(VmExecutionMode::OneTx)
@@ -134,14 +135,7 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32, nonce: u32) -> 
         CONTRACT_DEPLOYER_ADDRESS,
         calldata,
         Nonce(nonce),
-        Fee {
-            gas_limit: U256::from(gas_limit),
-            max_fee_per_gas: U256::from(250_000_000),
-            max_priority_fee_per_gas: U256::from(0),
-            gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
-                ProtocolVersionId::latest().into(),
-            )),
-        },
+        tx_fee(gas_limit),
         U256::zero(),
         L2ChainId::from(270),
         &PRIVATE_KEY,
@@ -151,13 +145,43 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32, nonce: u32) -> 
     .expect("should create a signed execute transaction");
 
     signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
 
+fn tx_fee(gas_limit: u32) -> Fee {
+    Fee {
+        gas_limit: U256::from(gas_limit),
+        max_fee_per_gas: U256::from(250_000_000),
+        max_priority_fee_per_gas: U256::from(0),
+        gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
+            ProtocolVersionId::latest().into(),
+        )),
+    }
+}
+
+pub fn get_transfer_tx(nonce: u32) -> Transaction {
+    let mut signed = L2Tx::new_signed(
+        PRIVATE_KEY.address(),
+        vec![], // calldata
+        Nonce(nonce),
+        tx_fee(1_000_000),
+        1_000_000_000.into(), // value
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        vec![],             // factory deps
+        Default::default(), // paymaster params
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
     signed.into()
 }
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use zksync_contracts::read_bytecode;
+    use zksync_multivm::interface::ExecutionResult;
 
     use crate::*;
 
@@ -169,9 +193,13 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_deploy_tx(&test_contract));
 
-        assert!(matches!(
-            res.result,
-            zksync_multivm::interface::ExecutionResult::Success { .. }
-        ));
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_transfer() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_transfer_tx(0));
+        assert_matches!(res.result, ExecutionResult::Success { .. });
     }
 }
