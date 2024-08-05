@@ -1,1 +1,1 @@
-ALTER TABLE tee_verifier_input_producer_job_status DROP COLUMN picked_by;
+ALTER TABLE tee_verifier_input_producer_jobs DROP COLUMN picked_by;

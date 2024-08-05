@@ -1,4 +1,5 @@
 CREATE TYPE tee_verifier_input_producer_job_status AS ENUM ('Queued', 'ManuallySkipped', 'InProgress', 'Successful', 'Failed');
+
 CREATE TABLE IF NOT EXISTS tee_verifier_input_producer_jobs
 (
     l1_batch_number       BIGINT    NOT NULL PRIMARY KEY,
@@ -12,5 +13,6 @@ CREATE TABLE IF NOT EXISTS tee_verifier_input_producer_jobs
     processing_started_at TIMESTAMP,
     time_taken            TIME
 );
+
 CREATE INDEX IF NOT EXISTS idx_tee_verifier_input_producer_jobs_status_processing_attempts
     ON tee_verifier_input_producer_jobs (status, processing_started_at, attempts);
