@@ -20,7 +20,6 @@ main() {
     install_from_repo
   fi
 
-  add_to_path
   echo "zk_toolbox installed successfully"
 }
 
@@ -148,45 +147,6 @@ install_from_repo() {
 
 ensure() {
   if ! "$@"; then err "command failed: $*"; fi
-}
-
-add_to_path() {
-  if [[ ":$PATH:" == *":${ZKT_BIN_DIR}:"* ]]; then
-    echo "zkup: found ${ZKT_BIN_DIR} in PATH"
-    return 0
-  fi
-
-  case $SHELL in
-  */zsh)
-    PROFILE="${ZDOTDIR-"$HOME"}/.zshenv"
-    ;;
-  */bash)
-    PROFILE="$HOME/.bashrc"
-    ;;
-  */fish)
-    PROFILE="$HOME/.config/fish/config.fish"
-    ;;
-  */ash)
-    PROFILE="$HOME/.profile"
-    ;;
-  *)
-    echo "zkup: could not detect shell, manually add ${ZKT_BIN_DIR} to your PATH."
-    return 1
-    ;;
-  esac
-
-  if [[ ! -f "$PROFILE" ]]; then
-    echo "zkup: Profile file $PROFILE does not exist, creating it."
-    touch "$PROFILE"
-  fi
-
-  if [[ "$SHELL" == *"/fish"* ]]; then
-    echo -e "\n# Added by zkup\nfish_add_path -a $ZKT_BIN_DIR" >>"$PROFILE"
-    echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE using fish_add_path."
-  else
-    echo -e "\n# Added by zkup\nexport PATH=\"\$PATH:$ZKT_BIN_DIR\"" >>"$PROFILE"
-    echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE."
-  fi
 }
 
 main "$@"
