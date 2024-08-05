@@ -451,12 +451,12 @@ async fn get_artifacts(
         Ok(aggregation_wrapper) => aggregation_wrapper,
         Err(error) => {
             // probably legacy struct is saved in GCS
-            if let ObjectStoreError::Serialization(_) = error {
+            if let ObjectStoreError::Serialization(serialization_error) = error {
                 let legacy_wrapper: AggregationWrapperLegacy =
                     object_store.get(key).await.unwrap_or_else(|inner_error| {
                         panic!(
-                            "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
-                            key, inner_error
+                            "node aggregation job artifacts getting error. Key: {:?}, errors: {:?} {:?}",
+                            key,serialization_error, inner_error
                         )
                     });
                 AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
