@@ -10,6 +10,8 @@ ZKUP_SKIP_ZK_SUPERVISOR=0
 BINS=(zk_inception zk_supervisor)
 
 main() {
+  say "Installing zk_toolbox"
+
   check_prerequisites
   parse_args "$@"
   mkdir -p "$ZKT_BIN_DIR"
@@ -20,12 +22,14 @@ main() {
     install_from_repo
   fi
 
-  echo "zk_toolbox installed successfully"
+  say "zk_toolbox installed successfully"
 }
 
 PREREQUISITES=(cargo git)
 
 check_prerequisites() {
+  say "Checking prerequisites"
+
   failed_prerequisites=()
   for prerequisite in "${PREREQUISITES[@]}"; do
     if ! check_prerequisite "$prerequisite"; then
@@ -33,7 +37,7 @@ check_prerequisites() {
     fi
   done
   if [ ${#failed_prerequisites[@]} -gt 0 ]; then
-    echo "The following prerequisites are missing: ${failed_prerequisites[*]}"
+    err "The following prerequisites are missing: ${failed_prerequisites[*]}"
     exit 1
   fi
 }
@@ -76,7 +80,7 @@ parse_args() {
       exit 0
       ;;
     *)
-      echo "Unknown argument: $1"
+      err "Unknown argument: $1"
       usage
       exit 1
       ;;
@@ -93,36 +97,36 @@ EOF
 }
 
 install_local() {
-  if [ ! -d "$ZKUP_PATH" ]; then
-    echo "Path $ZKUP_PATH does not exist"
+  if [ ! -d "$ZKUP_PATH/zk_toolbox" ]; then
+    err "Path $ZKUP_PATH does not contain zk_toolbox"
     exit 1
   fi
 
-  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ]; then
-    echo "Ignoring --branch, --commit and --version arguments when installing from local path"
+  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ] || [ -n "$ZKUP_REPO" ]; then
+    warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
   fi
 
-  echo "Installing zk_toolbox from $ZKUP_PATH"
-  cd "$ZKUP_PATH"/zk_toolbox
+  say "Installing zk_toolbox from $ZKUP_PATH"
+  ensure cd "$ZKUP_PATH"/zk_toolbox
 
   if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
     BINS=(zk_inception)
   fi
 
   for bin in "${BINS[@]}"; do
-    echo "Installing $bin"
-    ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
+    say "Installing $bin"
+    ensure_spinner cargo install --root $ZKT_DIR --path ./crates/$bin --force
   done
 }
 
 install_from_repo() {
   if [ -n "$ZKUP_PATH" ]; then
-    echo "Ignoring --path argument when installing from repository"
+    warn "Ignoring --path argument when installing from repository"
   fi
 
   ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
 
-  echo "Installing zk_toolbox from $ZKUP_REPO"
+  say "Installing zk_toolbox from $ZKUP_REPO"
 
   if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
     BINS=(zk_inception)
@@ -130,12 +134,12 @@ install_from_repo() {
 
   if [ -n "$ZKUP_VERSION" ]; then
     if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
-      echo "Ignoring --commit and --branch arguments when installing by version"
+      warn "Ignoring --commit and --branch arguments when installing by version"
     fi
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
   elif [ -n "$ZKUP_COMMIT" ]; then
     if [ -n "$ZKUP_BRANCH" ]; then
-      echo "Ignoring --branch argument when installing by commit"
+      warn "Ignoring --branch argument when installing by commit"
     fi
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
   elif [ -n "$ZKUP_BRANCH" ]; then
@@ -146,7 +150,60 @@ install_from_repo() {
 }
 
 ensure() {
-  if ! "$@"; then err "command failed: $*"; fi
+  if ! "$@" >/dev/null 2>&1; then
+    err "command failed: $*"
+    exit 1
+  fi
+}
+
+ensure_spinner() {
+  local cmd="$*"
+  "$@" >/dev/null 2>&1 &
+  local pid=$!
+  local status
+
+  spinner $pid
+
+  wait $pid
+  status=$?
+
+  if [ $status -ne 0 ]; then
+    err "command failed: $cmd"
+    exit 1
+  fi
+}
+
+say() {
+  local action=$(echo "$1" | awk '{print $1}')
+  local rest=$(echo "$1" | sed 's/^[^ ]* //')
+
+  echo -e "\033[1;32m$action\033[0m $rest"
+}
+
+warn() {
+  echo -e "\033[1;33mWARNING: $1\033[0m"
+}
+
+err() {
+  echo -e "\033[1;31mERROR: $1\033[0m" >&2
+}
+
+spinner() {
+  local pid=$1
+  local delay=0.1
+  local spinstr='|/-\'
+  local i=0
+
+  tput civis
+
+  while kill -0 "$pid" 2>/dev/null; do
+    i=$(((i + 1) % 4))
+    printf "\r[%c] " "${spinstr:$i:1}"
+    sleep $delay
+  done
+
+  tput cnorm
+  printf "\r    \r"
 }
 
 main "$@"
