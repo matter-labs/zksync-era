@@ -60,13 +60,13 @@ different repository, branch, commit, or version using the respective options. I
 
 ### Examples
 
-1. **Install from a GitHub repository with a specific version:**
+**Install from a GitHub repository with a specific version:**
 
 ```bash
 zkup --repo matter-labs/zksync-era --version 0.1.1
 ```
 
-2. **Install from a local path, skipping `zk_supervisor`:**
+**Install from a local path, skipping `zk_supervisor`:**
 
 ```bash
 zkup --path /path/to/local/zk_toolbox --skip-zk-supervisor
