@@ -320,9 +320,10 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(
-            row.certificate.unwrap(),
-        )?))
+        let Some(certificate) = row.certificate else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(certificate)?))
     }
 
     pub async fn batch_committee(
