@@ -332,6 +332,17 @@ impl<'a> Connection<'a> {
             .map(|nr| attester::BatchNumber(nr.0 as u64)))
     }
 
+    /// Wrapper for `consensus_dal().next_batch_to_extract_committee()`.
+    pub async fn next_batch_to_extract_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<attester::BatchNumber> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().next_batch_to_extract_committee())
+            .await?
+            .context("next_batch_to_extract_committee()")?)
+    }
+
     /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
     pub async fn get_last_batch_certificate_number(
         &mut self,

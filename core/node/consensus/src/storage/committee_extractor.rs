@@ -20,7 +20,7 @@ impl CommitteeExtractor {
     pub async fn run(mut self, ctx: &Ctx) -> anyhow::Result<()> {
         tracing::info!("Running zksync_node_consensus::storage::CommitteeExtractor");
         let res = scope::run!(ctx, |ctx, s| async {
-            let mut next_batch = self.last_batch_committee(ctx).await?.next();
+            let mut next_batch = self.next_batch_to_extract_committee(ctx).await?;
             loop {
                 self.wait_batch(ctx, next_batch).await?;
                 self.extract_batch_committee(ctx, next_batch).await?;
@@ -85,9 +85,12 @@ impl CommitteeExtractor {
         Ok(())
     }
 
-    async fn last_batch_committee(&mut self, ctx: &Ctx) -> ctx::Result<attester::BatchNumber> {
-        // TODO(moshababo): implement
-        Ok(attester::BatchNumber(0))
+    async fn next_batch_to_extract_committee(
+        &mut self,
+        ctx: &Ctx,
+    ) -> ctx::Result<attester::BatchNumber> {
+        let mut conn = self.pool.connection(ctx).await?;
+        conn.next_batch_to_extract_committee(ctx).await
     }
 
     async fn wait_batch(

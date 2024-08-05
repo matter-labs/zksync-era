@@ -501,6 +501,8 @@ impl ConsensusDal<'_, '_> {
                 MAX(l1_batch_number) AS "number"
             FROM
                 l1_batches_consensus
+            WHERE
+                certificate IS NOT NULL
             "#
         )
         .instrument("get_last_batch_certificate_number")
@@ -547,6 +549,45 @@ impl ConsensusDal<'_, '_> {
         // Otherwise start with 0.
         // Note that main node doesn't start from snapshot
         // and doesn't have prunning enabled.
+        Ok(attester::BatchNumber(0))
+    }
+
+    pub async fn get_last_batch_committee_number(
+        &mut self,
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                l1_batches_consensus
+            "#
+        )
+        .instrument("get_last_batch_committee_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        let Some(n) = row.number else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            n.try_into().context("overflow")?,
+        )))
+    }
+
+    pub async fn next_batch_to_extract_committee(
+        &mut self,
+    ) -> anyhow::Result<attester::BatchNumber> {
+        // First batch that we don't have a committee for.
+        if let Some(last) = self
+            .get_last_batch_committee_number()
+            .await
+            .context("get_last_batch_certificate_number()")?
+        {
+            return Ok(last + 1);
+        }
+
         Ok(attester::BatchNumber(0))
     }
 }
