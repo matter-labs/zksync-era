@@ -13,8 +13,9 @@ use config::{
     },
     set_l1_rpc_url,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig,
 };
+use url::Url;
 use xshell::Shell;
 
 use crate::{
@@ -57,6 +58,10 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+
+    let mut general_config = chain_config.get_general_config()?;
+    apply_port_offset(init_args.port_offset, &mut general_config)?;
+    general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
     update_from_chain_config(&mut genesis_config, chain_config);
@@ -158,5 +163,28 @@ async fn register_chain(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
+    Ok(())
+}
+
+fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
+    if let Some(ref mut api) = general_config.api_config {
+        api.web3_json_rpc.http_port += port_offset;
+        api.web3_json_rpc.ws_port += port_offset;
+
+        let mut http_url = Url::parse(&api.web3_json_rpc.http_url)?;
+        let _ = http_url.set_port(http_url.port().map(|p| p + port_offset));
+        api.web3_json_rpc.http_url = http_url.to_string();
+
+        let mut ws_url = Url::parse(&api.web3_json_rpc.http_url)?;
+        let _ = ws_url.set_port(ws_url.port().map(|p| p + port_offset));
+        api.web3_json_rpc.ws_url = ws_url.to_string();
+
+        api.prometheus.listener_port += port_offset;
+    }
+
+    if let Some(ref mut prometheus) = general_config.prometheus_config {
+        prometheus.listener_port += port_offset;
+    }
+
     Ok(())
 }

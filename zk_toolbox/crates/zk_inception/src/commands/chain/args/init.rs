@@ -28,6 +28,8 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
+    pub port_offset: Option<u16>,
 }
 
 impl InitArgs {
@@ -57,6 +59,7 @@ impl InitArgs {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
+            port_offset: self.port_offset.unwrap_or(0),
         }
     }
 }
@@ -67,4 +70,5 @@ pub struct InitArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
+    pub port_offset: u16,
 }
