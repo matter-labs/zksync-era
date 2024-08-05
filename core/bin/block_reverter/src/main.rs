@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
-use tokio::io::{self, AsyncReadExt};
+use tokio::{
+    fs,
+    io::{self, AsyncReadExt},
+};
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient},
@@ -12,8 +15,8 @@ use zksync_block_reverter::{
 };
 use zksync_config::{
     configs::{
-        chain::NetworkConfig, wallets::Wallets, DatabaseSecrets, GeneralConfig, L1Secrets,
-        ObservabilityConfig,
+        chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
+        GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
@@ -88,6 +91,9 @@ enum Command {
         /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
         #[arg(long)]
         rollback_sk_cache: bool,
+        /// Flag that specifies if RocksDBs with vm runners' caches should be rolled back.
+        #[arg(long)]
+        rollback_vm_runners_cache: bool,
         /// Flag that specifies if snapshot files in GCS should be rolled back.
         #[arg(long, requires = "rollback_postgres")]
         rollback_snapshots: bool,
@@ -159,6 +165,22 @@ async fn main() -> anyhow::Result<()> {
             .clone()
             .context("Failed to find eth config")?,
         None => DBConfig::from_env().context("DBConfig::from_env()")?,
+    };
+    let protective_reads_writer_config = match &general_config {
+        Some(general_config) => general_config
+            .protective_reads_writer_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => ProtectiveReadsWriterConfig::from_env()
+            .context("ProtectiveReadsWriterConfig::from_env()")?,
+    };
+    let basic_witness_input_producer_config = match &general_config {
+        Some(general_config) => general_config
+            .basic_witness_input_producer_config
+            .clone()
+            .context("Failed to find eth config")?,
+        None => BasicWitnessInputProducerConfig::from_env()
+            .context("BasicWitnessInputProducerConfig::from_env()")?,
     };
     let contracts = match opts.contracts_config_path {
         Some(path) => {
@@ -294,6 +316,7 @@ async fn main() -> anyhow::Result<()> {
             rollback_postgres,
             rollback_tree,
             rollback_sk_cache,
+            rollback_vm_runners_cache,
             rollback_snapshots,
             allow_executed_block_reversion,
         } => {
@@ -341,8 +364,37 @@ async fn main() -> anyhow::Result<()> {
                 block_reverter.enable_rolling_back_merkle_tree(db_config.merkle_tree.path);
             }
             if rollback_sk_cache {
-                block_reverter
-                    .enable_rolling_back_state_keeper_cache(db_config.state_keeper_db_path);
+                block_reverter.add_rocksdb_storage_path_to_rollback(db_config.state_keeper_db_path);
+            }
+
+            if rollback_vm_runners_cache {
+                let cache_exists = fs::try_exists(&protective_reads_writer_config.db_path)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "cannot check whether storage cache path `{}` exists",
+                            protective_reads_writer_config.db_path
+                        )
+                    })?;
+                if cache_exists {
+                    block_reverter.add_rocksdb_storage_path_to_rollback(
+                        protective_reads_writer_config.db_path,
+                    );
+                }
+
+                let cache_exists = fs::try_exists(&basic_witness_input_producer_config.db_path)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "cannot check whether storage cache path `{}` exists",
+                            basic_witness_input_producer_config.db_path
+                        )
+                    })?;
+                if cache_exists {
+                    block_reverter.add_rocksdb_storage_path_to_rollback(
+                        basic_witness_input_producer_config.db_path,
+                    );
+                }
             }
 
             block_reverter

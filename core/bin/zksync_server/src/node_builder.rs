@@ -325,7 +325,14 @@ impl MainNodeBuilder {
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
+            namespaces
+                .iter()
+                .map(|a| a.parse())
+                .collect::<Result<_, _>>()?
+        } else {
+            Namespace::DEFAULT.to_vec()
+        };
         if with_debug_namespace {
             namespaces.push(Namespace::Debug)
         }
