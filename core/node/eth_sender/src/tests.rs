@@ -272,6 +272,7 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         local_root: H256::zero(),
         aggregation_root: H256::zero(),
         da_inclusion_data: None,
+        verify_da_inclusion: false,
     }
 }
 

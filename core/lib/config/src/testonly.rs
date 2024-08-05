@@ -899,6 +899,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             polling_interval_ms: self.sample(rng),
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
+            enable_onchain_verification: self.sample(rng),
         }
     }
 }
