@@ -16,17 +16,14 @@ main() {
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
-  elif [ -n "$ZKUP_REPO" ]; then
-    install_from_repo
   else
-    echo "Either --path or --repo argument must be provided"
-    exit 1
+    install_from_repo
   fi
 
   echo "zk_toolbox installed successfully"
 }
 
-PREREQUISITES=(cargo git curl)
+PREREQUISITES=(cargo git)
 
 check_prerequisites() {
   failed_prerequisites=()
@@ -50,13 +47,11 @@ parse_args() {
     case $1 in
     --)               shift; break;;
 
+    -p | --path)      shift; ZKUP_PATH=$1;;
     -r | --repo)      shift; ZKUP_REPO=$1;;
     -b | --branch)    shift; ZKUP_BRANCH=$1;;
     -c | --commit)    shift; ZKUP_COMMIT=$1;;
-    -p | --path)      shift; ZKUP_PATH=$1;;
     -v | --version)   shift; ZKUP_VERSION=$1;;
-    -a | --arch)      shift; ZKUP_ARCH=$1;;
-    -P | --platform)  shift; ZKUP_PLATFORM=$1;;
     --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1;;
     -h | --help)
       usage
@@ -79,7 +74,19 @@ Usage placeholder
 EOF
 }
 
-install_binaries() {
+install_local() {
+  if [ ! -d "$ZKUP_PATH" ]; then
+    echo "Path $ZKUP_PATH does not exist"
+    exit 1
+  fi
+
+  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ]; then
+    echo "Ignoring --branch, --commit and --version arguments when installing from local path"
+  fi
+
+  echo "Installing zk_toolbox from $ZKUP_PATH"
+  cd "$ZKUP_PATH"/zk_toolbox
+
   if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
     BINS=(zk_inception)
   fi
@@ -94,52 +101,36 @@ install_binaries() {
   done
 }
 
-install_local() {
-  if [ ! -d "$ZKUP_PATH" ]; then
-    echo "Path $ZKUP_PATH does not exist"
-    exit 1
-  fi
-
-  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ]; then
-    echo "Ignoring --branch, --commit and --version arguments when installing from local path"
-  fi
-
-  echo "Installing zk_toolbox from $ZKUP_PATH"
-  cd "$ZKUP_PATH"/zk_toolbox
-
-  install_binaries
-}
-
 install_from_repo() {
-  if [ -n "$ZKUP_PATH" ] || [ -n "$ZKUP_VERSION" ]; then
-    echo "Ignoring --path and --version arguments when installing from repository"
+  if [ -n "$ZKUP_PATH" ]; then
+    echo "Ignoring --path argument when installing from repository"
   fi
 
-  ZKUP_BRANCH=${ZKUP_BRANCH:-main}
-  REPO_PATH="$ZKT_DIR/$ZKUP_REPO"
+  ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
   
-
   echo "Installing zk_toolbox from $ZKUP_REPO"
-  
-  if [ ! -d "$REPO_PATH" ]; then
-    AUTHOR=$(echo "$ZKUP_REPO" | cut -d'/' -f1 -)
-    mkdir -p "$ZKT_DIR/$AUTHOR"
-    cd "$ZKT_DIR/$AUTHOR"
-    ensure git clone "https://github.com/$ZKUP_REPO"
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
+    BINS=(zk_inception)
   fi
 
-  cd "$REPO_PATH"
-
-  ensure git fetch origin "$ZKUP_BRANCH:remotes/origin/$ZKUP_BRANCH"
-  ensure git checkout "origin/$ZKUP_BRANCH"
-
-  if [ -n "$ZKUP_COMMIT" ]; then
-    ensure git checkout "$ZKUP_COMMIT"
+  if [ -n "$ZKUP_VERSION" ]; then
+    if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
+      echo "Ignoring --commit and --branch arguments when installing by version"
+    fi
+    ensure cargo install --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKUP_COMMIT" ]; then
+    if [ -n "$ZKUP_BRANCH" ]; then
+      echo "Ignoring --branch argument when installing by commit"
+    fi
+    ensure cargo install --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKUP_BRANCH" ]; then
+    ensure cargo install --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
+  else
+    ensure cargo install --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
   fi
-
-  cd zk_toolbox
-  install_binaries
 }
+
 
 ensure() {
   if ! "$@"; then err "command failed: $*"; fi
