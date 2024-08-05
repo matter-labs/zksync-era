@@ -107,14 +107,15 @@ impl ProtoRepr for proto::Wallets {
                 address: Some(format!("{:?}", state_keeper.fee_account.address())),
             });
 
-        let base_token_adjuster = if let Some(base_token_adjuster) = &this.base_token_adjuster {
-            Some(create_pk_wallet(
-                base_token_adjuster.wallet.address(),
-                base_token_adjuster.wallet.private_key(),
-            ))
-        } else {
-            None
-        };
+        let base_token_adjuster = this
+            .base_token_adjuster
+            .as_ref()
+            .map(|base_token_adjuster| {
+                create_pk_wallet(
+                    base_token_adjuster.wallet.address(),
+                    base_token_adjuster.wallet.private_key(),
+                )
+            });
 
         Self {
             blob_operator,

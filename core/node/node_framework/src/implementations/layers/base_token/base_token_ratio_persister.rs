@@ -98,7 +98,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             account_private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
             DEFAULT_PRIORITY_FEE_PER_GAS,
-            self.l1_chain_id,
+            self.l1_chain_id.into(),
             query_client.clone().for_component("base_token_adjuster"),
         );
 
