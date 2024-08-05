@@ -115,7 +115,6 @@ impl EthTxManager {
             .get_last_sent_eth_tx(tx.id)
             .await
             .unwrap();
-        let has_blob_sidecar = tx.blob_sidecar.is_some();
 
         let EthFees {
             base_fee_per_gas,
@@ -171,7 +170,7 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
-        let blob_gas_price = if has_blob_sidecar {
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
             Some(
                 blob_base_fee_per_gas
                     .expect("always ready to query blob gas price for blob transactions; qed")
@@ -426,12 +425,12 @@ impl EthTxManager {
     }
 
     fn operator_type(&self, tx: &EthTx) -> OperatorType {
-        if tx.blob_sidecar.is_some() {
-            OperatorType::Blob
-        } else if tx.is_gateway {
+        if tx.is_gateway {
             OperatorType::Gateway
-        } else {
+        } else if tx.from_addr == None {
             OperatorType::NonBlob
+        } else {
+            OperatorType::Blob
         }
     }
 
