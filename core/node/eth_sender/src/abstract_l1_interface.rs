@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
-    RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo,
+    L1EthBoundInterface, Options, RawTransactionBytes, SignedCallResult,
 };
 #[cfg(test)]
 use zksync_types::web3;
@@ -78,24 +78,27 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError>;
 
-    fn ethereum_gateway(&self) -> &dyn BoundEthInterface<L1>;
+    fn ethereum_gateway(&self) -> &L1EthBoundInterface;
 
-    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface<L1>>;
+    fn ethereum_gateway_blobs(&self) -> Option<&L1EthBoundInterface>;
 }
 
 #[derive(Debug)]
 pub(super) struct RealL1Interface {
-    pub ethereum_gateway: Box<dyn BoundEthInterface<L1>>,
-    pub ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface<L1>>>,
+    pub ethereum_gateway: Box<L1EthBoundInterface>,
+    pub ethereum_gateway_blobs: Option<Box<L1EthBoundInterface>>,
     pub wait_confirmations: Option<u64>,
 }
 
 impl RealL1Interface {
-    pub(crate) fn query_client(&self) -> &DynClient<L1> {
+    pub(crate) fn query_client(&self) -> &dyn EthInterface {
         self.ethereum_gateway().as_ref()
     }
 
-    pub(crate) fn query_client_for_operator(&self, operator_type: OperatorType) -> &DynClient<L1> {
+    pub(crate) fn query_client_for_operator(
+        &self,
+        operator_type: OperatorType,
+    ) -> &dyn EthInterface {
         if operator_type == OperatorType::Blob {
             self.ethereum_gateway_blobs().unwrap().as_ref()
         } else {
@@ -261,11 +264,11 @@ impl AbstractL1Interface for RealL1Interface {
         })
     }
 
-    fn ethereum_gateway(&self) -> &dyn BoundEthInterface<L1> {
+    fn ethereum_gateway(&self) -> &L1EthBoundInterface {
         self.ethereum_gateway.as_ref()
     }
 
-    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface<L1>> {
+    fn ethereum_gateway_blobs(&self) -> Option<&L1EthBoundInterface> {
         self.ethereum_gateway_blobs.as_deref()
     }
 }

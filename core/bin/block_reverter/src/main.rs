@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 use zksync_block_reverter::{
     eth_client::{
-        clients::{Client, PKSigningClient},
+        clients::{Client, DynClient, PKSigningClient, L1},
         EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
@@ -229,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client = Client::http(l1_secrets.l1_rpc_url.clone())
+            let eth_client = Client::<L1>::http(l1_secrets.l1_rpc_url.clone())
                 .context("Ethereum client")?
                 .build();
 

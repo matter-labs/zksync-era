@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    CallFunctionArgs, ClientError, ContractCallError,
+    CallFunctionArgs, ClientError, ContractCallError, EthInterface,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
@@ -46,9 +46,9 @@ impl L1BatchCommitmentModeValidationTask {
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
         let expected_mode = self.expected_mode;
         let diamond_proxy_address = self.diamond_proxy_address;
-        let eth_client = self.eth_client.as_ref();
         loop {
-            let result = Self::get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await;
+            let result =
+                Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
             match result {
                 Ok(mode) => {
                     anyhow::ensure!(
@@ -91,7 +91,7 @@ impl L1BatchCommitmentModeValidationTask {
 
     async fn get_pubdata_pricing_mode(
         diamond_proxy_address: Address,
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
     ) -> Result<L1BatchCommitmentMode, ContractCallError> {
         CallFunctionArgs::new("getPubdataPricingMode", ())
             .for_contract(

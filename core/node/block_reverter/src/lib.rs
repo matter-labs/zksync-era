@@ -10,7 +10,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 pub use zksync_eth_client as eth_client;
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    BoundEthInterface, CallFunctionArgs, EthInterface, Options,
+    BoundEthInterface, CallFunctionArgs, EthInterface, L1EthBoundInterface, Options,
 };
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -469,7 +469,7 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
-        eth_client: &dyn BoundEthInterface<L1>,
+        eth_client: &L1EthBoundInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
         nonce: u64,
@@ -531,7 +531,7 @@ impl BlockReverter {
 
     #[tracing::instrument(err)]
     async fn get_l1_batch_number_from_contract(
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         contract_address: Address,
         op: AggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
@@ -542,7 +542,7 @@ impl BlockReverter {
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())
-            .call(eth_client)
+            .call(eth_client as &dyn EthInterface)
             .await
             .with_context(|| {
                 format!("failed calling `{function_name}` for contract {contract_address:?}")
@@ -553,7 +553,7 @@ impl BlockReverter {
     /// Returns suggested values for a reversion.
     pub async fn suggested_values(
         &self,
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         eth_config: &BlockReverterEthConfig,
         reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {

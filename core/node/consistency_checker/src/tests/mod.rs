@@ -7,7 +7,7 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
-use zksync_eth_client::{clients::MockSettlementLayer, Options};
+use zksync_eth_client::{clients::MockSettlementLayer, BoundEthInterface, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{

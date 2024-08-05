@@ -5,7 +5,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::L1, encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus,
-    RawTransactionBytes,
+    L1EthBoundInterface, RawTransactionBytes,
 };
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
@@ -39,8 +39,8 @@ impl EthTxManager {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
-        ethereum_gateway: Box<dyn BoundEthInterface<L1>>,
-        ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface<L1>>>,
+        ethereum_gateway: Box<L1EthBoundInterface>,
+        ethereum_gateway_blobs: Option<Box<L1EthBoundInterface>>,
     ) -> Self {
         let ethereum_gateway = ethereum_gateway.for_component("eth_tx_manager");
         let ethereum_gateway_blobs =

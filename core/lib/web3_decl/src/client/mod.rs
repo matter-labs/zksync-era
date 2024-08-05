@@ -38,7 +38,7 @@ use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
     mock::{MockClient, MockClientBuilder},
-    network::{ForEthereumLikeNetwork, Network, TaggedClient, L1, L2},
+    network::{EthereumLikeNetwork, ForEthereumLikeNetwork, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
 

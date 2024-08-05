@@ -518,7 +518,7 @@ impl ConsistencyChecker {
 
         let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(address, &self.contract)
-            .call(self.l1_client.as_ref())
+            .call(&self.l1_client)
             .await?;
         tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
         Ok(())
