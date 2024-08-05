@@ -26,6 +26,13 @@ describe('base ERC20 contract checks', () => {
         isETHBasedChain = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
     });
 
+    test('Base token ratio is updated on L1', async () => {
+        const zksyncAddress = await alice._providerL2().getMainContractAddress();
+        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, alice);
+
+        const a = Number(zksyncContract.baseTokenGasPriceMultiplierDenominator());
+    });
+
     test('Can perform a deposit', async () => {
         const amount = 1n; // 1 wei is enough.
         const gasPrice = await scaledGasPrice(alice);

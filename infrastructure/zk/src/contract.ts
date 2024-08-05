@@ -222,10 +222,13 @@ export async function registerHyperchain({
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
+
+    const baseTokenAdjusterAddress = process.env.BASE_TOKEN_ADJUSTER_ADDRESS;
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
-        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : ''
+        deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        baseTokenAdjusterAddress ? `--base-token-adjuster-address ${baseTokenAdjusterAddress}` : ''
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
@@ -314,6 +317,7 @@ command
     .description('register hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .option('--base-token-adjuster-address <base-token-adjuster-address>', 'address of the base token adjuster')
     .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')

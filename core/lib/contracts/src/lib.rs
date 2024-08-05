@@ -49,7 +49,6 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
 const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
 
-// IChainAdmin doesn't have multicall in it
 const CHAIN_ADMIN_IMPLEMENTATION_CONTRACT_FILE: (&str, &str) =
     ("governance", "ChainAdmin.sol/ChainAdmin.json");
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");

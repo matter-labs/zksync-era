@@ -14,7 +14,7 @@ use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
     ethabi::{Bytes, Contract, Error, Token},
     web3::{contract::Tokenize, BlockNumber},
-    Address, U256,
+    Address, H256, U256,
 };
 
 #[derive(Debug, Clone)]
@@ -142,44 +142,20 @@ impl BaseTokenRatioPersister {
 
     async fn send_ratio_to_l1(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
         let fn_set_token_multiplier = self
-            .admin_contract
+            .chain_admin_contract
             .function("setTokenMultiplier")
             .context("`setTokenMultiplier` function must be present in the admin contract")?;
 
-        let mut final_calldata = fn_set_token_multiplier
+        let calldata = fn_set_token_multiplier
             .encode_input(
                 &(
+                    Token::Address(self.diamond_proxy_contract_address),
                     Token::Uint(api_ratio.numerator.get().into()),
                     Token::Uint(api_ratio.denominator.get().into()),
                 )
                     .into_tokens(),
             )
             .context("failed encoding `setTokenMultiplier` input")?;
-
-        let mut final_address = self.diamond_proxy_contract_address;
-
-        // if the chain admin contract is present wrap up calls into ChainAdmin.multicall
-        if let Some(chain_admin_contract_address) = self.chain_admin_contract_address {
-            let fn_multicall = self
-                .chain_admin_contract
-                .function("multicall")
-                .context("`multicall` function must be present in the chain admin contract")?;
-
-            let multicall_params = vec![
-                Token::Array(vec![Token::Tuple(vec![
-                    Token::Address(self.diamond_proxy_contract_address),
-                    Token::Uint(0.into()),
-                    Token::Bytes(final_calldata),
-                ])]),
-                Token::Bool(true),
-            ];
-
-            final_calldata = fn_multicall
-                .encode_input(&multicall_params)
-                .context("failed encoding `multicall` input")?;
-
-            final_address = chain_admin_contract_address;
-        }
 
         let nonce = (*self.eth_client)
             .as_ref()
@@ -207,7 +183,11 @@ impl BaseTokenRatioPersister {
 
         let signed_tx = self
             .eth_client
-            .sign_prepared_tx_for_addr(final_calldata, final_address, options)
+            .sign_prepared_tx_for_addr(
+                calldata,
+                self.chain_admin_contract_address.unwrap(),
+                options,
+            )
             .await
             .context("cannot sign a `setTokenMultiplier` transaction")?;
 
@@ -215,9 +195,12 @@ impl BaseTokenRatioPersister {
             .as_ref()
             .send_raw_tx(signed_tx.raw_tx)
             .await
-            .context("failed sending `multicall` transaction")?;
+            .context("failed sending `setTokenMultiplier` transaction")?;
 
-        tracing::info!("`setTokenMultiplier` transaction hash {}", hash);
+        tracing::info!(
+            "`setTokenMultiplier` transaction hash {}",
+            hex::encode(hash.as_bytes())
+        );
 
         let max_attempts = self.config.persister_l1_receipt_checking_max_attempts;
         let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
