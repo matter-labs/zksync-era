@@ -79,7 +79,7 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         local_root: H256::zero(),
         aggregation_root: H256::zero(),
         da_inclusion_data: None,
-        verify_da_inclusion: false,
+        verify_da_inclusion: None,
     }
 }
 
