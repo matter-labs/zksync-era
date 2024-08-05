@@ -39,11 +39,6 @@ impl From<L1ChainId> for L1 {
     }
 }
 
-pub trait EthereumLikeNetwork: Network {}
-
-impl EthereumLikeNetwork for L1 {}
-impl EthereumLikeNetwork for L2 {}
-
 /// L2 network.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct L2(Option<L2ChainId>);

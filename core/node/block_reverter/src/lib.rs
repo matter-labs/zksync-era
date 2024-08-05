@@ -8,9 +8,7 @@ use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.
 pub use zksync_eth_client as eth_client;
-use zksync_eth_client::{
-    BoundEthInterface, CallFunctionArgs, EthInterface, L1EthBoundInterface, Options,
-};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
@@ -468,7 +466,7 @@ impl BlockReverter {
     /// Sends a revert transaction to L1.
     pub async fn send_ethereum_revert_transaction(
         &self,
-        eth_client: &L1EthBoundInterface,
+        eth_client: &dyn BoundEthInterface,
         eth_config: &BlockReverterEthConfig,
         last_l1_batch_to_keep: L1BatchNumber,
         nonce: u64,

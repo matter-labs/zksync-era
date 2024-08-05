@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, L1EthBoundInterface};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -47,7 +47,7 @@ pub struct MulticallData {
 #[derive(Debug)]
 pub struct EthTxAggregator {
     aggregator: Aggregator,
-    eth_client: Box<L1EthBoundInterface>,
+    eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
     timelock_contract_address: Address,
     l1_multicall3_address: Address,
@@ -75,7 +75,7 @@ impl EthTxAggregator {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         aggregator: Aggregator,
-        eth_client: Box<L1EthBoundInterface>,
+        eth_client: Box<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Map, Value};
 use zksync_eth_client::{
     clients::SigningClient, BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface,
-    L1EthBoundInterface, Options,
+    Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -127,7 +127,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &L1EthBoundInterface {
+    pub fn client(&self) -> &dyn BoundEthInterface {
         &self.eth_client
     }
 

@@ -3,8 +3,8 @@ use std::fmt;
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
-    BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo,
-    L1EthBoundInterface, Options, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
+    RawTransactionBytes, SignedCallResult,
 };
 #[cfg(test)]
 use zksync_types::web3;
@@ -77,15 +77,15 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, EthSenderError>;
 
-    fn ethereum_gateway(&self) -> &L1EthBoundInterface;
+    fn ethereum_gateway(&self) -> &dyn BoundEthInterface;
 
-    fn ethereum_gateway_blobs(&self) -> Option<&L1EthBoundInterface>;
+    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface>;
 }
 
 #[derive(Debug)]
 pub(super) struct RealL1Interface {
-    pub ethereum_gateway: Box<L1EthBoundInterface>,
-    pub ethereum_gateway_blobs: Option<Box<L1EthBoundInterface>>,
+    pub ethereum_gateway: Box<dyn BoundEthInterface>,
+    pub ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
     pub wait_confirmations: Option<u64>,
 }
 
@@ -263,11 +263,11 @@ impl AbstractL1Interface for RealL1Interface {
         })
     }
 
-    fn ethereum_gateway(&self) -> &L1EthBoundInterface {
+    fn ethereum_gateway(&self) -> &dyn BoundEthInterface {
         self.ethereum_gateway.as_ref()
     }
 
-    fn ethereum_gateway_blobs(&self) -> Option<&L1EthBoundInterface> {
+    fn ethereum_gateway_blobs(&self) -> Option<&dyn BoundEthInterface> {
         self.ethereum_gateway_blobs.as_deref()
     }
 }

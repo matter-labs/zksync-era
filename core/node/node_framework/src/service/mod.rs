@@ -153,7 +153,7 @@ impl ZkStackService {
 
         tracing::info!("Exiting the service");
 
-        if let Some(observability_guard) = observability_guard.into() {
+        if let Some(observability_guard) = &mut observability_guard.into() {
             // Make sure that the shutdown happens in the `tokio` context.
             let _guard = self.runtime.enter();
             observability_guard.shutdown();

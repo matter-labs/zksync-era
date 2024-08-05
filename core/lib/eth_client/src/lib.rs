@@ -214,8 +214,6 @@ pub trait BoundEthInterface: 'static + Sync + Send + fmt::Debug + AsRef<dyn EthI
     ) -> Result<SignedCallResult, SigningError>;
 }
 
-pub type L1EthBoundInterface = dyn BoundEthInterface;
-
 impl Clone for Box<dyn BoundEthInterface> {
     fn clone(&self) -> Self {
         self.clone_boxed()

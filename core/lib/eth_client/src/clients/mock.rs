@@ -12,9 +12,7 @@ use zksync_types::{
     web3::{self, contract::Tokenize, BlockId},
     Address, L1ChainId, L2ChainId, SLChainId, EIP_4844_TX_TYPE, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{
-    EthereumLikeNetwork, MockClient, MockClientBuilder, Network, L1, L2,
-};
+use zksync_web3_decl::client::{MockClient, MockClientBuilder, Network, L1, L2};
 
 use crate::{
     types::{ContractCallError, SignedCallResult, SigningError},
@@ -594,14 +592,14 @@ impl<Net: SupportedMockEthNetwork> MockSettlementLayer<Net> {
     }
 }
 
-impl<T: EthereumLikeNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
+impl<T: SupportedMockEthNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
     fn as_ref(&self) -> &(dyn EthInterface + 'static) {
         &self.client
     }
 }
 
 #[async_trait::async_trait]
-impl<Net: SupportedMockEthNetwork + EthereumLikeNetwork> BoundEthInterface
+impl<Net: SupportedMockEthNetwork + SupportedMockEthNetwork> BoundEthInterface
     for MockSettlementLayer<Net>
 {
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
