@@ -447,8 +447,8 @@ async fn get_artifacts(
     let result = object_store.get(key).await;
 
     // TODO: remove after transition
-    match result {
-        Ok(aggregation_wrapper) => return aggregation_wrapper,
+    return match result {
+        Ok(aggregation_wrapper) => aggregation_wrapper,
         Err(error) => {
             // probably legacy struct is saved in GCS
             if let ObjectStoreError::Serialization(_) = error {
@@ -459,17 +459,12 @@ async fn get_artifacts(
                             key, inner_error
                         )
                     });
-
-                let result = AggregationWrapper {
-                    0: legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect(),
-                };
-
-                return result;
+                AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
             } else {
                 panic!("node aggregation job artifacts missing: {:?}", key)
             }
         }
-    }
+    };
 }
 
 #[tracing::instrument(
