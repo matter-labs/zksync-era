@@ -1,8 +1,9 @@
 use rand::Rng;
-use zksync_basic_types::web3::contract::Tokenize;
+use zksync_basic_types::{web3::contract::Tokenize, L1BatchNumber};
 use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
+use zksync_dal::consensus::{Attester, AttesterCommittee};
 use zksync_types::{
     api::{BlockId, BlockNumber},
     ethabi::{Address, Token},
@@ -42,9 +43,10 @@ async fn test_vm_reader() {
         }
         let nodes_ref: Vec<&[Token]> = nodes.iter().map(|v| v.as_slice()).collect();
         let nodes_slice: &[&[Token]] = nodes_ref.as_slice();
-        writer.deploy(ctx).await;
-        writer.add_nodes(ctx, nodes_slice).await;
-        writer.set_committees(ctx).await;
+        writer.deploy().await;
+        writer.add_nodes(nodes_slice).await;
+        writer.set_committees().await;
+        writer.seal_batch_and_wait(ctx).await;
 
         let (tx_sender, _) = zksync_node_api_server::web3::testonly::create_test_tx_sender(
             pool.0.clone(),
@@ -101,7 +103,6 @@ async fn test_vm_reader() {
 async fn test_committee_extractor() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
@@ -125,37 +126,100 @@ async fn test_committee_extractor() {
         let extractor = super::committee_extractor::CommitteeExtractor::new(pool.clone(), reader);
         s.spawn_bg(extractor.run(ctx));
 
-        let mut nodes: Vec<Vec<Token>> = Vec::new();
-        let num_nodes = 5;
-        for _ in 0..num_nodes {
-            let node_entry = (
-                Address::random(),
-                U256::from(rng.gen::<usize>()),
-                rng.gen::<validator::PublicKey>().encode(),
-                rng.gen::<validator::Signature>().encode(),
-                U256::from(rng.gen::<usize>()),
-                rng.gen::<attester::PublicKey>().encode(),
-            )
-                .into_tokens();
-            nodes.push(node_entry);
-        }
+        let mut expected_batch_committee: Vec<(L1BatchNumber, AttesterCommittee)> = vec![];
+        let mut batch_number;
+
+        // batch_number = writer.seal_batch_and_wait(ctx).await;
+        // expected_batch_committee.push((batch_number, AttesterCommittee::default()));
+        //
+        writer.deploy().await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, AttesterCommittee::default()));
+
+        let nodes = gen_random_abi_nodes(ctx, 5);
         let nodes_ref: Vec<&[Token]> = nodes.iter().map(|v| v.as_slice()).collect();
         let nodes_slice: &[&[Token]] = nodes_ref.as_slice();
-        writer.deploy(ctx).await;
-        writer.add_nodes(ctx, nodes_slice).await;
-        writer.set_committees(ctx).await;
+        let attester_committee = AttesterCommittee {
+            members: nodes.iter().map(abi_node_to_attester).collect(),
+        };
+        writer.add_nodes(nodes_slice).await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, AttesterCommittee::default()));
 
-        ctx.sleep(time::Duration::seconds(5)).await?;
+        writer.set_committees().await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, attester_committee.clone()));
 
-        let batch_committees = pool
-            .connection(ctx)
-            .await?
-            .batch_committee(ctx, BatchNumber(3))
-            .await?;
-        panic!("{:?}", batch_committees);
+        writer.remove_nodes(nodes_slice).await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, attester_committee.clone()));
+
+        writer.set_committees().await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, AttesterCommittee::default()));
+
+        let nodes = gen_random_abi_nodes(ctx, 5);
+        let nodes_ref: Vec<&[Token]> = nodes.iter().map(|v| v.as_slice()).collect();
+        let nodes_slice: &[&[Token]] = nodes_ref.as_slice();
+        let attester_committee = AttesterCommittee {
+            members: nodes.iter().map(abi_node_to_attester).collect(),
+        };
+        writer.add_nodes(nodes_slice).await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, AttesterCommittee::default()));
+
+        writer.set_committees().await;
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, attester_committee.clone()));
+
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, attester_committee.clone()));
+
+        batch_number = writer.seal_batch_and_wait(ctx).await;
+        expected_batch_committee.push((batch_number, attester_committee.clone()));
+
+        // Allow batch sealing async processing.
+        ctx.sleep(time::Duration::seconds(1)).await?;
+
+        for (batch, committee) in expected_batch_committee {
+            let batch_committees = pool
+                .connection(ctx)
+                .await?
+                .batch_committee(ctx, BatchNumber(batch.0 as u64))
+                .await?;
+
+            assert_eq!(batch_committees, Some(committee));
+        }
 
         Ok(())
     })
     .await
     .unwrap();
+}
+
+fn gen_random_abi_nodes(ctx: &ctx::Ctx, num_nodes: usize) -> Vec<Vec<Token>> {
+    let rng = &mut ctx.rng();
+    let mut nodes: Vec<Vec<Token>> = Vec::new();
+    for _ in 0..num_nodes {
+        let node_entry = (
+            Address::random(),
+            U256::from(rng.gen::<usize>()),
+            rng.gen::<validator::PublicKey>().encode(),
+            rng.gen::<validator::Signature>().encode(),
+            U256::from(rng.gen::<usize>()),
+            rng.gen::<attester::PublicKey>().encode(),
+        )
+            .into_tokens();
+        nodes.push(node_entry);
+    }
+    nodes
+}
+
+fn abi_node_to_attester(node: &Vec<Token>) -> Attester {
+    let pub_key = &node[5].clone().into_bytes().unwrap();
+    let weight = node[4].clone().into_uint().unwrap();
+    Attester {
+        pub_key: attester::PublicKey::decode(pub_key).unwrap(),
+        weight: weight.as_u64(),
+    }
 }

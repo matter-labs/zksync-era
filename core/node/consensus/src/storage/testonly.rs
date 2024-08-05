@@ -232,42 +232,44 @@ impl VMWriter {
     }
 
     /// Deploys the consensus registry contract and adds nodes to it.
-    pub async fn deploy(&mut self, ctx: &Ctx) {
+    pub async fn deploy(&mut self) {
         let mut txs: Vec<Transaction> = vec![];
         txs.push(self.deploy_tx.tx.clone());
-
-        self.node.push_block(&txs).await;
-        self.node.seal_batch().await;
-        self.pool
-            .wait_for_payload(ctx, self.node.last_block())
-            .await
-            .unwrap();
+        self.node.push_block(&txs).await
     }
 
-    pub async fn add_nodes(&mut self, ctx: &Ctx, nodes: &[&[Token]]) {
+    pub async fn add_nodes(&mut self, nodes: &[&[Token]]) {
         let mut txs: Vec<Transaction> = vec![];
         for node in nodes {
             let tx = self.gen_tx_add(node);
             txs.push(tx);
         }
-        self.node.push_block(&txs).await;
-        self.node.seal_batch().await;
-        self.pool
-            .wait_for_payload(ctx, self.node.last_block())
-            .await
-            .unwrap();
+        self.node.push_block(&txs).await
     }
 
-    pub async fn set_committees(&mut self, ctx: &Ctx) {
+    pub async fn set_committees(&mut self) {
         let mut txs: Vec<Transaction> = vec![];
         txs.push(self.gen_tx_set_validator_committee());
         txs.push(self.gen_tx_set_attester_committee());
-        self.node.push_block(&txs).await;
+        self.node.push_block(&txs).await
+    }
+
+    pub async fn remove_nodes(&mut self, nodes: &[&[Token]]) {
+        let mut txs: Vec<Transaction> = vec![];
+        for node in nodes {
+            let tx = self.gen_tx_remove(&vec![node[0].clone()]);
+            txs.push(tx);
+        }
+        self.node.push_block(&txs).await
+    }
+
+    pub async fn seal_batch_and_wait(&mut self, ctx: &Ctx) -> L1BatchNumber {
         self.node.seal_batch().await;
         self.pool
             .wait_for_payload(ctx, self.node.last_block())
             .await
-            .unwrap();
+            .unwrap()
+            .l1_batch_number
     }
 
     fn gen_tx_add(&mut self, input: &[Token]) -> Transaction {
@@ -275,6 +277,17 @@ impl VMWriter {
             .registry_contract
             .contract
             .function("add")
+            .unwrap()
+            .encode_input(input)
+            .unwrap();
+        self.gen_tx(self.deploy_tx.address, calldata)
+    }
+
+    fn gen_tx_remove(&mut self, input: &[Token]) -> Transaction {
+        let calldata = self
+            .registry_contract
+            .contract
+            .function("remove")
             .unwrap()
             .encode_input(input)
             .unwrap();

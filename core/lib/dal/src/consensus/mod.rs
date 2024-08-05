@@ -501,7 +501,7 @@ impl ProtoFmt for ValidatorCommittee {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Attester {
     /// Attester public key.
     pub pub_key: attester::PublicKey,
@@ -529,7 +529,7 @@ impl ProtoFmt for Attester {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct AttesterCommittee {
     pub members: Vec<Attester>,
 }
