@@ -107,7 +107,7 @@ impl MockEthereumInner {
         self.block_number += confirmations;
         let nonce = self.current_nonce;
         self.current_nonce += 1;
-        tracing::info!("Executing tx with hash {tx_hash:?}, success: {success}, current nonce: {}, confirmations: {confirmations}", self.current_nonce);
+        tracing::info!("Executing tx with hash {tx_hash:?} at block {}, success: {success}, current nonce: {}, confirmations: {confirmations}", self.block_number - confirmations, self.current_nonce);
         let tx_nonce = self.sent_txs[&tx_hash].nonce;
 
         if non_ordering_confirmations {

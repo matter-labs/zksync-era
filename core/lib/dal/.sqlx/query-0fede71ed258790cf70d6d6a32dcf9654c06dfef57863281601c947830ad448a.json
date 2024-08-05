@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO\n                eth_txs (\n                    raw_tx,\n                    nonce,\n                    tx_type,\n                    contract_address,\n                    predicted_gas_cost,\n                    created_at,\n                    updated_at,\n                    from_addr,\n                    blob_sidecar\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)\n            RETURNING\n                *\n            ",
+  "query": "\n            INSERT INTO\n                eth_txs (\n                    raw_tx,\n                    nonce,\n                    tx_type,\n                    contract_address,\n                    predicted_gas_cost,\n                    created_at,\n                    updated_at,\n                    from_addr,\n                    blob_sidecar,\n                    is_gateway\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)\n            RETURNING\n                *\n            ",
   "describe": {
     "columns": [
       {
@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_gateway",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -82,7 +87,8 @@
         "Text",
         "Int8",
         "Bytea",
-        "Bytea"
+        "Bytea",
+        "Bool"
       ]
     },
     "nullable": [
@@ -99,8 +105,9 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "2a2680234c38904e5c19df45193a8c13d04079683e09c65f7f4e76a9987e2ab4"
+  "hash": "0fede71ed258790cf70d6d6a32dcf9654c06dfef57863281601c947830ad448a"
 }

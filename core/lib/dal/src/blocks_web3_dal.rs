@@ -968,6 +968,7 @@ mod tests {
                 0,
                 None,
                 None,
+                false,
             )
             .await
             .unwrap();

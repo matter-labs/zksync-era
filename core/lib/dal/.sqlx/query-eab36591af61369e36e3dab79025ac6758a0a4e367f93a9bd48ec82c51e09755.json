@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                id = $1\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL\n                AND is_gateway = $3\n                AND id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2\n                        AND is_gateway = $3\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -81,7 +81,9 @@
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Int8",
+        "Bytea",
+        "Bool"
       ]
     },
     "nullable": [
@@ -102,5 +104,5 @@
       false
     ]
   },
-  "hash": "6692ff6c0fbb2fc94f5cd2837a43ce80f9b2b27758651ccfc09df61a4ae8a363"
+  "hash": "eab36591af61369e36e3dab79025ac6758a0a4e367f93a9bd48ec82c51e09755"
 }

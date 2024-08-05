@@ -356,7 +356,7 @@ impl EthTxAggregator {
             .await
         {
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
+                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge, false)
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
@@ -521,6 +521,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
+        is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
@@ -553,6 +554,7 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                is_gateway,
             )
             .await
             .unwrap();

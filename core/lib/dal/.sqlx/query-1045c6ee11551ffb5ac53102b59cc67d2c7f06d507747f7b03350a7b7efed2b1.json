@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL\n                AND id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                confirmed_eth_tx_history_id IS NULL\n                AND is_gateway = FALSE\n            ",
   "describe": {
     "columns": [
       {
@@ -72,13 +72,15 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_gateway",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Bytea"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -94,8 +96,9 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "4570e9ffd0b2973d0bc2986c391d0a59076dda4aa572ade2492f37e537fdf6ed"
+  "hash": "1045c6ee11551ffb5ac53102b59cc67d2c7f06d507747f7b03350a7b7efed2b1"
 }
