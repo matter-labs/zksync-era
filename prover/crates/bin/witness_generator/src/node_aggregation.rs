@@ -113,14 +113,7 @@ impl NodeAggregationWitnessGenerator {
         let mut proof_ids_iter = job.proofs_ids.into_iter();
         let mut proofs_ids = vec![];
         for queues in job.aggregations.chunks(RECURSION_ARITY) {
-            let mut proofs_for_chunk = vec![];
-            for (_, queue) in queues {
-                let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
-                    .take(queue.num_items as usize)
-                    .collect();
-                assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
-                proofs_for_chunk.extend(proofs_ids_for_queue);
-            }
+            let proofs_for_chunk: Vec<_> = (&mut proof_ids_iter).take(queues.len()).collect();
             proofs_ids.push(proofs_for_chunk);
         }
 
