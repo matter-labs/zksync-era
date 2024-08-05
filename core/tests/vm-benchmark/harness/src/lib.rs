@@ -100,7 +100,6 @@ impl BenchmarkingVm {
         ))
     }
 
-    // FIXME: optionally incorporate snapshot workflow
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
         self.0.execute(VmExecutionMode::OneTx)
