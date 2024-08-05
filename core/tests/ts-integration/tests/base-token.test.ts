@@ -27,10 +27,17 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Base token ratio is updated on L1', async () => {
+        let govMnemonic = ethers.Mnemonic.fromPhrase(require('../../../../etc/test_config/constant/eth.json').mnemonic);
+        let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
+        const adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
         const zksyncAddress = await alice._providerL2().getMainContractAddress();
-        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, alice);
+        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, adminGovWallet);
+        const nominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
+        const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
 
-        const a = Number(zksyncContract.baseTokenGasPriceMultiplierDenominator());
+        // checking that the nominator and denominator don't have their default values
+        expect(nominator).not.toBe(1);
+        expect(denominator).not.toBe(1);
     });
 
     test('Can perform a deposit', async () => {

@@ -3,18 +3,15 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
-use zksync_contracts::{admin_contract, chain_admin_contract, chain_admin_implementation_contract};
+use zksync_contracts::chain_admin_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    BoundEthInterface, CallFunctionArgs, EthInterface, Options,
-};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
 use zksync_external_price_api::PriceAPIClient;
 use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
-    ethabi::{Bytes, Contract, Error, Token},
+    ethabi::{Contract, Token},
     web3::{contract::Tokenize, BlockNumber},
-    Address, H256, U256,
+    Address, U256,
 };
 
 #[derive(Debug, Clone)]
@@ -26,7 +23,6 @@ pub struct BaseTokenRatioPersister {
     eth_client: Box<dyn BoundEthInterface>,
     //TODO: use multiplier setter account
     base_token_adjuster_account_address: Address,
-    admin_contract: Contract,
     chain_admin_contract: Contract,
     diamond_proxy_contract_address: Address,
     chain_admin_contract_address: Option<Address>,
@@ -43,8 +39,7 @@ impl BaseTokenRatioPersister {
         diamond_proxy_contract_address: Address,
         chain_admin_contract_address: Option<Address>,
     ) -> Self {
-        let admin_contract = admin_contract();
-        let chain_admin_contract = chain_admin_implementation_contract();
+        let chain_admin_contract = chain_admin_contract();
 
         Self {
             pool,
@@ -53,7 +48,6 @@ impl BaseTokenRatioPersister {
             price_api_client,
             eth_client,
             base_token_adjuster_account_address,
-            admin_contract,
             chain_admin_contract,
             diamond_proxy_contract_address,
             chain_admin_contract_address,
@@ -212,7 +206,6 @@ impl BaseTokenRatioPersister {
                 .context("failed getting receipt for `setTokenMultiplier` transaction")?;
             if let Some(receipt) = maybe_receipt {
                 if receipt.status == Some(1.into()) {
-                    tracing::info!("setTokenMultiplier persisten successfully");
                     return Ok(());
                 }
                 return Err(anyhow::Error::msg(format!(
@@ -220,17 +213,13 @@ impl BaseTokenRatioPersister {
                     receipt.status
                 )));
             } else {
-                tracing::info!(
-                    "waiting for L1 transaction confirmation attempt {}...",
-                    i + 1
-                );
                 tokio::time::sleep(sleep_duration).await;
             }
         }
 
-        return Err(anyhow::Error::msg(format!(
+        Err(anyhow::Error::msg(format!(
             "Unable to retrieve `setTokenMultiplier` transaction status in {} attempts",
             max_attempts
-        )));
+        )))
     }
 }
