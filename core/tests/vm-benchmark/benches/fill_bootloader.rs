@@ -30,6 +30,7 @@ use zksync_vm_benchmark_harness::{
 const DEPLOY_GAS_LIMIT: u32 = 30_000_000;
 /// Tested numbers of transactions in a batch.
 const TXS_IN_BATCH: &[usize] = &[1, 10, 50, 100, 200, 500, 1_000, 2_000, 5_000];
+
 /// RNG seed used e.g. to randomize failing transactions.
 const RNG_SEED: u64 = 123;
 /// Probability for a transaction to fail in the `transfer_with_invalid_nonce` benchmarks.
@@ -64,6 +65,10 @@ fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
     expected_failures: &[bool],
 ) {
     for txs_in_batch in TXS_IN_BATCH {
+        if *txs_in_batch > txs.len() {
+            break;
+        }
+
         group.throughput(Throughput::Elements(*txs_in_batch as u64));
         group.bench_with_input(
             BenchmarkId::new(name, txs_in_batch),
@@ -99,6 +104,13 @@ fn run_vm<VM: BenchmarkingVmFactory, const FULL: bool>(
 }
 
 fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criterion) {
+    let is_test_mode = !std::env::args().any(|arg| arg == "--bench");
+    let txs_in_batch = if is_test_mode {
+        &TXS_IN_BATCH[..3] // Reduce the number of transactions in a batch so that tests don't take long
+    } else {
+        TXS_IN_BATCH
+    };
+
     let mut group = c.benchmark_group(if FULL {
         format!("fill_bootloader_full{}", VM::LABEL.as_suffix())
     } else {
@@ -112,7 +124,7 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Cr
     let test_contract =
         std::fs::read("deployment_benchmarks/deploy_simple_contract").expect("failed to read file");
     let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
-    let max_txs = *TXS_IN_BATCH.last().unwrap() as u32;
+    let max_txs = *txs_in_batch.last().unwrap() as u32;
     let txs: Vec<_> = (0..max_txs)
         .map(|nonce| get_deploy_tx_with_gas_limit(code, DEPLOY_GAS_LIMIT, nonce))
         .collect();
