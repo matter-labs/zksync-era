@@ -178,7 +178,7 @@ impl BaseTokenRatioPersister {
         let priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
 
         let options = Options {
-            gas: Some(U256::from(self.config.max_aggregated_tx_gas)),
+            gas: Some(U256::from(self.config.max_tx_gas)),
             nonce: Some(U256::from(nonce)),
             gas_price: Some(gas_price.into()),
             max_fee_per_gas: Some(U256::from(base_fee_per_gas + priority_fee_per_gas)),

@@ -16,7 +16,7 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
                 .price_cache_update_interval_ms
                 .expect("price_cache_update_interval_ms"),
 
-            max_aggregated_tx_gas: self.max_aggregated_tx_gas.expect("max_aggregated_tx_gas"),
+            max_tx_gas: self.max_tx_gas.expect("max_tx_gas"),
 
             persister_l1_receipt_checking_sleep_ms: self.persister_l1_receipt_checking_sleep_ms,
 
@@ -32,7 +32,7 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
             persister_l1_receipt_checking_sleep_ms: this.persister_l1_receipt_checking_sleep_ms,
             persister_l1_receipt_checking_max_attempts: this
                 .persister_l1_receipt_checking_max_attempts,
-            max_aggregated_tx_gas: Some(this.max_aggregated_tx_gas),
+            max_tx_gas: Some(this.max_tx_gas),
         }
     }
 }

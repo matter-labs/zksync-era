@@ -12,7 +12,7 @@ pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 pub const DEFAULT_CACHE_UPDATE_INTERVAL: u64 = 500;
 
 /// Default max amount of gas that a L1 base token update can consume per transaction
-pub const DEFAULT_MAX_AGGREGATED_TX_GAS: u64 = 20000;
+pub const DEFAULT_MAX_TX_GAS: u64 = 20000;
 
 /// Default maximum number of attempts to get L1 transaction receipt
 const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
@@ -31,8 +31,8 @@ pub struct BaseTokenAdjusterConfig {
     pub price_cache_update_interval_ms: u64,
 
     /// Max amount of gas that L1 base token update can consume per transaction
-    #[serde(default = "BaseTokenAdjusterConfig::default_max_aggregated_tx_gas")]
-    pub max_aggregated_tx_gas: u64,
+    #[serde(default = "BaseTokenAdjusterConfig::default_max_tx_gas")]
+    pub max_tx_gas: u64,
 
     /// Maximum number of attempts to get L1 transaction receipt before failing over
     pub persister_l1_receipt_checking_max_attempts: Option<u32>,
@@ -46,7 +46,7 @@ impl Default for BaseTokenAdjusterConfig {
         Self {
             price_polling_interval_ms: Self::default_polling_interval(),
             price_cache_update_interval_ms: Self::default_cache_update_interval(),
-            max_aggregated_tx_gas: Self::default_max_aggregated_tx_gas(),
+            max_tx_gas: Self::default_max_tx_gas(),
             persister_l1_receipt_checking_max_attempts: Some(
                 DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS,
             ),
@@ -86,8 +86,8 @@ impl BaseTokenAdjusterConfig {
         )
     }
 
-    fn default_max_aggregated_tx_gas() -> u64 {
-        DEFAULT_MAX_AGGREGATED_TX_GAS
+    fn default_max_tx_gas() -> u64 {
+        DEFAULT_MAX_TX_GAS
     }
 
     #[deprecated]
