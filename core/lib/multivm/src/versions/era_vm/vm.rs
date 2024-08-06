@@ -1,31 +1,25 @@
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc, str::FromStr};
 
 use era_vm::{
-    state::{Event, VMStateBuilder},
-    store::{InMemory, L2ToL1Log, Storage, StorageError, StorageKey as EraStorageKey},
+    store::{InMemory, L2ToL1Log, StorageError, StorageKey as EraStorageKey},
     vm::ExecutionOutput,
     LambdaVm, VMState,
 };
-use zksync_contracts::SystemContractCode;
-use zksync_state::{ReadStorage, StoragePtr, WriteStorage};
+use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    l1::is_l1_tx_type, AccountTreeId, Address, L1BatchNumber, StorageKey, Transaction, VmEvent,
-    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    l1::is_l1_tx_type, AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, U256
 };
-use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::{hash_bytecode, CompressedBytecodeInfo}, h256_to_u256, u256_to_h256};
 
 use super::{
-    bootloader_state::BootloaderState, event::merge_events,
-    initial_bootloader_memory::bootloader_initial_memory, snapshot::VmSnapshot,
+    bootloader_state::{utils::apply_l2_block, BootloaderState}, event::merge_events, hook::Hook, initial_bootloader_memory::bootloader_initial_memory, snapshot::VmSnapshot
 };
 use crate::{
     era_vm::{bytecode::compress_bytecodes, transaction_data::TransactionData},
-    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
     vm_latest::{
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        constants::{get_vm_hook_position, get_vm_hook_start_position_latest, VM_HOOK_PARAMS_COUNT}, BootloaderMemory, CurrentExecutionState, ExecutionResult, HistoryEnabled, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs
     },
-    HistoryMode,
 };
 
 pub struct Vm<S: WriteStorage> {
@@ -38,7 +32,7 @@ pub struct Vm<S: WriteStorage> {
     pub(crate) storage: StoragePtr<S>,
 
     // TODO: Maybe not necessary, check
-    // program_cache: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
+    program_cache: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
 
     // these two are only needed for tests so far
     pub(crate) batch_env: L1BatchEnv,
@@ -48,23 +42,129 @@ pub struct Vm<S: WriteStorage> {
 }
 
 impl<S: WriteStorage + 'static> Vm<S> {
-    pub fn run(&mut self, _execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
-        let (result, final_vm) = self.inner.run_program_with_custom_bytecode();
-        let result = match result {
-            ExecutionOutput::Ok(output) => ExecutionResult::Success { output },
-            ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
-                TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
-                TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
-            },
-            ExecutionOutput::Panic => ExecutionResult::Halt {
-                reason: if self.inner.state.gas_left().unwrap() == 0 {
-                    Halt::BootloaderOutOfGas
-                } else {
-                    Halt::VMPanic
+    pub fn run(&mut self, execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
+        loop {
+            let (result, mut final_vm) = self.inner.run_program_with_custom_bytecode();
+            let result = match result {
+                ExecutionOutput::Ok(output) => return (ExecutionResult::Success { output }, final_vm),
+                ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
+                    TxRevertReason::TxReverted(output) => return (ExecutionResult::Revert { output }, final_vm),
+                    TxRevertReason::Halt(reason) => {
+                        return (ExecutionResult::Halt { reason }, final_vm)
+                    },
                 },
-            },
-        };
-        (result, final_vm)
+                ExecutionOutput::Panic => return (ExecutionResult::Halt {
+                    reason: if self.inner.state.gas_left().unwrap() == 0 {
+                        Halt::BootloaderOutOfGas
+                    } else {
+                        Halt::VMPanic
+                    },
+                }, final_vm),
+                ExecutionOutput::SuspendedOnHook { hook, pc_to_resume_from } => {
+                    self.suspended_at = pc_to_resume_from;
+                    hook
+                }
+            };
+
+            match Hook::from_u32(result) {
+                Hook::FinalBatchInfo => {
+                    // println!("FINAL BATCH INFO");
+                    // set fictive l2 block
+                    let txs_index = self.bootloader_state.free_tx_index();
+                    let l2_block = self.bootloader_state.insert_fictive_l2_block();
+                    let mut memory = vec![];
+                    apply_l2_block(&mut memory, l2_block, txs_index);
+                    self.write_to_bootloader_heap(memory);
+                }
+                Hook::AccountValidationEntered => {
+                    // println!("ACCOUNT VALIDATION ENTERED");
+                },
+                Hook::ValidationStepEnded => {
+                    // println!("VALIDATION STEP ENDED");
+                },
+                Hook::AccountValidationExited => {
+                    // println!("ACCOUNT VALIDATION EXITED");
+                },
+                Hook::DebugReturnData => {
+                    // println!("DEBUG RETURN DATA");
+                },
+                Hook::PostResult => {
+                    // println!("POST RESULT");
+                    let result = self.get_hook_params()[0];
+                    // println!("RESULT: {:?}", result);
+
+                    // TODO get latest return data
+                    let return_data = vec![];
+
+                    self.last_tx_result = Some(if result.is_zero() {
+                        // println!("Reverted");
+                        ExecutionResult::Revert {
+                            output: VmRevertReason::from(return_data.as_slice()),
+                        }
+                    } else {
+                        ExecutionResult::Success {
+                            output: return_data,
+                        }
+                    });
+                },
+                Hook::NotifyAboutRefund => {
+                    // println!("NOTIFY ABOUT REFUND");
+                },
+                Hook::AskOperatorForRefund => {
+                    // println!("ASK OPERATOR FOR REFUND");
+                },
+                Hook::DebugLog => {
+                    // println!("DEBUG LOG");
+                },
+                Hook::TxHasEnded => {
+                    // println!("TX HAS ENDED");
+                    if let VmExecutionMode::OneTx = execution_mode {
+                        return (self.last_tx_result.take().unwrap(), final_vm);
+                    }
+                }
+            }
+            final_vm.current_frame_mut().unwrap().pc = self.suspended_at as u64;
+            self.inner.state = final_vm;
+        }
+    }
+
+    pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
+        for code in bytecodes {
+            let mut program_code = vec![];
+            for raw_opcode_slice in code.chunks(32) {
+                let mut raw_opcode_bytes: [u8; 32] = [0; 32];
+                raw_opcode_bytes.copy_from_slice(&raw_opcode_slice[..32]);
+                let raw_opcode_u256 = U256::from_big_endian(&raw_opcode_bytes);
+                program_code.push(raw_opcode_u256);
+            } 
+            // println!("HASH: {:?}", U256::from_big_endian(hash_bytecode(code).as_bytes()));
+            // println!("PROGRAM CODE: {:?}", program_code);
+            self.program_cache.borrow_mut().insert(
+                U256::from_big_endian(hash_bytecode(code).as_bytes()),
+                program_code,
+            );
+        }
+    }
+
+    fn get_hook_params(&self) -> [U256; 3] {
+        let vm_hooks_param_start = get_vm_hook_start_position_latest();
+        (vm_hooks_param_start..vm_hooks_param_start + VM_HOOK_PARAMS_COUNT)
+            .map(|word| {
+                let res = self.read_heap_word(word as usize);
+                // println!("WORD: {:?} RES: {:?}", word, res);
+                res
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+        // [U256::from_dec_str("29723826").unwrap() ,U256::zero() ,U256::from_dec_str("3400").unwrap()]
+    }
+
+    /// Typically used to read the bootloader heap. We know that we're in the bootloader
+    /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
+    fn read_heap_word(&self, word: usize) -> U256 {
+        let heap = self.inner.state.heaps.get(self.inner.state.current_context().unwrap().heap_id).unwrap();
+        heap.read((word * 32) as u32)
     }
 
     #[cfg(test)]
@@ -79,7 +179,7 @@ impl<S: WriteStorage + 'static> Vm<S> {
             .inner
             .state
             .heaps
-            .get_mut(self.inner.state.current_frame().unwrap().heap_id)
+            .get_mut(self.inner.state.current_context().unwrap().heap_id)
         {
             for (slot, value) in memory {
                 let end = (slot + 1) * 32;
@@ -99,15 +199,18 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             .base_system_smart_contracts
             .bootloader
             .code;
+        let vm_hook_position = get_vm_hook_position(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory) * 32;
         let vm_state = VMState::new(
             bootloader_code.to_owned(),
             Vec::new(),
             BOOTLOADER_ADDRESS,
             H160::zero(),
             0_u128,
+            system_env.base_system_smart_contracts.default_aa.hash.to_fixed_bytes(),
+            vm_hook_position,
         );
-        let mut pre_contract_storage = HashMap::new();
-        pre_contract_storage.insert(
+        let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
+        pre_contract_storage.borrow_mut().insert(
             h256_to_u256(
                 system_env
                     .clone()
@@ -121,8 +224,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .default_aa
                 .code,
         );
-
-        let world_storage = World::new(storage.clone(), pre_contract_storage);
+        let world_storage = World::new(storage.clone(), pre_contract_storage.clone());
         let mut vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
@@ -152,6 +254,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 bootloader_initial_memory(&batch_env),
                 batch_env.first_l2_block,
             ),
+            program_cache: pre_contract_storage,
             storage,
             batch_env,
             system_env,
@@ -166,7 +269,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
         let tx: TransactionData = tx.into();
         let overhead = tx.overhead_gas();
 
-        // self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
+        self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
         let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
             // L1 transactions do not need compression
@@ -280,16 +383,16 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct World<S: WriteStorage> {
     pub storage: StoragePtr<S>,
-    pub contract_storage: HashMap<U256, Vec<U256>>,
+    pub contract_storage: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
 }
 
 impl<S: WriteStorage> World<S> {
     pub fn new_empty(storage: StoragePtr<S>) -> Self {
-        let contract_storage = HashMap::new();
+        let contract_storage = Rc::new(RefCell::new(HashMap::new()));
         let l2_to_l1_logs = Vec::new();
         Self {
             contract_storage,
@@ -298,7 +401,7 @@ impl<S: WriteStorage> World<S> {
         }
     }
 
-    pub fn new(storage: StoragePtr<S>, contract_storage: HashMap<U256, Vec<U256>>) -> Self {
+    pub fn new(storage: StoragePtr<S>, contract_storage: Rc<RefCell<HashMap<U256, Vec<U256>>>>) -> Self {
         Self {
             storage,
             contract_storage,
@@ -309,29 +412,36 @@ impl<S: WriteStorage> World<S> {
 
 impl<S: WriteStorage> era_vm::store::Storage for World<S> {
     fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
-        let contract = self.contract_storage.get(&hash).cloned();
-        if contract.is_none() {
-            let contract = self
-                .storage
-                .borrow_mut()
-                .load_factory_dep(u256_to_h256(hash))
-                .expect("Bytecode not found");
-            let mut program_code = vec![];
-            for raw_opcode_slice in contract.chunks(32) {
-                let mut raw_opcode_bytes: [u8; 32] = [0; 32];
-                raw_opcode_bytes.copy_from_slice(&raw_opcode_slice[..32]);
-
-                let raw_opcode_u256 = U256::from_big_endian(&raw_opcode_bytes);
-                program_code.push(raw_opcode_u256);
-            }
-            return Ok(Some(program_code));
-        }
-        Ok(contract)
+        Ok(Some(self.contract_storage
+            .borrow_mut()
+            .entry(hash)
+            .or_insert_with(|| {
+                let contract = self
+                    .storage
+                    .borrow_mut()
+                    .load_factory_dep(u256_to_h256(hash))
+                    .expect("Bytecode not found");
+                let mut program_code = vec![];
+                for raw_opcode_slice in contract.chunks(32) {
+                    let mut raw_opcode_bytes: [u8; 32] = [0; 32];
+                    raw_opcode_bytes.copy_from_slice(&raw_opcode_slice[..32]);
+                
+                    let raw_opcode_u256 = U256::from_big_endian(&raw_opcode_bytes);
+                    program_code.push(raw_opcode_u256);
+                }
+                program_code
+            })
+            .clone()))
     }
 
     fn add_contract(&mut self, hash: U256, code: Vec<U256>) -> Result<(), StorageError> {
-        self.contract_storage.insert(hash, code);
+        self.contract_storage.borrow_mut().insert(hash, code);
         Ok(())
+    }
+
+    fn storage_drop(&mut self, key: EraStorageKey) -> Result<(), StorageError> {
+        println!("STORAGE DROP");
+        todo!()
     }
 
     fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
@@ -356,13 +466,20 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
         Ok(())
     }
 
-    fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
-        unimplemented!()
-    }
-
     fn record_l2_to_l1_log(&mut self, log: L2ToL1Log) -> Result<(), StorageError> {
         self.l2_to_l1_logs.push(log);
         Ok(())
+    }
+
+    fn fake_clone(&self) -> InMemory {
+        println!("FAKE CLONE");
+        // InMemory::new(self.contract_storage.clone(), self.storage.clone())
+        InMemory::new_empty()
+    }
+
+    fn get_all_keys(&self) -> Vec<EraStorageKey> {
+        println!("GET ALL KEYS");
+        Vec::new()
     }
 }
 
