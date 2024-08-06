@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    l1_tx_count,\n                    l2_tx_count,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    commitment,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_merkle_root,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input,\n                    aggregation_root,\n                    local_root,\n                    state_diff_hash,\n                    data_availability.inclusion_data,\n                    data_availability.verify_inclusion as \"verify_inclusion!\"\n                FROM\n                    l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                data_availability.verify_inclusion AS \"verify_inclusion!\"\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -160,11 +160,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Int8",
-        "Int8"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -200,5 +196,5 @@
       true
     ]
   },
-  "hash": "6e34ec40ff90ba06e55353e0eddadfe3f46dbf925dd46d29c0559fe312cad344"
+  "hash": "62566001c74f8d4616c5ccb2ba045225e1b711dedb81a7e9735a383b69b71f67"
 }
