@@ -1,9 +1,14 @@
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{
+    black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
+    Criterion,
+};
+use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx, get_load_test_deploy_tx, get_load_test_tx,
-    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams,
+    cut_to_allowed_bytecode_size, get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx,
+    get_load_test_tx, get_realistic_load_test_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast,
+    Legacy, LoadTestParams,
 };
 
 const SAMPLE_SIZE: usize = 20;
@@ -50,9 +55,22 @@ fn bench_load_test<VM: BenchmarkingVmFactory>(c: &mut Criterion) {
         .measurement_time(Duration::from_secs(10));
 
     // Nonce 0 is used for the deployment transaction
-    let load_test_tx = get_load_test_tx(1, 10_000_000, LoadTestParams::default());
+    let tx = get_load_test_tx(1, 10_000_000, LoadTestParams::default());
+    bench_load_test_transaction::<VM>(&mut group, "load_test", &tx);
 
-    group.bench_function("load_test", |bencher| {
+    let tx = get_realistic_load_test_tx(1);
+    bench_load_test_transaction::<VM>(&mut group, "load_test_realistic", &tx);
+
+    let tx = get_heavy_load_test_tx(1);
+    bench_load_test_transaction::<VM>(&mut group, "load_test_heavy", &tx);
+}
+
+fn bench_load_test_transaction<VM: BenchmarkingVmFactory>(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    name: &str,
+    tx: &Transaction,
+) {
+    group.bench_function(name, |bencher| {
         bencher.iter_batched(
             || {
                 let mut vm = BenchmarkingVm::<VM>::default();
@@ -60,7 +78,7 @@ fn bench_load_test<VM: BenchmarkingVmFactory>(c: &mut Criterion) {
                 vm
             },
             |mut vm| {
-                let result = vm.run_transaction(black_box(&load_test_tx));
+                let result = vm.run_transaction(black_box(tx));
                 assert!(!result.result.is_failed(), "{:?}", result.result);
                 (vm, result)
             },

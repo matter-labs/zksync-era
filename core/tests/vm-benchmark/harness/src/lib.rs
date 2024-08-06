@@ -363,6 +363,36 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
     signed.into()
 }
 
+pub fn get_realistic_load_test_tx(nonce: u32) -> Transaction {
+    get_load_test_tx(
+        nonce,
+        10_000_000,
+        LoadTestParams {
+            reads: 30,
+            writes: 2,
+            events: 5,
+            hashes: 10,
+            recursive_calls: 0,
+            deploys: 0,
+        },
+    )
+}
+
+pub fn get_heavy_load_test_tx(nonce: u32) -> Transaction {
+    get_load_test_tx(
+        nonce,
+        10_000_000,
+        LoadTestParams {
+            reads: 100,
+            writes: 5,
+            events: 20,
+            hashes: 100,
+            recursive_calls: 20,
+            deploys: 5,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
@@ -397,6 +427,26 @@ mod tests {
 
         let params = LoadTestParams::default();
         let res = vm.run_transaction(&get_load_test_tx(1, 10_000_000, params));
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_load_test_with_realistic_txs() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_load_test_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        let res = vm.run_transaction(&get_realistic_load_test_tx(1));
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_load_test_with_heavy_txs() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_load_test_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        let res = vm.run_transaction(&get_heavy_load_test_tx(1));
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
 }

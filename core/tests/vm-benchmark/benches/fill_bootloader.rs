@@ -17,9 +17,9 @@ use criterion::{
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_load_test_deploy_tx,
-    get_load_test_tx, get_transfer_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy,
-    LoadTestParams,
+    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_heavy_load_test_tx,
+    get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
+    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams,
 };
 
 /// Gas limit for deployment transactions.
@@ -104,6 +104,7 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Cr
         .sample_size(10)
         .measurement_time(Duration::from_secs(10));
 
+    // Deploying simple contract
     let test_contract =
         std::fs::read("deployment_benchmarks/deploy_simple_contract").expect("failed to read file");
     let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
@@ -114,12 +115,24 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Cr
     run_vm::<VM, FULL>(&mut group, "deploy_simple_contract", &txs);
     drop(txs);
 
+    // Load test with various parameters
     let txs =
         (1..=max_txs).map(|nonce| get_load_test_tx(nonce, 10_000_000, LoadTestParams::default()));
     let txs: Vec<_> = iter::once(get_load_test_deploy_tx()).chain(txs).collect();
     run_vm::<VM, FULL>(&mut group, "load_test", &txs);
     drop(txs);
 
+    let txs = (1..=max_txs).map(get_realistic_load_test_tx);
+    let txs: Vec<_> = iter::once(get_load_test_deploy_tx()).chain(txs).collect();
+    run_vm::<VM, FULL>(&mut group, "load_test_realistic", &txs);
+    drop(txs);
+
+    let txs = (1..=max_txs).map(get_heavy_load_test_tx);
+    let txs: Vec<_> = iter::once(get_load_test_deploy_tx()).chain(txs).collect();
+    run_vm::<VM, FULL>(&mut group, "load_test_heavy", &txs);
+    drop(txs);
+
+    // Base token transfers
     let txs: Vec<_> = (0..max_txs).map(get_transfer_tx).collect();
     run_vm::<VM, FULL>(&mut group, "transfer", &txs);
 
