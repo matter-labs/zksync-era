@@ -608,7 +608,7 @@ mod tests {
     #[async_trait]
     impl BaseTokenRatioProvider for DummyTokenRatioProvider {
         fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
-            return self.ratio;
+            self.ratio
         }
     }
 
