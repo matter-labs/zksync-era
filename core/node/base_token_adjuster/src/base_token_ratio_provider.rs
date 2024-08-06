@@ -9,12 +9,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_node_fee_model::BaseTokenRatioProvider;
 use zksync_types::fee_model::BaseTokenConversionRatio;
-
-#[async_trait]
-pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
-    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
-}
 
 #[derive(Debug, Clone)]
 pub struct DBBaseTokenRatioProvider {

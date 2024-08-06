@@ -9,6 +9,7 @@ use zksync_types::L1ChainId;
 use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource,
+        l1_tx_params::L1TxParamsResource,
         pools::{MasterPool, PoolResource},
         price_api_client::PriceAPIClientResource,
     },
@@ -40,6 +41,7 @@ pub struct Input {
     #[context(default)]
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
+    pub l1_tx_params: L1TxParamsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -108,6 +110,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             base_token_addr,
             price_api_client.0,
             Box::new(signing_client),
+            input.l1_tx_params.0,
             account_address,
             diamond_proxy_contract_address,
             chain_admin_contract_address,

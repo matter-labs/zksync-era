@@ -28,12 +28,10 @@ pub struct BaseTokenAdjusterConfig {
     pub price_cache_update_interval_ms: u64,
 
     /// Maximum number of attempts to get L1 transaction receipt before failing over
-    #[serde(default = "BaseTokenAdjusterConfig::default_persister_receipt_checking_max_attempts")]
-    pub persister_l1_receipt_checking_max_attempts: u32,
+    pub persister_l1_receipt_checking_max_attempts: Option<u32>,
 
     /// Number of seconds to sleep between the attempts
-    #[serde(default = "BaseTokenAdjusterConfig::default_persister_l1_receipt_checking_sleep_ms")]
-    pub persister_l1_receipt_checking_sleep_ms: u64,
+    pub persister_l1_receipt_checking_sleep_ms: Option<u64>,
 }
 
 impl Default for BaseTokenAdjusterConfig {
@@ -41,10 +39,12 @@ impl Default for BaseTokenAdjusterConfig {
         Self {
             price_polling_interval_ms: Self::default_polling_interval(),
             price_cache_update_interval_ms: Self::default_cache_update_interval(),
-            persister_l1_receipt_checking_max_attempts:
-                Self::default_persister_receipt_checking_max_attempts(),
-            persister_l1_receipt_checking_sleep_ms:
-                Self::default_persister_l1_receipt_checking_sleep_ms(),
+            persister_l1_receipt_checking_max_attempts: Some(
+                DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS,
+            ),
+            persister_l1_receipt_checking_sleep_ms: Some(
+                DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS,
+            ),
         }
     }
 }
@@ -62,20 +62,20 @@ impl BaseTokenAdjusterConfig {
         DEFAULT_CACHE_UPDATE_INTERVAL
     }
 
-    fn default_persister_receipt_checking_max_attempts() -> u32 {
-        DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS
-    }
-
-    fn default_persister_l1_receipt_checking_sleep_ms() -> u64 {
-        DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS
-    }
-
     pub fn price_cache_update_interval(&self) -> Duration {
         Duration::from_millis(self.price_cache_update_interval_ms)
     }
 
+    pub fn persister_l1_receipt_checking_max_attempts(&self) -> u32 {
+        self.persister_l1_receipt_checking_max_attempts
+            .map_or(DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS, |x| x)
+    }
+
     pub fn persister_l1_receipt_checking_sleep_duration(&self) -> Duration {
-        Duration::from_millis(self.persister_l1_receipt_checking_sleep_ms)
+        Duration::from_millis(
+            self.persister_l1_receipt_checking_sleep_ms
+                .map_or(DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS, |x| x),
+        )
     }
 
     #[deprecated]

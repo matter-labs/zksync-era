@@ -8038,6 +8038,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_external_price_api",
+ "zksync_node_fee_model",
  "zksync_types",
 ]
 
@@ -9031,7 +9032,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",

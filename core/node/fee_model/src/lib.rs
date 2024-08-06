@@ -1,13 +1,12 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_base_token_adjuster::BaseTokenRatioProvider;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
-        BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
-        L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput,
+        BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams,
+        FeeParamsV1, FeeParamsV2, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput,
     },
     U256,
 };
@@ -16,6 +15,13 @@ use zksync_utils::ceil_div_u256;
 use crate::l1_gas_price::GasAdjuster;
 
 pub mod l1_gas_price;
+
+/// Trait responsible for providing numerator and denominator for adjusting gas price that is denominated
+/// in a non-eth base token
+#[async_trait]
+pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
+}
 
 /// Trait responsible for providing fee info for a batch
 #[async_trait]
@@ -286,7 +292,6 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
-    use zksync_base_token_adjuster::NoOpRatioProvider;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
     use zksync_eth_client::{clients::MockEthereum, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
@@ -589,6 +594,24 @@ mod tests {
         assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
     }
 
+    #[derive(Debug, Clone)]
+    struct DummyTokenRatioProvider {
+        ratio: BaseTokenConversionRatio,
+    }
+
+    impl DummyTokenRatioProvider {
+        pub fn new(ratio: BaseTokenConversionRatio) -> Self {
+            Self { ratio }
+        }
+    }
+
+    #[async_trait]
+    impl BaseTokenRatioProvider for DummyTokenRatioProvider {
+        fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+            return self.ratio;
+        }
+    }
+
     #[tokio::test]
     async fn test_get_fee_model_params() {
         struct TestCase {
@@ -699,7 +722,7 @@ mod tests {
             let gas_adjuster =
                 setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
 
-            let base_token_ratio_provider = NoOpRatioProvider::new(case.conversion_ratio);
+            let base_token_ratio_provider = DummyTokenRatioProvider::new(case.conversion_ratio);
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: case.input_minimal_l2_gas_price,

@@ -7,6 +7,7 @@ use zksync_contracts::chain_admin_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_external_price_api::PriceAPIClient;
+use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
     ethabi::{Contract, Token},
@@ -21,6 +22,7 @@ pub struct BaseTokenRatioPersister {
     base_token_address: Address,
     price_api_client: Arc<dyn PriceAPIClient>,
     eth_client: Box<dyn BoundEthInterface>,
+    gas_adjuster: Arc<dyn L1TxParamsProvider>,
     //TODO: use multiplier setter account
     base_token_adjuster_account_address: Address,
     chain_admin_contract: Contract,
@@ -36,6 +38,7 @@ impl BaseTokenRatioPersister {
         base_token_address: Address,
         price_api_client: Arc<dyn PriceAPIClient>,
         eth_client: Box<dyn BoundEthInterface>,
+        gas_adjuster: Arc<dyn L1TxParamsProvider>,
         base_token_adjuster_account_address: Address,
         diamond_proxy_contract_address: Address,
         chain_admin_contract_address: Option<Address>,
@@ -48,6 +51,7 @@ impl BaseTokenRatioPersister {
             base_token_address,
             price_api_client,
             eth_client,
+            gas_adjuster,
             base_token_adjuster_account_address,
             chain_admin_contract,
             diamond_proxy_contract_address,
@@ -170,9 +174,14 @@ impl BaseTokenRatioPersister {
             .as_u64()
             * 2;
 
+        let base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(0);
+        let priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
+
         let options = Options {
             nonce: Some(U256::from(nonce)),
             gas_price: Some(gas_price.into()),
+            max_fee_per_gas: Some(U256::from(base_fee_per_gas + priority_fee_per_gas)),
+            max_priority_fee_per_gas: Some(U256::from(priority_fee_per_gas)),
             ..Default::default()
         };
 
@@ -197,7 +206,7 @@ impl BaseTokenRatioPersister {
             hex::encode(hash.as_bytes())
         );
 
-        let max_attempts = self.config.persister_l1_receipt_checking_max_attempts;
+        let max_attempts = self.config.persister_l1_receipt_checking_max_attempts();
         let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
         for _i in 0..max_attempts {
             let maybe_receipt = (*self.eth_client)

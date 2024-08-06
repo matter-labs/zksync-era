@@ -16,13 +16,10 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
                 .price_cache_update_interval_ms
                 .expect("price_cache_update_interval_ms"),
 
-            persister_l1_receipt_checking_sleep_ms: self
-                .persister_l1_receipt_checking_sleep_ms
-                .expect("persister_l1_receipt_checking_sleep_ms"),
+            persister_l1_receipt_checking_sleep_ms: self.persister_l1_receipt_checking_sleep_ms,
 
             persister_l1_receipt_checking_max_attempts: self
-                .persister_l1_receipt_checking_max_attempts
-                .expect("persister_l1_receipt_checking_max_attempts"),
+                .persister_l1_receipt_checking_max_attempts,
         })
     }
 
@@ -30,12 +27,9 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
         Self {
             price_polling_interval_ms: Some(this.price_polling_interval_ms),
             price_cache_update_interval_ms: Some(this.price_cache_update_interval_ms),
-            persister_l1_receipt_checking_sleep_ms: Some(
-                this.persister_l1_receipt_checking_sleep_ms,
-            ),
-            persister_l1_receipt_checking_max_attempts: Some(
-                this.persister_l1_receipt_checking_max_attempts,
-            ),
+            persister_l1_receipt_checking_sleep_ms: this.persister_l1_receipt_checking_sleep_ms,
+            persister_l1_receipt_checking_max_attempts: this
+                .persister_l1_receipt_checking_max_attempts,
         }
     }
 }
