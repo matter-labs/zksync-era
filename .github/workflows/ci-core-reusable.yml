@@ -63,7 +63,11 @@ jobs:
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
-        run: ci_run zk test rust
+        run: |
+          ci_run zk test rust
+          # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
+          # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
+          ci_run zk f cargo test --release -p vm-benchmark --bench criterion --bench fill_bootloader
 
   loadtest:
     runs-on: [matterlabs-ci-runner]
