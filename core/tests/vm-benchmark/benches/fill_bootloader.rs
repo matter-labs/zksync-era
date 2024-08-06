@@ -18,6 +18,7 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
     cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_transfer_tx, BenchmarkingVm,
+    BenchmarkingVmFactory, Fast, Legacy,
 };
 
 /// Gas limit for deployment transactions.
@@ -29,7 +30,7 @@ const RNG_SEED: u64 = 123;
 /// Probability for a transaction to fail in the `transfer_with_invalid_nonce` benchmarks.
 const TX_FAILURE_PROBABILITY: f64 = 0.2;
 
-fn run_vm_expecting_failures<const FULL: bool>(
+fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
     group: &mut BenchmarkGroup<'_, WallTime>,
     name: &str,
     txs: &[Transaction],
@@ -42,14 +43,14 @@ fn run_vm_expecting_failures<const FULL: bool>(
             txs_in_batch,
             |bencher, &txs_in_batch| {
                 bencher.iter(|| {
-                    let mut vm = BenchmarkingVm::new();
+                    let mut vm = BenchmarkingVm::<VM>::default();
                     for (i, tx) in txs[..txs_in_batch].iter().enumerate() {
                         let result = if FULL {
                             vm.run_transaction_full(black_box(tx))
                         } else {
                             vm.run_transaction(black_box(tx))
                         };
-                        let result = result.result;
+                        let result = black_box(result).result;
                         let expecting_failure = expected_failures.get(i).copied().unwrap_or(false);
                         assert_eq!(
                             result.is_failed(),
@@ -63,19 +64,19 @@ fn run_vm_expecting_failures<const FULL: bool>(
     }
 }
 
-fn run_vm<const FULL: bool>(
+fn run_vm<VM: BenchmarkingVmFactory, const FULL: bool>(
     group: &mut BenchmarkGroup<'_, WallTime>,
     name: &str,
     txs: &[Transaction],
 ) {
-    run_vm_expecting_failures::<FULL>(group, name, txs, &[]);
+    run_vm_expecting_failures::<VM, FULL>(group, name, txs, &[]);
 }
 
-fn bench_fill_bootloader<const FULL: bool>(c: &mut Criterion) {
+fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criterion) {
     let mut group = c.benchmark_group(if FULL {
-        "fill_bootloader_full"
+        format!("fill_bootloader_full{}", VM::LABEL.as_suffix())
     } else {
-        "fill_bootloader"
+        format!("fill_bootloader{}", VM::LABEL.as_suffix())
     });
     group
         .sample_size(10)
@@ -89,11 +90,11 @@ fn bench_fill_bootloader<const FULL: bool>(c: &mut Criterion) {
         .map(|nonce| get_deploy_tx_with_gas_limit(code, DEPLOY_GAS_LIMIT, nonce))
         .collect();
 
-    run_vm::<FULL>(&mut group, "deploy_simple_contract", &txs);
+    run_vm::<VM, FULL>(&mut group, "deploy_simple_contract", &txs);
     drop(txs);
 
     let txs: Vec<_> = (0..max_txs).map(get_transfer_tx).collect();
-    run_vm::<FULL>(&mut group, "transfer", &txs);
+    run_vm::<VM, FULL>(&mut group, "transfer", &txs);
 
     // Halted transactions produced by the following benchmarks *must* be rolled back,
     // otherwise the bootloader will process following transactions incorrectly.
@@ -121,7 +122,7 @@ fn bench_fill_bootloader<const FULL: bool>(c: &mut Criterion) {
         txs_with_failures.push(tx);
         expected_failures.push(should_fail);
     }
-    run_vm_expecting_failures::<FULL>(
+    run_vm_expecting_failures::<VM, FULL>(
         &mut group,
         "transfer_with_invalid_nonce",
         &txs_with_failures,
@@ -131,7 +132,8 @@ fn bench_fill_bootloader<const FULL: bool>(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_fill_bootloader::<false>,
-    bench_fill_bootloader::<true>
+    bench_fill_bootloader::<Fast, false>,
+    bench_fill_bootloader::<Fast, true>,
+    bench_fill_bootloader::<Legacy, false>
 );
 criterion_main!(benches);

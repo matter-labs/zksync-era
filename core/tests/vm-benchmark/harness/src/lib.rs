@@ -4,14 +4,14 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_multivm::{
     interface::{
-        ExecutionResult, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
-        VmInterface, VmInterfaceHistoryEnabled,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_fast::Vm,
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    vm_fast, vm_latest,
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
 };
-use zksync_state::InMemoryStorage;
+use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::{encode, Token},
@@ -62,15 +62,92 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
-pub struct BenchmarkingVm(Vm<&'static InMemoryStorage>);
+/// VM label used to name `criterion` benchmarks.
+#[derive(Debug, Clone, Copy)]
+pub enum VmLabel {
+    Fast,
+    Legacy,
+}
 
-impl BenchmarkingVm {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+impl VmLabel {
+    /// Non-empty name for `criterion` benchmark naming.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Fast => "fast",
+            Self::Legacy => "legacy",
+        }
+    }
+
+    /// Optional prefix for `criterion` benchmark naming (including a starting `/`).
+    pub const fn as_suffix(self) -> &'static str {
+        match self {
+            Self::Fast => "",
+            Self::Legacy => "/legacy",
+        }
+    }
+}
+
+/// Factory for VMs used in benchmarking.
+pub trait BenchmarkingVmFactory {
+    /// VM label used to name `criterion` benchmarks.
+    const LABEL: VmLabel;
+
+    /// Type of the VM instance created by this factory.
+    type Instance: VmInterfaceHistoryEnabled;
+
+    /// Creates a VM instance.
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> Self::Instance;
+}
+
+/// Factory for the new / fast VM.
+#[derive(Debug)]
+pub struct Fast(());
+
+impl BenchmarkingVmFactory for Fast {
+    const LABEL: VmLabel = VmLabel::Fast;
+
+    type Instance = vm_fast::Vm<&'static InMemoryStorage>;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> Self::Instance {
+        vm_fast::Vm::new(batch_env, system_env, storage)
+    }
+}
+
+/// Factory for the legacy VM (latest version).
+#[derive(Debug)]
+pub struct Legacy;
+
+impl BenchmarkingVmFactory for Legacy {
+    const LABEL: VmLabel = VmLabel::Legacy;
+
+    type Instance = vm_latest::Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> Self::Instance {
+        let storage = StorageView::new(storage).to_rc_ptr();
+        vm_latest::Vm::new(batch_env, system_env, storage)
+    }
+}
+
+#[derive(Debug)]
+pub struct BenchmarkingVm<VM: BenchmarkingVmFactory>(VM::Instance);
+
+impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
+    fn default() -> Self {
         let timestamp = unix_timestamp_ms();
-
-        Self(Vm::new(
-            zksync_multivm::interface::L1BatchEnv {
+        Self(VM::create(
+            L1BatchEnv {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
@@ -87,7 +164,7 @@ impl BenchmarkingVm {
                     max_virtual_blocks_to_create: 100,
                 },
             },
-            zksync_multivm::interface::SystemEnv {
+            SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
@@ -96,10 +173,12 @@ impl BenchmarkingVm {
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
-            &*STORAGE,
+            &STORAGE,
         ))
     }
+}
 
+impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
         self.0.execute(VmExecutionMode::OneTx)
@@ -108,9 +187,11 @@ impl BenchmarkingVm {
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.pop_snapshot_no_rollback();
         self.0.make_snapshot();
-        let (compression_result, tx_result) =
-            self.0
-                .inspect_transaction_with_bytecode_compression((), tx.clone(), true);
+        let (compression_result, tx_result) = self.0.inspect_transaction_with_bytecode_compression(
+            Default::default(),
+            tx.clone(),
+            true,
+        );
         compression_result.expect("compressing bytecodes failed");
 
         if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
@@ -122,8 +203,20 @@ impl BenchmarkingVm {
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
         let count = Rc::new(RefCell::new(0));
-        self.0.inspect((), VmExecutionMode::OneTx);
+        self.0.inspect(Default::default(), VmExecutionMode::OneTx); // FIXME
         count.take()
+    }
+}
+
+impl BenchmarkingVm<Fast> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl BenchmarkingVm<Legacy> {
+    pub fn legacy() -> Self {
+        Self::default()
     }
 }
 
