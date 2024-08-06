@@ -33,10 +33,7 @@ use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
-    },
+    testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
@@ -300,6 +297,11 @@ impl StateKeeper {
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {
         validator::BlockNumber(self.last_block.0.into())
+    }
+
+    /// Batch of the `last_block`.
+    pub fn last_batch(&self) -> L1BatchNumber {
+        self.last_batch
     }
 
     /// Last L1 batch that has been sealed and will have
@@ -633,7 +635,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(MockReadStorageFactory),
+                        Arc::new(self.pool.0.clone()),
                     )
                     .run()
                     .await

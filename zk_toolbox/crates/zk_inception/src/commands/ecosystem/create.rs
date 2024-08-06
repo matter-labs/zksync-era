@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use common::{git, logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
@@ -19,10 +19,10 @@ use crate::{
         },
     },
     messages::{
-        msg_created_ecosystem, MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
-        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
-        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-        MSG_STARTING_CONTAINERS_SPINNER,
+        msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CLONING_ERA_REPO_SPINNER,
+        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
+        MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
+        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -39,7 +39,9 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt(shell);
+    let args = args
+        .fill_values_with_prompt(shell)
+        .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_ECOSYSTEM);
@@ -107,7 +109,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
         initialize_docker(shell, &ecosystem_config)?;
-        start_containers(shell)?;
+        start_containers(shell, false)?;
         spinner.finish();
     }
 

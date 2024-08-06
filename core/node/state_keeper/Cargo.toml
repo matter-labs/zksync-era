@@ -33,6 +33,7 @@ zksync_base_token_adjuster.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+tempfile.workspace = true # used in `testonly` module
 tokio = { workspace = true, features = ["time"] }
 thiserror.workspace = true
 tracing.workspace = true
@@ -45,7 +46,6 @@ hex.workspace = true
 assert_matches.workspace = true
 test-casing.workspace = true
 futures.workspace = true
-tempfile.workspace = true
 
 zksync_eth_client.workspace = true
 zksync_system_constants.workspace = true

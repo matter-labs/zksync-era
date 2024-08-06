@@ -77,7 +77,9 @@ impl MainNodeClient for MockMainNodeClient {
         unimplemented!()
     }
 
-    async fn fetch_attestation_status(&self) -> EnrichedClientResult<api::en::AttestationStatus> {
+    async fn fetch_attestation_status(
+        &self,
+    ) -> EnrichedClientResult<Option<api::en::AttestationStatus>> {
         unimplemented!()
     }
 

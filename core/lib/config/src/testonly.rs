@@ -436,9 +436,9 @@ impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
     }
 }
 
-impl Distribution<configs::fri_prover::CloudType> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudType {
-        type T = configs::fri_prover::CloudType;
+impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
+        type T = configs::fri_prover::CloudConnectionMode;
         match rng.gen_range(0..1) {
             0 => T::GCP,
             _ => T::Local,
@@ -681,6 +681,7 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
         configs::OpentelemetryConfig {
             level: self.sample(rng),
             endpoint: self.sample(rng),
+            logs_endpoint: self.sample(rng),
         }
     }
 }
@@ -702,6 +703,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             default_aa_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
+            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             recursion_scheduler_level_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
@@ -883,6 +885,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
+            sl_chain_id: None,
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
