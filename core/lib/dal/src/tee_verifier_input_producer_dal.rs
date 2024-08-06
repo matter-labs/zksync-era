@@ -16,9 +16,6 @@ pub struct TeeVerifierInputProducerDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-/// The amount of attempts to process a job before giving up.
-pub const JOB_MAX_ATTEMPT: i16 = 2;
-
 /// Time to wait for job to be processed
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
 
@@ -74,6 +71,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
 
     pub async fn get_next_tee_verifier_input_producer_job(
         &mut self,
+        max_attempts: u32,
     ) -> DalResult<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
             r#"
@@ -113,7 +111,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
             TeeVerifierInputProducerJobStatus::Queued as TeeVerifierInputProducerJobStatus,
             TeeVerifierInputProducerJobStatus::Failed as TeeVerifierInputProducerJobStatus,
             &JOB_PROCESSING_TIMEOUT,
-            JOB_MAX_ATTEMPT,
+            max_attempts,
         )
         .instrument("get_next_tee_verifier_input_producer_job")
         .report_latency()

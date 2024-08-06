@@ -12,7 +12,10 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
-use zksync_dal::{tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    consensus::proto::transaction_v25::T, tee_verifier_input_producer_dal::JOB_MAX_ATTEMPT,
+    ConnectionPool, Core, CoreDal,
+};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::{
     TeeVerifierInput, V1TeeVerifierInput, WitnessInputMerklePaths,
@@ -31,20 +34,20 @@ mod metrics;
 #[derive(Debug)]
 pub struct TeeVerifierInputProducer {
     connection_pool: ConnectionPool<Core>,
-    l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
+    tee_verifier_input_producer_config: TeeVerifierInputProducerConfig,
 }
 
 impl TeeVerifierInputProducer {
     pub async fn new(
         connection_pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
-        l2_chain_id: L2ChainId,
+        tee_verifier_input_producer_config: TeeVerifierInputProducerConfig,
     ) -> anyhow::Result<Self> {
         Ok(TeeVerifierInputProducer {
             connection_pool,
             object_store,
-            l2_chain_id,
+            tee_verifier_input_producer_config,
         })
     }
 
@@ -168,7 +171,7 @@ impl JobProcessor for TeeVerifierInputProducer {
         let mut connection = self.connection_pool.connection().await?;
         let l1_batch_to_process = connection
             .tee_verifier_input_producer_dal()
-            .get_next_tee_verifier_input_producer_job()
+            .get_next_tee_verifier_input_producer_job(self.max_attempts)
             .await
             .context("failed to get next basic witness input producer job")?;
         Ok(l1_batch_to_process.map(|number| (number, number)))

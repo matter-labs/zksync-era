@@ -28,6 +28,7 @@ mod prover;
 mod pruning;
 mod secrets;
 mod snapshots_creator;
+mod tee_verifier_input_producer;
 
 mod external_price_api_client;
 mod snapshot_recovery;

@@ -652,6 +652,15 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::TeeVerifierInputProducerConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TeeVerifierInputProducerConfig {
+        configs::TeeVerifierInputProducerConfig {
+            l2_chain_id: L2ChainId::from(self.sample(rng)),
+            max_attempts: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::SnapshotsCreatorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::SnapshotsCreatorConfig {
         configs::SnapshotsCreatorConfig {
@@ -1030,6 +1039,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             witness_generator: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
+            tee_verifier_input_producer: self.sample(rng),
             db_config: self.sample(rng),
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),

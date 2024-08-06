@@ -1,0 +1,3 @@
+[tee_verifier_input_producer]
+    l2_chain_id = 1
+    max_attempts = 5

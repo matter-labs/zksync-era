@@ -16,12 +16,14 @@ use crate::{
 /// Wiring layer for [`TeeVerifierInputProducer`].
 #[derive(Debug)]
 pub struct TeeVerifierInputProducerLayer {
-    l2_chain_id: L2ChainId,
+    tee_verifier_input_producer_config: TeeVerifierInputProducerConfig,
 }
 
 impl TeeVerifierInputProducerLayer {
-    pub fn new(l2_chain_id: L2ChainId) -> Self {
-        Self { l2_chain_id }
+    pub fn new(tee_verifier_input_producer_config: TeeVerifierInputProducerConfig) -> Self {
+        Self {
+            tee_verifier_input_producer_config,
+        }
     }
 }
 
@@ -51,7 +53,12 @@ impl WiringLayer for TeeVerifierInputProducerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let ObjectStoreResource(object_store) = input.object_store;
-        let task = TeeVerifierInputProducer::new(pool, object_store, self.l2_chain_id).await?;
+        let task = TeeVerifierInputProducer::new(
+            pool,
+            object_store,
+            self.tee_verifier_input_producer_config,
+        )
+        .await?;
 
         Ok(Output { task })
     }

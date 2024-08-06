@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [en,eth,net,web3,zks,pubsub,debug]
+    api_namespaces: [en, eth, net, web3, zks, pubsub, debug]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -121,7 +121,6 @@ eth:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
-
 snapshot_creator:
   object_store:
     file_backed:
@@ -129,7 +128,6 @@ snapshot_creator:
     max_retries: 10
   concurrent_queries_count: 25
   storage_logs_chunk_size: 1000000
-
 
 prover:
   prover_object_store:
@@ -322,6 +320,10 @@ basic_witness_input_producer:
   db_path: "./db/main/basic_witness_input_producer"
   window_size: 3
   first_processed_batch: 0
+
+tee_verifier_input_producer:
+  l2_chain_id: 1
+  max_attempts: 5
 
 snapshot_recovery:
   enabled: false
