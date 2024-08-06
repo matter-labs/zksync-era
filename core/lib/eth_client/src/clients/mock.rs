@@ -404,6 +404,39 @@ impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
     }
 }
 
+fn l2_eth_fee_history(
+    base_fee_history: &[BaseFees],
+    block_count: U64,
+    newest_block: web3::BlockNumber,
+) -> FeeHistory {
+    let web3::BlockNumber::Number(from_block) = newest_block else {
+        panic!("Non-numeric newest block in `eth_feeHistory`");
+    };
+    let from_block = from_block.as_usize();
+    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
+
+    FeeHistory {
+        inner: web3::FeeHistory {
+            oldest_block: start_block.into(),
+            base_fee_per_gas: base_fee_history[start_block..=from_block]
+                .iter()
+                .map(|fee| U256::from(fee.base_fee_per_gas))
+                .collect(),
+            base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
+                .iter()
+                .map(|fee| fee.base_fee_per_blob_gas)
+                .collect(),
+            gas_used_ratio: vec![],      // not used
+            blob_gas_used_ratio: vec![], // not used
+            reward: None,
+        },
+        l2_pubdata_price: base_fee_history[start_block..=from_block]
+            .iter()
+            .map(|fee| fee.l2_pubdata_price)
+            .collect(),
+    }
+}
+
 impl SupportedMockEthNetwork for L1 {
     fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
         const CHAIN_ID: L1ChainId = L1ChainId(9);
@@ -415,25 +448,7 @@ impl SupportedMockEthNetwork for L1 {
             .method(
                 "eth_feeHistory",
                 move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
-                    let web3::BlockNumber::Number(from_block) = newest_block else {
-                        panic!("Non-numeric newest block in `eth_feeHistory`");
-                    };
-                    let from_block = from_block.as_usize();
-                    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
-                    Ok(web3::FeeHistory {
-                        oldest_block: start_block.into(),
-                        base_fee_per_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| U256::from(fee.base_fee_per_gas))
-                            .collect(),
-                        base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| fee.base_fee_per_blob_gas)
-                            .collect(),
-                        gas_used_ratio: vec![],      // not used
-                        blob_gas_used_ratio: vec![], // not used
-                        reward: None,
-                    })
+                    Ok(l2_eth_fee_history(&base_fee_history, block_count, newest_block).inner)
                 },
             )
             .build()
@@ -451,31 +466,11 @@ impl SupportedMockEthNetwork for L2 {
             .method(
                 "eth_feeHistory",
                 move |block_count: U64, newest_block: web3::BlockNumber, _: Option<Vec<f32>>| {
-                    let web3::BlockNumber::Number(from_block) = newest_block else {
-                        panic!("Non-numeric newest block in `eth_feeHistory`");
-                    };
-                    let from_block = from_block.as_usize();
-                    let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
-                    Ok(FeeHistory {
-                        inner: web3::FeeHistory {
-                            oldest_block: start_block.into(),
-                            base_fee_per_gas: base_fee_history[start_block..=from_block]
-                                .iter()
-                                .map(|fee| U256::from(fee.base_fee_per_gas))
-                                .collect(),
-                            base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                                .iter()
-                                .map(|fee| fee.base_fee_per_blob_gas)
-                                .collect(),
-                            gas_used_ratio: vec![],      // not used
-                            blob_gas_used_ratio: vec![], // not used
-                            reward: None,
-                        },
-                        l2_pubdata_price: base_fee_history[start_block..=from_block]
-                            .iter()
-                            .map(|fee| fee.l2_pubdata_price)
-                            .collect(),
-                    })
+                    Ok(l2_eth_fee_history(
+                        &base_fee_history,
+                        block_count,
+                        newest_block,
+                    ))
                 },
             )
             .build()
@@ -714,29 +709,11 @@ mod tests {
         client.advance_block_number(4);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[1..=4]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[1..=4]);
         let fee_history = client.client.base_fee_history(2, 2).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[1..=2]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[1..=2]);
         let fee_history = client.client.base_fee_history(3, 2).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[2..=3]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[2..=3]);
     }
 
     #[tokio::test]
@@ -754,29 +731,11 @@ mod tests {
         client.advance_block_number(4);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[1..=4]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[1..=4]);
         let fee_history = client.client.base_fee_history(2, 2).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[1..=2]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[1..=2]);
         let fee_history = client.client.base_fee_history(3, 2).await.unwrap();
-        assert_eq!(
-            fee_history,
-            initial_fee_history[2..=3]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(fee_history, initial_fee_history[2..=3]);
     }
 
     #[tokio::test]

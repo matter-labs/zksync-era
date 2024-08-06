@@ -1,5 +1,3 @@
-use std::fmt::{self, Debug};
-
 use async_trait::async_trait;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
@@ -85,7 +83,7 @@ pub struct BaseFees {
 /// If you want to add a method to this trait, make sure that it doesn't depend on any particular
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
-pub trait EthInterface: Sync + Send + Debug {
+pub trait EthInterface: Sync + Send + fmt::Debug {
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
     async fn fetch_chain_id(&self) -> EnrichedClientResult<SLChainId>;
