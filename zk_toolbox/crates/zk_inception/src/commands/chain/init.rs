@@ -21,9 +21,8 @@ use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
         args::init::{InitArgs, InitArgsFinal},
-        deploy_paymaster,
+        deploy_l2_contracts, deploy_paymaster,
         genesis::genesis,
-        initialize_bridges,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
@@ -103,7 +102,7 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    initialize_bridges::initialize_bridges(
+    deploy_l2_contracts::deploy_l2_contracts(
         shell,
         chain_config,
         ecosystem_config,

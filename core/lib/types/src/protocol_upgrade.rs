@@ -311,9 +311,6 @@ impl ProtocolVersion {
             version: upgrade.version,
             timestamp: upgrade.timestamp,
             l1_verifier_config: L1VerifierConfig {
-                params: upgrade
-                    .verifier_params
-                    .unwrap_or(self.l1_verifier_config.params),
                 recursion_scheduler_level_vk_hash: new_scheduler_vk_hash
                     .unwrap_or(self.l1_verifier_config.recursion_scheduler_level_vk_hash),
             },

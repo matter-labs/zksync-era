@@ -1,5 +1,10 @@
 FROM ubuntu:20.04 as base
 
+# Link Docker Image with repository
+# https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
+LABEL org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
+
 WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -73,7 +78,7 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 RUN rustup install nightly-2024-05-07
 RUN rustup default stable
-RUN cargo install --version=0.7.3 sqlx-cli
+RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries

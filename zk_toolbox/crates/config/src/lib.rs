@@ -1,5 +1,5 @@
 pub use chain::*;
-pub use consts::{DOCKER_COMPOSE_FILE, ZKSYNC_ERA_GIT_REPO};
+pub use consts::*;
 pub use contracts::*;
 pub use ecosystem::*;
 pub use file_config::*;

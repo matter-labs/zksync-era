@@ -881,11 +881,6 @@ describe.skip('web3 API compatibility tests', () => {
             bootloaderCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
             defaultAccountCodeHash: expect.stringMatching(HEX_VALUE_REGEX),
             verification_keys_hashes: {
-                params: {
-                    recursion_circuits_set_vks_hash: expect.stringMatching(HEX_VALUE_REGEX),
-                    recursion_leaf_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX),
-                    recursion_node_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
-                },
                 recursion_scheduler_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
             },
             timestamp: expect.any(Number)

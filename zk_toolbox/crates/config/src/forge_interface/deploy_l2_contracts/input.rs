@@ -4,10 +4,10 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{traits::ZkToolboxConfig, ChainConfig};
 
-impl ZkToolboxConfig for InitializeBridgeInput {}
+impl ZkToolboxConfig for DeployL2ContractsInput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InitializeBridgeInput {
+pub struct DeployL2ContractsInput {
     pub era_chain_id: L2ChainId,
     pub chain_id: L2ChainId,
     pub l1_shared_bridge: Address,
@@ -16,7 +16,7 @@ pub struct InitializeBridgeInput {
     pub erc20_bridge: Address,
 }
 
-impl InitializeBridgeInput {
+impl DeployL2ContractsInput {
     pub fn new(chain_config: &ChainConfig, era_chain_id: L2ChainId) -> anyhow::Result<Self> {
         let contracts = chain_config.get_contracts_config()?;
         let wallets = chain_config.get_wallets_config()?;
