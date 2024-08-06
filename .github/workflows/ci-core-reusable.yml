@@ -23,7 +23,7 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-default-infra-runners]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4

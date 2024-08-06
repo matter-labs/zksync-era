@@ -10,7 +10,7 @@ on:
 
 jobs:
   release:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-default-infra-runners]
     steps:
       - name: Login to Docker registries
         run: |
