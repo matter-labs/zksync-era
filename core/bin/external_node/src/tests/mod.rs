@@ -1,8 +1,11 @@
 //! High-level tests for EN.
 
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use framework::inject_test_layers;
 use test_casing::test_casing;
+use zksync_health_check::HealthStatus;
 use zksync_types::{fee_model::FeeParams, L1BatchNumber, U64};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
