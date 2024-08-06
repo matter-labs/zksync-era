@@ -223,12 +223,12 @@ impl MockExecutedTxHandle<'_> {
 type CallHandler =
     dyn Fn(&web3::CallRequest, BlockId) -> Result<ethabi::Token, ClientError> + Send + Sync;
 
-pub trait SupportedMockEthNetwork: Network {
-    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self>;
+pub trait SupportedMockSLNetwork: Network {
+    fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self>;
 }
 
 /// Builder for [`MockEthereum`] client.
-pub struct MockEthereumBuilder<Net: SupportedMockEthNetwork = L1> {
+pub struct MockSettlementLayerBuilder<Net: SupportedMockSLNetwork = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     base_fee_history: Vec<BaseFees>,
@@ -240,10 +240,10 @@ pub struct MockEthereumBuilder<Net: SupportedMockEthNetwork = L1> {
     _network: PhantomData<Net>,
 }
 
-impl<Net: SupportedMockEthNetwork> fmt::Debug for MockEthereumBuilder<Net> {
+impl<Net: SupportedMockSLNetwork> fmt::Debug for MockSettlementLayerBuilder<Net> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("MockEthereumBuilder")
+            .debug_struct("MockSettlementLayerBuilder")
             .field("max_fee_per_gas", &self.max_fee_per_gas)
             .field("max_priority_fee_per_gas", &self.max_priority_fee_per_gas)
             .field("base_fee_history", &self.base_fee_history)
@@ -256,7 +256,7 @@ impl<Net: SupportedMockEthNetwork> fmt::Debug for MockEthereumBuilder<Net> {
     }
 }
 
-impl<Net: SupportedMockEthNetwork> Default for MockEthereumBuilder<Net> {
+impl<Net: SupportedMockSLNetwork> Default for MockSettlementLayerBuilder<Net> {
     fn default() -> Self {
         Self {
             max_fee_per_gas: 100.into(),
@@ -272,7 +272,7 @@ impl<Net: SupportedMockEthNetwork> Default for MockEthereumBuilder<Net> {
     }
 }
 
-impl<Net: SupportedMockEthNetwork> MockEthereumBuilder<Net> {
+impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
     /// Sets fee history for each block in the mocked Ethereum network, starting from the 0th block.
     pub fn with_fee_history(self, history: Vec<BaseFees>) -> Self {
         Self {
@@ -437,8 +437,8 @@ fn l2_eth_fee_history(
     }
 }
 
-impl SupportedMockEthNetwork for L1 {
-    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
+impl SupportedMockSLNetwork for L1 {
+    fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self> {
         const CHAIN_ID: L1ChainId = L1ChainId(9);
 
         let base_fee_history = builder.base_fee_history.clone();
@@ -455,8 +455,8 @@ impl SupportedMockEthNetwork for L1 {
     }
 }
 
-impl SupportedMockEthNetwork for L2 {
-    fn build_client(builder: MockEthereumBuilder<Self>) -> MockClient<Self> {
+impl SupportedMockSLNetwork for L2 {
+    fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self> {
         let chain_id: L2ChainId = 9u64.try_into().unwrap();
 
         let base_fee_history = builder.base_fee_history.clone();
@@ -501,10 +501,10 @@ impl Default for MockSettlementLayer<L2> {
 
 const MOCK_SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
 
-impl<Net: SupportedMockEthNetwork> MockSettlementLayer<Net> {
+impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
     /// Initializes a builder for a [`MockEthereum`] instance.
-    pub fn builder() -> MockEthereumBuilder<Net> {
-        MockEthereumBuilder::default()
+    pub fn builder() -> MockSettlementLayerBuilder<Net> {
+        MockSettlementLayerBuilder::default()
     }
 
     /// A fake `sha256` hasher, which calculates an `std::hash` instead.
@@ -587,14 +587,14 @@ impl<Net: SupportedMockEthNetwork> MockSettlementLayer<Net> {
     }
 }
 
-impl<T: SupportedMockEthNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
+impl<T: SupportedMockSLNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
     fn as_ref(&self) -> &(dyn EthInterface + 'static) {
         &self.client
     }
 }
 
 #[async_trait::async_trait]
-impl<Net: SupportedMockEthNetwork + SupportedMockEthNetwork> BoundEthInterface
+impl<Net: SupportedMockSLNetwork + SupportedMockSLNetwork> BoundEthInterface
     for MockSettlementLayer<Net>
 {
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
