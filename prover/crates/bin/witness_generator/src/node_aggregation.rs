@@ -173,7 +173,7 @@ impl NodeAggregationWitnessGenerator {
                     circuit_idx,
                     vec![recursive_circuit],
                     AggregationRound::NodeAggregation,
-                    job.depth,
+                    job.depth + 1,
                     &*object_store,
                     Some(job.circuit_id),
                 )
