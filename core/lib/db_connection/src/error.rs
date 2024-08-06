@@ -2,7 +2,7 @@ use std::{fmt, panic::Location};
 
 use sqlx::error::BoxDynError;
 
-use crate::connection::ConnectionTags;
+use crate::{connection::ConnectionTags, instrument::Instrumented};
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -195,5 +195,20 @@ where
             index: column_name.to_string(),
             source: err.into(),
         })
+    }
+}
+
+pub trait DalContext<T> {
+    /// Wraps a provided argument validation error. It is assumed that the returned error
+    /// will be returned as an error cause (e.g., it is logged as an error and observed using metrics).
+    fn arg_err(self, i: &Instrumented<()>, arg_name: &'static str) -> DalResult<T>;
+}
+
+impl<T, E> DalContext<T> for Result<T, E>
+where
+    E: Into<anyhow::Error>,
+{
+    fn arg_err(self, ins: &Instrumented<()>, arg_name: &'static str) -> DalResult<T> {
+        self.map_err(|err| ins.arg_error(arg_name, err))
     }
 }
