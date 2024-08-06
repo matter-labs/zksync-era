@@ -17,10 +17,6 @@ pub struct ProverCLI {
 }
 
 impl ProverCLI {
-    pub fn from_string(args: impl Iterator<Item = String>) -> Self {
-        ProverCLI::try_parse_from(args).expect("Invalid args")
-    }
-
     pub async fn start(self) -> anyhow::Result<()> {
         match self.command {
             ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
@@ -48,7 +44,7 @@ pub struct ProverCLIConfig {
 }
 
 #[derive(Subcommand)]
-enum ProverCommand {
+pub enum ProverCommand {
     DebugProof(debug_proof::Args),
     FileInfo(get_file_info::Args),
     Config(ProverCLIConfig),
