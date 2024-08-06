@@ -6,6 +6,7 @@ use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
+        priority_merkle_tree::PriorityTreeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -28,6 +29,7 @@ pub struct EthWatchLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
+    pub priority_tree: PriorityTreeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -58,6 +60,7 @@ impl WiringLayer for EthWatchLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await.unwrap();
         let client = input.eth_client.0;
+        let priority_tree = input.priority_tree.0;
 
         let eth_client = EthHttpQueryClient::new(
             client,
@@ -77,6 +80,7 @@ impl WiringLayer for EthWatchLayer {
             Box::new(eth_client),
             main_pool,
             self.eth_watch_config.poll_interval(),
+            priority_tree,
         )
         .await?;
 

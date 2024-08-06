@@ -62,6 +62,12 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
+
+    /// Indicates that the nonce of the operator from DB should be ignored.
+    /// Two params for two operators
+    ///         // FIXME: remove this hack when in production
+    ignore_db_nonce_0: bool,
+    ignore_db_nonce_1: bool,
 }
 
 struct TxData {
@@ -97,7 +103,11 @@ impl EthTxAggregator {
             ),
             None => None,
         };
+        let ignore_db_nonce = config.ignore_db_nonce.unwrap_or_default();
+        println!("\n\nIGNORE DB NONCE: {}", ignore_db_nonce);
         Self {
+            ignore_db_nonce_0: ignore_db_nonce,
+            ignore_db_nonce_1: ignore_db_nonce,
             config,
             aggregator,
             eth_client,
@@ -517,7 +527,7 @@ impl EthTxAggregator {
     }
 
     pub(super) async fn save_eth_tx(
-        &self,
+        &mut self,
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
@@ -567,25 +577,54 @@ impl EthTxAggregator {
     }
 
     async fn get_next_nonce(
-        &self,
+        &mut self,
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
+        let no_unsent_txs = storage
+            .eth_sender_dal()
+            .get_unsent_txs()
+            .await
+            .unwrap()
+            .is_empty();
+
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr)
             .await
             .unwrap()
             .unwrap_or(0);
-        // Between server starts we can execute some txs using operator account or remove some txs from the database
-        // At the start we have to consider this fact and get the max nonce.
+        // FIXME: refactor this
+        // The below is a big hack that tries to solve the following problem:
+        // - When migrating to sync layer the nonce drops to 0
+        // - Just erasing nonce everywhere to 0 during migration does not really help as the next_db_nonce becomes 1.
+        // - Delete all the transaction to not have this issue does not help
         Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+            if self.ignore_db_nonce_0 && self.base_nonce == 0 && no_unsent_txs {
+                self.ignore_db_nonce_0 = false;
+
+                self.base_nonce
+            } else {
+                self.ignore_db_nonce_0 = false;
+
+                db_nonce
+            }
+        } else if self.ignore_db_nonce_1 {
+            let base_nonce = self
+                .base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed");
+
+            self.ignore_db_nonce_1 = false;
+
+            if base_nonce == 0 && no_unsent_txs {
+                base_nonce
+            } else {
+                db_nonce
+            }
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
+            self.ignore_db_nonce_1 = false;
+
+            db_nonce
         })
     }
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs\n            SET\n                nonce = 0\n            WHERE\n                nonce IS NOT NULL;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "00054de8d2b60eb0a74759c52797a1d2e9cadecd1cb64987c121aa6f8c6d2771"
+}

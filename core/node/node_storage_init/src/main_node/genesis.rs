@@ -32,16 +32,13 @@ impl InitializeStorage for MainNodeGenesis {
         let params = GenesisParams::load_genesis_params(self.genesis.clone())?;
         zksync_node_genesis::ensure_genesis_state(&mut storage, &params).await?;
 
-        if let Some(ecosystem_contracts) = &self.contracts.ecosystem_contracts {
-            zksync_node_genesis::save_set_chain_id_tx(
-                &mut storage,
-                &self.l1_client,
-                self.contracts.diamond_proxy_addr,
-                ecosystem_contracts.state_transition_proxy_addr,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
-        }
+        zksync_node_genesis::save_set_chain_id_tx(
+            &mut storage,
+            &self.l1_client,
+            self.contracts.diamond_proxy_addr,
+        )
+        .await
+        .context("Failed to save SetChainId upgrade transaction")?;
 
         Ok(())
     }

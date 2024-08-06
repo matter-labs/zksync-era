@@ -22,6 +22,7 @@ use zksync_config::{
     SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
+    delete_l1_txs_history,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
@@ -41,6 +42,9 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// FIXME: dangerous option. Should be decided within the team.
+    #[arg(long)]
+    clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -152,6 +156,23 @@ fn main() -> anyhow::Result<()> {
         .observability
         .clone()
         .context("observability config")?;
+
+    // FIXME: don't merge this into prod
+    if opt.clear_l1_txs_history {
+        println!("Clearing L1 txs history!");
+
+        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+
+        tokio_runtime.block_on(async move {
+            let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+            delete_l1_txs_history(&database_secrets).await.unwrap();
+        });
+
+        println!("Complete!");
+        return Ok(());
+    }
 
     let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
 

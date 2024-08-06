@@ -239,6 +239,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -491,8 +492,12 @@ impl StateKeeperRunner {
             fund(&self.pool.0, &[self.account.address]).await;
 
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+            let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+                self.pool.0.clone(),
+                Address::repeat_byte(11),
+                Address::repeat_byte(12),
+                5,
+            );
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -602,8 +607,12 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (persistence, l2_block_sealer) =
-                StateKeeperPersistence::new(self.pool.0.clone(), Address::repeat_byte(11), 5);
+            let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
+                self.pool.0.clone(),
+                Address::repeat_byte(11),
+                Address::default(),
+                5,
+            );
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

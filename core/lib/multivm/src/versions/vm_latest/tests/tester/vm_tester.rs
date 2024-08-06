@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{l2_rollup_da_validator_bytecode, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher,
@@ -14,6 +14,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
+        types::inputs::system_env::{PubdataParams, PubdataType},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
@@ -114,6 +115,7 @@ pub(crate) struct VmTesterBuilder<H: HistoryMode> {
     deployer: Option<Account>,
     rich_accounts: Vec<Account>,
     custom_contracts: Vec<ContractsToDeploy>,
+    pubdata_params: Option<PubdataParams>,
     _phantom: PhantomData<H>,
 }
 
@@ -126,6 +128,7 @@ impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
             deployer: self.deployer.clone(),
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
+            pubdata_params: self.pubdata_params,
             _phantom: PhantomData,
         }
     }
@@ -145,11 +148,13 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
+                pubdata_params: Default::default(),
             },
             deployer: None,
             rich_accounts: vec![],
             custom_contracts: vec![],
             _phantom: PhantomData,
+            pubdata_params: None,
         }
     }
 
@@ -174,6 +179,32 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
     ) -> Self {
         self.system_env.base_system_smart_contracts = base_system_smart_contracts;
         self
+    }
+
+    pub(crate) fn with_custom_pubdata_params(mut self, pubdata_params: PubdataParams) -> Self {
+        self.pubdata_params = Some(pubdata_params);
+        self
+    }
+
+    pub(crate) fn with_rollup_pubdata_params(mut self, fixed_address: Option<Address>) -> Self {
+        // We choose some random address to put the L2 DA validator to.
+        let l2_da_validator_address = fixed_address.unwrap_or_else(Address::random);
+
+        let bytecode = l2_rollup_da_validator_bytecode();
+
+        self.pubdata_params = Some(PubdataParams {
+            l2_da_validator_address,
+            pubdata_type: PubdataType::Rollup,
+        });
+
+        self.custom_contracts
+            .push((bytecode, l2_da_validator_address, false));
+
+        self
+    }
+
+    pub(crate) fn with_validium_pubdata_params(self) -> Self {
+        todo!()
     }
 
     pub(crate) fn with_bootloader_gas_limit(mut self, gas_limit: u32) -> Self {
@@ -215,7 +246,12 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn build(self) -> VmTester<H> {
+    pub(crate) fn build(mut self) -> VmTester<H> {
+        if self.pubdata_params.is_none() {
+            self = self.with_rollup_pubdata_params(None);
+        }
+        self.system_env.pubdata_params = self.pubdata_params.unwrap();
+
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));

@@ -34,6 +34,7 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
+    SyncLayer,
 }
 
 impl MultiVMSubversion {
@@ -51,6 +52,7 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            VmVersion::VmSyncLayer => Ok(Self::SyncLayer),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -203,12 +205,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(
-                self.bootloader_state
-                    .get_pubdata_information()
-                    .clone()
-                    .build_pubdata(false),
-            ),
+            pubdata_input: Some(self.bootloader_state.get_encoded_pubdata()),
             state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()

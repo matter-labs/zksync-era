@@ -11,7 +11,10 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::{Halt, PubdataParams},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
@@ -213,6 +216,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
+                pubdata_params: PubdataParams::extract_from_env(),
             }));
         }
         Ok(None)

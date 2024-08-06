@@ -79,8 +79,8 @@ impl Network {
             4 => Self::Rinkeby,
             5 => Self::Goerli,
             9 => Self::Localhost,
-            11155111 => Self::Sepolia,
             270 => Self::LocalhostL2,
+            11155111 => Self::Sepolia,
             _ => Self::Unknown,
         }
     }

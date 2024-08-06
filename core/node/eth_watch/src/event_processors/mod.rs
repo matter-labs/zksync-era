@@ -12,7 +12,7 @@ use crate::client::EthClient;
 
 mod decentralized_upgrades;
 mod governance_upgrades;
-mod priority_ops;
+pub mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]

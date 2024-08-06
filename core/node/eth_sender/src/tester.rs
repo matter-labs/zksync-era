@@ -7,6 +7,7 @@ use zksync_config::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockEthereum, BaseFees, BoundEthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
@@ -231,6 +232,7 @@ impl EthSenderTester {
                 MockObjectStore::arc(),
                 aggregator_operate_4844_mode,
                 commitment_mode,
+                SyncMerkleTree::from_hashes(std::iter::empty(), None),
             ),
             gateway.clone(),
             // ZKsync contract address
@@ -357,14 +359,19 @@ impl EthSenderTester {
 
     pub async fn save_execute_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_execute);
+        let l1_batch_headers = vec![
+            self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
+                .await,
+        ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            l1_batches: vec![
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
-                    .await,
-            ]
-            .into_iter()
-            .map(l1_batch_with_metadata)
-            .collect(),
+            priority_ops_proofs: l1_batch_headers
+                .iter()
+                .map(|_| Default::default())
+                .collect(),
+            l1_batches: l1_batch_headers
+                .into_iter()
+                .map(l1_batch_with_metadata)
+                .collect(),
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await

@@ -317,7 +317,10 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -900,9 +903,12 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs = $7,
                 compressed_initial_writes = $8,
                 compressed_repeated_writes = $9,
+                state_diff_hash = $10,
+                aggregation_root = $11,
+                local_root = $12,
                 updated_at = NOW()
             WHERE
-                number = $10
+                number = $13
                 AND commitment IS NULL
             "#,
             commitment_artifacts.commitment_hash.commitment.as_bytes(),
@@ -920,6 +926,9 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_state_diffs,
             commitment_artifacts.compressed_initial_writes,
             commitment_artifacts.compressed_repeated_writes,
+            commitment_artifacts.state_diff_hash.as_bytes(),
+            commitment_artifacts.aggregation_root.as_bytes(),
+            commitment_artifacts.local_root.as_bytes(),
             i64::from(number.0),
         )
         .instrument("save_l1_batch_commitment_artifacts")
@@ -1018,7 +1027,10 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1198,7 +1210,10 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1278,7 +1293,10 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 (
                     SELECT
@@ -1351,7 +1369,10 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input
+                        pubdata_input,
+                        aggregation_root,
+                        local_root,
+                        state_diff_hash
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1384,6 +1405,30 @@ impl BlocksDal<'_, '_> {
         self.map_l1_batches(raw_batches)
             .await
             .context("map_l1_batches()")
+    }
+
+    pub async fn get_batch_first_priority_op_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<usize>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(priority_op_id) AS "id?"
+            FROM
+                transactions
+            WHERE
+                l1_batch_number = $1
+                AND is_priority = TRUE
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_first_priority_op_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.id.map(|id| id as usize))
     }
 
     async fn raw_ready_for_execute_l1_batches(
@@ -1476,7 +1521,10 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input
+                    pubdata_input,
+                    aggregation_root,
+                    local_root,
+                    state_diff_hash
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1540,7 +1588,10 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1618,7 +1669,10 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

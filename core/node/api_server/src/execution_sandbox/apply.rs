@@ -12,7 +12,7 @@ use anyhow::Context as _;
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
+    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
@@ -245,6 +245,7 @@ impl<'a> Sandbox<'a> {
             execution_mode: execution_args.execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
+            pubdata_params: PubdataParams::extract_from_env(),
         };
         let l1_batch_env = L1BatchEnv {
             previous_batch_hash: None,

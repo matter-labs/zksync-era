@@ -11,6 +11,7 @@ use crate::{
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        priority_merkle_tree::PriorityTreeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -54,6 +55,7 @@ pub struct Input {
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
+    pub priority_tree: PriorityTreeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -96,6 +98,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         let eth_client = input.eth_client.0;
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
+        let priority_tree = input.priority_tree.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -108,6 +111,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             object_store,
             eth_client_blobs_addr.is_some(),
             self.l1_batch_commit_data_generator_mode,
+            priority_tree,
         );
 
         let eth_tx_aggregator = EthTxAggregator::new(

@@ -94,6 +94,7 @@ impl BenchmarkingVm {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
+                pubdata_params: Default::default(),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
         ))

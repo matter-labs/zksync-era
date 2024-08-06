@@ -12,7 +12,7 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
+    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
@@ -163,7 +163,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         .into_iter()
         .filter(|log| log.rw_flag)
         .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
+        .filter(|log| log.address != L1_MESSENGER_ADDRESS || log.key == U256::from(4u32))
         .map(|log| StateDiffRecord {
             address: log.address,
             key: log.key,
@@ -232,7 +232,11 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
 
-            apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+            apply_pubdata_to_memory(
+                &mut memory_to_apply,
+                pubdata_input,
+                bootloader_state.pubdata_params,
+            );
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
                 memory_to_apply,

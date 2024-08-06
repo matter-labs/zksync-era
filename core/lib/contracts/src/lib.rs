@@ -114,6 +114,13 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
+pub fn load_sys_contract_interface(contract_name: &str) -> Contract {
+    load_contract(format!(
+      "contracts/system-contracts/artifacts-zk/contracts-preprocessed/interfaces/{0}.sol/{0}.json",
+      contract_name
+  ))
+}
+
 pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> String {
     read_file_to_json_value(path)["abi"]
         .as_str()
@@ -186,6 +193,16 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn l2_message_root() -> Contract {
+    load_contract(
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+    )
+}
+
+pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
+    read_bytecode_from_path("contracts/l2-contracts/artifacts-zk/contracts/data-availability/RollupL2DAValidator.sol/RollupL2DAValidator.json")
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
@@ -398,6 +415,14 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_sync_layer() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
+            // "etc/multivm_bootloaders/vm_sync_layer/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -457,6 +482,14 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_1_5_0_increased_memory() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_5_0_increased_memory/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_sync_layer() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
+            // "etc/multivm_bootloaders/vm_sync_layer/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -596,14 +629,14 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
+pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
     let abi = r#"
     {
       "anonymous": false,
       "inputs": [
         {
           "indexed": true,
-          "name": "_stateTransitionChain",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -681,9 +714,14 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
           "indexed": true,
           "name": "_protocolVersion",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "name": "_factoryDeps",
+          "type": "bytes[]"
         }
       ],
-      "name": "SetChainIdUpgrade",
+      "name": "GenesisUpgrade",
       "type": "event"
     }"#;
     serde_json::from_str(abi).unwrap()
