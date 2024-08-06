@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
 use zksync_web3_decl::{
-    client::{DynClient, ForEthereumLikeNetwork, MockClient, L1, L2},
+    client::{DynClient, ForWeb3Network, MockClient, L1, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::EthNamespaceClient,
 };
@@ -299,7 +299,7 @@ async fn l1_base_fee_history<T>(
     block_count: usize,
 ) -> EnrichedClientResult<Vec<BaseFees>>
 where
-    T: ForEthereumLikeNetwork<Net = L1> + L1EthNamespaceClient + Send + Sync,
+    T: ForWeb3Network<Net = L1> + L1EthNamespaceClient + Send + Sync,
 {
     COUNTERS.call[&(Method::BaseFeeHistory, client.component())].inc();
     let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
@@ -382,7 +382,7 @@ async fn l2_base_fee_history<T>(
     block_count: usize,
 ) -> EnrichedClientResult<Vec<BaseFees>>
 where
-    T: ForEthereumLikeNetwork<Net = L2> + EthNamespaceClient + Send + Sync,
+    T: ForWeb3Network<Net = L2> + EthNamespaceClient + Send + Sync,
 {
     COUNTERS.call[&(Method::L2FeeHistory, client.component())].inc();
     let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();

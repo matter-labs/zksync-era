@@ -9,7 +9,7 @@ use jsonrpsee::core::{
 };
 use serde::de::DeserializeOwned;
 
-use super::{ForEthereumLikeNetwork, Network, TaggedClient};
+use super::{ForWeb3Network, Network, TaggedClient};
 
 #[derive(Debug)]
 pub struct RawParams(pub(super) Option<Box<JsonRawValue>>);
@@ -30,7 +30,7 @@ impl ToRpcParams for RawParams {
 // The implementation is fairly straightforward: [`RawParams`] is used as a catch-all params type,
 // and `serde_json::Value` is used as a catch-all response type.
 #[async_trait]
-pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForEthereumLikeNetwork {
+pub trait ObjectSafeClient: 'static + Send + Sync + fmt::Debug + ForWeb3Network {
     /// Tags this client as working for a specific component. The component name can be used in logging,
     /// metrics etc.
     fn for_component(self: Box<Self>, component_name: &'static str) -> Box<DynClient<Self::Net>>;
