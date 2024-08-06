@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
-use zksync_consensus_roles::attester;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
@@ -15,12 +14,6 @@ use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 #[derive(Debug)]
 pub(crate) struct EnNamespace {
     state: RpcState,
-}
-
-fn to_l1_batch_number(n: attester::BatchNumber) -> anyhow::Result<L1BatchNumber> {
-    Ok(L1BatchNumber(
-        n.0.try_into().context("L1BatchNumber overflow")?,
-    ))
 }
 
 impl EnNamespace {
@@ -44,18 +37,30 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn attestation_status_impl(&self) -> Result<en::AttestationStatus, Web3Error> {
-        Ok(en::AttestationStatus {
-            next_batch_to_attest: to_l1_batch_number(
-                self.state
-                    .acquire_connection()
-                    .await?
-                    .consensus_dal()
-                    .next_batch_to_attest()
-                    .await
-                    .context("next_batch_to_attest()")?,
-            )?,
-        })
+    pub async fn attestation_status_impl(
+        &self,
+    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
+        let status = self
+            .state
+            .acquire_connection()
+            .await?
+            // unwrap is ok, because we start outermost transaction.
+            .transaction_builder()
+            .unwrap()
+            // run readonly transaction to perform consistent reads.
+            .set_readonly()
+            .build()
+            .await
+            .context("TransactionBuilder::build()")?
+            .consensus_dal()
+            .attestation_status()
+            .await?;
+
+        Ok(status.map(|s| {
+            en::AttestationStatus(
+                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
+            )
+        }))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
@@ -150,10 +155,8 @@ impl EnNamespace {
             bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
             default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
             l1_chain_id: self.state.api_config.l1_chain_id,
+            sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,
-            recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
             dummy_verifier: self.state.api_config.dummy_verifier,

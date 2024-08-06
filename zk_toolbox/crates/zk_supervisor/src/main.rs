@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use commands::{database::DatabaseCommands, test::TestCommands};
+use commands::{database::DatabaseCommands, snapshot::SnapshotCommands, test::TestCommands};
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -36,6 +36,10 @@ enum SupervisorSubcommands {
     Test(TestCommands),
     #[command(subcommand, about = MSG_SUBCOMMAND_CLEAN)]
     Clean(CleanCommands),
+    #[command(subcommand, about = "Snapshots creator")]
+    Snapshot(SnapshotCommands),
+    #[command(hide = true)]
+    Markdown,
 }
 
 #[derive(Parser, Debug)]
@@ -86,6 +90,10 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
         SupervisorSubcommands::Test(command) => commands::test::run(shell, command)?,
         SupervisorSubcommands::Clean(command) => commands::clean::run(shell, command)?,
+        SupervisorSubcommands::Snapshot(command) => commands::snapshot::run(shell, command).await?,
+        SupervisorSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Supervisor>();
+        }
     }
     Ok(())
 }

@@ -50,6 +50,7 @@ fn prepare_configs(
     let en_config = ENConfig {
         l2_chain_id: genesis.l2_chain_id,
         l1_chain_id: genesis.l1_chain_id,
+        sl_chain_id: genesis.sl_chain_id,
         l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
         main_node_url: SensitiveUrl::from_str(
             &general

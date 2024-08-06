@@ -18,7 +18,7 @@ use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
-    protocol_version::{L1VerifierConfig, VerifierParams, PACKED_SEMVER_MINOR_MASK},
+    protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
@@ -34,9 +34,9 @@ use crate::{
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MulticallData {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub verifier_params: VerifierParams,
     pub verifier_address: Address,
     pub protocol_version_id: ProtocolVersionId,
 }
@@ -274,26 +274,7 @@ impl EthTxAggregator {
                 default_aa,
             };
 
-            let multicall3_verifier_params =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_verifier_params.len() != 96 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 verifier params data is not of the len of 96: {:?}",
-                        multicall3_default_aa
-                    ),
-                )));
-            }
-            let recursion_node_level_vk_hash = H256::from_slice(&multicall3_verifier_params[..32]);
-            let recursion_leaf_level_vk_hash =
-                H256::from_slice(&multicall3_verifier_params[32..64]);
-            let recursion_circuits_set_vks_hash =
-                H256::from_slice(&multicall3_verifier_params[64..]);
-            let verifier_params = VerifierParams {
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash,
-            };
+            call_results_iterator.next().unwrap();
 
             let multicall3_verifier_address =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
@@ -329,7 +310,6 @@ impl EthTxAggregator {
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,
-                verifier_params,
                 verifier_address,
                 protocol_version_id,
             });
@@ -350,14 +330,13 @@ impl EthTxAggregator {
         Ok(vk_hash)
     }
 
-    #[tracing::instrument(skip(self, storage))]
+    #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
-            verifier_params,
             verifier_address,
             protocol_version_id,
         } = self.get_multicall_data().await.map_err(|err| {
@@ -374,7 +353,6 @@ impl EthTxAggregator {
                 err
             })?;
         let l1_verifier_config = L1VerifierConfig {
-            params: verifier_params,
             recursion_scheduler_level_vk_hash,
         };
         if let Some(agg_op) = self

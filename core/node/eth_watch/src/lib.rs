@@ -95,6 +95,7 @@ impl EthWatch {
         })
     }
 
+    #[tracing::instrument(name = "EthWatch::initialize_state", skip_all)]
     async fn initialize_state(
         client: &dyn EthClient,
         storage: &mut Connection<'_, Core>,
@@ -168,7 +169,7 @@ impl EthWatch {
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace", skip_all)]
+    #[tracing::instrument(name = "EthWatch::loop_iteration", skip_all)]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
