@@ -193,7 +193,6 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     }
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
-        self.0.pop_snapshot_no_rollback();
         self.0.make_snapshot();
         let (compression_result, tx_result) = self.0.inspect_transaction_with_bytecode_compression(
             Default::default(),
@@ -204,6 +203,8 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
 
         if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
             self.0.rollback_to_the_latest_snapshot();
+        } else {
+            self.0.pop_snapshot_no_rollback();
         }
         tx_result
     }
