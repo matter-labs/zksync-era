@@ -38,7 +38,6 @@ fn benches_in_folder<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criter
                     BenchmarkingVm::<VM>::default,
                     |mut vm| {
                         let result = vm.run_transaction(black_box(&tx));
-                        // FIXME: transactions mostly run out of gas here; is this OK?
                         (vm, result)
                     },
                     BatchSize::LargeInput, // VM can consume significant amount of RAM, especially the new one

@@ -211,7 +211,7 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
         let count = Rc::new(RefCell::new(0));
-        self.0.inspect(Default::default(), VmExecutionMode::OneTx); // FIXME
+        self.0.inspect(Default::default(), VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
         count.take()
     }
 }
