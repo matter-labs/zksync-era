@@ -177,6 +177,7 @@ fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> an
 
         let mut ws_url = Url::parse(&api.web3_json_rpc.http_url)?;
         let _ = ws_url.set_port(ws_url.port().map(|p| p + port_offset));
+        let _ = ws_url.set_scheme("ws");
         api.web3_json_rpc.ws_url = ws_url.to_string();
 
         api.prometheus.listener_port += port_offset;
