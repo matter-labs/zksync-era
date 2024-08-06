@@ -438,7 +438,7 @@ async fn load_upgrade_tx() {
         Box::new(batch_executor_base),
         output_handler,
         Arc::new(sealer),
-        Arc::<MockReadStorageFactory>::default(),
+        Arc::new(MockReadStorageFactory),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

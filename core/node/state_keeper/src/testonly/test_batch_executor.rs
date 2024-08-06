@@ -207,7 +207,7 @@ impl TestScenario {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(sealer),
-            Arc::<MockReadStorageFactory>::default(),
+            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -805,7 +805,7 @@ impl StateKeeperIO for TestIO {
 
 /// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
 /// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MockReadStorageFactory;
 
 #[async_trait]
