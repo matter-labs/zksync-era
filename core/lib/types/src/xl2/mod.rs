@@ -233,7 +233,7 @@ impl From<XL2Tx> for TransactionRequest {
             to: Some(tx.execute.contract_address),
             value: tx.execute.value,
             gas_price: tx.common_data.max_fee_per_gas,
-            max_priority_fee_per_gas: None,
+            max_priority_fee_per_gas: Some(U256::from(0)),
             gas: tx.common_data.gas_limit,
             input: Bytes(tx.execute.calldata),
             v: None,
@@ -250,7 +250,7 @@ impl From<XL2Tx> for TransactionRequest {
         };
 
         base_tx_req.transaction_type = Some(U64::from(tx_type));
-        base_tx_req.max_priority_fee_per_gas = None;
+        base_tx_req.max_priority_fee_per_gas = Some(U256::from(0));
         base_tx_req.eip712_meta = Some(api::Eip712Meta {
             gas_per_pubdata: tx.common_data.gas_per_pubdata_limit,
             factory_deps: tx.execute.factory_deps,
@@ -283,16 +283,7 @@ impl From<XL2Tx> for Transaction {
 impl From<XL2Tx> for api::Transaction {
     fn from(tx: XL2Tx) -> Self {
         // let tx_type = INTEROP_TX_TYPE as u32;
-        let (v, r, s) =
-            // if let Ok(sig) = PackedEthSignature::deserialize_packed(&tx.common_data.signature) {
-            //     (
-            //         Some(U64::from(sig.v())),
-            //         Some(U256::from(sig.r())),
-            //         Some(U256::from(sig.s())),
-            //     )
-            // } else {
-                (None, None, None);
-        // };
+        let (v, r, s) = (None, None, None);
 
         Self {
             hash: tx.hash(),
@@ -302,7 +293,7 @@ impl From<XL2Tx> for api::Transaction {
             to: Some(tx.execute.contract_address),
             value: tx.execute.value,
             gas_price: Some(tx.common_data.max_fee_per_gas),
-            max_priority_fee_per_gas: None, // Some(tx.common_data.max_priority_fee_per_gas),
+            max_priority_fee_per_gas: Some(U256::from(0)), // Some(tx.common_data.max_priority_fee_per_gas),
             max_fee_per_gas: Some(tx.common_data.max_fee_per_gas),
             gas: tx.common_data.gas_limit,
             input: Bytes(tx.execute.calldata),
@@ -385,6 +376,7 @@ impl XL2Tx {
         factory_deps: Vec<Vec<u8>>,
         // paymaster_params: PaymasterParams,
     ) -> Self {
+        // println!("kl todo new xl2 tx");
         Self {
             execute: Execute {
                 contract_address,
@@ -392,15 +384,6 @@ impl XL2Tx {
                 value,
                 factory_deps,
             },
-            // common_data: XL2TxCommonData {
-            //     PriorityOpId(u64(nonce)),
-            //     full_fee: fee,
-            //     initiator_address,
-            //     signature: Default::default(),
-            //     transaction_type: TransactionType::EIP712Transaction,
-            //     input: None,
-            //     paymaster_params,
-            // },
             // todo
             common_data: XL2TxCommonData {
                 sender: initiator_address,

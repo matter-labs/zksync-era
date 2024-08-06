@@ -590,6 +590,8 @@ impl TransactionsDal<'_, '_> {
             .data;
         let value = u256_to_big_decimal(tx.execute.value);
         // let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
+        let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
+        let refund_recipient = tx.common_data.refund_recipient.as_bytes();
         let paymaster_address = H160::zero();
         let paymaster = paymaster_address.0.as_ref();
         // let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
@@ -627,6 +629,8 @@ impl TransactionsDal<'_, '_> {
                     paymaster_input,
                     execution_info,
                     received_at,
+                    l1_tx_mint,
+                    l1_tx_refund_recipient,
                     created_at,
                     updated_at
                 )
@@ -648,6 +652,8 @@ impl TransactionsDal<'_, '_> {
                     $13,
                     JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
                     $17,
+                    $18,
+                    $19,
                     NOW(),
                     NOW()
                 )
@@ -668,6 +674,8 @@ impl TransactionsDal<'_, '_> {
                 execution_info = JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
                 in_mempool = FALSE,
                 received_at = $17,
+                l1_tx_mint = $18,
+                l1_tx_refund_recipient = $19,
                 created_at = NOW(),
                 updated_at = NOW(),
                 error = NULL
@@ -703,7 +711,9 @@ impl TransactionsDal<'_, '_> {
             exec_info.gas_used as i64,
             (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
             exec_info.contracts_used as i32,
-            received_at)
+            received_at,
+            to_mint,
+            refund_recipient)
         .instrument("insert_transaction_xl2")
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
