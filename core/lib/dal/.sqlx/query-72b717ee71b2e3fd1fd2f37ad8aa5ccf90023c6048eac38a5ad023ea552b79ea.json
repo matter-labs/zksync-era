@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                data_availability.verify_inclusion AS \"verify_inclusion!\"\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS ROW_NUMBER\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n                LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number\n            WHERE\n                number - ROW_NUMBER = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                data_availability.verify_inclusion AS \"verify_inclusion?\"\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS ROW_NUMBER\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n                LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number\n            WHERE\n                number - ROW_NUMBER = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -155,7 +155,7 @@
       },
       {
         "ordinal": 30,
-        "name": "verify_inclusion!",
+        "name": "verify_inclusion?",
         "type_info": "Bool"
       }
     ],
@@ -199,5 +199,5 @@
       true
     ]
   },
-  "hash": "1c656fbb6be90be9937cce8e357932bf552c637fd02f3fc7c38995332977135d"
+  "hash": "72b717ee71b2e3fd1fd2f37ad8aa5ccf90023c6048eac38a5ad023ea552b79ea"
 }

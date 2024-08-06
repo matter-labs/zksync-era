@@ -322,7 +322,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1035,7 +1035,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1221,7 +1221,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1307,7 +1307,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 (
                     SELECT
@@ -1386,7 +1386,7 @@ impl BlocksDal<'_, '_> {
                         local_root,
                         state_diff_hash,
                         data_availability.inclusion_data,
-                        data_availability.verify_inclusion AS "verify_inclusion!"
+                        data_availability.verify_inclusion AS "verify_inclusion?"
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1541,7 +1541,7 @@ impl BlocksDal<'_, '_> {
                     local_root,
                     state_diff_hash,
                     data_availability.inclusion_data,
-                    data_availability.verify_inclusion AS "verify_inclusion!"
+                    data_availability.verify_inclusion AS "verify_inclusion?"
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1611,7 +1611,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1695,7 +1695,7 @@ impl BlocksDal<'_, '_> {
                 local_root,
                 state_diff_hash,
                 data_availability.inclusion_data,
-                data_availability.verify_inclusion AS "verify_inclusion!"
+                data_availability.verify_inclusion AS "verify_inclusion?"
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

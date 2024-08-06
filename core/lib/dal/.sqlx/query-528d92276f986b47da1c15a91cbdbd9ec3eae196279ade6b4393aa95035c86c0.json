@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    l1_tx_count,\n                    l2_tx_count,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    commitment,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_merkle_root,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input,\n                    aggregation_root,\n                    local_root,\n                    state_diff_hash,\n                    data_availability.inclusion_data,\n                    data_availability.verify_inclusion AS \"verify_inclusion!\"\n                FROM\n                    l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data,\n                data_availability.verify_inclusion AS \"verify_inclusion?\"\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -110,13 +110,13 @@
       },
       {
         "ordinal": 21,
-        "name": "compressed_state_diffs",
-        "type_info": "Bytea"
+        "name": "system_logs",
+        "type_info": "ByteaArray"
       },
       {
         "ordinal": 22,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "compressed_state_diffs",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 23,
@@ -155,14 +155,12 @@
       },
       {
         "ordinal": 30,
-        "name": "verify_inclusion!",
+        "name": "verify_inclusion?",
         "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8",
         "Int8"
       ]
     },
@@ -188,8 +186,8 @@
       true,
       true,
       true,
-      true,
       false,
+      true,
       true,
       true,
       true,
@@ -200,5 +198,5 @@
       true
     ]
   },
-  "hash": "176a9341a64f54b91c0dd415fa8d6871c157dc96741bcac9db50baddc1c21897"
+  "hash": "528d92276f986b47da1c15a91cbdbd9ec3eae196279ade6b4393aa95035c86c0"
 }
