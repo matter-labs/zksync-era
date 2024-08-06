@@ -46,7 +46,7 @@ impl MainBatchExecutor {
     }
 }
 
-impl BatchExecutor for MainBatchExecutor {
+impl BatchExecutor<OwnedStorage> for MainBatchExecutor {
     fn init_batch(
         &mut self,
         storage: OwnedStorage,

@@ -20,7 +20,7 @@ use zksync_multivm::{
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_state::{OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage};
+use zksync_state::ReadStorageFactory;
 use zksync_types::{
     fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -410,10 +410,10 @@ impl TestBatchExecutorBuilder {
     }
 }
 
-impl BatchExecutor for TestBatchExecutorBuilder {
+impl BatchExecutor<()> for TestBatchExecutorBuilder {
     fn init_batch(
         &mut self,
-        _storage: OwnedStorage,
+        _storage: (),
         _l1_batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {
@@ -805,29 +805,16 @@ impl StateKeeperIO for TestIO {
 
 /// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
 /// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
-#[derive(Debug)]
-pub struct MockReadStorageFactory(tempfile::TempDir);
-
-impl Default for MockReadStorageFactory {
-    fn default() -> Self {
-        Self(
-            tempfile::TempDir::new()
-                .expect("failed creating temporary directory for `MockReadStorageFactory`"),
-        )
-    }
-}
+#[derive(Debug, Default)]
+pub struct MockReadStorageFactory;
 
 #[async_trait]
-impl ReadStorageFactory for MockReadStorageFactory {
+impl ReadStorageFactory<()> for MockReadStorageFactory {
     async fn access_storage(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
-        let storage = RocksdbStorage::builder(self.0.path())
-            .await
-            .expect("Cannot create mock RocksDB storage")
-            .build_unchecked();
-        Ok(Some(PgOrRocksdbStorage::Rocksdb(storage).into()))
+    ) -> anyhow::Result<Option<()>> {
+        Ok(Some(()))
     }
 }

@@ -11,11 +11,12 @@ use crate::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
 
-/// Factory that can produce [`OwnedStorage`] instances on demand.
+/// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param
+/// (mostly for testing purposes); the default is [`OwnedStorage`].
 #[async_trait]
-pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
-    /// Creates an [`OwnedStorage`] entity over either a Postgres connection or RocksDB
-    /// instance. The specific criteria on which one are left up to the implementation.
+pub trait ReadStorageFactory<S = OwnedStorage>: Debug + Send + Sync + 'static {
+    /// Creates a storage instance, e.g. over a Postgres connection or a RocksDB instance.
+    /// The specific criteria on which one are left up to the implementation.
     ///
     /// Implementations may be cancel-aware and return `Ok(None)` iff `stop_receiver` receives
     /// a stop signal; this is the only case in which `Ok(None)` should be returned.
@@ -23,7 +24,7 @@ pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>>;
+    ) -> anyhow::Result<Option<S>>;
 }
 
 /// [`ReadStorageFactory`] producing Postgres-backed storage instances. Hence, it is slower than more advanced

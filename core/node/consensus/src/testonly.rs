@@ -33,7 +33,10 @@ use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
+    testonly::{
+        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
+        MockBatchExecutor,
+    },
     AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
@@ -635,7 +638,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(self.pool.0.clone()),
+                        Arc::new(MockReadStorageFactory),
                     )
                     .run()
                     .await
