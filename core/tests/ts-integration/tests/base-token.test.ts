@@ -28,7 +28,7 @@ describe('base ERC20 contract checks', () => {
 
     test('Base token ratio is updated on L1', async () => {
         if (isETHBasedChain) {
-            return
+            return;
         }
 
         let govMnemonic = ethers.Mnemonic.fromPhrase(require('../../../../etc/test_config/constant/eth.json').mnemonic);
