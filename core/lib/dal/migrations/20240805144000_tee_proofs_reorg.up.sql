@@ -11,8 +11,6 @@ ALTER TABLE tee_proof_generation_details
         WHEN status = 'picked_by_prover' THEN 'PickedByProver'::tee_proofs_job_status
         WHEN status = 'generated' THEN 'Generated'::tee_proofs_job_status
         WHEN status = 'skipped' THEN 'Skipped'::tee_proofs_job_status
-        ELSE
-            RAISE EXCEPTION 'Unexpected value for status: %', status
     END,
     ALTER COLUMN status SET NOT NULL;
 ALTER TABLE tee_proof_generation_details DROP CONSTRAINT IF EXISTS tee_proof_generation_details_pubkey_fkey;

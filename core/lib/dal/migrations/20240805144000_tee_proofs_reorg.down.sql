@@ -12,8 +12,6 @@ ALTER TABLE tee_proof_generation_details
         WHEN status = 'PickedByProver' THEN 'picked_by_prover'
         WHEN status = 'Generated' THEN 'generated'
         WHEN status = 'Skipped' THEN 'skipped'
-        ELSE
-            RAISE EXCEPTION 'Unexpected value for status: %', status
     END,
     ALTER COLUMN status DROP NOT NULL;
 ALTER TABLE tee_proof_generation_details ALTER COLUMN tee_type DROP NOT NULL;
