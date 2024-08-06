@@ -3,10 +3,6 @@ import * as zksync from 'zksync-ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { isNetworkLocal } from 'utils';
-
-type Network = string;
-
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
     constructor(

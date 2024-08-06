@@ -81,7 +81,6 @@ impl Network {
             9 => Self::Localhost,
             270 => Self::LocalhostL2,
             11155111 => Self::Sepolia,
-            270 => Self::LocalhostL2,
             _ => Self::Unknown,
         }
     }
