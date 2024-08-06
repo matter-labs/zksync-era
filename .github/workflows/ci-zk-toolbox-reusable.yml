@@ -115,6 +115,7 @@ jobs:
           --base-token-address 0x0000000000000000000000000000000000000001 \
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
+          --set-as-default false \
           --ignore-prerequisites
 
           ci_run zk_inception chain init \
