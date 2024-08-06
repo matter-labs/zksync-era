@@ -460,7 +460,7 @@ checksum = "51d712318a27c7150326677b321a5fa91b55f6d9034ffd67f20319e147d40cee"
 dependencies = [
  "autocfg",
  "libm",
- "num-bigint 0.4.5",
+ "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
 ]
@@ -4505,7 +4505,7 @@ dependencies = [
  "bincode",
  "chrono",
  "circuit_definitions 0.150.2-rc.2",
- "clap 4.5.4",
+ "clap 4.5.11",
  "colored",
  "dialoguer",
  "hex",
@@ -5856,7 +5856,7 @@ dependencies = [
  "quote 1.0.36",
  "sqlx-core",
  "sqlx-macros-core",
- "syn 2.0.66",
+ "syn 2.0.72",
 ]
 
 [[package]]
@@ -5879,7 +5879,7 @@ dependencies = [
  "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
- "syn 2.0.66",
+ "syn 2.0.72",
  "tempfile",
  "tokio",
  "url",
@@ -6859,7 +6859,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "circuit_definitions 0.150.2-rc.2",
- "clap 4.5.4",
+ "clap 4.5.11",
  "hex",
  "indicatif",
  "itertools 0.10.5",
@@ -8092,7 +8092,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "circuit_sequencer_api 0.150.2-rc.2",
- "clap 4.5.4",
+ "clap 4.5.11",
  "ctrlc",
  "futures 0.3.30",
  "reqwest 0.12.5",
@@ -8192,7 +8192,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "circuit_definitions 0.150.2-rc.2",
- "clap 4.5.4",
+ "clap 4.5.11",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
