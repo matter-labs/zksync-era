@@ -1,6 +1,6 @@
 [package]
 name = "zk_supervisor"
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -17,8 +17,8 @@ common.workspace = true
 config.workspace = true
 human-panic.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 tokio.workspace = true
 url.workspace = true
 xshell.workspace = true
 serde.workspace = true
+clap-markdown.workspace = true

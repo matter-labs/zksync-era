@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
-use common::PromptSelect;
+use common::{Prompt, PromptSelect};
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::{MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT};
+use crate::messages::{MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverRunArgs {
@@ -10,10 +10,12 @@ pub struct ProverRunArgs {
     pub component: Option<ProverComponent>,
     #[clap(flatten)]
     pub witness_generator_args: WitnessGeneratorArgs,
+    #[clap(flatten)]
+    pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
 }
 
 #[derive(
-    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, Copy, strum_macros::Display,
+    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, Copy, strum::Display,
 )]
 pub enum ProverComponent {
     #[strum(to_string = "Gateway")]
@@ -34,9 +36,7 @@ pub struct WitnessGeneratorArgs {
     pub round: Option<WitnessGeneratorRound>,
 }
 
-#[derive(
-    Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum_macros::Display,
-)]
+#[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
 pub enum WitnessGeneratorRound {
     #[strum(to_string = "All rounds")]
     AllRounds,
@@ -52,6 +52,28 @@ pub enum WitnessGeneratorRound {
     Scheduler,
 }
 
+#[derive(Debug, Clone, Parser, Default)]
+pub struct WitnessVectorGeneratorArgs {
+    #[clap(long)]
+    pub threads: Option<usize>,
+}
+
+impl WitnessVectorGeneratorArgs {
+    fn fill_values_with_prompt(&self, component: ProverComponent) -> anyhow::Result<Self> {
+        if component != ProverComponent::WitnessVectorGenerator {
+            return Ok(Self::default());
+        }
+
+        let threads = self
+            .threads
+            .unwrap_or_else(|| Prompt::new(MSG_THREADS_PROMPT).default("1").ask());
+
+        Ok(Self {
+            threads: Some(threads),
+        })
+    }
+}
+
 impl ProverRunArgs {
     pub fn fill_values_with_prompt(&self) -> anyhow::Result<ProverRunArgs> {
         let component = self.component.unwrap_or_else(|| {
@@ -62,9 +84,14 @@ impl ProverRunArgs {
             .witness_generator_args
             .fill_values_with_prompt(component)?;
 
+        let witness_vector_generator_args = self
+            .witness_vector_generator_args
+            .fill_values_with_prompt(component)?;
+
         Ok(ProverRunArgs {
             component: Some(component),
             witness_generator_args,
+            witness_vector_generator_args,
         })
     }
 }

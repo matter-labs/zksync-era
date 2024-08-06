@@ -107,7 +107,7 @@ assert_matches = "1.5"
 async-trait = "0.1"
 axum = "0.7.5"
 backon = "0.4.4"
-bigdecimal = "0.3.0"
+bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
 chrono = "0.4"
@@ -139,9 +139,11 @@ num = "0.4.0"
 num_cpus = "1.13"
 num_enum = "0.7.2"
 once_cell = "1"
-opentelemetry = "0.20.0"
-opentelemetry-otlp = "0.13.0"
-opentelemetry-semantic-conventions = "0.12.0"
+opentelemetry = "0.24.0"
+opentelemetry_sdk = "0.24.0"
+opentelemetry-otlp = "0.17.0"
+opentelemetry-semantic-conventions = "0.16.0"
+opentelemetry-appender-tracing = "0.5"
 pin-project-lite = "0.2.13"
 pretty_assertions = "1"
 prost = "0.12.1"
@@ -163,10 +165,10 @@ serde_with = "1"
 serde_yaml = "0.9"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
-sqlx = "0.7.3"
+sqlx = "0.8.0"
 static_assertions = "1.1"
 structopt = "0.3.20"
-strum = "0.24"
+strum = "0.26"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
 test-log = "0.2.15"
@@ -179,7 +181,8 @@ tower = "0.4.13"
 tower-http = "0.5.2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-tracing-opentelemetry = "0.21.0"
+tracing-opentelemetry = "0.25.0"
+time = "0.3.36" # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 fraction = "0.15.3"
@@ -194,31 +197,35 @@ trybuild = "1.0"
 vise = "0.1.0"
 vise-exporter = "0.1.0"
 
-circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "=0.133.0" }
-circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "=0.140.0" }
-circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "=0.141.0" }
-circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "=0.142.0" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.2-rc.1" }
+# Here and below:
+# We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
+# However, for the historical version of protocol crates, we have lax requirements. Otherwise,
+# Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
+circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.133" }
+circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
+circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
+circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.2-rc.2" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
-kzg = { package = "zksync_kzg", version = "=0.150.2-rc.1" }
+kzg = { package = "zksync_kzg", version = "=0.150.2-rc.2" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "0.150.0" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.0" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.4"
-zksync_consensus_bft = "=0.1.0-rc.4"
-zksync_consensus_crypto = "=0.1.0-rc.4"
-zksync_consensus_executor = "=0.1.0-rc.4"
-zksync_consensus_network = "=0.1.0-rc.4"
-zksync_consensus_roles = "=0.1.0-rc.4"
-zksync_consensus_storage = "=0.1.0-rc.4"
-zksync_consensus_utils = "=0.1.0-rc.4"
-zksync_protobuf = "=0.1.0-rc.4"
-zksync_protobuf_build = "=0.1.0-rc.4"
+zksync_concurrency = "=0.1.0-rc.8"
+zksync_consensus_bft = "=0.1.0-rc.8"
+zksync_consensus_crypto = "=0.1.0-rc.8"
+zksync_consensus_executor = "=0.1.0-rc.8"
+zksync_consensus_network = "=0.1.0-rc.8"
+zksync_consensus_roles = "=0.1.0-rc.8"
+zksync_consensus_storage = "=0.1.0-rc.8"
+zksync_consensus_utils = "=0.1.0-rc.8"
+zksync_protobuf = "=0.1.0-rc.8"
+zksync_protobuf_build = "=0.1.0-rc.8"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

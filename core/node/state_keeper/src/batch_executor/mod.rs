@@ -1,15 +1,14 @@
 use std::{error::Error as StdError, fmt, sync::Arc};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::{
-    sync::{mpsc, oneshot, watch},
+    sync::{mpsc, oneshot},
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
-use zksync_state::{ReadStorageFactory, StorageViewCache};
+use zksync_state::{OwnedStorage, StorageViewCache};
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -55,15 +54,13 @@ impl TxExecutionResult {
 /// An abstraction that allows us to create different kinds of batch executors.
 /// The only requirement is to return a [`BatchExecutorHandle`], which does its work
 /// by communicating with the externally initialized thread.
-#[async_trait]
 pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
-    async fn init_batch(
+    fn init_batch(
         &mut self,
-        storage_factory: Arc<dyn ReadStorageFactory>,
+        storage: OwnedStorage,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle>;
+    ) -> BatchExecutorHandle;
 }
 
 #[derive(Debug)]
@@ -122,6 +119,7 @@ impl BatchExecutorHandle {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
@@ -161,6 +159,7 @@ impl BatchExecutorHandle {
         Ok(res)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
@@ -184,6 +183,7 @@ impl BatchExecutorHandle {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
@@ -207,6 +207,7 @@ impl BatchExecutorHandle {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn finish_batch(mut self) -> anyhow::Result<FinishedL1Batch> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self

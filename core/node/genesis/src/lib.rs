@@ -17,10 +17,10 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
+    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
@@ -159,8 +159,6 @@ pub struct GenesisBatchParams {
 }
 
 pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::L1ChainId;
-
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
     let first_l1_verifier_config = L1VerifierConfig::default();
 
@@ -175,12 +173,8 @@ pub fn mock_genesis_config() -> GenesisConfig {
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),
+        sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
-        recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
-        recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-        recursion_circuits_set_vks_hash: first_l1_verifier_config
-            .params
-            .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
         fee_account: Default::default(),
@@ -196,11 +190,6 @@ pub async fn insert_genesis_batch(
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
-        params: VerifierParams {
-            recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: genesis_params.config.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: H256::zero(),
-        },
         recursion_scheduler_level_vk_hash: genesis_params.config.recursion_scheduler_level_vk_hash,
     };
 

@@ -11,8 +11,9 @@ use config::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
+    set_l1_rpc_url,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::Shell;
 
@@ -20,9 +21,8 @@ use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
         args::init::{InitArgs, InitArgsFinal},
-        deploy_paymaster,
+        deploy_l2_contracts, deploy_paymaster,
         genesis::genesis,
-        initialize_bridges,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
@@ -59,7 +59,7 @@ pub async fn init(
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
-    genesis_config.update_from_chain_config(chain_config);
+    update_from_chain_config(&mut genesis_config, chain_config);
     genesis_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Copy ecosystem contracts
@@ -74,7 +74,7 @@ pub async fn init(
     )
     .await?;
     let mut secrets = chain_config.get_secrets_config()?;
-    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone());
+    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
@@ -102,7 +102,7 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    initialize_bridges::initialize_bridges(
+    deploy_l2_contracts::deploy_l2_contracts(
         shell,
         chain_config,
         ecosystem_config,

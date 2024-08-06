@@ -104,6 +104,28 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose
 
+      - name: Create and initialize chain
+        run: |
+          ci_run zk_inception chain create \
+          --chain-name chain_rollup \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode  rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default true \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://reth:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --server-db-name=zksync_server_localhost_rollup \
+          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-name=zksync_prover_localhost_rollup
+
       - name: Run server
         run: |
           ci_run zk_inception server --ignore-prerequisites &>server.log &
@@ -113,11 +135,22 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
 
-      - name: Run external node server
+      - name: Init external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
           ci_run zk_inception external-node init --ignore-prerequisites
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
+            
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
+  
+      - name: Run external node server
+        run: |
           ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
           ci_run sleep 5
 
@@ -133,6 +166,12 @@ jobs:
         run: |
           ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose
 
+      # This test should be the last one as soon as it
+      # finished bootloader will be different
+      - name: Run upgrade test
+        run: |
+          ci_run zk_supervisor test upgrade
+        
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true

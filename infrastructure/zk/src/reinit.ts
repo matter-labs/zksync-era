@@ -16,7 +16,8 @@ const reinitDevCmdAction = async (): Promise<void> => {
         skipTestTokenDeployment: true,
         // TODO(EVM-573): support Validium mode
         runObservability: true,
-        deploymentMode: DeploymentMode.Rollup
+        deploymentMode: DeploymentMode.Rollup,
+        shouldCheckPostgres: false
     });
 };
 

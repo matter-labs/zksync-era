@@ -10,6 +10,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import path from 'node:path';
 import { expect } from 'chai';
+import { runExternalNodeInBackground } from './utils';
 
 export interface Health<T> {
     readonly status: string;
@@ -65,11 +66,9 @@ export async function sleep(millis: number) {
     await new Promise((resolve) => setTimeout(resolve, millis));
 }
 
-export async function getExternalNodeHealth() {
-    const EXTERNAL_NODE_HEALTH_URL = 'http://127.0.0.1:3081/health';
-
+export async function getExternalNodeHealth(url: string) {
     try {
-        const response: HealthCheckResponse = await fetch(EXTERNAL_NODE_HEALTH_URL).then((response) => response.json());
+        const response: HealthCheckResponse = await fetch(url).then((response) => response.json());
         return response;
     } catch (e) {
         let displayedError = e;
@@ -84,12 +83,13 @@ export async function getExternalNodeHealth() {
     }
 }
 
-export async function dropNodeDatabase(env: { [key: string]: string }) {
-    await executeNodeCommand(env, 'zk db reset');
-}
-
-export async function dropNodeStorage(env: { [key: string]: string }) {
-    await executeNodeCommand(env, 'zk clean --database');
+export async function dropNodeData(useZkSupervisor: boolean, env: { [key: string]: string }) {
+    if (useZkSupervisor) {
+        await executeNodeCommand(env, 'zk_inception external-node init');
+    } else {
+        await executeNodeCommand(env, 'zk db reset');
+        await executeNodeCommand(env, 'zk clean --database');
+    }
 }
 
 async function executeNodeCommand(env: { [key: string]: string }, command: string) {
@@ -127,15 +127,6 @@ export enum NodeComponents {
     WITH_TREE_FETCHER_AND_NO_TREE = 'core,api,tree_fetcher'
 }
 
-function externalNodeArgs(components: NodeComponents = NodeComponents.STANDARD) {
-    const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-    const args = ['external-node', '--', `--components=${components}`];
-    if (enableConsensus) {
-        args.push('--enable-consensus');
-    }
-    return args;
-}
-
 export class NodeProcess {
     static async stopAll(signal: 'INT' | 'KILL' = 'INT') {
         interface ChildProcessError extends Error {
@@ -157,15 +148,20 @@ export class NodeProcess {
     static async spawn(
         env: { [key: string]: string },
         logsFile: FileHandle | string,
+        pathToHome: string,
+        useZkInception: boolean,
         components: NodeComponents = NodeComponents.STANDARD
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
-        const childProcess = spawn('zk', externalNodeArgs(components), {
-            cwd: process.env.ZKSYNC_HOME!!,
+
+        let childProcess = runExternalNodeInBackground({
+            components: [components],
             stdio: [null, logs.fd, logs.fd],
-            shell: true,
-            env
+            cwd: pathToHome,
+            env,
+            useZkInception
         });
+
         return new NodeProcess(childProcess, logs);
     }
 

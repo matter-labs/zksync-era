@@ -69,11 +69,11 @@ pub(crate) struct ExternalNodeBuilder {
 }
 
 impl ExternalNodeBuilder {
-    pub fn new(config: ExternalNodeConfig) -> Self {
-        Self {
-            node: ZkStackServiceBuilder::new(),
+    pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             config,
-        }
+        })
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -121,6 +121,7 @@ impl ExternalNodeBuilder {
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
+            sl_chain_id: self.config.required.settlement_layer_id(),
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
@@ -166,7 +167,7 @@ impl ExternalNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = QueryEthClientLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
@@ -256,7 +257,7 @@ impl ExternalNodeBuilder {
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
@@ -587,7 +588,7 @@ impl ExternalNodeBuilder {
             }
         }
 
-        Ok(self.node.build()?)
+        Ok(self.node.build())
     }
 }
 

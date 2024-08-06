@@ -54,7 +54,9 @@ impl ProofCompressor {
         }
     }
 
+    #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
+        l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
     ) -> anyhow::Result<FinalProof> {
@@ -173,8 +175,7 @@ impl JobProcessor for ProofCompressor {
         let compression_mode = self.compression_mode;
         let block_number = *job_id;
         tokio::task::spawn_blocking(move || {
-            let _span = tracing::info_span!("compress", %block_number).entered();
-            Self::compress_proof(job, compression_mode)
+            Self::compress_proof(block_number, job, compression_mode)
         })
     }
 

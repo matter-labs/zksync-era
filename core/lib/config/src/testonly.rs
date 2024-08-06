@@ -68,8 +68,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             pubsub_polling_interval: self.sample(rng),
             max_nonce_ahead: self.sample(rng),
             gas_price_scale_factor: self.sample(rng),
-            request_timeout: self.sample_opt(|| self.sample(rng)),
-            account_pks: self.sample_opt(|| self.sample_range(rng).map(|_| rng.gen()).collect()),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
             max_tx_size: self.sample(rng),
@@ -438,9 +436,9 @@ impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
     }
 }
 
-impl Distribution<configs::fri_prover::CloudType> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudType {
-        type T = configs::fri_prover::CloudType;
+impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
+        type T = configs::fri_prover::CloudConnectionMode;
         match rng.gen_range(0..1) {
             0 => T::GCP,
             _ => T::Local,
@@ -573,6 +571,7 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             last_l1_batch_to_process: self.sample(rng),
             shall_save_to_public_bucket: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
+            max_circuits_in_flight: self.sample(rng),
         }
     }
 }
@@ -682,6 +681,7 @@ impl Distribution<configs::OpentelemetryConfig> for EncodeDist {
         configs::OpentelemetryConfig {
             level: self.sample(rng),
             endpoint: self.sample(rng),
+            logs_endpoint: self.sample(rng),
         }
     }
 }
@@ -703,11 +703,9 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             default_aa_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
+            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
-            recursion_node_level_vk_hash: rng.gen(),
-            recursion_leaf_level_vk_hash: rng.gen(),
             recursion_scheduler_level_vk_hash: rng.gen(),
-            recursion_circuits_set_vks_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
@@ -878,6 +876,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
         configs::en_config::ENConfig {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
+            sl_chain_id: None,
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
