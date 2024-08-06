@@ -1,7 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
-use zksync_contracts::{deployer_contract, BaseSystemContracts};
+pub use zksync_contracts::test_contracts::LoadnextContractExecutionParams as LoadTestParams;
+use zksync_contracts::{deployer_contract, BaseSystemContracts, TestContract};
 use zksync_multivm::{
     interface::{
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
@@ -19,7 +20,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
-    utils::storage_key_for_eth_balance,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
     Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
@@ -41,6 +42,11 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
     Some(&bytes[..32 * words])
 }
 
+const LOAD_TEST_MAX_READS: usize = 100;
+
+static LOAD_TEST_CONTRACT_ADDRESS: Lazy<Address> =
+    Lazy::new(|| deployed_address_create(PRIVATE_KEY.address(), 0.into()));
+
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     // Give `PRIVATE_KEY` some money
@@ -51,6 +57,8 @@ static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
 });
 
 static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::load_from_disk);
+
+static LOAD_TEST_CONTRACT: Lazy<TestContract> = Lazy::new(zksync_contracts::get_loadnext_contract);
 
 static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
     deployer_contract()
@@ -284,6 +292,77 @@ pub fn get_transfer_tx(nonce: u32) -> Transaction {
     signed.into()
 }
 
+pub fn get_load_test_deploy_tx() -> Transaction {
+    let calldata = [Token::Uint(LOAD_TEST_MAX_READS.into())];
+    let params = [
+        Token::FixedBytes(vec![0_u8; 32]),
+        Token::FixedBytes(hash_bytecode(&LOAD_TEST_CONTRACT.bytecode).0.to_vec()),
+        Token::Bytes(encode(&calldata)),
+    ];
+    let create_calldata = CREATE_FUNCTION_SIGNATURE
+        .iter()
+        .cloned()
+        .chain(encode(&params))
+        .collect();
+
+    let mut factory_deps = LOAD_TEST_CONTRACT.factory_deps.clone();
+    factory_deps.push(LOAD_TEST_CONTRACT.bytecode.clone());
+
+    let mut signed = L2Tx::new_signed(
+        CONTRACT_DEPLOYER_ADDRESS,
+        create_calldata,
+        Nonce(0),
+        tx_fee(100_000_000),
+        U256::zero(),
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        factory_deps,
+        Default::default(),
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
+
+pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> Transaction {
+    assert!(
+        params.reads <= LOAD_TEST_MAX_READS,
+        "Too many reads: {params:?}, should be <={LOAD_TEST_MAX_READS}"
+    );
+
+    let execute_function = LOAD_TEST_CONTRACT
+        .contract
+        .function("execute")
+        .expect("no `execute` function in load test contract");
+    let calldata = execute_function
+        .encode_input(&vec![
+            Token::Uint(U256::from(params.reads)),
+            Token::Uint(U256::from(params.writes)),
+            Token::Uint(U256::from(params.hashes)),
+            Token::Uint(U256::from(params.events)),
+            Token::Uint(U256::from(params.recursive_calls)),
+            Token::Uint(U256::from(params.deploys)),
+        ])
+        .expect("cannot encode `execute` inputs");
+
+    let mut signed = L2Tx::new_signed(
+        *LOAD_TEST_CONTRACT_ADDRESS,
+        calldata,
+        Nonce(nonce),
+        tx_fee(gas_limit),
+        U256::zero(),
+        L2ChainId::from(270),
+        &PRIVATE_KEY,
+        LOAD_TEST_CONTRACT.factory_deps.clone(),
+        Default::default(),
+    )
+    .expect("should create a signed execute transaction");
+
+    signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+    signed.into()
+}
+
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
@@ -307,6 +386,17 @@ mod tests {
     fn can_transfer() {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_transfer_tx(0));
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_load_test() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_load_test_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        let params = LoadTestParams::default();
+        let res = vm.run_transaction(&get_load_test_tx(1, 10_000_000, params));
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
 }

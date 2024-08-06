@@ -8,7 +8,7 @@
 //! - `transfer_with_invalid_nonce` benches are similar to `transfer`, but each transaction with a probability
 //!   `TX_FAILURE_PROBABILITY` has a previously used nonce and thus halts during validation.
 
-use std::time::Duration;
+use std::{iter, time::Duration};
 
 use criterion::{
     black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
@@ -17,8 +17,9 @@ use criterion::{
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_transfer_tx, BenchmarkingVm,
-    BenchmarkingVmFactory, Fast, Legacy,
+    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_load_test_deploy_tx,
+    get_load_test_tx, get_transfer_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy,
+    LoadTestParams,
 };
 
 /// Gas limit for deployment transactions.
@@ -110,8 +111,13 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Cr
     let txs: Vec<_> = (0..max_txs)
         .map(|nonce| get_deploy_tx_with_gas_limit(code, DEPLOY_GAS_LIMIT, nonce))
         .collect();
-
     run_vm::<VM, FULL>(&mut group, "deploy_simple_contract", &txs);
+    drop(txs);
+
+    let txs =
+        (1..=max_txs).map(|nonce| get_load_test_tx(nonce, 10_000_000, LoadTestParams::default()));
+    let txs: Vec<_> = iter::once(get_load_test_deploy_tx()).chain(txs).collect();
+    run_vm::<VM, FULL>(&mut group, "load_test", &txs);
     drop(txs);
 
     let txs: Vec<_> = (0..max_txs).map(get_transfer_tx).collect();
