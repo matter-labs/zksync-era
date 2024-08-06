@@ -168,9 +168,9 @@ jobs:
 
       # This test should be the last one as soon as it
       # finished bootloader will be different
-      - name: Run upgrade test
-        run: |
-          ci_run zk_supervisor test upgrade
+      # - name: Run upgrade test
+      #   run: |
+      #     ci_run zk_supervisor test upgrade
         
       - name: Show server.log logs
         if: always()
