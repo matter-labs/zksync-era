@@ -4,9 +4,13 @@
 //!   before a transaction and rolling back to it on halt. They also include VM initialization and drop.
 //!   In contrast, `fill_bootloader/*` benches only cover transaction execution.
 //! - `deploy_simple_contract` benches deploy a simple contract in each transaction. All transactions succeed.
-//! - `transfer` benches perform the standard token transfer in each transaction. All transactions succeed.
+//! - `transfer` benches perform the base token transfer in each transaction. All transactions succeed.
 //! - `transfer_with_invalid_nonce` benches are similar to `transfer`, but each transaction with a probability
 //!   `TX_FAILURE_PROBABILITY` has a previously used nonce and thus halts during validation.
+//! - `load_test(|_realistic|_heavy)` execute the load test contract (a mixture of storage reads, writes, emitting events,
+//!   recursive calls, hashing and deploying new contracts). These 3 categories differ in how many operations of each kind
+//!   are performed in each transaction. Beware that the first executed transaction is load test contract deployment,
+//!   which skews results for small-size batches.
 
 use std::{iter, time::Duration};
 
