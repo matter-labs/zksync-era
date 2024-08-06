@@ -216,16 +216,16 @@ zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.0" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.4"
-zksync_consensus_bft = "=0.1.0-rc.4"
-zksync_consensus_crypto = "=0.1.0-rc.4"
-zksync_consensus_executor = "=0.1.0-rc.4"
-zksync_consensus_network = "=0.1.0-rc.4"
-zksync_consensus_roles = "=0.1.0-rc.4"
-zksync_consensus_storage = "=0.1.0-rc.4"
-zksync_consensus_utils = "=0.1.0-rc.4"
-zksync_protobuf = "=0.1.0-rc.4"
-zksync_protobuf_build = "=0.1.0-rc.4"
+zksync_concurrency = "=0.1.0-rc.8"
+zksync_consensus_bft = "=0.1.0-rc.8"
+zksync_consensus_crypto = "=0.1.0-rc.8"
+zksync_consensus_executor = "=0.1.0-rc.8"
+zksync_consensus_network = "=0.1.0-rc.8"
+zksync_consensus_roles = "=0.1.0-rc.8"
+zksync_consensus_storage = "=0.1.0-rc.8"
+zksync_consensus_utils = "=0.1.0-rc.8"
+zksync_protobuf = "=0.1.0-rc.8"
+zksync_protobuf_build = "=0.1.0-rc.8"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

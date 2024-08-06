@@ -536,6 +536,7 @@ impl ConsensusDal<'_, '_> {
         }
         .await?
         else {
+            tracing::info!(%genesis.first_block, "genesis block not found");
             return Ok(None);
         };
         Ok(Some(AttestationStatus {

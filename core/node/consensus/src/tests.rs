@@ -616,8 +616,16 @@ async fn test_with_pruning(version: ProtocolVersionId) {
             .wait_for_batch(ctx, validator.last_sealed_batch())
             .await?;
 
+        // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
+        // does not look for where the last prune happened at, and thus if we prune the block genesis
+        // points at, we might never be able to start the Executor.
+        tracing::info!("Wait until the external node has all the batches we want to prune");
+        node_pool
+            .wait_for_batch(ctx, to_prune.next())
+            .await
+            .context("wait_for_batch()")?;
         tracing::info!("Prune some blocks and sync more");
-        validator_pool
+        node_pool
             .prune_batches(ctx, to_prune)
             .await
             .context("prune_batches")?;
@@ -725,9 +733,14 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let genesis = conn.genesis(ctx).await?.unwrap().hash();
             let cert = attester::BatchQC {
                 signatures: attester::MultiSig::default(),
-                message: attester::Batch { number, hash },
+                message: attester::Batch {
+                    number,
+                    hash,
+                    genesis,
+                },
             };
             conn.insert_batch_certificate(ctx, &cert)
                 .await
