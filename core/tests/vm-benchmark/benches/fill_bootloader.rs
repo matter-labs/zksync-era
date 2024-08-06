@@ -1,8 +1,8 @@
 //! Benchmarks executing entire batches of transactions with varying size (from 1 to 5,000).
 //!
 //! - `fill_bootloader_full/*` benches emulate the entire transaction lifecycle including taking a snapshot
-//!   before a transaction and rolling back to it on halt. In contrast, `fill_bootloader/*` benches only cover
-//!   transaction execution.
+//!   before a transaction and rolling back to it on halt. They also include VM initialization and drop.
+//!   In contrast, `fill_bootloader/*` benches only cover transaction execution.
 //! - `deploy_simple_contract` benches deploy a simple contract in each transaction. All transactions succeed.
 //! - `transfer` benches perform the standard token transfer in each transaction. All transactions succeed.
 //! - `transfer_with_invalid_nonce` benches are similar to `transfer`, but each transaction with a probability
@@ -11,8 +11,8 @@
 use std::time::Duration;
 
 use criterion::{
-    black_box, criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, BenchmarkId,
-    Criterion, Throughput,
+    black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
+    BenchmarkId, Criterion, Throughput,
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_types::Transaction;
@@ -30,6 +30,28 @@ const RNG_SEED: u64 = 123;
 /// Probability for a transaction to fail in the `transfer_with_invalid_nonce` benchmarks.
 const TX_FAILURE_PROBABILITY: f64 = 0.2;
 
+fn bench_vm<VM: BenchmarkingVmFactory, const FULL: bool>(
+    vm: &mut BenchmarkingVm<VM>,
+    txs: &[Transaction],
+    expected_failures: &[bool],
+) {
+    for (i, tx) in txs.iter().enumerate() {
+        let result = if FULL {
+            vm.run_transaction_full(black_box(tx))
+        } else {
+            vm.run_transaction(black_box(tx))
+        };
+        let result = &result.result;
+        let expecting_failure = expected_failures.get(i).copied().unwrap_or(false);
+        assert_eq!(
+            result.is_failed(),
+            expecting_failure,
+            "{result:?} on tx #{i}"
+        );
+        black_box(result);
+    }
+}
+
 fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
     group: &mut BenchmarkGroup<'_, WallTime>,
     name: &str,
@@ -42,23 +64,22 @@ fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
             BenchmarkId::new(name, txs_in_batch),
             txs_in_batch,
             |bencher, &txs_in_batch| {
-                bencher.iter(|| {
-                    let mut vm = BenchmarkingVm::<VM>::default();
-                    for (i, tx) in txs[..txs_in_batch].iter().enumerate() {
-                        let result = if FULL {
-                            vm.run_transaction_full(black_box(tx))
-                        } else {
-                            vm.run_transaction(black_box(tx))
-                        };
-                        let result = black_box(result).result;
-                        let expecting_failure = expected_failures.get(i).copied().unwrap_or(false);
-                        assert_eq!(
-                            result.is_failed(),
-                            expecting_failure,
-                            "{result:?} on tx #{i}"
-                        );
-                    }
-                })
+                if FULL {
+                    // Include VM initialization / drop into the measured time
+                    bencher.iter(|| {
+                        let mut vm = BenchmarkingVm::<VM>::default();
+                        bench_vm::<_, true>(&mut vm, &txs[..txs_in_batch], expected_failures);
+                    });
+                } else {
+                    bencher.iter_batched(
+                        BenchmarkingVm::<VM>::default,
+                        |mut vm| {
+                            bench_vm::<_, false>(&mut vm, &txs[..txs_in_batch], expected_failures);
+                            vm
+                        },
+                        BatchSize::LargeInput, // VM can consume significant amount of RAM, especially the new one
+                    );
+                }
             },
         );
     }
