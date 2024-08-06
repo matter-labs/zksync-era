@@ -317,7 +317,10 @@ command
     .description('register hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
-    .option('--token-multiplier-setter-address <token-multiplier-setter-address>', 'address of the token multiplier setter')
+    .option(
+        '--token-multiplier-setter-address <token-multiplier-setter-address>',
+        'address of the token multiplier setter'
+    )
     .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
