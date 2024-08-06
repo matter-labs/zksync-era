@@ -27,6 +27,10 @@ describe('base ERC20 contract checks', () => {
     });
 
     test('Base token ratio is updated on L1', async () => {
+        if (isETHBasedChain) {
+            return
+        }
+
         let govMnemonic = ethers.Mnemonic.fromPhrase(require('../../../../etc/test_config/constant/eth.json').mnemonic);
         let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
         const adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
