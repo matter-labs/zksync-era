@@ -16,7 +16,7 @@ pub struct DeployL1Output {
     pub era_chain_id: u32,
     pub l1_chain_id: u32,
     pub multicall3_addr: Address,
-    pub owner_addr: Address,
+    pub owner_address: Address,
     pub contracts_config: DeployL1ContractsConfigOutput,
     pub deployed_addresses: DeployL1DeployedAddressesOutput,
 }

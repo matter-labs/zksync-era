@@ -6,7 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::L2ChainId;
+use zksync_basic_types::{web3::Bytes, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
@@ -31,6 +31,7 @@ pub struct InitialDeploymentConfig {
     pub validator_timelock_execution_delay: u64,
     pub token_weth_address: Address,
     pub bridgehub_create_new_chain_salt: u64,
+    pub force_deployments_data: Bytes
 }
 
 impl Default for InitialDeploymentConfig {
@@ -53,6 +54,7 @@ impl Default for InitialDeploymentConfig {
             // toml crate u64 support is backed by i64 implementation
             // https://github.com/toml-rs/toml/issues/705
             bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
+            force_deployments_data: Bytes::from(vec![]),
         }
     }
 }
@@ -168,6 +170,7 @@ impl DeployL1Config {
                 priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
+                force_deployments_data: initial_deployment_config.force_deployments_data.clone()
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -201,6 +204,7 @@ pub struct ContractsDeployL1Config {
     pub diamond_init_minimal_l2_gas_price: u64,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
+    pub force_deployments_data: Bytes
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
