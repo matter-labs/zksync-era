@@ -396,7 +396,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
     env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, process.env.ENV_FILE!);
     env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
-    env.modify('BASE_TOKEN_ADJUSTER_ADDRESS', baseTokenAdjuster.address, process.env.ENV_FILE!);
+    env.modify('TOKEN_MULTIPLIER_SETTER_ADDRESS', baseTokenAdjuster.address, process.env.ENV_FILE!);
 
     if (feeReceiver) {
         env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, process.env.ENV_FILE!);
