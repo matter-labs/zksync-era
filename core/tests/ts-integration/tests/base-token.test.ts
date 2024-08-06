@@ -36,11 +36,11 @@ describe('base ERC20 contract checks', () => {
         const adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
         const zksyncAddress = await alice._providerL2().getMainContractAddress();
         const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, adminGovWallet);
-        const nominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
+        const numerator = Number(await zksyncContract.baseTokenGasPriceMultiplierNominator());
         const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
 
-        // checking that the nominator and denominator don't have their default values
-        expect(nominator).not.toBe(1);
+        // checking that the numerator and denominator don't have their default values
+        expect(numerator).not.toBe(1);
         expect(denominator).not.toBe(1);
     });
 

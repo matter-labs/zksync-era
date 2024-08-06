@@ -4,5 +4,5 @@
 
 # What source to use for the external price API. Currently only options are "forced", "no-op", and "coingecko".
 source = "forced"
-forced_numerator = 314
-forced_denominator = 100
+forced_numerator = 5
+forced_denominator = 6

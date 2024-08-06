@@ -997,6 +997,7 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
         configs::base_token_adjuster::BaseTokenAdjusterConfig {
             price_polling_interval_ms: self.sample(rng),
             price_cache_update_interval_ms: self.sample(rng),
+            max_aggregated_tx_gas: self.sample(rng),
             persister_l1_receipt_checking_max_attempts: self.sample(rng),
             persister_l1_receipt_checking_sleep_ms: self.sample(rng),
         }

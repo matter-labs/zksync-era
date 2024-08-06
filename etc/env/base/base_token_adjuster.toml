@@ -6,3 +6,5 @@
 price_polling_interval_ms = "30000"
 
 price_cache_update_interval_ms = "2000"
+
+max_aggregated_tx_gas = "40000"
