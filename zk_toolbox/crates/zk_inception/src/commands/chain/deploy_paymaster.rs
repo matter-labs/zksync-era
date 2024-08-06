@@ -15,7 +15,9 @@ use config::{
 use xshell::Shell;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER},
+    messages::{
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED,
+    },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -47,7 +49,14 @@ pub async fn deploy_paymaster(
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(secrets.l1.l1_rpc_url.clone())
+        .with_rpc_url(
+            secrets
+                .l1
+                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
+                .l1_rpc_url
+                .expose_str()
+                .to_string(),
+        )
         .with_broadcast();
 
     forge = fill_forge_private_key(

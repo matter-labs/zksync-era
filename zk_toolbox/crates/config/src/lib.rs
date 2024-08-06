@@ -1,5 +1,5 @@
 pub use chain::*;
-pub use consts::{DOCKER_COMPOSE_FILE, ZKSYNC_ERA_GIT_REPO};
+pub use consts::*;
 pub use contracts::*;
 pub use ecosystem::*;
 pub use file_config::*;
@@ -9,6 +9,7 @@ pub use manipulations::*;
 pub use secrets::*;
 pub use wallet_creation::*;
 pub use wallets::*;
+pub use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 mod chain;
 mod consts;

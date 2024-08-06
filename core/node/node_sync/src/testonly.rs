@@ -77,6 +77,12 @@ impl MainNodeClient for MockMainNodeClient {
         unimplemented!()
     }
 
+    async fn fetch_attestation_status(
+        &self,
+    ) -> EnrichedClientResult<Option<api::en::AttestationStatus>> {
+        unimplemented!()
+    }
+
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
         Ok(mock_genesis_config())
     }

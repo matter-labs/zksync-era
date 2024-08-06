@@ -5,8 +5,7 @@ use clap::Parser;
 use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 use types::{L1Network, WalletCreation};
 use xshell::{cmd, Shell};
 
@@ -32,12 +31,17 @@ pub struct EcosystemCreateArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub chain: ChainCreateArgs,
-    #[clap(long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(
+        long, help = MSG_START_CONTAINERS_HELP, default_missing_value = "true", num_args = 0..=1
+    )]
     pub start_containers: Option<bool>,
 }
 
 impl EcosystemCreateArgs {
-    pub fn fill_values_with_prompt(mut self, shell: &Shell) -> EcosystemCreateArgsFinal {
+    pub fn fill_values_with_prompt(
+        mut self,
+        shell: &Shell,
+    ) -> anyhow::Result<EcosystemCreateArgsFinal> {
         let mut ecosystem_name = self
             .ecosystem_name
             .unwrap_or_else(|| Prompt::new(MSG_ECOSYSTEM_NAME_PROMPT).ask());
@@ -66,7 +70,7 @@ impl EcosystemCreateArgs {
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chain = self.chain.fill_values_with_prompt(0, &l1_network);
+        let chain = self.chain.fill_values_with_prompt(0, &l1_network)?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)
@@ -74,7 +78,7 @@ impl EcosystemCreateArgs {
                 .ask()
         });
 
-        EcosystemCreateArgsFinal {
+        Ok(EcosystemCreateArgsFinal {
             ecosystem_name,
             l1_network,
             link_to_code,
@@ -82,7 +86,7 @@ impl EcosystemCreateArgs {
             wallet_path: chain.wallet_path.clone(),
             chain_args: chain,
             start_containers,
-        }
+        })
     }
 }
 

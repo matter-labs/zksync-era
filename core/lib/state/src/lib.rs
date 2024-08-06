@@ -28,7 +28,10 @@ pub use self::{
         RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
     },
     shadow_storage::ShadowStorage,
-    storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
+    storage_factory::{
+        BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory,
+        RocksdbWithMemory,
+    },
     storage_view::{ImmutableStorageView, StorageView, StorageViewCache, StorageViewMetrics},
     witness::WitnessStorage,
 };

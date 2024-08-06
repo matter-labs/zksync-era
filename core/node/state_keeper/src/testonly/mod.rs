@@ -1,11 +1,8 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
-use std::sync::Arc;
-
-use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::{
@@ -15,7 +12,7 @@ use zksync_multivm::{
     },
     vm_latest::VmExecutionLogs,
 };
-use zksync_state::{ReadStorageFactory, StorageViewCache};
+use zksync_state::{OwnedStorage, StorageViewCache};
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -84,15 +81,13 @@ pub(crate) fn storage_view_cache() -> StorageViewCache {
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-#[async_trait]
 impl BatchExecutor for MockBatchExecutor {
-    async fn init_batch(
+    fn init_batch(
         &mut self,
-        _storage_factory: Arc<dyn ReadStorageFactory>,
+        _storage: OwnedStorage,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle> {
+    ) -> BatchExecutorHandle {
         let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
@@ -113,7 +108,7 @@ impl BatchExecutor for MockBatchExecutor {
             }
             anyhow::Ok(())
         });
-        Some(BatchExecutorHandle::from_raw(handle, send))
+        BatchExecutorHandle::from_raw(handle, send)
     }
 }
 

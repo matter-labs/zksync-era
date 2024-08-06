@@ -30,10 +30,7 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use super::{
-    read_storage_factory::{PostgresFactory, RocksdbFactory},
-    StorageType,
-};
+use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
     batch_executor::{BatchExecutorHandle, TxExecutionResult},
     testonly,
@@ -124,7 +121,7 @@ impl Tester {
             }
             StorageType::Rocksdb => {
                 self.create_batch_executor_inner(
-                    Arc::new(RocksdbFactory::new(
+                    Arc::new(RocksdbStorageFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
                     )),
@@ -134,12 +131,8 @@ impl Tester {
                 .await
             }
             StorageType::Postgres => {
-                self.create_batch_executor_inner(
-                    Arc::new(PostgresFactory::new(self.pool())),
-                    l1_batch_env,
-                    system_env,
-                )
-                .await
+                self.create_batch_executor_inner(Arc::new(self.pool()), l1_batch_env, system_env)
+                    .await
             }
         }
     }
@@ -154,10 +147,12 @@ impl Tester {
         batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
 
         let (_stop_sender, stop_receiver) = watch::channel(false);
-        batch_executor
-            .init_batch(storage_factory, l1_batch_env, system_env, &stop_receiver)
+        let storage = storage_factory
+            .access_storage(&stop_receiver, l1_batch_env.number - 1)
             .await
-            .expect("Batch executor was interrupted")
+            .expect("failed creating VM storage")
+            .unwrap();
+        batch_executor.init_batch(storage, l1_batch_env, system_env)
     }
 
     pub(super) async fn recover_batch_executor(
@@ -185,7 +180,7 @@ impl Tester {
             StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
             StorageType::Rocksdb => {
                 self.recover_batch_executor_inner(
-                    Arc::new(RocksdbFactory::new(
+                    Arc::new(RocksdbStorageFactory::new(
                         self.pool(),
                         self.state_keeper_db_path(),
                     )),
@@ -194,11 +189,8 @@ impl Tester {
                 .await
             }
             StorageType::Postgres => {
-                self.recover_batch_executor_inner(
-                    Arc::new(PostgresFactory::new(self.pool())),
-                    snapshot,
-                )
-                .await
+                self.recover_batch_executor_inner(Arc::new(self.pool()), snapshot)
+                    .await
             }
         }
     }

@@ -2,6 +2,13 @@ name: Build Prover FRI GPU with builtin setup data
 
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
     inputs:
       image_tag_suffix:
         description: "Commit sha or git tag for Docker tag"
