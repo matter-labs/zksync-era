@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
+    AsyncCatchupTask, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory,
+    RocksdbCell, RocksdbStorageOptions,
 };
 use zksync_types::L1BatchNumber;
 
@@ -41,7 +42,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+    ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
         let rocksdb = if initial_state.l1_batch_number >= Some(l1_batch_number) {
             tracing::info!(
@@ -63,19 +64,18 @@ impl ReadStorageFactory for AsyncRocksdbCache {
                 .connection_tagged("state_keeper")
                 .await
                 .context("Failed getting a Postgres connection")?;
-            PgOrRocksdbStorage::access_storage_rocksdb(
+            let storage = PgOrRocksdbStorage::rocksdb(
                 &mut connection,
                 rocksdb,
                 stop_receiver,
                 l1_batch_number,
             )
             .await
-            .context("Failed accessing RocksDB storage")
+            .context("Failed accessing RocksDB storage")?;
+            Ok(storage.map(Into::into))
         } else {
             Ok(Some(
-                PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
-                    .await
-                    .context("Failed accessing Postgres storage")?,
+                OwnedPostgresStorage::new(self.pool.clone(), l1_batch_number).into(),
             ))
         }
     }
