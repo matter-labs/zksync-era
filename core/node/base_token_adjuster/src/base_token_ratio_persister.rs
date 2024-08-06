@@ -5,7 +5,7 @@ use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
+use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_external_price_api::PriceAPIClient;
 use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
@@ -29,6 +29,7 @@ pub struct BaseTokenRatioPersister {
 }
 
 impl BaseTokenRatioPersister {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
@@ -198,7 +199,7 @@ impl BaseTokenRatioPersister {
 
         let max_attempts = self.config.persister_l1_receipt_checking_max_attempts;
         let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
-        for i in 0..max_attempts {
+        for _i in 0..max_attempts {
             let maybe_receipt = (*self.eth_client)
                 .as_ref()
                 .tx_receipt(hash)
