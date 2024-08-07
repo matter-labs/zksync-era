@@ -7,24 +7,28 @@ use crate::messages::{
     MSG_USING_CARGO_NEXTEST,
 };
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
+use super::args::rust::RustArgs;
+
+pub fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
-    let spinner;
-    if nextest_is_installed(shell)? {
+
+    let cmd = if nextest_is_installed(shell)? {
         logger::info(MSG_USING_CARGO_NEXTEST);
-        spinner = Spinner::new(MSG_RUNNING_UNIT_TESTS_SPINNER);
-        Cmd::new(cmd!(shell, "cargo nextest run --release"))
-            .with_force_run()
-            .run()?;
+        cmd!(shell, "cargo nextest run --release")
     } else {
         logger::error(MSG_CARGO_NEXTEST_MISSING_ERR);
-        spinner = Spinner::new(MSG_RUNNING_UNIT_TESTS_SPINNER);
-        Cmd::new(cmd!(shell, "cargo test --release"))
-            .with_force_run()
-            .run()?;
+        cmd!(shell, "cargo test --release")
+    };
+
+    let spinner = Spinner::new(MSG_RUNNING_UNIT_TESTS_SPINNER);
+    if let Some(options) = args.options {
+        Cmd::new(cmd.args(options.split_whitespace())).run()?;
+    } else {
+        Cmd::new(cmd).run()?;
     }
     spinner.finish();
+
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
 }

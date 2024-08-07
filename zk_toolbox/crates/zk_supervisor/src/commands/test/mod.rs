@@ -1,4 +1,6 @@
-use args::{integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs};
+use args::{
+    integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs, rust::RustArgs,
+};
 use clap::Subcommand;
 use xshell::Shell;
 
@@ -25,7 +27,7 @@ pub enum TestCommands {
     #[clap(about = MSG_UPGRADE_TEST_ABOUT, alias = "u")]
     Upgrade,
     #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit")]
-    Rust,
+    Rust(RustArgs),
 }
 
 pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -34,6 +36,6 @@ pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Revert(args) => revert::run(shell, args),
         TestCommands::Recovery(args) => recovery::run(shell, args),
         TestCommands::Upgrade => upgrade::run(shell),
-        TestCommands::Rust => rust::run(shell),
+        TestCommands::Rust(args) => rust::run(shell, args),
     }
 }
