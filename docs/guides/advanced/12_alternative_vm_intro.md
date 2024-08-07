@@ -154,7 +154,7 @@ result in `revert(0,0)`.
   will be really transferred. It just sets the corresponding `msg.value` context variable. The transferring of ETH
   should be done via other means by the system contract that uses this parameter. Note, that this method has no effect
   on `delegatecall` , since `delegatecall` inherits the `msg.value` of the previous frame.
-- `increment_tx_counter` increments the counter of the transactions within the VM. The transaction counter used mostly
+- `increment_tx_counter` increments the counter of the transactions within the VM. The transaction counter is used mostly
   for the VM’s internal tracking of events. Used only in bootloader after the end of each transaction.
 
 Note, that currently we do not have access to the `tx_counter` within VM (i.e. for now it is possible to increment it
