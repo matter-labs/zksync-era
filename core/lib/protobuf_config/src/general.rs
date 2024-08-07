@@ -41,6 +41,7 @@ impl ProtoRepr for proto::GeneralConfig {
             external_price_api_client_config: read_optional_repr(&self.external_price_api_client),
             consensus_config: read_optional_repr(&self.consensus),
             vm_playground_config: read_optional_repr(&self.vm_playground),
+            experimental_vm_config: read_optional_repr(&self.experimental_vm),
         })
     }
 
@@ -92,6 +93,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .map(ProtoRepr::build),
             consensus: this.consensus_config.as_ref().map(ProtoRepr::build),
             vm_playground: this.vm_playground_config.as_ref().map(ProtoRepr::build),
+            experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
         }
     }
 }

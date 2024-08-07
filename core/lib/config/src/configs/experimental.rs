@@ -62,7 +62,8 @@ impl ExperimentalDBConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+/// Configuration for the VM playground (an experimental component that's unlikely to ever be stabilized).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ExperimentalVmPlaygroundConfig {
     /// Mode in which to run the fast VM implementation. Note that for it to actually be used, L1 batches should have a recent version.
     #[serde(default)]
@@ -94,4 +95,14 @@ impl ExperimentalVmPlaygroundConfig {
     pub fn default_db_path() -> String {
         "./db/vm_playground".to_owned()
     }
+}
+
+/// Experimental VM configuration options.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct ExperimentalVmConfig {
+    // FIXME: embed `ExperimentalVmPlaygroundConfig`?
+    /// Mode in which to run the fast VM implementation in the state keeper. Should not be set in production;
+    /// the new VM doesn't produce call traces and can diverge from the old VM!
+    #[serde(default)]
+    pub state_keeper_fast_vm_mode: FastVmMode,
 }

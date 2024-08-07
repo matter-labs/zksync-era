@@ -1,4 +1,5 @@
 use zksync_state_keeper::MainBatchExecutor;
+use zksync_types::vm::FastVmMode;
 
 use crate::{
     implementations::resources::state_keeper::BatchExecutorResource,
@@ -10,6 +11,7 @@ use crate::{
 pub struct MainBatchExecutorLayer {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
+    fast_vm_mode: FastVmMode,
 }
 
 impl MainBatchExecutorLayer {
@@ -17,7 +19,13 @@ impl MainBatchExecutorLayer {
         Self {
             save_call_traces,
             optional_bytecode_compression,
+            fast_vm_mode: FastVmMode::default(),
         }
+    }
+
+    pub fn with_fast_vm_mode(mut self, mode: FastVmMode) -> Self {
+        self.fast_vm_mode = mode;
+        self
     }
 }
 
@@ -31,8 +39,9 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        let executor =
+        let mut executor =
             MainBatchExecutor::new(self.save_call_traces, self.optional_bytecode_compression);
+        executor.set_fast_vm_mode(self.fast_vm_mode);
         Ok(executor.into())
     }
 }

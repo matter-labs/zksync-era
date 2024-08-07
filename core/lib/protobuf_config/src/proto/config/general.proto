@@ -56,4 +56,5 @@ message GeneralConfig {
   optional external_price_api_client.ExternalPriceApiClient external_price_api_client = 41;
   optional core.consensus.Config consensus = 42;
   optional experimental.VmPlayground vm_playground = 43;
+  optional experimental.Vm experimental_vm = 44;
 }

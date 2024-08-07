@@ -1,5 +1,6 @@
 use zksync_config::configs::{
-    BasicWitnessInputProducerConfig, ExperimentalVmPlaygroundConfig, ProtectiveReadsWriterConfig,
+    BasicWitnessInputProducerConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig,
+    ProtectiveReadsWriterConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -19,6 +20,12 @@ impl FromEnv for BasicWitnessInputProducerConfig {
 impl FromEnv for ExperimentalVmPlaygroundConfig {
     fn from_env() -> anyhow::Result<Self> {
         envy_load("vm_runner.playground", "VM_RUNNER_PLAYGROUND_")
+    }
+}
+
+impl FromEnv for ExperimentalVmConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load("experimental_vm", "EXPERIMENTAL_VM_")
     }
 }
 

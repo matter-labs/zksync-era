@@ -32,3 +32,7 @@ message VmPlayground {
   optional uint32 first_processed_batch = 3; // optional; defaults to 0
   optional bool reset = 4; // optional; defaults to false
 }
+
+message Vm {
+  optional FastVmMode state_keeper_fast_vm_mode = 1; // optional; if not set, fast VM is not used
+}

@@ -98,3 +98,26 @@ impl ProtoRepr for proto::VmPlayground {
         }
     }
 }
+
+impl ProtoRepr for proto::Vm {
+    type Type = configs::ExperimentalVmConfig;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            state_keeper_fast_vm_mode: self
+                .state_keeper_fast_vm_mode
+                .map(proto::FastVmMode::try_from)
+                .transpose()
+                .context("fast_vm_mode")?
+                .map_or_else(FastVmMode::default, |mode| mode.parse()),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            state_keeper_fast_vm_mode: Some(
+                proto::FastVmMode::new(this.state_keeper_fast_vm_mode).into(),
+            ),
+        }
+    }
+}

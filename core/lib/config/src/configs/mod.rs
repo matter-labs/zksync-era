@@ -9,7 +9,7 @@ pub use self::{
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
-    experimental::{ExperimentalDBConfig, ExperimentalVmPlaygroundConfig},
+    experimental::{ExperimentalDBConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig},
     external_price_api_client::ExternalPriceApiClientConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
