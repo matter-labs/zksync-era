@@ -12,7 +12,7 @@ pub const DEFAULT_INTERVAL_MS: u64 = 30_000;
 pub const DEFAULT_CACHE_UPDATE_INTERVAL: u64 = 500;
 
 /// Default max amount of gas that a L1 base token update can consume per transaction
-pub const DEFAULT_MAX_TX_GAS: u64 = 20000;
+pub const DEFAULT_MAX_TX_GAS: u64 = 80000;
 
 /// Default maximum number of attempts to get L1 transaction receipt
 const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;

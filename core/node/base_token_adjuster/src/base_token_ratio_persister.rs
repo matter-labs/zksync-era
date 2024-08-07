@@ -143,7 +143,7 @@ impl BaseTokenRatioPersister {
         let fn_set_token_multiplier = self
             .chain_admin_contract
             .function("setTokenMultiplier")
-            .context("`setTokenMultiplier` function must be present in the admin contract")?;
+            .context("`setTokenMultiplier` function must be present in the ChainAdmin contract")?;
 
         let calldata = fn_set_token_multiplier
             .encode_input(
@@ -220,7 +220,8 @@ impl BaseTokenRatioPersister {
                     return Ok(());
                 }
                 return Err(anyhow::Error::msg(format!(
-                    "`setTokenMultiplier` transaction failed with status {:?}",
+                    "`setTokenMultiplier` transaction {:?} failed with status {:?}",
+                    hex::encode(hash),
                     receipt.status
                 )));
             } else {
