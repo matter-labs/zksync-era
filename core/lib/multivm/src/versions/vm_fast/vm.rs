@@ -126,7 +126,9 @@ impl<S: ReadStorage> Vm<S> {
                             .bootloader_state
                             .get_tx_description_offset(current_tx_index);
                         let tx_gas_limit = self
-                            .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
+                            .read_word_from_bootloader_heap(
+                                tx_description_offset + TX_GAS_LIMIT_OFFSET,
+                            )
                             .as_u64();
 
                         let pubdata_published = self.inner.world_diff.pubdata() as u32;
@@ -249,31 +251,28 @@ impl<S: ReadStorage> Vm<S> {
     fn get_hook_params(&self) -> [U256; 3] {
         (get_vm_hook_params_start_position(VM_VERSION)
             ..get_vm_hook_params_start_position(VM_VERSION) + VM_HOOK_PARAMS_COUNT)
-            .map(|word| self.read_heap_word(word as usize))
+            .map(|word| self.read_word_from_bootloader_heap(word as usize))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
     }
 
-    /// Typically used to read the bootloader heap. We know that we're in the bootloader
-    /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
-    pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
-        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
-        self.inner.state.heaps[self.inner.state.current_frame.heap].read_u256(word as u32 * 32)
+    /// Should only be used when the bootloader is executing (e.g., when handling hooks).
+    pub(crate) fn read_word_from_bootloader_heap(&self, word: usize) -> U256 {
+        self.inner.state.heaps[vm2::FIRST_HEAP].read_u256(word as u32 * 32)
     }
 
+    /// Should only be used when the bootloader is executing (e.g., when handling hooks).
     pub(crate) fn write_to_bootloader_heap(
         &mut self,
         memory: impl IntoIterator<Item = (usize, U256)>,
     ) {
         assert!(self.inner.state.previous_frames.is_empty());
-        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
         for (slot, value) in memory {
-            self.inner.state.heaps.write_u256(
-                self.inner.state.current_frame.heap,
-                slot as u32 * 32,
-                value,
-            );
+            self.inner
+                .state
+                .heaps
+                .write_u256(vm2::FIRST_HEAP, slot as u32 * 32, value);
         }
     }
 

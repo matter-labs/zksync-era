@@ -30,7 +30,7 @@ fn test_tx_gas_limit_offset() {
     assert!(vm.vm.inner.state.previous_frames.is_empty());
     let gas_limit_from_memory = vm
         .vm
-        .read_heap_word(TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET);
+        .read_word_from_bootloader_heap(TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET);
 
     assert_eq!(gas_limit_from_memory, gas_limit);
 }
