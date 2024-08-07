@@ -326,7 +326,7 @@ impl TreeDataProvider for CombinedDataProvider {
 
             match l1_result {
                 Err(err) => {
-                    if err.is_transient() {
+                    if err.is_retriable() {
                         tracing::info!(
                             "Transient error calling L1 data provider: {:#}",
                             anyhow::Error::from(err)
