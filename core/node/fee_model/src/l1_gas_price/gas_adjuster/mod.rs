@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{BaseFees, EnrichedClientResult, EthFeeInterface, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U256, U64};
-use zksync_web3_decl::client::{DynClient, L1, L2};
+use zksync_web3_decl::client::{DynClient, ObjectSafeClient, L1, L2};
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
@@ -19,71 +19,36 @@ mod metrics;
 mod tests;
 
 #[derive(Debug)]
-pub enum GasAdjusterClient {
-    L1(Box<DynClient<L1>>),
-    L2(Box<DynClient<L2>>),
+pub struct GasAdjusterClient {
+    gateway_mode: bool,
+    inner: Box<dyn EthFeeInterface>,
 }
 
 impl GasAdjusterClient {
     pub fn from_l1(inner: Box<DynClient<L1>>) -> Self {
-        Self::L1(inner)
-    }
-
-    pub fn is_l1(&self) -> bool {
-        matches!(self, Self::L1(_))
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+            gateway_mode: false,
+        }
     }
 
     pub fn from_l2(inner: Box<DynClient<L2>>) -> Self {
-        Self::L2(inner)
-    }
-
-    pub fn is_l2(&self) -> bool {
-        matches!(self, Self::L2(_))
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+            gateway_mode: true,
+        }
     }
 }
 
 impl From<Box<DynClient<L1>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L1>>) -> Self {
-        Self::L1(inner)
+        Self::from_l1(inner)
     }
 }
 
 impl From<Box<DynClient<L2>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L2>>) -> Self {
-        Self::L2(inner)
-    }
-}
-
-impl GasAdjusterClient {
-    fn for_component(self, name: &'static str) -> Self {
-        match self {
-            GasAdjusterClient::L1(inner) => GasAdjusterClient::L1(inner.for_component(name)),
-            GasAdjusterClient::L2(inner) => GasAdjusterClient::L2(inner.for_component(name)),
-        }
-    }
-
-    async fn block_number(&self) -> EnrichedClientResult<U64> {
-        match self {
-            GasAdjusterClient::L1(inner) => inner.block_number().await,
-            GasAdjusterClient::L2(inner) => inner.block_number().await,
-        }
-    }
-
-    async fn base_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>> {
-        match self {
-            GasAdjusterClient::L1(inner) => {
-                let base_fees = inner.base_fee_history(upto_block, block_count).await?;
-                Ok(base_fees)
-            }
-            GasAdjusterClient::L2(inner) => {
-                let base_fees = inner.base_fee_history(upto_block, block_count).await?;
-                Ok(base_fees)
-            }
-        }
+        Self::from_l2(inner)
     }
 }
 
@@ -117,14 +82,14 @@ impl GasAdjuster {
     ) -> anyhow::Result<Self> {
         // A runtime check to ensure consistent config.
         if config.settlement_mode.is_gateway() {
-            anyhow::ensure!(client.is_l2(), "Must be L2 client in L2 mode");
+            anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
 
             anyhow::ensure!(
                 matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
                 "Only relayed L2 calldata is available for L2 mode"
             );
         } else {
-            anyhow::ensure!(client.is_l1(), "Must be L1 client in L1 mode");
+            anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
 
             anyhow::ensure!(
                 !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
@@ -132,13 +97,17 @@ impl GasAdjuster {
             );
         }
 
-        let client = client.for_component("gas_adjuster");
-
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
-        let current_block = client.block_number().await?.as_usize().saturating_sub(1);
+        let current_block = client
+            .inner
+            .block_number()
+            .await?
+            .as_usize()
+            .saturating_sub(1);
         let fee_history = client
+            .inner
             .base_fee_history(current_block, config.max_base_fee_samples)
             .await?;
 
@@ -179,6 +148,7 @@ impl GasAdjuster {
         // This sometimes happens on Infura.
         let current_block = self
             .client
+            .inner
             .block_number()
             .await?
             .as_usize()
@@ -190,6 +160,7 @@ impl GasAdjuster {
             let n_blocks = current_block - last_processed_block;
             let fee_data = self
                 .client
+                .inner
                 .base_fee_history(current_block, n_blocks)
                 .await?;
 
