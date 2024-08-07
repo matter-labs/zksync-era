@@ -19,9 +19,6 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   unit-tests:
     runs-on: [matterlabs-ci-runner]
 

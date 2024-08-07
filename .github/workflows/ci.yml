@@ -119,9 +119,6 @@ jobs:
     if: needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   # What needs to be ran for both core and prover
   ci-for-common:
