@@ -53,7 +53,7 @@ tokio = "1"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3" }
-vise = "0.1.0"
+vise = "0.2.0"
 
 # Proving dependencies
 circuit_definitions = "=0.150.2-rc.3"
