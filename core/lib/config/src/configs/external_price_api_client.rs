@@ -14,6 +14,7 @@ pub struct ExternalPriceApiClientConfig {
     /// Forced conversion ratio. Only used with the ForcedPriceClient.
     pub forced_numerator: Option<u64>,
     pub forced_denominator: Option<u64>,
+    pub forced_ethereum_erc20_address: Option<String>,
 }
 
 impl ExternalPriceApiClientConfig {
