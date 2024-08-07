@@ -190,7 +190,8 @@ class MainNode {
             stdio: [null, logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the main node starts responding.
@@ -243,7 +244,8 @@ class ExtNode {
             stdio: [null, logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the node starts responding.
