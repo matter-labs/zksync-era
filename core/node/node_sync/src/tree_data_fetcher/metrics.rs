@@ -103,7 +103,7 @@ impl TreeDataFetcherMetrics {
             Ok(StepOutcome::NoProgress) => StepOutcomeLabel::NoProgress,
             Ok(StepOutcome::RemoteHashMissing) => StepOutcomeLabel::RemoteHashMissing,
             Ok(StepOutcome::PossibleReorg) => StepOutcomeLabel::PossibleReorg,
-            Err(err) if err.is_transient() => StepOutcomeLabel::TransientError,
+            Err(err) if err.is_retriable() => StepOutcomeLabel::TransientError,
             Err(_) => return, // fatal error; the node will exit soon anyway
         };
         self.step_outcomes[&label].inc();
