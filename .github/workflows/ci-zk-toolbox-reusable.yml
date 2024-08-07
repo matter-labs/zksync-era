@@ -102,7 +102,8 @@ jobs:
           --server-db-name=zksync_server_localhost_era \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_era \
-          --ignore-prerequisites --verbose
+          --ignore-prerequisites --verbose \
+          --observability=false
 
       - name: Create and initialize chain
         run: |
