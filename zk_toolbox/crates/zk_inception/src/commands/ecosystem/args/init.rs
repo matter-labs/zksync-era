@@ -90,7 +90,7 @@ pub struct EcosystemInitArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "false", num_args = 0..=1)]
     pub observability: Option<bool>,
 }
 
@@ -113,7 +113,7 @@ impl EcosystemInitArgs {
         };
         let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
         let observability = if self.dev {
-            true
+            false
         } else {
             self.observability.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
