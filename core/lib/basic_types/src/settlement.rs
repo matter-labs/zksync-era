@@ -10,7 +10,7 @@ pub enum SettlementMode {
 }
 
 impl SettlementMode {
-    pub fn is_gateway(&self) -> bool {
+    pub fn is_gateway(self) -> bool {
         matches!(self, Self::Gateway)
     }
 }

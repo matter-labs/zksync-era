@@ -84,9 +84,9 @@ struct MockExecutedTx {
     success: bool,
 }
 
-/// Mutable part of [`MockEthereum`] that needs to be synchronized via an `RwLock`.
+/// Mutable part of [`MockSettlementLayer`] that needs to be synchronized via an `RwLock`.
 #[derive(Debug, Default)]
-struct MockEthereumInner {
+struct MockSettlementLayerInner {
     block_number: u64,
     executed_txs: HashMap<H256, MockExecutedTx>,
     sent_txs: HashMap<H256, MockTx>,
@@ -95,7 +95,7 @@ struct MockEthereumInner {
     nonces: BTreeMap<u64, u64>,
 }
 
-impl MockEthereumInner {
+impl MockSettlementLayerInner {
     fn execute_tx(
         &mut self,
         tx_hash: H256,
@@ -208,7 +208,7 @@ impl MockEthereumInner {
 
 #[derive(Debug)]
 pub struct MockExecutedTxHandle<'a> {
-    inner: RwLockWriteGuard<'a, MockEthereumInner>,
+    inner: RwLockWriteGuard<'a, MockSettlementLayerInner>,
     tx_hash: H256,
 }
 
@@ -227,7 +227,7 @@ pub trait SupportedMockSLNetwork: Network {
     fn build_client(builder: MockSettlementLayerBuilder<Self>) -> MockClient<Self>;
 }
 
-/// Builder for [`MockEthereum`] client.
+/// Builder for [`MockSettlementLayer`] client.
 pub struct MockSettlementLayerBuilder<Net: SupportedMockSLNetwork = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -235,7 +235,7 @@ pub struct MockSettlementLayerBuilder<Net: SupportedMockSLNetwork = L1> {
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
-    inner: Arc<RwLock<MockEthereumInner>>,
+    inner: Arc<RwLock<MockSettlementLayerInner>>,
     call_handler: Box<CallHandler>,
     _network: PhantomData<Net>,
 }
@@ -477,13 +477,13 @@ impl SupportedMockSLNetwork for L2 {
     }
 }
 
-/// Mock Ethereum client.
+/// Mock settlement layer client.
 #[derive(Debug, Clone)]
 pub struct MockSettlementLayer<Net: Network = L1> {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     non_ordering_confirmations: bool,
-    inner: Arc<RwLock<MockEthereumInner>>,
+    inner: Arc<RwLock<MockSettlementLayerInner>>,
     client: MockClient<Net>,
 }
 
@@ -502,7 +502,7 @@ impl Default for MockSettlementLayer<L2> {
 const MOCK_SENDER_ACCOUNT: Address = Address::repeat_byte(0x11);
 
 impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
-    /// Initializes a builder for a [`MockEthereum`] instance.
+    /// Initializes a builder for a [`MockSettlementLayer`] instance.
     pub fn builder() -> MockSettlementLayerBuilder<Net> {
         MockSettlementLayerBuilder::default()
     }

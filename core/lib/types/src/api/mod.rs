@@ -840,7 +840,7 @@ pub struct TransactionExecutionInfo {
 pub struct FeeHistory {
     #[serde(flatten)]
     pub inner: zksync_basic_types::web3::FeeHistory,
-    /// An array of effective pubdata price. Note, that this field is L2-specific and only provided by L2 nodes.
+    /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
     #[serde(default)]
     pub l2_pubdata_price: Vec<U256>,
 }
