@@ -8661,7 +8661,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.14.0"
+version = "24.15.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9735,6 +9735,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",

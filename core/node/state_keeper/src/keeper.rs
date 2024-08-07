@@ -146,16 +146,8 @@ impl ZkSyncStateKeeper {
             .await?;
 
         let mut batch_executor = self
-            .batch_executor_base
-            .init_batch(
-                self.storage_factory.clone(),
-                l1_batch_env.clone(),
-                system_env.clone(),
-                &self.stop_receiver,
-            )
-            .await
-            .ok_or(Error::Canceled)?;
-
+            .create_batch_executor(l1_batch_env.clone(), system_env.clone())
+            .await?;
         self.restore_state(&mut batch_executor, &mut updates_manager, pending_l2_blocks)
             .await?;
 
@@ -203,15 +195,8 @@ impl ZkSyncStateKeeper {
             (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
-                .batch_executor_base
-                .init_batch(
-                    self.storage_factory.clone(),
-                    l1_batch_env.clone(),
-                    system_env.clone(),
-                    &self.stop_receiver,
-                )
-                .await
-                .ok_or(Error::Canceled)?;
+                .create_batch_executor(l1_batch_env.clone(), system_env.clone())
+                .await?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
             protocol_upgrade_tx = if version_changed {
@@ -221,6 +206,24 @@ impl ZkSyncStateKeeper {
             };
         }
         Err(Error::Canceled)
+    }
+
+    async fn create_batch_executor(
+        &mut self,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+    ) -> Result<BatchExecutorHandle, Error> {
+        let Some(storage) = self
+            .storage_factory
+            .access_storage(&self.stop_receiver, l1_batch_env.number - 1)
+            .await
+            .context("failed creating VM storage")?
+        else {
+            return Err(Error::Canceled);
+        };
+        Ok(self
+            .batch_executor_base
+            .init_batch(storage, l1_batch_env, system_env))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.

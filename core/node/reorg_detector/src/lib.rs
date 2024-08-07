@@ -70,9 +70,9 @@ pub enum Error {
 }
 
 impl HashMatchError {
-    pub fn is_transient(&self) -> bool {
+    pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_transient(),
+            Self::Rpc(err) => err.is_retriable(),
             Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
@@ -80,8 +80,8 @@ impl HashMatchError {
 }
 
 impl Error {
-    pub fn is_transient(&self) -> bool {
-        matches!(self, Self::HashMatch(err) if err.is_transient())
+    pub fn is_retriable(&self) -> bool {
+        matches!(self, Self::HashMatch(err) if err.is_retriable())
     }
 }
 
@@ -433,7 +433,7 @@ impl ReorgDetector {
     /// - `Err(ReorgDetected(_))` if a reorg was detected.
     /// - `Err(_)` for fatal errors.
     ///
-    /// Transient errors are retried indefinitely accounting for a stop signal.
+    /// Retriable errors are retried indefinitely accounting for a stop signal.
     pub async fn run_once(&mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.run_inner(true, stop_receiver).await
     }
@@ -459,7 +459,7 @@ impl ReorgDetector {
                     tracing::debug!("Last L1 batch on the main node doesn't have a state root hash; waiting until it is computed");
                     self.sleep_interval / 10
                 }
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     tracing::warn!("Following transient error occurred: {err}");
                     tracing::info!("Trying again after a delay");
                     self.sleep_interval
