@@ -4,7 +4,7 @@ use crate::messages::{MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_RUN_PROMPT};
 
 #[derive(Debug, Parser)]
 pub struct ContainersArgs {
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "false", num_args = 0..=1)]
+    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub observability: Option<bool>,
 }
 
