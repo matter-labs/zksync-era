@@ -2,12 +2,11 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
+use super::args::rust::RustArgs;
 use crate::messages::{
     MSG_CARGO_NEXTEST_MISSING_ERR, MSG_RUNNING_UNIT_TESTS_SPINNER, MSG_UNIT_TESTS_RUN_SUCCESS,
     MSG_USING_CARGO_NEXTEST,
 };
-
-use super::args::rust::RustArgs;
 
 pub fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
