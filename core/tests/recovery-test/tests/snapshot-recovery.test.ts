@@ -226,7 +226,7 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node', async () => {
@@ -234,7 +234,9 @@ describe('snapshot recovery', () => {
             externalNodeEnv,
             'snapshot-recovery.log',
             pathToHome,
-            fileConfig.loadFromFile
+            NodeComponents.STANDARD,
+            fileConfig.loadFromFile,
+            fileConfig.chain
         );
 
         let recoveryFinished = false;
@@ -356,8 +358,9 @@ describe('snapshot recovery', () => {
             externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
+            components,
             fileConfig.loadFromFile,
-            components
+            fileConfig.chain
         );
 
         let isDbPrunerReady = false;
