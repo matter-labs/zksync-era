@@ -212,7 +212,7 @@ impl EN {
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if err.is_transient() => {}
+                Err(err) if err.is_retriable() => {}
                 Err(err) => {
                     return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}", n).into());
                 }
