@@ -200,7 +200,15 @@ impl EN {
             .await?
             .context("fetch_consensus_genesis()")?
             .context("main node is not running consensus component")?;
-        Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
+        // Deserialize the json, but don't allow for unknown fields.
+        // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
+        // do.
+        Ok(validator::Genesis::read(
+            &zksync_protobuf::serde::deserialize_proto_with_options(
+                &genesis.0, /*deny_unknown_fields=*/ true,
+            )
+            .context("deserialize")?,
+        )?)
     }
 
     /// Fetches (with retries) the given block from the main node.
