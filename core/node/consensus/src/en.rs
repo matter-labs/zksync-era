@@ -11,6 +11,7 @@ use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
@@ -203,12 +204,13 @@ impl EN {
         // Deserialize the json, but don't allow for unknown fields.
         // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
         // do.
-        Ok(validator::Genesis::read(
+        Ok(validator::GenesisRaw::read(
             &zksync_protobuf::serde::deserialize_proto_with_options(
                 &genesis.0, /*deny_unknown_fields=*/ true,
             )
             .context("deserialize")?,
-        )?)
+        )?
+        .with_hash())
     }
 
     /// Fetches (with retries) the given block from the main node.
