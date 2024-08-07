@@ -140,7 +140,7 @@ mod test {
 
     use super::*;
 
-    fn transient_error() -> ObjectStoreError {
+    fn retriable_error() -> ObjectStoreError {
         ObjectStoreError::Other {
             is_retriable: true,
             source: "oops".into(),
@@ -159,7 +159,7 @@ mod test {
     #[tokio::test]
     async fn test_retry_failure_exhausted() {
         let err = Request::New
-            .retry(&"store", 2, || async { Err::<i32, _>(transient_error()) })
+            .retry(&"store", 2, || async { Err::<i32, _>(retriable_error()) })
             .await
             .unwrap_err();
         assert_matches!(err, ObjectStoreError::Other { .. });
@@ -173,7 +173,7 @@ mod test {
                 if retries + 1 == n {
                     Ok(42)
                 } else {
-                    Err(transient_error())
+                    Err(retriable_error())
                 }
             })
             .await

@@ -6,19 +6,19 @@ use serde::Serialize;
 #[derive(Debug)]
 pub struct DAError {
     pub error: anyhow::Error,
-    pub is_transient: bool,
+    pub is_retriable: bool,
 }
 
 impl DAError {
-    pub fn is_transient(&self) -> bool {
-        self.is_transient
+    pub fn is_retriable(&self) -> bool {
+        self.is_retriable
     }
 }
 
 impl Display for DAError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let kind = if self.is_transient {
-            "transient"
+        let kind = if self.is_retriable {
+            "retriable"
         } else {
             "fatal"
         };

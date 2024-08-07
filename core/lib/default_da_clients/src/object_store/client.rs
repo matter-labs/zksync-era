@@ -40,7 +40,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
             .await
         {
             return Err(DAError {
-                is_transient: err.is_retriable(),
+                is_retriable: err.is_retriable(),
                 error: anyhow::Error::from(err),
             });
         }
@@ -53,7 +53,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
     async fn get_inclusion_data(&self, key: &str) -> Result<Option<InclusionData>, DAError> {
         let key_u32 = key.parse::<u32>().map_err(|err| DAError {
             error: anyhow::Error::from(err).context(format!("Failed to parse blob key: {}", key)),
-            is_transient: false,
+            is_retriable: false,
         })?;
 
         if let Err(err) = self
@@ -66,7 +66,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
             }
 
             return Err(DAError {
-                is_transient: err.is_retriable(),
+                is_retriable: err.is_retriable(),
                 error: anyhow::Error::from(err),
             });
         }

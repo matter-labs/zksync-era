@@ -85,8 +85,8 @@ impl EnrichedClientError {
         self
     }
 
-    /// Whether the error should be considered transient.
-    pub fn is_transient(&self) -> bool {
+    /// Whether the error should be considered retriable.
+    pub fn is_retriable(&self) -> bool {
         match self.as_ref() {
             ClientError::Transport(_) | ClientError::RequestTimeout => true,
             ClientError::Call(err) => {
