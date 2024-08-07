@@ -25,7 +25,8 @@ const IGNORED_DIRS = [
     'artifacts-zk',
     'cache-zk',
     // Ignore directories with OZ and forge submodules.
-    'contracts/l1-contracts/lib'
+    'contracts/l1-contracts/lib',
+    'contracts/lib'
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
@@ -33,6 +34,7 @@ const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
 // returns { stdout, stderr }
 const promisified = promisify(_exec);
+
 export function exec(command: string) {
     command = command.replace(/\n/g, ' ');
     return promisified(command);
