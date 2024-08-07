@@ -52,14 +52,14 @@ async fn main() {
                 file.write_all(content.as_bytes()).unwrap();
             }
             SourceCodeData::StandardJsonInput(input) => {
-                let sources = input.get(&"sources".to_string()).unwrap().clone();
+                let sources = input.get("sources").unwrap().clone();
                 for (key, val) in sources.as_object().unwrap() {
                     let p = format!("{}/{}", &dir, key);
                     let path = std::path::Path::new(p.as_str());
                     let prefix = path.parent().unwrap();
                     std::fs::create_dir_all(prefix).unwrap();
                     let mut file = std::fs::File::create(path).unwrap();
-                    let content = val.get(&"content".to_string()).unwrap().as_str().unwrap();
+                    let content = val.get("content").unwrap().as_str().unwrap();
                     file.write_all(content.as_bytes()).unwrap();
                 }
             }
