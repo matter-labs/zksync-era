@@ -1,6 +1,5 @@
 use zksync_config::configs::{
-    BasicWitnessInputProducerConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig,
-    ProtectiveReadsWriterConfig,
+    BasicWitnessInputProducerConfig, ExperimentalVmConfig, ProtectiveReadsWriterConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -17,15 +16,12 @@ impl FromEnv for BasicWitnessInputProducerConfig {
     }
 }
 
-impl FromEnv for ExperimentalVmPlaygroundConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        envy_load("vm_runner.playground", "VM_RUNNER_PLAYGROUND_")
-    }
-}
-
 impl FromEnv for ExperimentalVmConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("experimental_vm", "EXPERIMENTAL_VM_")
+        Ok(Self {
+            playground: envy_load("experimental_vm.playground", "EXPERIMENTAL_VM_PLAYGROUND_")?,
+            ..envy_load("experimental_vm", "EXPERIMENTAL_VM_")?
+        })
     }
 }
 
@@ -55,36 +51,38 @@ mod tests {
     }
 
     #[test]
-    fn playground_config_from_env() {
+    fn experimental_vm_config_from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            VM_RUNNER_PLAYGROUND_FAST_VM_MODE=shadow
-            VM_RUNNER_PLAYGROUND_DB_PATH=/db/vm_playground
-            VM_RUNNER_PLAYGROUND_FIRST_PROCESSED_BATCH=123
-            VM_RUNNER_PLAYGROUND_RESET=true
+            EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=new
+            EXPERIMENTAL_VM_PLAYGROUND_FAST_VM_MODE=shadow
+            EXPERIMENTAL_VM_PLAYGROUND_DB_PATH=/db/vm_playground
+            EXPERIMENTAL_VM_PLAYGROUND_FIRST_PROCESSED_BATCH=123
+            EXPERIMENTAL_VM_PLAYGROUND_RESET=true
         "#;
         lock.set_env(config);
 
-        let config = ExperimentalVmPlaygroundConfig::from_env().unwrap();
-        assert_eq!(config.fast_vm_mode, FastVmMode::Shadow);
-        assert_eq!(config.db_path, "/db/vm_playground");
-        assert_eq!(config.first_processed_batch, L1BatchNumber(123));
-        assert!(config.reset);
+        let config = ExperimentalVmConfig::from_env().unwrap();
+        assert_eq!(config.state_keeper_fast_vm_mode, FastVmMode::New);
+        assert_eq!(config.playground.fast_vm_mode, FastVmMode::Shadow);
+        assert_eq!(config.playground.db_path, "/db/vm_playground");
+        assert_eq!(config.playground.first_processed_batch, L1BatchNumber(123));
+        assert!(config.playground.reset);
 
-        lock.remove_env(&["VM_RUNNER_PLAYGROUND_RESET"]);
-        let config = ExperimentalVmPlaygroundConfig::from_env().unwrap();
-        assert!(!config.reset);
+        lock.remove_env(&["EXPERIMENTAL_VM_PLAYGROUND_RESET"]);
+        let config = ExperimentalVmConfig::from_env().unwrap();
+        assert!(!config.playground.reset);
 
-        lock.remove_env(&["VM_RUNNER_PLAYGROUND_FIRST_PROCESSED_BATCH"]);
-        let config = ExperimentalVmPlaygroundConfig::from_env().unwrap();
-        assert_eq!(config.first_processed_batch, L1BatchNumber(0));
+        lock.remove_env(&["EXPERIMENTAL_VM_PLAYGROUND_FIRST_PROCESSED_BATCH"]);
+        let config = ExperimentalVmConfig::from_env().unwrap();
+        assert_eq!(config.playground.first_processed_batch, L1BatchNumber(0));
 
-        lock.remove_env(&["VM_RUNNER_PLAYGROUND_FAST_VM_MODE"]);
-        let config = ExperimentalVmPlaygroundConfig::from_env().unwrap();
-        assert_eq!(config.fast_vm_mode, FastVmMode::Old);
+        lock.remove_env(&["EXPERIMENTAL_VM_PLAYGROUND_FAST_VM_MODE"]);
+        let config = ExperimentalVmConfig::from_env().unwrap();
+        assert_eq!(config.playground.fast_vm_mode, FastVmMode::Old);
 
-        lock.remove_env(&["VM_RUNNER_PLAYGROUND_DB_PATH"]);
-        let config = ExperimentalVmPlaygroundConfig::from_env().unwrap();
-        assert!(!config.db_path.is_empty());
+        lock.remove_env(&["EXPERIMENTAL_VM_PLAYGROUND_DB_PATH"]);
+        let config = ExperimentalVmConfig::from_env().unwrap();
+        assert!(!config.playground.db_path.is_empty());
     }
 }

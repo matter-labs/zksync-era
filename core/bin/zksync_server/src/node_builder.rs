@@ -565,9 +565,9 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_playground_config = try_load_config!(self.configs.vm_playground_config);
+        let vm_config = try_load_config!(self.configs.experimental_vm_config);
         self.node.add_layer(VmPlaygroundLayer::new(
-            vm_playground_config,
+            vm_config.playground,
             self.genesis_config.l2_chain_id,
         ));
 

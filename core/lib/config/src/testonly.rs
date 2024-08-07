@@ -314,6 +314,7 @@ fn gen_fast_vm_mode<R: Rng + ?Sized>(rng: &mut R) -> FastVmMode {
 impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmConfig {
         configs::ExperimentalVmConfig {
+            playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
@@ -1065,7 +1066,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             da_dispatcher_config: self.sample(rng),
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
-            vm_playground_config: self.sample(rng),
             commitment_generator: self.sample(rng),
             snapshot_recovery: self.sample(rng),
             pruning: self.sample(rng),

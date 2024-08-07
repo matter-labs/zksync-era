@@ -100,7 +100,9 @@ impl ExperimentalVmPlaygroundConfig {
 /// Experimental VM configuration options.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct ExperimentalVmConfig {
-    // FIXME: embed `ExperimentalVmPlaygroundConfig`?
+    #[serde(skip)] // Isn't properly deserialized by `envy`
+    pub playground: ExperimentalVmPlaygroundConfig,
+
     /// Mode in which to run the fast VM implementation in the state keeper. Should not be set in production;
     /// the new VM doesn't produce call traces and can diverge from the old VM!
     #[serde(default)]
