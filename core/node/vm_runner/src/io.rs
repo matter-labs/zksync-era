@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_types::L1BatchNumber;
 
-/// Functionality to fetch/save data about processed/unprocessed batches for a particular VM runner
+/// Functionality to fetch/save data about processed/unprocessed batches for a particular VM runner test-os
 /// instance.
 #[async_trait]
 pub trait VmRunnerIo: Debug + Send + Sync + 'static {
