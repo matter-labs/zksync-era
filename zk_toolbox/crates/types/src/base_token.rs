@@ -1,7 +1,7 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct BaseToken {
     pub address: Address,
     pub nominator: u64,
