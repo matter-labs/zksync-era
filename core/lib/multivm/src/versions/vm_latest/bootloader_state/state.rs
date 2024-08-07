@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{L2ChainId, U256};
+use zksync_types::{commitment::PubdataParams, L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{
@@ -9,9 +9,7 @@ use super::{
     utils::{apply_pubdata_to_memory, get_encoded_pubdata},
 };
 use crate::{
-    interface::{
-        types::inputs::system_env::PubdataParams, BootloaderMemory, L2BlockEnv, TxExecutionMode,
-    },
+    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,

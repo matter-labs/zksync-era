@@ -37,6 +37,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         fee_account_address: Address::zero(),
+        pubdata_params: Default::default(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -209,6 +210,7 @@ impl Snapshot {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
                 genesis_params.minor_protocol_version().into(),
             ),
+            pubdata_params: Default::default(),
             base_system_contracts_hashes: contracts.hashes(),
             protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,

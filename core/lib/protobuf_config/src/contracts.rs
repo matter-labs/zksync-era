@@ -119,6 +119,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_native_token_vault_proxy_addr")?,
+            l2_da_validator_addr: l2
+                .l2_da_validator_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l2_da_validator_addr")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -163,6 +169,7 @@ impl ProtoRepr for proto::Contracts {
                 l2_native_token_vault_proxy_addr: this
                     .l2_native_token_vault_proxy_addr
                     .map(|a| format!("{:?}", a)),
+                l2_da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

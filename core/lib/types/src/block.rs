@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{Address, H2048, H256, U256};
+use zksync_basic_types::{commitment::PubdataParams, Address, H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
@@ -81,6 +81,7 @@ pub struct L2BlockHeader {
     pub batch_fee_input: BatchFeeInput,
     pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub pubdata_params: PubdataParams,
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the L2 block.
     pub virtual_blocks: u32,

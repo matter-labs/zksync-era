@@ -1,9 +1,10 @@
-use std::time::Duration;
+use std::{ops::Add, time::Duration};
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    commitment::PubdataParams,
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -46,6 +47,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(protocol_version),
+        pubdata_params: PubdataParams::default(),
         virtual_blocks: 1,
         gas_limit: 0,
     }

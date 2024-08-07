@@ -4,6 +4,7 @@ use zksync_contracts::{l2_rollup_da_validator_bytecode, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
@@ -14,7 +15,6 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        types::inputs::system_env::{PubdataParams, PubdataType},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
@@ -194,7 +194,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
 
         self.pubdata_params = Some(PubdataParams {
             l2_da_validator_address,
-            pubdata_type: PubdataType::Rollup,
+            pubdata_type: L1BatchCommitmentMode::Rollup,
         });
 
         self.custom_contracts

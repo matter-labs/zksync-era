@@ -4,6 +4,11 @@ package zksync.dal;
 
 import "zksync/roles/validator.proto";
 
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
+}
+
 message Payload {
   // zksync-era ProtocolVersionId
   optional uint32 protocol_version = 9; // required; u16
@@ -20,6 +25,12 @@ message Payload {
   // Set for protocol_version >= 25.
   repeated TransactionV25 transactions_v25 = 12;
   optional bool last_in_batch = 10; // required
+  optional PubdataParams pubdata_params = 13; // required 
+}
+
+message PubdataParams {
+    optional bytes l2_da_validator_address = 1; // required; H160
+    optional L1BatchCommitDataGeneratorMode pubdata_type = 2; // optional, default to rollup
 }
 
 message L1Transaction {

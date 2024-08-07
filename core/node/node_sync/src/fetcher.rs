@@ -1,10 +1,9 @@
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_multivm::interface::PubdataParams;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
-    api::en::SyncBlock, block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
+    helpers::unix_timestamp_ms, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -52,6 +51,7 @@ pub struct FetchedBlock {
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<FetchedTransaction>,
+    pub pubdata_params: PubdataParams,
 }
 
 impl FetchedBlock {
@@ -94,6 +94,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .into_iter()
                 .map(FetchedTransaction::new)
                 .collect(),
+            pubdata_params: block.pubdata_params,
         })
     }
 }
@@ -166,7 +167,7 @@ impl IoCursorExt for IoCursor {
                         timestamp: block.timestamp,
                         virtual_blocks: block.virtual_blocks,
                     },
-                    pubdata_params: PubdataParams::extract_from_env(),
+                    pubdata_params: block.pubdata_params,
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,

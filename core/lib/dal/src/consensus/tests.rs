@@ -9,7 +9,9 @@ use zksync_protobuf::{
 };
 use zksync_test_account::Account;
 use zksync_types::{
-    web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    web3::Bytes,
+    Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
 
 use super::{proto, AttestationStatus, Payload};
@@ -51,6 +53,13 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             })
             .collect(),
         last_in_batch: rng.gen(),
+        pubdata_params: PubdataParams {
+            pubdata_type: match rng.gen_range(0..2) {
+                0 => L1BatchCommitmentMode::Rollup,
+                _ => L1BatchCommitmentMode::Validium,
+            },
+            l2_da_validator_address: rng.gen(),
+        },
     }
 }
 

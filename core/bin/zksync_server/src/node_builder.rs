@@ -236,6 +236,8 @@ impl MainNodeBuilder {
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
+            self.contracts_config.clone(),
+            self.genesis_config.clone(),
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);

@@ -39,40 +39,40 @@ pub(crate) mod types;
 pub mod updates;
 pub(crate) mod utils;
 
-#[allow(clippy::too_many_arguments)]
-pub async fn create_state_keeper(
-    state_keeper_config: StateKeeperConfig,
-    wallets: wallets::StateKeeper,
-    async_cache: AsyncRocksdbCache,
-    l2chain_id: L2ChainId,
-    mempool_config: &MempoolConfig,
-    pool: ConnectionPool<Core>,
-    mempool: MempoolGuard,
-    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    output_handler: OutputHandler,
-    stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(state_keeper_config.save_call_traces, false);
+// #[allow(clippy::too_many_arguments)]
+// pub async fn create_state_keeper(
+//     state_keeper_config: StateKeeperConfig,
+//     wallets: wallets::StateKeeper,
+//     async_cache: AsyncRocksdbCache,
+//     l2chain_id: L2ChainId,
+//     mempool_config: &MempoolConfig,
+//     pool: ConnectionPool<Core>,
+//     mempool: MempoolGuard,
+//     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
+//     output_handler: OutputHandler,
+//     stop_receiver: watch::Receiver<bool>,
+// ) -> ZkSyncStateKeeper {
+//     let batch_executor_base = MainBatchExecutor::new(state_keeper_config.save_call_traces, false);
 
-    let io = MempoolIO::new(
-        mempool,
-        batch_fee_input_provider,
-        pool,
-        &state_keeper_config,
-        wallets.fee_account.address(),
-        mempool_config.delay_interval(),
-        l2chain_id,
-    )
-    .expect("Failed initializing main node I/O for state keeper");
+//     let io = MempoolIO::new(
+//         mempool,
+//         batch_fee_input_provider,
+//         pool,
+//         &state_keeper_config,
+//         wallets.fee_account.address(),
+//         mempool_config.delay_interval(),
+//         l2chain_id,
+//     )
+//     .expect("Failed initializing main node I/O for state keeper");
 
-    let sealer = SequencerSealer::new(state_keeper_config);
+//     let sealer = SequencerSealer::new(state_keeper_config);
 
-    ZkSyncStateKeeper::new(
-        stop_receiver,
-        Box::new(io),
-        Box::new(batch_executor_base),
-        output_handler,
-        Arc::new(sealer),
-        Arc::new(async_cache),
-    )
-}
+//     ZkSyncStateKeeper::new(
+//         stop_receiver,
+//         Box::new(io),
+//         Box::new(batch_executor_base),
+//         output_handler,
+//         Arc::new(sealer),
+//         Arc::new(async_cache),
+//     )
+// }
