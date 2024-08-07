@@ -14,8 +14,8 @@ use crate::{
         FriWitnessVectorGeneratorConfig, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
-    ProverApiConfig, SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ExternalProofIntegrationApiConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,5 +50,5 @@ pub struct GeneralConfig {
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub consensus_config: Option<ConsensusConfig>,
-    pub prover_api_config: Option<ProverApiConfig>,
+    pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
 }

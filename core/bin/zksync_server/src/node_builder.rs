@@ -31,6 +31,7 @@ use zksync_node_framework::{
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
+        external_proof_integration_api::ExternalProofIntegrationApiLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
@@ -45,7 +46,6 @@ use zksync_node_framework::{
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
-        prover_api::ProverApiLayer,
         query_eth_client::QueryEthClientLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
@@ -563,9 +563,9 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_prover_api_layer(mut self) -> anyhow::Result<Self> {
-        let config = try_load_config!(self.configs.prover_api_config);
-        self.node.add_layer(ProverApiLayer::new(
+    fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
@@ -714,8 +714,8 @@ impl MainNodeBuilder {
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
                 }
-                Component::ProverApi => {
-                    self = self.add_prover_api_layer()?;
+                Component::ExternalProofIntegrationApi => {
+                    self = self.add_external_proof_integration_api_layer()?;
                 }
             }
         }

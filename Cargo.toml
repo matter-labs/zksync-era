@@ -36,7 +36,7 @@ members = [
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
     "core/node/base_token_adjuster",
-    "core/node/prover_api",
+    "core/node/external_proof_integration_api",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -277,7 +277,7 @@ zksync_eth_sender = { version = "0.1.0", path = "core/node/eth_sender" }
 zksync_node_db_pruner = { version = "0.1.0", path = "core/node/db_pruner" }
 zksync_node_fee_model = { version = "0.1.0", path = "core/node/fee_model" }
 zksync_vm_runner = { version = "0.1.0", path = "core/node/vm_runner" }
-zksync_prover_api = { version = "0.1.0", path = "core/node/prover_api" }
+zksync_external_proof_integration_api = { version = "0.1.0", path = "core/node/external_proof_integration_api" }
 zksync_node_test_utils = { version = "0.1.0", path = "core/node/test_utils" }
 zksync_state_keeper = { version = "0.1.0", path = "core/node/state_keeper" }
 zksync_reorg_detector = { version = "0.1.0", path = "core/node/reorg_detector" }

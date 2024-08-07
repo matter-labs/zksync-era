@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ProverApiConfig {
+pub struct ExternalProofIntegrationApiConfig {
     pub http_port: u16,
 }

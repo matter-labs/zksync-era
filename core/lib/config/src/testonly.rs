@@ -992,9 +992,14 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
     }
 }
 
-impl Distribution<configs::prover_api::ProverApiConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::prover_api::ProverApiConfig {
-        configs::prover_api::ProverApiConfig {
+impl Distribution<configs::external_proof_integration_api::ExternalProofIntegrationApiConfig>
+    for EncodeDist
+{
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
+        configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
             http_port: self.sample(rng),
         }
     }
@@ -1049,7 +1054,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             base_token_adjuster: self.sample(rng),
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
-            prover_api_config: self.sample(rng),
+            external_proof_integration_api_config: self.sample(rng),
         }
     }
 }

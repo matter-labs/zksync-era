@@ -7,7 +7,7 @@ use anyhow::Context;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_config::configs::prover_api::ProverApiConfig;
+use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, VerifyProofRequest};
@@ -15,7 +15,7 @@ use zksync_prover_interface::api::{ProofGenerationDataRequest, VerifyProofReques
 use crate::processor::Processor;
 
 pub async fn run_server(
-    config: ProverApiConfig,
+    config: ExternalProofIntegrationApiConfig,
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,

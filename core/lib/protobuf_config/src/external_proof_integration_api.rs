@@ -1,11 +1,11 @@
 use anyhow::Context;
-use zksync_config::ProverApiConfig;
+use zksync_config::ExternalProofIntegrationApiConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::prover_api as proto;
+use crate::proto::external_proof_integration_api as proto;
 
 impl ProtoRepr for proto::ProverApi {
-    type Type = ProverApiConfig;
+    type Type = ExternalProofIntegrationApiConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             http_port: required(&self.http_port)

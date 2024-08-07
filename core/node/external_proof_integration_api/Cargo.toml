@@ -1,6 +1,6 @@
 [package]
-name = "zksync_prover_api"
-description = "ZKsync external prover API"
+name = "zksync_external_proof_integration_api"
+description = "ZKsync external proof integration API"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
