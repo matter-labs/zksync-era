@@ -1,6 +1,7 @@
 #![doc = include_str!("../doc/TeeProofGenerationDal.md")]
 use std::time::Duration;
 
+use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::Instrumented,
     utils::pg_interval_from_duration,
@@ -17,11 +18,13 @@ pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, sqlx::Type)]
-#[sqlx(type_name = "tee_proofs_job_status")]
+#[derive(Debug, EnumString, Display)]
 enum TeeProofGenerationJobStatus {
+    #[strum(serialize = "ready_to_be_proven")]
     ReadyToBeProven,
+    #[strum(serialize = "picked_by_prover")]
     PickedByProver,
+    #[strum(serialize = "generated")]
     Generated,
 }
 
@@ -34,26 +37,26 @@ impl TeeProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let query = sqlx::query!(
             r#"
-            UPDATE tee_proofs
+            UPDATE tee_proof_generation_details
             SET
-                status = $1,
+                status = 'picked_by_prover',
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
-                tee_type = $2
+                tee_type = $1
                 AND l1_batch_number = (
                     SELECT
                         proofs.l1_batch_number
                     FROM
-                        tee_proofs AS proofs
+                        tee_proof_generation_details AS proofs
                         JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
                     WHERE
-                        inputs.status = $3
+                        inputs.status = $2
                         AND (
-                            proofs.status = $4
+                            proofs.status = 'ready_to_be_proven'
                             OR (
-                                proofs.status = $5
-                                AND proofs.prover_taken_at < NOW() - $6::INTERVAL
+                                proofs.status = 'picked_by_prover'
+                                AND proofs.prover_taken_at < NOW() - $3::INTERVAL
                             )
                         )
                     ORDER BY
@@ -64,13 +67,10 @@ impl TeeProofGenerationDal<'_, '_> {
                         SKIP LOCKED
                 )
             RETURNING
-                tee_proofs.l1_batch_number
+                tee_proof_generation_details.l1_batch_number
             "#,
-            TeeProofGenerationJobStatus::PickedByProver as TeeProofGenerationJobStatus,
             &tee_type.to_string(),
             TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            TeeProofGenerationJobStatus::ReadyToBeProven as TeeProofGenerationJobStatus,
-            TeeProofGenerationJobStatus::PickedByProver as TeeProofGenerationJobStatus,
             &processing_timeout,
         );
         let batch_number = Instrumented::new("get_next_batch_to_be_proven")
@@ -94,19 +94,18 @@ impl TeeProofGenerationDal<'_, '_> {
     ) -> DalResult<()> {
         let query = sqlx::query!(
             r#"
-            UPDATE tee_proofs
+            UPDATE tee_proof_generation_details
             SET
                 tee_type = $1,
-                status = $2,
-                pubkey = $3,
-                signature = $4,
-                proof = $5,
+                status = 'generated',
+                pubkey = $2,
+                signature = $3,
+                proof = $4,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $6
+                l1_batch_number = $5
             "#,
             tee_type.to_string(),
-            TeeProofGenerationJobStatus::Generated as TeeProofGenerationJobStatus,
             pubkey,
             signature,
             proof,
@@ -142,13 +141,12 @@ impl TeeProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                tee_proofs (l1_batch_number, tee_type, status, created_at, updated_at)
+                tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at)
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+                ($1, $2, 'ready_to_be_proven', NOW(), NOW())
             "#,
             batch_number,
             tee_type.to_string(),
-            TeeProofGenerationJobStatus::ReadyToBeProven as TeeProofGenerationJobStatus,
         );
         let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
             .with_arg("l1_batch_number", &batch_number)
@@ -215,21 +213,19 @@ impl TeeProofGenerationDal<'_, '_> {
                 tp.updated_at,
                 ta.attestation
             FROM
-                tee_proofs tp
+                tee_proof_generation_details tp
             LEFT JOIN
                 tee_attestations ta ON tp.pubkey = ta.pubkey
             WHERE
                 tp.l1_batch_number = $1
-                AND tp.status = $2
+                AND tp.status = 'generated'
                 {}
             ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC
             "#,
-            tee_type.map_or_else(String::new, |_| "AND tp.tee_type = $3".to_string())
+            tee_type.map_or_else(String::new, |_| "AND tp.tee_type = $2".to_string())
         );
 
-        let mut query = sqlx::query_as(&query)
-            .bind(i64::from(batch_number.0))
-            .bind(TeeProofGenerationJobStatus::Generated as TeeProofGenerationJobStatus);
+        let mut query = sqlx::query_as(&query).bind(i64::from(batch_number.0));
 
         if let Some(tee_type) = tee_type {
             query = query.bind(tee_type.to_string());
@@ -246,18 +242,17 @@ impl TeeProofGenerationDal<'_, '_> {
             SELECT
                 proofs.l1_batch_number
             FROM
-                tee_proofs AS proofs
+                tee_proof_generation_details AS proofs
                 JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
                 inputs.status = $1
-                AND proofs.status = $2
+                AND proofs.status = 'ready_to_be_proven'
             ORDER BY
                 proofs.l1_batch_number ASC
             LIMIT
                 1
             "#,
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            TeeProofGenerationJobStatus::ReadyToBeProven as TeeProofGenerationJobStatus,
+            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus
         );
         let batch_number = Instrumented::new("get_oldest_unpicked_batch")
             .with(query)
