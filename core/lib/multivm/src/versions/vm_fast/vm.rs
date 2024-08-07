@@ -108,28 +108,16 @@ impl<S: ReadStorage> Vm<S> {
                 }
             };
 
-            use Hook::*;
             match Hook::from_u32(hook) {
-                AccountValidationEntered => {
-                    /*
-                    if self.run_account_validation().is_err() {
-                        break ExecutionResult::Halt {
-                            reason: Halt::ValidationOutOfGas,
-                        };
-                    }
-                    */
+                Hook::AccountValidationEntered | Hook::AccountValidationExited => {
+                    // TODO (PLA-908): implement account validation
                 }
-                AccountValidationExited => {
-                    /*
-                    panic!("must enter account validation before exiting");
-                    */
-                }
-                TxHasEnded => {
+                Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         break last_tx_result.take().unwrap();
                     }
                 }
-                AskOperatorForRefund => {
+                Hook::AskOperatorForRefund => {
                     if track_refunds {
                         let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
                             self.get_hook_params();
@@ -138,7 +126,9 @@ impl<S: ReadStorage> Vm<S> {
                             .bootloader_state
                             .get_tx_description_offset(current_tx_index);
                         let tx_gas_limit = self
-                            .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
+                            .read_word_from_bootloader_heap(
+                                tx_description_offset + TX_GAS_LIMIT_OFFSET,
+                            )
                             .as_u64();
 
                         let pubdata_published = self.inner.world_diff.pubdata() as u32;
@@ -168,17 +158,16 @@ impl<S: ReadStorage> Vm<S> {
                             .set_refund_for_current_tx(refund_value);
                     }
                 }
-                NotifyAboutRefund => {
+                Hook::NotifyAboutRefund => {
                     if track_refunds {
                         refunds.gas_refunded = self.get_hook_params()[0].low_u64()
                     }
                 }
-                PostResult => {
+                Hook::PostResult => {
                     let result = self.get_hook_params()[0];
                     let value = self.get_hook_params()[1];
                     let fp = FatPointer::from(value);
-
-                    assert!(fp.offset == 0);
+                    assert_eq!(fp.offset, 0);
 
                     let return_data = self.inner.state.heaps[fp.memory_page]
                         .read_range_big_endian(fp.start..fp.start + fp.length);
@@ -193,7 +182,7 @@ impl<S: ReadStorage> Vm<S> {
                         }
                     });
                 }
-                FinalBatchInfo => {
+                Hook::FinalBatchInfo => {
                     // set fictive l2 block
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
@@ -201,10 +190,9 @@ impl<S: ReadStorage> Vm<S> {
                     apply_l2_block(&mut memory, l2_block, txs_index);
                     self.write_to_bootloader_heap(memory);
                 }
-                PubdataRequested => {
+                Hook::PubdataRequested => {
                     if !matches!(execution_mode, VmExecutionMode::Batch) {
-                        // We do not provide the pubdata when executing the block tip or a single transaction
-                        todo!("I have no idea what exit status to return here");
+                        unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
                     }
 
                     let events =
@@ -250,83 +238,41 @@ impl<S: ReadStorage> Vm<S> {
                     self.write_to_bootloader_heap(memory_to_apply);
                 }
 
-                PaymasterValidationEntered | ValidationStepEnded => {} // unused
-                DebugLog | DebugReturnData | NearCallCatch => {} // these are for debug purposes only
+                Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
+                Hook::DebugLog | Hook::DebugReturnData | Hook::NearCallCatch => {
+                    // These hooks are for debug purposes only
+                }
             }
         };
 
         (result, refunds)
     }
 
-    #[allow(dead_code)] // FIXME: enable validation
-    fn run_account_validation(&mut self) -> Result<(), ()> {
-        loop {
-            match self.inner.resume_with_additional_gas_limit(
-                self.suspended_at,
-                &mut self.world,
-                self.gas_for_account_validation,
-            ) {
-                None => {
-                    // Used too much gas
-                    return Err(());
-                }
-                Some((
-                    validation_gas_left,
-                    ExecutionEnd::SuspendedOnHook {
-                        hook,
-                        pc_to_resume_from,
-                    },
-                )) => {
-                    self.suspended_at = pc_to_resume_from;
-                    self.gas_for_account_validation = validation_gas_left;
-
-                    let hook = Hook::from_u32(hook);
-                    match hook {
-                        Hook::AccountValidationExited => {
-                            return Ok(());
-                        }
-                        Hook::DebugLog => {}
-                        _ => {
-                            panic!("Unexpected {:?} hook while in account validation", hook);
-                        }
-                    }
-                }
-                _ => {
-                    // Exited normally without ending account validation, panicked or reverted.
-                    panic!("unexpected exit from account validation")
-                }
-            }
-        }
-    }
-
     fn get_hook_params(&self) -> [U256; 3] {
         (get_vm_hook_params_start_position(VM_VERSION)
             ..get_vm_hook_params_start_position(VM_VERSION) + VM_HOOK_PARAMS_COUNT)
-            .map(|word| self.read_heap_word(word as usize))
+            .map(|word| self.read_word_from_bootloader_heap(word as usize))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
     }
 
-    /// Typically used to read the bootloader heap. We know that we're in the bootloader
-    /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
-    pub(crate) fn read_heap_word(&self, word: usize) -> U256 {
-        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
-        self.inner.state.heaps[self.inner.state.current_frame.heap].read_u256(word as u32 * 32)
+    /// Should only be used when the bootloader is executing (e.g., when handling hooks).
+    pub(crate) fn read_word_from_bootloader_heap(&self, word: usize) -> U256 {
+        self.inner.state.heaps[vm2::FIRST_HEAP].read_u256(word as u32 * 32)
     }
 
+    /// Should only be used when the bootloader is executing (e.g., when handling hooks).
     pub(crate) fn write_to_bootloader_heap(
         &mut self,
         memory: impl IntoIterator<Item = (usize, U256)>,
     ) {
         assert!(self.inner.state.previous_frames.is_empty());
-        // TODO: this should probably address `vm2::FIRST_HEAP` instead.
         for (slot, value) in memory {
-            self.inner.state.heaps.write_u256(
-                self.inner.state.current_frame.heap,
-                slot as u32 * 32,
-                value,
-            );
+            self.inner
+                .state
+                .heaps
+                .write_u256(vm2::FIRST_HEAP, slot as u32 * 32, value);
         }
     }
 
@@ -548,7 +494,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         VmExecutionResultAndLogs {
             result,
             logs,
-            // FIXME (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
+            // TODO (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
                 contracts_used: 0,
                 cycles_used: 0,
@@ -630,7 +576,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn record_vm_memory_metrics(&self) -> crate::vm_latest::VmMemoryMetrics {
-        todo!()
+        todo!("Unused during batch execution")
     }
 
     fn gas_remaining(&self) -> u32 {
@@ -725,11 +671,10 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct World<S> {
     pub(crate) storage: S,
-
-    // TODO: It would be nice to store an LRU cache elsewhere.
-    // This one is cleared on change of batch unfortunately.
+    // TODO (PLA-1008): Store `Program`s in an LRU cache
     program_cache: HashMap<U256, Program>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
@@ -798,9 +743,6 @@ impl<S: ReadStorage> vm2::World for World<S> {
         // For value compression, we use a metadata byte which holds the length of the value and the operation from the
         // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
         // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
-        // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
-        // should cost less.
-
         let compressed_value_size =
             compress_with_best_strategy(initial_value, new_value).len() as u32;
 

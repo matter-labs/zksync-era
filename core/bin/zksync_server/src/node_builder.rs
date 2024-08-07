@@ -476,7 +476,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    #[allow(dead_code)] // FIXME: doesn't work with the new VM
     fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TeeVerifierInputProducerLayer::new(
             self.genesis_config.l2_chain_id,
@@ -692,7 +691,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_tx_manager_layer()?;
                 }
                 Component::TeeVerifierInputProducer => {
-                    // FIXME: self = self.add_tee_verifier_input_producer_layer()?;
+                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self

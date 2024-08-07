@@ -64,7 +64,6 @@ where
         main_result
     }
 
-    // FIXME: this should show a divergence when validating transactions, but there are no tests covering it.
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,
@@ -139,7 +138,6 @@ where
         main_result
     }
 
-    // FIXME: this should show a divergence when validating transactions, but there are no tests covering it.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: Self::TracerDispatcher,

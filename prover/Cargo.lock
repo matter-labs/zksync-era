@@ -6930,12 +6930,12 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=a0cf04b03ac1c486a48e5f2e32422a00c27a1b9d#a0cf04b03ac1c486a48e5f2e32422a00c27a1b9d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 1.5.0",
- "zkevm_opcode_defs 1.5.0",
+ "zk_evm_abstractions 0.150.0",
+ "zkevm_opcode_defs 0.150.0",
 ]
 
 [[package]]
@@ -7492,18 +7492,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk_evm_abstractions"
-version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#e464b2cf2b146d883be80e7d690c752bf670ff05"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 1.5.0",
-]
-
-[[package]]
 name = "zkevm-assembly"
 version = "0.132.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7654,22 +7642,6 @@ name = "zkevm_opcode_defs"
 version = "0.150.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3328c012d444bdbfadb754a72c01a56879eb66584efc71eac457e89e7843608"
-dependencies = [
- "bitflags 2.5.0",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.3",
- "lazy_static",
- "p256",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#28d2edabf902ea9b08f6a26a4506831fd89346b9"
 dependencies = [
  "bitflags 2.5.0",
  "blake2 0.10.6",
