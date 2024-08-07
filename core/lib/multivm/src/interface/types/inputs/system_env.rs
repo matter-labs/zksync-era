@@ -7,65 +7,6 @@ use zksync_types::{
     Address, L2ChainId, ProtocolVersionId,
 };
 
-// #[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
-// pub enum PubdataType {
-//     Rollup,
-//     Validium,
-// }
-
-// impl From<L1BatchCommitmentMode> for PubdataType {
-//     fn from(mode: L1BatchCommitmentMode) -> Self {
-//         match mode {
-//             L1BatchCommitmentMode::Rollup => Self::Rollup,
-//             L1BatchCommitmentMode::Validium => Self::Validium,
-//         }
-//     }
-// }
-
-// #[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
-// pub struct PubdataParams {
-//     pub l2_da_validator_address: Address,
-//     pub pubdata_type: PubdataType,
-// }
-
-// impl PubdataParams {
-//     /// FIXME: this is not how it should be in production, but we do it this way for quicker testing.
-//     pub fn extract_from_env() -> Self {
-//         let l1_batch_commit_data_generator_mode_str =
-//             std::env::var("CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE")
-//                 .unwrap_or_else(|_| "Rollup".to_string());
-//         let l2_da_validator_str = std::env::var("CONTRACTS_L2_DA_VALIDATOR_ADDR").unwrap();
-
-//         let pubdata_type = if l1_batch_commit_data_generator_mode_str == "Rollup" {
-//             PubdataType::Rollup
-//         } else if l1_batch_commit_data_generator_mode_str == "Validium" {
-//             PubdataType::Validium
-//         } else {
-//             panic!(
-//                 "Unsupported pubdata type: {}",
-//                 l1_batch_commit_data_generator_mode_str
-//             )
-//         };
-
-//         let l2_da_validator_address = Address::from_str(&l2_da_validator_str)
-//             .expect("Failed to parse L2 DA validator address");
-
-//         Self {
-//             l2_da_validator_address,
-//             pubdata_type,
-//         }
-//     }
-// }
-
-// impl Default for PubdataParams {
-//     fn default() -> Self {
-//         Self {
-//             l2_da_validator_address: Address::default(),
-//             pubdata_type: PubdataType::Rollup,
-//         }
-//     }
-// }
-
 /// Params related to the execution process, not batch it self
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SystemEnv {
