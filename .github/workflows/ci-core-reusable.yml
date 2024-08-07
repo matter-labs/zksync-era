@@ -99,6 +99,7 @@ jobs:
       - name: Loadtest configuration
         run: |
           echo EXPECTED_TX_COUNT="16000" >> .env
+          echo ACCOUNTS_AMOUNT="150" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
