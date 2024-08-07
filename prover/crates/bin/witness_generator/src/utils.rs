@@ -97,32 +97,6 @@ impl StoredObject for AggregationWrapper {
     serialize_using_bincode!();
 }
 
-/// TODO: remove after transition
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct AggregationWrapperLegacy(
-    pub  Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
-);
-
-impl StoredObject for AggregationWrapperLegacy {
-    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
-    type Key<'a> = AggregationsKey;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        let AggregationsKey {
-            block_number,
-            circuit_id,
-            depth,
-        } = key;
-        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SchedulerPartialInputWrapper(
     pub  SchedulerCircuitInstanceWitness<
