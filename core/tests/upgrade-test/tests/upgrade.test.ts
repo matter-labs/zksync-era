@@ -132,7 +132,8 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: [null, logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -339,7 +340,8 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: [null, logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(10);
 
