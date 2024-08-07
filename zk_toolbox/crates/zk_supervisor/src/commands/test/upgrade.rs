@@ -1,4 +1,4 @@
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -36,8 +36,13 @@ fn install_and_build_dependencies(
 
 fn run_test(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
     Spinner::new(MSG_UPGRADE_TEST_RUN_INFO).freeze();
-    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/upgrade.test.ts"))
-        .env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/upgrade.test.ts")).env(
+        "CHAIN_NAME",
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(ecosystem_config.default_chain.as_ref()),
+    );
     cmd.with_force_run().run()?;
 
     Ok(())

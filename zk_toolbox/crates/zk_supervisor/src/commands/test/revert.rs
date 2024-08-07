@@ -1,4 +1,4 @@
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -48,7 +48,13 @@ fn run_test(
         cmd!(shell, "yarn mocha tests/revert-and-restart.test.ts")
     };
 
-    let mut cmd = Cmd::new(cmd).env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let mut cmd = Cmd::new(cmd).env(
+        "CHAIN_NAME",
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(ecosystem_config.default_chain.as_ref()),
+    );
     if args.enable_consensus {
         cmd = cmd.env("ENABLE_CONSENSUS", "true");
     }
