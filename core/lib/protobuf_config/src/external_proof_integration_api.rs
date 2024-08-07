@@ -4,7 +4,7 @@ use zksync_protobuf::{required, ProtoRepr};
 
 use crate::proto::external_proof_integration_api as proto;
 
-impl ProtoRepr for proto::ProverApi {
+impl ProtoRepr for proto::ExternalProofIntegrationApi {
     type Type = ExternalProofIntegrationApiConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {

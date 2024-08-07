@@ -10,8 +10,8 @@ pub(crate) enum ProcessorError {
     ObjectStore(ObjectStoreError),
     Dal(DalError),
     Serialization(bincode::Error),
-    ProofNotReady(L1BatchNumber),
     InvalidProof,
+    BatchNotReady(L1BatchNumber),
 }
 
 impl From<ObjectStoreError> for ProcessorError {
@@ -37,10 +37,17 @@ impl IntoResponse for ProcessorError {
         let (status_code, message) = match self {
             ProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed fetching/saving from GCS".to_owned(),
-                )
+                match err {
+                    ObjectStoreError::KeyNotFound(_) => (
+                        StatusCode::NOT_FOUND,
+                        "Object not found in GCS, most likely batch is not available anymore"
+                            .to_owned(),
+                    ),
+                    _ => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed fetching from GCS".to_owned(),
+                    ),
+                }
             }
             ProcessorError::Dal(err) => {
                 tracing::error!("Sqlx error: {:?}", err);
@@ -61,13 +68,13 @@ impl IntoResponse for ProcessorError {
                     "Failed to deserialize proof data".to_owned(),
                 )
             }
-            ProcessorError::ProofNotReady(l1_batch_number) => {
+            ProcessorError::BatchNotReady(l1_batch_number) => {
                 tracing::error!(
-                "Proof for {l1_batch_number:?} wasn't found. Most likely it is not generated yet"
+                "Batch {l1_batch_number:?} is not yet ready for proving. Most likely our proof for this batch is not generated yet"
                 );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Proof for {l1_batch_number:?} wasn't found. Most likely it is not generated yet, try again later"),
+                    format!("Batch {l1_batch_number:?} is not yet ready for proving. Most likely our proof for this batch is not generated yet, try again later"),
                 )
             }
             ProcessorError::InvalidProof => {

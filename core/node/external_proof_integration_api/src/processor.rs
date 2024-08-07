@@ -8,7 +8,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{bincode, ObjectStore};
 use zksync_prover_interface::{
     api::{
-        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+        OptionalProofGenerationDataRequest, ProofGenerationData, ProofGenerationDataResponse,
         VerifyProofRequest,
     },
     inputs::{
@@ -42,11 +42,11 @@ impl Processor {
     #[tracing::instrument(skip_all)]
     pub(crate) async fn get_proof_generation_data(
         &mut self,
-        request: Json<ProofGenerationDataRequest>,
+        request: Json<OptionalProofGenerationDataRequest>,
     ) -> Result<Json<ProofGenerationDataResponse>, ProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let l1_batch_number = self
+        let latest_available_batch = self
             .pool
             .connection()
             .await
@@ -54,6 +54,20 @@ impl Processor {
             .proof_generation_dal()
             .get_available_batch()
             .await?;
+
+        let l1_batch_number = if let Some(l1_batch_number) = request.0 .0 {
+            if l1_batch_number > latest_available_batch {
+                tracing::error!(
+                    "Requested batch is not available: {:?}, latest available batch is {:?}",
+                    l1_batch_number,
+                    latest_available_batch
+                );
+                return Err(ProcessorError::BatchNotReady(l1_batch_number));
+            }
+            l1_batch_number
+        } else {
+            latest_available_batch
+        };
 
         let proof_generation_data = self
             .proof_generation_data_for_existing_batch(l1_batch_number)
@@ -158,19 +172,6 @@ impl Processor {
             "Received request to verify proof for batch: {:?}",
             l1_batch_number
         );
-
-        let is_proof_present = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .proof_generation_dal()
-            .check_proof_presence(l1_batch_number)
-            .await?;
-
-        if !is_proof_present {
-            return Err(ProcessorError::ProofNotReady(l1_batch_number));
-        }
 
         let serialized_proof = bincode::serialize(&payload.0)?;
         let expected_proof = bincode::serialize(

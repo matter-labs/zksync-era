@@ -95,13 +95,8 @@ impl ProofGenerationDal<'_, '_> {
                 l1_batch_number
             FROM
                 proof_generation_details
-                LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
             WHERE
-                vm_run_data_blob_url IS NOT NULL
-                AND proof_gen_data_blob_url IS NOT NULL
-                AND l1_batches.hash IS NOT NULL
-                AND l1_batches.aux_data_hash IS NOT NULL
-                AND l1_batches.meta_parameters_hash IS NOT NULL
+                proof_blob_url IS NOT NULL
             ORDER BY
                 l1_batch_number ASC
             LIMIT
@@ -114,29 +109,6 @@ impl ProofGenerationDal<'_, '_> {
         .l1_batch_number as u32;
 
         Ok(L1BatchNumber(result))
-    }
-
-    pub async fn check_proof_presence(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> DalResult<bool> {
-        let result = sqlx::query!(
-            r#"
-            SELECT
-                proof_blob_url
-            FROM
-                proof_generation_details
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(l1_batch_number.0),
-        )
-        .instrument("is_proof_present")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
-        .await?;
-
-        Ok(result.is_some())
     }
 
     /// Marks a previously locked batch as 'unpicked', allowing it to be picked without having

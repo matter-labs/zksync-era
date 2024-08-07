@@ -10,7 +10,7 @@ use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{ProofGenerationDataRequest, VerifyProofRequest};
+use zksync_prover_interface::api::{OptionalProofGenerationDataRequest, VerifyProofRequest};
 
 use crate::processor::Processor;
 
@@ -55,7 +55,7 @@ async fn create_router(
             post(
                 // we use post method because the returned data is not idempotent,
                 // i.e we return different result on each call.
-                move |payload: Json<ProofGenerationDataRequest>| async move {
+                move |payload: Json<OptionalProofGenerationDataRequest>| async move {
                     processor.get_proof_generation_data(payload).await
                 },
             ),
