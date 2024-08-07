@@ -1,5 +1,5 @@
 use std::{sync::Arc, time::Instant};
-//test-os
+
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
