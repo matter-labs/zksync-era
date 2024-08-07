@@ -74,9 +74,15 @@ pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
 pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
+pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
+pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
+pub(super) const MSG_RUNNING_UNIT_TESTS_SPINNER: &str = "Running unit tests";
+pub(super) const MSG_UNIT_TESTS_RUN_SUCCESS: &str = "Unit tests ran successfully";
+pub(super) const MSG_USING_CARGO_NEXTEST: &str = "Using cargo-nextest for running tests";
+pub(super) const MSG_CARGO_NEXTEST_MISSING_ERR: &str = "cargo-nextest is missing, please run 'cargo install cargo-nextest'. Falling back to 'cargo test'";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
