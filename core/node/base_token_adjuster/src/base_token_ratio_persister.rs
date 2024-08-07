@@ -202,11 +202,6 @@ impl BaseTokenRatioPersister {
             .await
             .context("failed sending `setTokenMultiplier` transaction")?;
 
-        tracing::info!(
-            "`setTokenMultiplier` transaction hash {}",
-            hex::encode(hash.as_bytes())
-        );
-
         let max_attempts = self.config.persister_l1_receipt_checking_max_attempts();
         let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
         for _i in 0..max_attempts {
