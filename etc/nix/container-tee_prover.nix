@@ -41,7 +41,7 @@ nixsgxLib.mkSGXContainer {
 
     sgx = {
       edmm_enable = false;
-      enclave_size = "32G";
+      enclave_size = "8G";
       max_threads = 128;
     };
   };
