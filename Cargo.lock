@@ -8726,6 +8726,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_external_proof_integration_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bincode",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_prover_interface",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "0.1.0"
 dependencies = [
@@ -9074,6 +9090,7 @@ dependencies = [
  "zksync_eth_sender",
  "zksync_eth_watch",
  "zksync_external_price_api",
+ "zksync_external_proof_integration_api",
  "zksync_health_check",
  "zksync_house_keeper",
  "zksync_metadata_calculator",

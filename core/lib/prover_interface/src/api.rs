@@ -14,7 +14,7 @@ use crate::{
 
 // Structs for holding data returned in HTTP responses
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
     pub witness_input_data: WitnessInputData,
@@ -60,6 +60,12 @@ pub enum SubmitProofRequest {
     // The proof generation was skipped due to sampling
     SkippedProofGeneration,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OptionalProofGenerationDataRequest(pub Option<L1BatchNumber>);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerifyProofRequest(pub Box<L1BatchProofForL1>);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
