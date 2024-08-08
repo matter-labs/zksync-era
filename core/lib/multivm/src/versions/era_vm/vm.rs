@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc, str::FromStr};
 
 use era_vm::{
-    store::{InMemory, L2ToL1Log, StorageError, StorageKey as EraStorageKey},
+    store::{L2ToL1Log, StorageError, StorageKey as EraStorageKey},
     vm::ExecutionOutput,
     EraVM, VMState,
 };
@@ -132,7 +132,33 @@ impl<S: WriteStorage + 'static> Vm<S> {
                     // println!("ASK OPERATOR FOR REFUND");
                 }
                 Hook::DebugLog => {
-                    // println!("DEBUG LOG");
+                    let heap = self
+                        .inner
+                        .state
+                        .heaps
+                        .get(self.inner.state.current_context().unwrap().heap_id)
+                        .unwrap();
+                    let vm_hook_params: Vec<_> = self
+                        .get_vm_hook_params(heap)
+                        .into_iter()
+                        .map(u256_to_h256)
+                        .collect();
+                    let msg = vm_hook_params[0].as_bytes().to_vec();
+                    let data = vm_hook_params[1].as_bytes().to_vec();
+
+                    let msg = String::from_utf8(msg).expect("Invalid debug message");
+                    let data = U256::from_big_endian(&data);
+
+                    // For long data, it is better to use hex-encoding for greater readability
+                    let data_str = if data > U256::from(u64::max_value()) {
+                        let mut bytes = [0u8; 32];
+                        data.to_big_endian(&mut bytes);
+                        format!("0x{}", hex::encode(bytes))
+                    } else {
+                        data.to_string()
+                    };
+
+                    println!("BOOTLOADER: {} {}", msg, data_str)
                 }
                 Hook::TxHasEnded => {
                     // println!("TX HAS ENDED");
@@ -143,6 +169,16 @@ impl<S: WriteStorage + 'static> Vm<S> {
             }
             self.inner.state.current_frame_mut().unwrap().pc = self.suspended_at as u64;
         }
+    }
+
+    fn get_vm_hook_params(&self, heap: &era_vm::state::Heap) -> Vec<U256> {
+        (get_vm_hook_start_position_latest()..get_vm_hook_start_position_latest() + 2)
+            .map(|word| {
+                let res = heap.read((word * 32) as u32);
+                // println!("WORD: {:?} RES: {:?}", word, res);
+                res
+            })
+            .collect()
     }
 
     pub(crate) fn insert_bytecodes<'a>(&mut self, bytecodes: impl IntoIterator<Item = &'a [u8]>) {
@@ -235,7 +271,8 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .default_aa
                 .hash
                 .to_fixed_bytes(),
-            vm_hook_position as u64,
+            vm_hook_position,
+            true,
         );
         let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
         pre_contract_storage.borrow_mut().insert(
@@ -252,8 +289,13 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .default_aa
                 .code,
         );
-        let world_storage = World::new(storage.clone(), pre_contract_storage.clone());
-        let mut vm = EraVM::new(vm_state, Rc::new(RefCell::new(world_storage)));
+        let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
+        let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
+        let mut vm = EraVM::new(
+            vm_state,
+            Rc::new(RefCell::new(world_storage1)),
+            Rc::new(RefCell::new(world_storage2)),
+        );
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         // The bootloader shouldn't pay for growing memory and it writes results
@@ -304,7 +346,8 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             vec![]
         } else {
             compress_bytecodes(&tx.factory_deps, |hash| {
-                (*self.inner.storage.clone().borrow_mut())
+                self.inner
+                    .state_storage
                     .storage_read(EraStorageKey::new(
                         KNOWN_CODES_STORAGE_ADDRESS,
                         h256_to_u256(hash),
@@ -440,7 +483,22 @@ impl<S: WriteStorage> World<S> {
     }
 }
 
-impl<S: WriteStorage> era_vm::store::Storage for World<S> {
+impl<S: WriteStorage> era_vm::store::InitialStorage for World<S> {
+    fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
+        let mut storage = RefCell::borrow_mut(&self.storage);
+        Ok(Some(
+            storage
+                .read_value(&StorageKey::new(
+                    AccountTreeId::new(key.address),
+                    u256_to_h256(key.key),
+                ))
+                .as_bytes()
+                .into(),
+        ))
+    }
+}
+
+impl<S: WriteStorage> era_vm::store::ContractStorage for World<S> {
     fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
         Ok(Some(
             self.contract_storage
@@ -464,79 +522,6 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
                 })
                 .clone(),
         ))
-    }
-
-    fn add_contract(&mut self, hash: U256, code: Vec<U256>) -> Result<(), StorageError> {
-        self.contract_storage.borrow_mut().insert(hash, code);
-        Ok(())
-    }
-
-    fn storage_drop(&mut self, key: EraStorageKey) -> Result<(), StorageError> {
-        println!("STORAGE DROP");
-        Ok(())
-    }
-
-    fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
-        let mut storage = RefCell::borrow_mut(&self.storage);
-        Ok(Some(
-            storage
-                .read_value(&StorageKey::new(
-                    AccountTreeId::new(key.address),
-                    u256_to_h256(key.key),
-                ))
-                .as_bytes()
-                .into(),
-        ))
-    }
-
-    fn storage_write(&mut self, key: EraStorageKey, value: U256) -> Result<(), StorageError> {
-        let mut storage = RefCell::borrow_mut(&self.storage);
-        storage.set_value(
-            StorageKey::new(AccountTreeId::new(key.address), u256_to_h256(key.key)),
-            u256_to_h256(value),
-        );
-        Ok(())
-    }
-
-    fn record_l2_to_l1_log(&mut self, log: L2ToL1Log) -> Result<(), StorageError> {
-        self.l2_to_l1_logs.push(log);
-        Ok(())
-    }
-
-    fn fake_clone(&self) -> InMemory {
-        println!("FAKE CLONE");
-        let storage = self.storage.borrow();
-        let values = storage.read_storage_keys().clone();
-        let mut era_vm_storage = HashMap::new();
-        for (k, v) in values {
-            let key = era_vm::store::StorageKey {
-                address: *k.account().address(),
-                key: U256::from_big_endian(&k.key().as_bytes()),
-            };
-            let value = U256::from_big_endian(&v.as_bytes());
-            era_vm_storage.insert(key, value);
-        }
-        let contract_storage = self.contract_storage.borrow().to_owned();
-        InMemory::new(contract_storage, era_vm_storage)
-    }
-
-    fn get_all_keys(&self) -> Vec<EraStorageKey> {
-        let storage = self.storage.borrow();
-        let values = storage.read_storage_keys().clone();
-        let mut keys = vec![];
-        for (k, _) in values {
-            let key = era_vm::store::StorageKey {
-                address: *k.account().address(),
-                key: U256::from_big_endian(&k.key().as_bytes()),
-            };
-            keys.push(key);
-        }
-        println!("GET ALL KEYS");
-        keys
-    }
-
-    fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
-        unimplemented!();
     }
 }
 
