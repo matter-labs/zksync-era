@@ -65,12 +65,13 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     logger::info("Run recovery tests (from genesis)");
     let _ = recovery::run(shell, RecoveryArgs { snapshot: false });
 
-    logger::info("Run server again");
+    logger::info("Run external-node");
     let _handle = thread::spawn(move || {
         let chain = global_config().chain_name.clone();
 
         let server_shell = Shell::new().unwrap();
-        let mut cmd = cmd!(server_shell, "zk_inception server").arg("--ignore-prerequisites");
+        let mut cmd =
+            cmd!(server_shell, "zk_inception external-node run").arg("--ignore-prerequisites");
 
         if let Some(chain) = chain {
             cmd = cmd.arg("--chain").arg(chain);
