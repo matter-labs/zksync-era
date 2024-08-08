@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::JobCountStatistics,
 };
 
-use crate::prover::metrics::SERVER_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 
 /// `FriWitnessGeneratorQueueReporter` is a task that periodically reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).

@@ -2,9 +2,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_periodic_job::PeriodicJob;
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
-
-use crate::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {

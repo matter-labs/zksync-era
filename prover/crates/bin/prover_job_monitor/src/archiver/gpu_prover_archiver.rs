@@ -1,20 +1,19 @@
-use zksync_dal::ConnectionPool;
 use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 
-use crate::prover::metrics::HOUSE_KEEPER_METRICS;
+use crate::metrics::HOUSE_KEEPER_METRICS;
 
-/// `FriGpuProverArchiver` is a task that periodically archives old fri GPU prover records.
+/// `GpuProverArchiver` is a task that periodically archives old fri GPU prover records.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
-/// Note: These components speed up provers, in their absence, queries would become sub optimal.
+/// Note: These components speed up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]
-pub struct FriGpuProverArchiver {
+pub struct GpuProverArchiver {
     pool: ConnectionPool<Prover>,
     archiving_interval_ms: u64,
     archive_prover_after_secs: u64,
 }
 
-impl FriGpuProverArchiver {
+impl GpuProverArchiver {
     pub fn new(
         pool: ConnectionPool<Prover>,
         archiving_interval_ms: u64,
@@ -29,7 +28,7 @@ impl FriGpuProverArchiver {
 }
 
 #[async_trait::async_trait]
-impl PeriodicJob for FriGpuProverArchiver {
+impl PeriodicJob for GpuProverArchiver {
     const SERVICE_NAME: &'static str = "FriGpuProverArchiver";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {

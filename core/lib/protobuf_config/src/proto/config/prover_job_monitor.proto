@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package zksync.config.prover_job_monitor;
+
+message ProverJobMonitor {
+  optional uint32 prometheus_port = 1; // required; u32
+  optional uint32 max_db_connections = 2; // required; u32
+  optional uint32 graceful_shutdown_timeout_ms = 3; // required; u32
+}

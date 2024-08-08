@@ -1,0 +1,4 @@
+[prover_job_monitor]
+prometheus_port = 3317
+max_db_connections = 9
+graceful_shutdown_timeout_ms = 5000

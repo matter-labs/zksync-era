@@ -1,10 +1,9 @@
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::FRI_PROVER_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 
 /// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
@@ -99,7 +98,7 @@ impl PeriodicJob for FriProverQueueReporter {
         let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()
             .get_oldest_unpicked_batch()
-            .await?
+            .await
         {
             Some(l1_batch_number) => l1_batch_number.0 as u64,
             // if there is no unpicked batch in database, we use sealed batch number as a result
@@ -120,7 +119,7 @@ impl PeriodicJob for FriProverQueueReporter {
         if let Some(l1_batch_number) = db_conn
             .proof_generation_dal()
             .get_oldest_not_generated_batch()
-            .await?
+            .await
         {
             FRI_PROVER_METRICS
                 .oldest_not_generated_batch

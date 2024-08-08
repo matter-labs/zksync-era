@@ -1,20 +1,19 @@
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::HOUSE_KEEPER_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::HOUSE_KEEPER_METRICS};
 
 /// `FriProverJobsArchiver` is a task that periodically archives old finalized prover job.
 /// The task will archive the `successful` prover jobs that have been done for a certain amount of time.
 /// Note: These components speed up provers, in their absence, queries would become sub optimal.
 #[derive(Debug)]
-pub struct FriProverJobsArchiver {
+pub struct ProverJobsArchiver {
     pool: ConnectionPool<Prover>,
     reporting_interval_ms: u64,
     archiving_interval_secs: u64,
 }
 
-impl FriProverJobsArchiver {
+impl ProverJobsArchiver {
     pub fn new(
         pool: ConnectionPool<Prover>,
         reporting_interval_ms: u64,
@@ -29,7 +28,7 @@ impl FriProverJobsArchiver {
 }
 
 #[async_trait::async_trait]
-impl PeriodicJob for FriProverJobsArchiver {
+impl PeriodicJob for ProverJobsArchiver {
     const SERVICE_NAME: &'static str = "FriProverJobsArchiver";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {

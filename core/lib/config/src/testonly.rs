@@ -1055,6 +1055,19 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
     }
 }
 
+impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::prover_job_monitor::ProverJobMonitorConfig {
+        configs::prover_job_monitor::ProverJobMonitorConfig {
+            prometheus_port: self.sample(rng),
+            max_db_connections: self.sample(rng),
+            graceful_shutdown_timeout_ms: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::GeneralConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
         configs::GeneralConfig {
@@ -1090,6 +1103,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: self.sample(rng),
             experimental_vm_config: self.sample(rng),
+            prover_job_monitor_config: self.sample(rng),
         }
     }
 }

@@ -1,22 +1,21 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::PROVER_FRI_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 
-/// `FriProofCompressorJobRetryManager` is a task that periodically queues stuck compressor jobs.
+/// `FriProverJobRetryManager` is a task that periodically queues stuck prover jobs.
 #[derive(Debug)]
-pub struct FriProofCompressorJobRetryManager {
+pub struct FriProverJobRetryManager {
     pool: ConnectionPool<Prover>,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
 }
 
-impl FriProofCompressorJobRetryManager {
+impl FriProverJobRetryManager {
     pub fn new(
         max_attempts: u32,
         processing_timeout: Duration,
@@ -33,8 +32,8 @@ impl FriProofCompressorJobRetryManager {
 }
 
 #[async_trait]
-impl PeriodicJob for FriProofCompressorJobRetryManager {
-    const SERVICE_NAME: &'static str = "FriProofCompressorJobRetryManager";
+impl PeriodicJob for FriProverJobRetryManager {
+    const SERVICE_NAME: &'static str = "FriProverJobRetryManager";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
@@ -42,15 +41,15 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
             .connection()
             .await
             .unwrap()
-            .fri_proof_compressor_dal()
+            .fri_prover_jobs_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing fri proof compressor job {:?}", stuck_job);
+            tracing::info!("re-queuing fri prover job {:?}", stuck_job);
         }
-        PROVER_FRI_METRICS
-            .proof_compressor_requeued_jobs
+        SERVER_METRICS
+            .prover_fri_requeued_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

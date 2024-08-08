@@ -44,6 +44,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 &self.external_proof_integration_api,
             ),
             experimental_vm_config: read_optional_repr(&self.experimental_vm),
+            prover_job_monitor_config: read_optional_repr(&self.prover_job_monitor),
         })
     }
 
@@ -99,6 +100,10 @@ impl ProtoRepr for proto::GeneralConfig {
                 .as_ref()
                 .map(ProtoRepr::build),
             experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
+            prover_job_monitor: this
+                .prover_job_monitor_config
+                .as_ref()
+                .map(ProtoRepr::build),
         }
     }
 }

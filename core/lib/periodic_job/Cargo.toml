@@ -1,6 +1,5 @@
 [package]
-name = "zksync_house_keeper"
-description = "ZKsync house keeper"
+name = "zksync_periodic_job"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,14 +10,6 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-vise.workspace = true
-zksync_dal.workspace = true
-zksync_shared_metrics.workspace = true
-zksync_prover_dal.workspace = true
-zksync_types.workspace = true
-zksync_config.workspace = true
-zksync_periodic_job.workspace = true
-
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

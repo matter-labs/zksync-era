@@ -1,11 +1,10 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::PROVER_FRI_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::PROVER_FRI_METRICS};
 
 /// `FriProofCompressorJobRetryManager` is a task that periodically queues stuck compressor jobs.
 #[derive(Debug)]
