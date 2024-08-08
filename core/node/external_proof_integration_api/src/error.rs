@@ -40,7 +40,7 @@ impl IntoResponse for ProcessorError {
                 match err {
                     ObjectStoreError::KeyNotFound(_) => (
                         StatusCode::NOT_FOUND,
-                        "Object not found in GCS, most likely batch is not available anymore"
+                        "Proof verification not possible anymore, batch is too old."
                             .to_owned(),
                     ),
                     _ => (
