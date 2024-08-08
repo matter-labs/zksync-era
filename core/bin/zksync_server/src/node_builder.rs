@@ -31,10 +31,10 @@ use zksync_node_framework::{
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
+        gas_adjuster::GasAdjusterLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
-        l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
             main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
@@ -46,6 +46,7 @@ use zksync_node_framework::{
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
+        sequencer_l1_gas::SequencerL1GasLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
@@ -56,6 +57,7 @@ use zksync_node_framework::{
             bwip::BasicWitnessInputProducerLayer, protective_reads::ProtectiveReadsWriterLayer,
         },
         web3_api::{
+            api_l1_gas::ApiL1GasLayer,
             caches::MempoolCacheLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
@@ -157,6 +159,20 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_gas_adjuster_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth)
+            .gas_adjuster
+            .context("Gas adjuster")?;
+        let eth_sender_config = try_load_config!(self.configs.eth);
+        let gas_adjuster_layer = GasAdjusterLayer::new(
+            gas_adjuster_config,
+            self.genesis_config.clone(),
+            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
+        );
+        self.node.add_layer(gas_adjuster_layer);
+        Ok(self)
+    }
+
     fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
         if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
@@ -164,19 +180,22 @@ impl MainNodeBuilder {
             self.node
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
-
-        let gas_adjuster_config = try_load_config!(self.configs.eth)
-            .gas_adjuster
-            .context("Gas adjuster")?;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let eth_sender_config = try_load_config!(self.configs.eth);
-        let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
-            gas_adjuster_config,
-            self.genesis_config.clone(),
-            state_keeper_config,
-            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
-        );
+        let sequencer_l1_gas_layer = SequencerL1GasLayer::new(state_keeper_config);
         self.node.add_layer(sequencer_l1_gas_layer);
+        Ok(self)
+    }
+
+    fn add_api_l1_gas_layer(mut self) -> anyhow::Result<Self> {
+        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
+        if self.contracts_config.base_token_addr != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS) {
+            let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
+            self.node
+                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
+        }
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
+        let api_l1_gas_layer = ApiL1GasLayer::new(state_keeper_config);
+        self.node.add_layer(api_l1_gas_layer);
         Ok(self)
     }
 
@@ -614,7 +633,7 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_sequencer_l1_gas_layer()?;
+            .add_gas_adjuster_layer()?;
 
         // Add preconditions for all the components.
         self = self
@@ -637,11 +656,13 @@ impl MainNodeBuilder {
                     // State keeper is the core component of the sequencer,
                     // which is why we consider it to be responsible for the storage initialization.
                     self = self
+                        .add_sequencer_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
                         .add_state_keeper_layer()?;
                 }
                 Component::HttpApi => {
                     self = self
+                        .add_api_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
                         .add_api_caches_layer()?
@@ -649,6 +670,7 @@ impl MainNodeBuilder {
                 }
                 Component::WsApi => {
                     self = self
+                        .add_api_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
                         .add_api_caches_layer()?

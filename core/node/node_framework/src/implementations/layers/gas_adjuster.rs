@@ -1,18 +1,12 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_config::{
-    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
-    GasAdjusterConfig, GenesisConfig,
-};
-use zksync_node_fee_model::{l1_gas_price::GasAdjuster, MainNodeFeeInputProvider};
-use zksync_types::fee_model::FeeModelConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig, GenesisConfig};
+use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 
 use crate::{
     implementations::resources::{
-        base_token_ratio_provider::BaseTokenRatioProviderResource,
-        eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
-        l1_tx_params::L1TxParamsResource,
+        eth_interface::EthInterfaceResource, gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -23,55 +17,48 @@ use crate::{
 /// Wiring layer for sequencer L1 gas interfaces.
 /// Adds several resources that depend on L1 gas price.
 #[derive(Debug)]
-pub struct SequencerL1GasLayer {
+pub struct GasAdjusterLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
     pubdata_sending_mode: PubdataSendingMode,
-    state_keeper_config: StateKeeperConfig,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
-    /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
-    #[context(default)]
-    pub base_token_ratio_provider: BaseTokenRatioProviderResource,
 }
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    pub fee_input: FeeInputResource,
-    pub l1_tx_params: L1TxParamsResource,
+    pub gas_adjuster: GasAdjusterResource,
     /// Only runs if someone uses the resources listed above.
     #[context(task)]
     pub gas_adjuster_task: GasAdjusterTask,
 }
 
-impl SequencerL1GasLayer {
+impl GasAdjusterLayer {
     pub fn new(
         gas_adjuster_config: GasAdjusterConfig,
         genesis_config: GenesisConfig,
-        state_keeper_config: StateKeeperConfig,
         pubdata_sending_mode: PubdataSendingMode,
     ) -> Self {
         Self {
             gas_adjuster_config,
             genesis_config,
             pubdata_sending_mode,
-            state_keeper_config,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for SequencerL1GasLayer {
+impl WiringLayer for GasAdjusterLayer {
     type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "sequencer_l1_gas_layer"
+        "gas_adjuster_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -86,16 +73,8 @@ impl WiringLayer for SequencerL1GasLayer {
         .context("GasAdjuster::new()")?;
         let gas_adjuster = Arc::new(adjuster);
 
-        let ratio_provider = input.base_token_ratio_provider;
-
-        let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
-            gas_adjuster.clone(),
-            ratio_provider.0.clone(),
-            FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
-        ));
         Ok(Output {
-            fee_input: batch_fee_input_provider.into(),
-            l1_tx_params: gas_adjuster.clone().into(),
+            gas_adjuster: gas_adjuster.clone().into(),
             gas_adjuster_task: GasAdjusterTask { gas_adjuster },
         })
     }

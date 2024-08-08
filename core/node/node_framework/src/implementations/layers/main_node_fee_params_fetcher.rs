@@ -4,7 +4,7 @@ use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource, main_node_client::MainNodeClientResource,
+        fee_input::SequencerFeeInputResource, main_node_client::MainNodeClientResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -26,7 +26,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    pub fee_input: FeeInputResource,
+    pub fee_input: SequencerFeeInputResource,
     #[context(task)]
     pub fetcher: MainNodeFeeParamsFetcherTask,
 }
