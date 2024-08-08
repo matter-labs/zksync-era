@@ -1,4 +1,4 @@
-use std::{ops::Add, time::Duration};
+use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
