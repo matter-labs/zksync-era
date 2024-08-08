@@ -1,3 +1,5 @@
+ALTER TABLE tee_verifier_input_producer_jobs DROP COLUMN picked_by;
+
 ALTER TABLE tee_proof_generation_details DROP CONSTRAINT tee_proof_generation_details_pkey;
 UPDATE tee_proof_generation_details SET tee_type = 'sgx' WHERE tee_type IS NULL;
 ALTER TABLE tee_proof_generation_details ALTER COLUMN tee_type SET NOT NULL;
