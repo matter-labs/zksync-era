@@ -1311,12 +1311,17 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
+        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
         if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
-            let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,
                 "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
                 by main node ({remote_diamond_proxy_addr:?})"
+            );
+        } else {
+            tracing::info!(
+                "Diamond proxy address is not specified in config; will use address \
+                returned by main node: {remote_diamond_proxy_addr:?}"
             );
         }
         Ok(ExternalNodeConfig {
@@ -1355,18 +1360,10 @@ impl ExternalNodeConfig {
     /// If local configuration contains the address, it will be checked against the one returned by the main node.
     /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
     /// node so relying on it solely is not recommended.
-    pub fn diamond_proxy_address(&self) -> anyhow::Result<Address> {
-        let remote_diamond_proxy_addr = self.remote.diamond_proxy_addr;
-        let diamond_proxy_addr = if let Some(addr) = self.optional.contracts_diamond_proxy_addr {
-            addr
-        } else {
-            tracing::info!(
-                "Diamond proxy address is not specified in config; will use address \
-                returned by main node: {remote_diamond_proxy_addr:?}"
-            );
-            remote_diamond_proxy_addr
-        };
-        Ok(diamond_proxy_addr)
+    pub fn diamond_proxy_address(&self) -> Address {
+        self.optional
+            .contracts_diamond_proxy_addr
+            .unwrap_or(self.remote.diamond_proxy_addr)
     }
 }
 

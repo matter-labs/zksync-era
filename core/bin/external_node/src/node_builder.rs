@@ -260,7 +260,7 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.diamond_proxy_address()?,
+            self.config.diamond_proxy_address(),
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -279,7 +279,7 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.diamond_proxy_address()?,
+            self.config.diamond_proxy_address(),
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
@@ -306,7 +306,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.diamond_proxy_address()?);
+        let layer = TreeDataFetcherLayer::new(self.config.diamond_proxy_address());
         self.node.add_layer(layer);
         Ok(self)
     }
