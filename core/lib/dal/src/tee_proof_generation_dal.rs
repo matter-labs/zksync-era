@@ -133,6 +133,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at)
             VALUES
                 ($1, $2, 'ready_to_be_proven', NOW(), NOW())
+            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
             "#,
             batch_number,
             tee_type.to_string(),
@@ -140,19 +141,11 @@ impl TeeProofGenerationDal<'_, '_> {
         let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
             .with_arg("l1_batch_number", &batch_number)
             .with_arg("tee_type", &tee_type);
-        let result = instrumentation
+        instrumentation
             .clone()
             .with(query)
             .execute(self.storage)
             .await?;
-        if result.rows_affected() == 0 {
-            let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Unable to insert TEE proof for batch number {}, TEE type {}",
-                batch_number,
-                tee_type
-            ));
-            return Err(err);
-        }
 
         Ok(())
     }
@@ -172,18 +165,11 @@ impl TeeProofGenerationDal<'_, '_> {
         let instrumentation = Instrumented::new("save_attestation")
             .with_arg("pubkey", &pubkey)
             .with_arg("attestation", &attestation);
-        let result = instrumentation
+        instrumentation
             .clone()
             .with(query)
             .execute(self.storage)
             .await?;
-        if result.rows_affected() == 0 {
-            let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Unable to insert TEE attestation: pubkey {:?} already has an attestation assigned",
-                pubkey
-            ));
-            return Err(err);
-        }
 
         Ok(())
     }
