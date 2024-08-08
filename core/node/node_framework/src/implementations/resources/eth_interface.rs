@@ -46,3 +46,12 @@ impl Resource for BoundEthInterfaceForBlobsResource {
         "common/bound_eth_interface_for_blobs".into()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct BoundEthInterfaceForL2Resource(pub Box<dyn BoundEthInterface>);
+
+impl Resource for BoundEthInterfaceForL2Resource {
+    fn name() -> String {
+        "common/bound_eth_interface_for_l2".into()
+    }
+}

@@ -5,30 +5,31 @@ use std::{
 };
 
 use zksync_eth_client::{ClientError, EnrichedClientError};
-use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::eth_sender::TxHistory;
 
-use crate::EthSenderError;
+use crate::{abstract_l1_interface::OperatorType, EthSenderError};
 
 #[derive(Debug)]
 pub(crate) struct EthFees {
     pub(crate) base_fee_per_gas: u64,
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
+    pub(crate) pubdata_price: Option<u64>,
 }
 
 pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        has_blob_sidecar: bool,
         time_in_mempool: u32,
+        operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError>;
 }
 
 #[derive(Debug)]
 pub(crate) struct GasAdjusterFeesOracle {
-    pub gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    pub l1_gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
 }
 
@@ -37,9 +38,9 @@ impl GasAdjusterFeesOracle {
         &self,
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
-        let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
-        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_tx_blob_base_fee());
+        let base_fee_per_gas = self.l1_gas_adjuster.get_blob_tx_base_fee();
+        let priority_fee_per_gas = self.l1_gas_adjuster.get_blob_tx_priority_fee();
+        let blob_base_fee_per_gas = Some(self.l1_gas_adjuster.get_blob_tx_blob_base_fee());
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // for blob transactions on re-sending need to double all gas prices
@@ -53,12 +54,14 @@ impl GasAdjusterFeesOracle {
                     previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
                     blob_base_fee_per_gas,
                 ),
+                pubdata_price: None,
             });
         }
         Ok(EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
+            pubdata_price: None,
         })
     }
 
@@ -67,7 +70,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
-        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
+        let mut base_fee_per_gas = self.l1_gas_adjuster.get_base_fee(time_in_mempool);
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
@@ -76,7 +79,7 @@ impl GasAdjusterFeesOracle {
             )?;
         }
 
-        let mut priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
+        let mut priority_fee_per_gas = self.l1_gas_adjuster.get_priority_fee();
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
@@ -105,6 +108,7 @@ impl GasAdjusterFeesOracle {
             base_fee_per_gas,
             blob_base_fee_per_gas: None,
             priority_fee_per_gas,
+            pubdata_price: None,
         })
     }
 
@@ -114,7 +118,7 @@ impl GasAdjusterFeesOracle {
         previous_base_fee: u64,
         base_fee_to_use: u64,
     ) -> Result<(), EthSenderError> {
-        let next_block_minimal_base_fee = self.gas_adjuster.get_next_block_minimal_base_fee();
+        let next_block_minimal_base_fee = self.l1_gas_adjuster.get_next_block_minimal_base_fee();
         if base_fee_to_use < min(next_block_minimal_base_fee, previous_base_fee) {
             // If the base fee is lower than the previous used one
             // or is lower than the minimal possible value for the next block, sending is skipped.
@@ -143,9 +147,10 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        has_blob_sidecar: bool,
         time_in_mempool: u32,
+        operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError> {
+        let has_blob_sidecar = operator_type == OperatorType::Blob;
         if has_blob_sidecar {
             self.calculate_fees_with_blob_sidecar(previous_sent_tx)
         } else {

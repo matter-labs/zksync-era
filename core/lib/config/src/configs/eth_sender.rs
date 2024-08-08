@@ -24,7 +24,7 @@ impl EthConfig {
         Self {
             sender: Some(SenderConfig {
                 aggregated_proof_sizes: vec![1],
-                wait_confirmations: Some(1),
+                wait_confirmations: Some(10),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
                 max_txs_in_flight: 30,

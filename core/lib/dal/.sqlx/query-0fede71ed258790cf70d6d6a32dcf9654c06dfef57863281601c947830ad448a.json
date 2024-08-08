@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL\n                AND id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            INSERT INTO\n                eth_txs (\n                    raw_tx,\n                    nonce,\n                    tx_type,\n                    contract_address,\n                    predicted_gas_cost,\n                    created_at,\n                    updated_at,\n                    from_addr,\n                    blob_sidecar,\n                    is_gateway\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)\n            RETURNING\n                *\n            ",
   "describe": {
     "columns": [
       {
@@ -72,12 +72,23 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_gateway",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
+        "Bytea",
         "Int8",
-        "Bytea"
+        "Text",
+        "Text",
+        "Int8",
+        "Bytea",
+        "Bytea",
+        "Bool"
       ]
     },
     "nullable": [
@@ -94,8 +105,9 @@
       true,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "4570e9ffd0b2973d0bc2986c391d0a59076dda4aa572ade2492f37e537fdf6ed"
+  "hash": "0fede71ed258790cf70d6d6a32dcf9654c06dfef57863281601c947830ad448a"
 }

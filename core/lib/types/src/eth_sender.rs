@@ -51,6 +51,7 @@ pub struct EthTx {
     /// this transaction. If it is set to `None` this transaction was sent by the main operator.
     pub from_addr: Option<Address>,
     pub blob_sidecar: Option<EthTxBlobSidecar>,
+    pub is_gateway: bool,
 }
 
 impl std::fmt::Debug for EthTx {
