@@ -104,14 +104,14 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose
 
-      - name: Create and initialize chain
+      - name: Create and initialize Rollup chain
         run: |
           ci_run zk_inception chain create \
           --chain-name chain_rollup \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode  rollup \
+          --l1-batch-commit-data-generator-mode rollup \
           --base-token-address 0x0000000000000000000000000000000000000001 \
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
@@ -127,16 +127,49 @@ jobs:
           --prover-db-name=zksync_prover_localhost_rollup \
           --chain chain_rollup
 
-      - name: Init external node server
+      - name: Init external node (Rollup)
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup
 
-      - name: Run all tests on chain
+      - name: Run all tests on Rollup chain
         run: |
           ci_run zk_supervisor test all --chain chain_rollup
-        
+
+      - name: Create and initialize Validium chain
+        run: |
+          ci_run zk_inception chain create \
+          --chain-name chain_validium \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://reth:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --server-db-name=zksync_server_localhost_validium \
+          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-name=zksync_prover_localhost_validium \
+          --chain chain_validium
+  
+      - name: Init external node (Validium)
+        run: |
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
+
+      - name: Run all tests on Validium chain
+        run: |
+          ci_run zk_supervisor test all --chain chain_validium
+            
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
