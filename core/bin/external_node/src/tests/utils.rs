@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use tempfile::TempDir;
-use zksync_dal::CoreDal;
+use tokio::sync::oneshot;
+use zksync_dal::{ConnectionPoolBuilder, Core, CoreDal};
 use zksync_db_connection::connection_pool::TestTemplate;
 use zksync_eth_client::clients::MockEthereum;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_genesis::{insert_genesis_batch, GenesisBatchParams, GenesisParams};
 use zksync_types::{
     api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,

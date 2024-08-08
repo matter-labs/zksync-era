@@ -59,10 +59,19 @@ impl ZkStackServiceBuilder {
             .enable_all()
             .build()
             .unwrap();
-        Ok(Self {
+        Ok(Self::on_runtime(runtime))
+    }
+
+    /// Creates a new builder with the provided Tokio runtime.
+    /// This method can be used if asynchronous tasks must be performed before the service is built.
+    ///
+    /// However, it is not recommended to use this method to spawn any tasks that will not be managed
+    /// by the service itself, so whenever it can be avoided, using [`ZkStackServiceBuilder::new`] is preferred.
+    pub fn on_runtime(runtime: Runtime) -> Self {
+        Self {
             layers: Vec::new(),
             runtime,
-        })
+        }
     }
 
     /// Returns a handle to the Tokio runtime used by the service.

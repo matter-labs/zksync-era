@@ -1,8 +1,4 @@
-use std::time::Duration;
-
-use tokio::sync::watch;
 use vise::{EncodeLabelSet, Gauge, Info, Metrics};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::metadata::SERVER_VERSION;
@@ -52,31 +48,6 @@ impl ExternalNodeMetrics {
                 self.info.get()
             );
         }
-    }
-
-    pub(crate) async fn run_protocol_version_updates(
-        &self,
-        pool: ConnectionPool<Core>,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        const QUERY_INTERVAL: Duration = Duration::from_secs(10);
-
-        while !*stop_receiver.borrow_and_update() {
-            let maybe_protocol_version = pool
-                .connection()
-                .await?
-                .protocol_versions_dal()
-                .last_used_version_id()
-                .await;
-            if let Some(version) = maybe_protocol_version {
-                self.protocol_version.set(version as u64);
-            }
-
-            tokio::time::timeout(QUERY_INTERVAL, stop_receiver.changed())
-                .await
-                .ok();
-        }
-        Ok(())
     }
 }
 
