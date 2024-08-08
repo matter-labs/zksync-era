@@ -85,7 +85,7 @@ impl ContractsConfig {
     ) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.l2.da_validator_addr = initialize_bridges_output.l2_da_validator;
+        self.l2.da_validator_addr = initialize_bridges_output.l2_da_validator_addr;
         Ok(())
     }
 
