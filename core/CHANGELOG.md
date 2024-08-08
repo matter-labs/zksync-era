@@ -1,5 +1,22 @@
 # Changelog
 
+## [24.16.0](https://github.com/matter-labs/zksync-era/compare/core-v24.15.0...core-v24.16.0) (2024-08-08)
+
+
+### Features
+
+* External prover API ([#2538](https://github.com/matter-labs/zksync-era/issues/2538)) ([129a181](https://github.com/matter-labs/zksync-era/commit/129a1819262d64a36d651af01fdab93c5ff91712))
+* **node-framework:** Add API fee params resource ([#2621](https://github.com/matter-labs/zksync-era/issues/2621)) ([aff7b65](https://github.com/matter-labs/zksync-era/commit/aff7b6535ef92aaced0dd7fa1cc08d656cba027e))
+* **vlog:** Expose more resource values via opentelemetry ([#2620](https://github.com/matter-labs/zksync-era/issues/2620)) ([7ae07e4](https://github.com/matter-labs/zksync-era/commit/7ae07e446c9732a896ca8246d324e82c6e6d5a46))
+* **vlog:** Report observability config, flush, and shutdown ([#2622](https://github.com/matter-labs/zksync-era/issues/2622)) ([e23e661](https://github.com/matter-labs/zksync-era/commit/e23e6611731835ef3abd34f3f9867f9dc533eb21))
+
+
+### Bug Fixes
+
+* Bump prover dependencies & rust toolchain ([#2600](https://github.com/matter-labs/zksync-era/issues/2600)) ([849c6a5](https://github.com/matter-labs/zksync-era/commit/849c6a5dcd095e8fead0630a2a403f282c26a2aa))
+* **en:** Initialize SyncState in OutputHandler ([#2618](https://github.com/matter-labs/zksync-era/issues/2618)) ([f0c8506](https://github.com/matter-labs/zksync-era/commit/f0c85062fac96180c2e0dec52086714ee3783fcf))
+* restrictive genesis parsing ([#2605](https://github.com/matter-labs/zksync-era/issues/2605)) ([d5f8f38](https://github.com/matter-labs/zksync-era/commit/d5f8f3892a14180f590cabab921d3a68dec903e3))
+
 ## [24.15.0](https://github.com/matter-labs/zksync-era/compare/core-v24.14.0...core-v24.15.0) (2024-08-07)
 
 

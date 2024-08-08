@@ -9,6 +9,7 @@ pub mod contract_verification_api;
 pub mod da_dispatcher;
 pub mod eth_sender;
 pub mod eth_watch;
+pub mod external_proof_integration_api;
 pub mod gas_adjuster;
 pub mod healtcheck_server;
 pub mod house_keeper;

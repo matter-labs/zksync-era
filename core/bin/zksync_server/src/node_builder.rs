@@ -31,6 +31,7 @@ use zksync_node_framework::{
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
+        external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -574,6 +575,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
+        let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        self.node.add_layer(ExternalProofIntegrationApiLayer::new(
+            config,
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+        ));
+
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g. genesis will be performed if it's required.
     ///
@@ -717,6 +728,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
+                }
+                Component::ExternalProofIntegrationApi => {
+                    self = self.add_external_proof_integration_api_layer()?;
                 }
             }
         }

@@ -16,6 +16,9 @@ impl ObservabilityConfig {
             .with_sentry(sentry)
             .with_opentelemetry(opentelemetry)
             .build();
+
+        tracing::info!("Installed observability stack with the following configuration: {self:?}");
+
         Ok(guard)
     }
 }
