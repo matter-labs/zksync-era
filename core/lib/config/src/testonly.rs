@@ -1032,6 +1032,7 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
             client_timeout_ms: self.sample(rng),
             forced_numerator: self.sample(rng),
             forced_denominator: self.sample(rng),
+            forced_fluctuation: self.sample(rng),
         }
     }
 }

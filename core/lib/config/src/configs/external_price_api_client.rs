@@ -14,6 +14,7 @@ pub struct ExternalPriceApiClientConfig {
     /// Forced conversion ratio. Only used with the ForcedPriceClient.
     pub forced_numerator: Option<u64>,
     pub forced_denominator: Option<u64>,
+    pub forced_fluctuation: Option<u32>,
 }
 
 impl ExternalPriceApiClientConfig {

@@ -11,6 +11,7 @@ use crate::PriceAPIClient;
 #[derive(Debug, Clone)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
+    forced_fluctuation: Option<u32>,
 }
 
 impl ForcedPriceClient {
@@ -28,6 +29,7 @@ impl ForcedPriceClient {
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             },
+            forced_fluctuation: config.forced_fluctuation,
         }
     }
 }
@@ -36,27 +38,26 @@ impl ForcedPriceClient {
 impl PriceAPIClient for ForcedPriceClient {
     // Returns a ratio which is 10% higher or lower than the configured forced ratio.
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        let mut rng = rand::thread_rng();
+        if let Some(x) = self.forced_fluctuation {
+            if x != 0 {
+                let mut rng = rand::thread_rng();
 
-        let numerator_range = (
-            (self.ratio.numerator.get() as f64 * 0.9).round() as u64,
-            (self.ratio.numerator.get() as f64 * 1.1).round() as u64,
-        );
+                let mut adjust_range = |value: NonZeroU64| {
+                    let value_f64 = value.get() as f64;
+                    let min = (value_f64 * (1.0 - x as f64 / 100.0)).round() as u64;
+                    let max = (value_f64 * (1.0 + x as f64 / 100.0)).round() as u64;
+                    rng.gen_range(min..=max)
+                };
+                let new_numerator = adjust_range(self.ratio.numerator.clone());
+                let new_denominator = adjust_range(self.ratio.denominator.clone());
 
-        let denominator_range = (
-            (self.ratio.denominator.get() as f64 * 0.9).round() as u64,
-            (self.ratio.denominator.get() as f64 * 1.1).round() as u64,
-        );
-
-        let new_numerator = rng.gen_range(numerator_range.0..=numerator_range.1);
-        let new_denominator = rng.gen_range(denominator_range.0..=denominator_range.1);
-
-        let adjusted_ratio = BaseTokenAPIRatio {
-            numerator: NonZeroU64::new(new_numerator).unwrap_or(self.ratio.numerator),
-            denominator: NonZeroU64::new(new_denominator).unwrap_or(self.ratio.denominator),
-            ratio_timestamp: chrono::Utc::now(),
-        };
-
-        Ok(adjusted_ratio)
+                return Ok(BaseTokenAPIRatio {
+                    numerator: NonZeroU64::new(new_numerator).unwrap_or(self.ratio.numerator),
+                    denominator: NonZeroU64::new(new_denominator).unwrap_or(self.ratio.denominator),
+                    ratio_timestamp: chrono::Utc::now(),
+                });
+            }
+        }
+        Ok(self.ratio.clone())
     }
 }
