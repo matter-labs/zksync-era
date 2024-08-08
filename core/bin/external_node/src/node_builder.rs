@@ -216,8 +216,8 @@ impl ExternalNodeBuilder {
             rocksdb_options,
         );
         self.node
-            .add_layer(persistence_layer)
             .add_layer(io_layer)
+            .add_layer(persistence_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)
