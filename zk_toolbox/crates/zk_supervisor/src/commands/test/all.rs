@@ -10,9 +10,7 @@ use super::{
     integration, recovery, revert, upgrade,
 };
 
-pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
-    let chain = global_config().chain_name.clone();
-
+pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
     logger::info("Run server");
     let _handle = thread::spawn(move || {
         let chain = global_config().chain_name.clone();
