@@ -36,14 +36,14 @@ impl BaseTokenRatioPersister {
         let mut timer = tokio::time::interval(self.config.price_polling_interval());
 
         while !*stop_receiver.borrow_and_update() {
-            tokio::select! {
-                _ = timer.tick() => { /* continue iterations */ }
-                _ = stop_receiver.changed() => break,
-            }
-
             if let Err(err) = self.loop_iteration().await {
                 return Err(err)
                     .context("Failed to execute a base_token_ratio_persister loop iteration");
+            }
+
+            tokio::select! {
+                _ = timer.tick() => { /* continue iterations */ }
+                _ = stop_receiver.changed() => break,
             }
         }
 

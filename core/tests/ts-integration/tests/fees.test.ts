@@ -17,6 +17,8 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { sendTransfers } from '../src/context-owner';
+import { Reporter } from '../src/reporter';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -54,12 +56,52 @@ testFees('Test fees', () => {
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
+
+        const mainWallet = new zksync.Wallet(
+            testMaster.environment().mainWalletPK,
+            alice._providerL2(),
+            alice._providerL1()
+        );
+
+        const bridgehub = await mainWallet.getBridgehubContract();
+        const chainId = testMaster.environment().l2ChainId;
+        const baseTokenAddress = await bridgehub.baseToken(chainId);
+
+        console.log(`Alice address ${alice.address}. Main wallet address: ${mainWallet.address}`);
+        console.log(
+            `Before deposit: Alice balance ${ethers.formatEther(
+                await alice.getBalance()
+            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
+        );
+        const depositTx = await mainWallet.deposit({
+            token: baseTokenAddress,
+            amount: ethers.parseEther('100'),
+            approveERC20: true,
+            approveBaseERC20: true
+        });
+        await depositTx.wait();
+        await Promise.all(
+            await sendTransfers(
+                zksync.utils.ETH_ADDRESS,
+                mainWallet,
+                { alice: alice.privateKey },
+                ethers.parseEther('100'),
+                undefined,
+                undefined,
+                new Reporter()
+            )
+        );
+        console.log(
+            `After deposit: Alice balance ${ethers.formatEther(
+                await alice.getBalance()
+            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
+        );
     });
 
     test('Test fees', async () => {
@@ -141,6 +183,35 @@ testFees('Test fees', () => {
         }
 
         console.log(`Full report: \n\n${reports.join('\n\n')}`);
+    });
+
+    test('Test gas price expected value', async () => {
+        const receiver = ethers.Wallet.createRandom().address;
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+        await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
+
+        const receipt = await (
+            await alice.sendTransaction({
+                to: receiver,
+                value: BigInt(1)
+            })
+        ).wait();
+
+        const expectedETHGasPrice =
+            testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup
+                ? 100_000_000 // 0.1 gwei (the minimum)
+                : 110_000_000; // 0.11 gwei, in validium we need to add compute overhead
+        const expectedCustomGasPrice = expectedETHGasPrice * 3.14;
+
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        if (isETHBasedChain) {
+            expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
+        } else {
+            // We need some tolerance here, becouse base token "forced" price provider has 10% randomness in its price
+            expect(receipt.gasPrice).toBeGreaterThan(expectedCustomGasPrice * 0.85);
+            expect(receipt.gasPrice).toBeLessThan(expectedCustomGasPrice * 1.15);
+        }
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
@@ -276,7 +347,7 @@ async function updateReport(
 }
 
 async function killServerAndWaitForShutdown(provider: zksync.Provider) {
-    await utils.exec('pkill zksync_server');
+    await utils.exec('pkill --signal SIGINT zksync_server');
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
