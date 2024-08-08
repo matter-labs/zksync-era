@@ -41,10 +41,10 @@ enum CheckError {
 }
 
 impl CheckError {
-    fn is_transient(&self) -> bool {
+    fn is_retriable(&self) -> bool {
         match self {
             Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
-                err.is_transient()
+                err.is_retriable()
             }
             _ => false,
         }
@@ -535,7 +535,7 @@ impl ConsistencyChecker {
         self.event_handler.initialize();
 
         while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
-            if err.is_transient() {
+            if err.is_retriable() {
                 tracing::warn!(
                     "Transient error checking diamond proxy contract; will retry after a delay: {:#}",
                     anyhow::Error::from(err)
@@ -635,7 +635,7 @@ impl ConsistencyChecker {
                         }
                     }
                 }
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     tracing::warn!(
                         "Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {:#}",
                         anyhow::Error::from(err)
