@@ -9,6 +9,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
+pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";

@@ -9,7 +9,7 @@ use common::{
 use config::EcosystemConfig;
 use messages::{
     msg_global_chain_does_not_exist, MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT,
-    MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -38,6 +38,8 @@ enum SupervisorSubcommands {
     Clean(CleanCommands),
     #[command(subcommand, about = "Snapshots creator")]
     Snapshot(SnapshotCommands),
+    #[command(about = MSG_SUBCOMMAND_LINT_ABOUT, alias = "l")]
+    Lint,
     #[command(hide = true)]
     Markdown,
 }
@@ -94,6 +96,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Supervisor>();
         }
+        SupervisorSubcommands::Lint => todo!(),
     }
     Ok(())
 }
