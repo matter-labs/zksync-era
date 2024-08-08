@@ -127,10 +127,15 @@ jobs:
           --prover-db-name=zksync_prover_localhost_rollup \
           --chain chain_rollup
 
+      - name: Init external node server
+        run: |
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup
+
       - name: Run all tests on chain
         run: |
-          ci_run zk_supervisor test all --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
+          ci_run zk_supervisor test all --chain chain_rollup
         
       - name: Show server.log logs
         if: always()

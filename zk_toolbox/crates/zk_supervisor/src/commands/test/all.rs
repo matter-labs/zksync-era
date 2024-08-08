@@ -35,30 +35,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     );
 
-    logger::info("Create external node config");
-    let mut cmd = cmd!(shell, "zk_inception external-node configs")
-        .arg("--db-url")
-        .arg(args.db_url.to_string())
-        .arg("--db-name")
-        .arg(args.db_name)
-        .arg("--l1-rpc-url")
-        .arg(args.l1_rpc_url);
-
-    if let Some(chain) = chain.clone() {
-        cmd = cmd.arg("--chain").arg(chain);
-    }
-
-    let _out = Cmd::new(cmd).run();
-
-    logger::info("Init external node");
-    let mut cmd = cmd!(shell, "zk_inception external-node init").arg("--ignore-prerequisites");
-
-    if let Some(chain) = chain {
-        cmd = cmd.arg("--chain").arg(chain);
-    }
-
-    let _out = Cmd::new(cmd).run();
-
     logger::info("Run recovery tests (from snapshot)");
     let _ = recovery::run(shell, RecoveryArgs { snapshot: true });
 
