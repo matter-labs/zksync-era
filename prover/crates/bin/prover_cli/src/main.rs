@@ -1,4 +1,5 @@
-use prover_cli::{cli, config};
+use clap::Parser;
+use prover_cli::{cli::ProverCLI, config};
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +15,9 @@ async fn main() {
         })
         .unwrap();
 
-    match cli::start().await {
+    let prover = ProverCLI::parse();
+
+    match prover.start().await {
         Ok(_) => {}
         Err(err) => {
             tracing::error!("{err:?}");
