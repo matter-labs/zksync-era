@@ -1,12 +1,15 @@
-use args::{integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs};
+use args::{
+    all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
+};
 use clap::Subcommand;
 use xshell::Shell;
 
 use crate::messages::{
-    MSG_INTEGRATION_TESTS_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT,
-    MSG_UPGRADE_TEST_ABOUT,
+    MSG_ALL_TEST_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_RECOVERY_TEST_ABOUT,
+    MSG_REVERT_TEST_ABOUT, MSG_UPGRADE_TEST_ABOUT,
 };
 
+mod all;
 mod args;
 mod integration;
 mod recovery;
@@ -23,6 +26,8 @@ pub enum TestCommands {
     Recovery(RecoveryArgs),
     #[clap(about = MSG_UPGRADE_TEST_ABOUT, alias = "u")]
     Upgrade,
+    #[clap(about = MSG_ALL_TEST_ABOUT)]
+    All(AllArgs),
 }
 
 pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -31,5 +36,6 @@ pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Revert(args) => revert::run(shell, args),
         TestCommands::Recovery(args) => recovery::run(shell, args),
         TestCommands::Upgrade => upgrade::run(shell),
+        TestCommands::All(args) => all::run(shell, args),
     }
 }
