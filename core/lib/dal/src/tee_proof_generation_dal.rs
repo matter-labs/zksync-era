@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -14,18 +13,6 @@ use crate::Core;
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
-}
-
-#[derive(Debug, EnumString, Display)]
-enum TeeProofGenerationJobStatus {
-    #[strum(serialize = "ready_to_be_proven")]
-    ReadyToBeProven,
-    #[strum(serialize = "picked_by_prover")]
-    PickedByProver,
-    #[strum(serialize = "generated")]
-    Generated,
-    #[strum(serialize = "skipped")]
-    Skipped,
 }
 
 impl TeeProofGenerationDal<'_, '_> {

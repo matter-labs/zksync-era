@@ -7,6 +7,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::{AttestationStatus, Payload};
@@ -48,9 +49,20 @@ impl ConsensusDal<'_, '_> {
             let Some(genesis) = row.genesis else {
                 return Ok(None);
             };
-            let genesis: validator::GenesisRaw =
-                zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")?;
-            Ok(Some(genesis.with_hash()))
+            // Deserialize the json, but don't allow for unknown fields.
+            // We might encounter an unknown fields here in case if support for the previous
+            // consensus protocol version is removed before the migration to a new version
+            // is performed. The node should NOT operate in such a state.
+            Ok(Some(
+                validator::GenesisRaw::read(
+                    &zksync_protobuf::serde::deserialize_proto_with_options(
+                        &genesis, /*deny_unknown_fields=*/ true,
+                    )
+                    .decode_column("genesis")?,
+                )
+                .decode_column("genesis")?
+                .with_hash(),
+            ))
         })
         .instrument("genesis")
         .fetch_optional(self.storage)
@@ -536,6 +548,7 @@ impl ConsensusDal<'_, '_> {
         }
         .await?
         else {
+            tracing::info!(%genesis.first_block, "genesis block not found");
             return Ok(None);
         };
         Ok(Some(AttestationStatus {

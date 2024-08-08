@@ -194,8 +194,8 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.1.0"
-vise-exporter = "0.1.0"
+vise = "0.2.0"
+vise-exporter = "0.2.0"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
@@ -205,9 +205,9 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.2-rc.2" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.2-rc.3" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
-kzg = { package = "zksync_kzg", version = "=0.150.2-rc.2" }
+kzg = { package = "zksync_kzg", version = "=0.150.2-rc.3" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
@@ -216,16 +216,16 @@ zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.0" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.4"
-zksync_consensus_bft = "=0.1.0-rc.4"
-zksync_consensus_crypto = "=0.1.0-rc.4"
-zksync_consensus_executor = "=0.1.0-rc.4"
-zksync_consensus_network = "=0.1.0-rc.4"
-zksync_consensus_roles = "=0.1.0-rc.4"
-zksync_consensus_storage = "=0.1.0-rc.4"
-zksync_consensus_utils = "=0.1.0-rc.4"
-zksync_protobuf = "=0.1.0-rc.4"
-zksync_protobuf_build = "=0.1.0-rc.4"
+zksync_concurrency = "=0.1.0-rc.9"
+zksync_consensus_bft = "=0.1.0-rc.9"
+zksync_consensus_crypto = "=0.1.0-rc.9"
+zksync_consensus_executor = "=0.1.0-rc.9"
+zksync_consensus_network = "=0.1.0-rc.9"
+zksync_consensus_roles = "=0.1.0-rc.9"
+zksync_consensus_storage = "=0.1.0-rc.9"
+zksync_consensus_utils = "=0.1.0-rc.9"
+zksync_protobuf = "=0.1.0-rc.9"
+zksync_protobuf_build = "=0.1.0-rc.9"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

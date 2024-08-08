@@ -1,13 +1,6 @@
 name: Workflow template for CI jobs for Prover Components
 on:
   workflow_call:
-    secrets:
-      DOCKERHUB_USER:
-        description: "DOCKERHUB_USER"
-        required: true
-      DOCKERHUB_TOKEN:
-        description: "DOCKERHUB_TOKEN"
-        required: true
 jobs:
   lint:
     runs-on: [matterlabs-ci-runner]
@@ -24,7 +17,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -56,7 +48,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |

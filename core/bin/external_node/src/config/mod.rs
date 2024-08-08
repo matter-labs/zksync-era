@@ -224,12 +224,6 @@ impl RemoteENConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) enum BlockFetcher {
-    ServerAPI,
-    Consensus,
-}
-
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
