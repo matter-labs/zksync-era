@@ -23,8 +23,7 @@ pub struct BaseTokenRatioPersister {
     price_api_client: Arc<dyn PriceAPIClient>,
     eth_client: Box<dyn BoundEthInterface>,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
-    //TODO: use multiplier setter account
-    base_token_adjuster_account_address: Address,
+    token_multiplier_setter_account_address: Address,
     chain_admin_contract: Contract,
     diamond_proxy_contract_address: Address,
     chain_admin_contract_address: Option<Address>,
@@ -39,7 +38,7 @@ impl BaseTokenRatioPersister {
         price_api_client: Arc<dyn PriceAPIClient>,
         eth_client: Box<dyn BoundEthInterface>,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
-        base_token_adjuster_account_address: Address,
+        token_multiplier_setter_account_address: Address,
         diamond_proxy_contract_address: Address,
         chain_admin_contract_address: Option<Address>,
     ) -> Self {
@@ -52,7 +51,7 @@ impl BaseTokenRatioPersister {
             price_api_client,
             eth_client,
             gas_adjuster,
-            base_token_adjuster_account_address,
+            token_multiplier_setter_account_address,
             chain_admin_contract,
             diamond_proxy_contract_address,
             chain_admin_contract_address,
@@ -159,7 +158,7 @@ impl BaseTokenRatioPersister {
         let nonce = (*self.eth_client)
             .as_ref()
             .nonce_at_for_account(
-                self.base_token_adjuster_account_address,
+                self.token_multiplier_setter_account_address,
                 BlockNumber::Pending,
             )
             .await

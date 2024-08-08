@@ -862,9 +862,9 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
     }
 }
 
-impl Distribution<configs::wallets::BaseTokenAdjuster> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::BaseTokenAdjuster {
-        configs::wallets::BaseTokenAdjuster {
+impl Distribution<configs::wallets::TokenMultiplierSetter> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::TokenMultiplierSetter {
+        configs::wallets::TokenMultiplierSetter {
             wallet: self.sample(rng),
         }
     }
@@ -875,7 +875,7 @@ impl Distribution<configs::wallets::Wallets> for EncodeDist {
         configs::wallets::Wallets {
             state_keeper: self.sample_opt(|| self.sample(rng)),
             eth_sender: self.sample_opt(|| self.sample(rng)),
-            base_token_adjuster: self.sample_opt(|| self.sample(rng)),
+            token_multiplier_setter: self.sample_opt(|| self.sample(rng)),
         }
     }
 }

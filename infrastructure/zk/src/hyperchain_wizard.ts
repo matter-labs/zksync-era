@@ -130,7 +130,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     const results: any = await enquirer.prompt(questions);
     // TODO(EVM-574): add random chainId generation here if user does not want to pick chainId.
 
-    let deployer, governor, ethOperator, blobOperator, feeReceiver, baseTokenAdjuster: ethers.Wallet | undefined;
+    let deployer, governor, ethOperator, blobOperator, feeReceiver, tokenMultiplierSetter: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
@@ -204,7 +204,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
             ethOperator = ethers.Wallet.createRandom();
             feeReceiver = ethers.Wallet.createRandom();
             blobOperator = ethers.Wallet.createRandom();
-            baseTokenAdjuster = ethers.Wallet.createRandom();
+            tokenMultiplierSetter = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
             console.log(warning('The private keys for these wallets must be different from each other!\n'));
@@ -242,7 +242,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
                 {
                     message:
                         'Private key of the token multiplier setter (the one who can update base token nominator and denominator on L1)',
-                    name: 'baseTokenAdjuster',
+                    name: 'tokenMultiplierSetter',
                     type: 'input',
                     required: true
                 }
@@ -275,9 +275,9 @@ async function setHyperchainMetadata(runObservability: boolean) {
             }
 
             try {
-                baseTokenAdjuster = new ethers.Wallet(keyResults.baseTokenAdjuster);
+                tokenMultiplierSetter = new ethers.Wallet(keyResults.tokenMultiplierSetter);
             } catch (e) {
-                throw Error(error('Blob Operator private key is invalid'));
+                throw Error(error('Token Multiplier Setter private key is invalid'));
             }
 
             if (!utils.isAddress(keyResults.feeReceiver)) {
@@ -313,7 +313,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
         governor = new ethers.Wallet(richWallets[1].privateKey);
         ethOperator = new ethers.Wallet(richWallets[2].privateKey);
         blobOperator = new ethers.Wallet(richWallets[3].privateKey);
-        baseTokenAdjuster = new ethers.Wallet(richWallets[4].privateKey);
+        tokenMultiplierSetter = new ethers.Wallet(richWallets[4].privateKey);
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[4].address;
 
@@ -328,7 +328,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     printAddressInfo('ETH Operator', ethOperator.address);
     printAddressInfo('Blob Operator', blobOperator.address);
     printAddressInfo('Fee receiver', feeReceiverAddress);
-    printAddressInfo('Base token adjuster', baseTokenAdjuster.address);
+    printAddressInfo('Token multiplier setter', tokenMultiplierSetter.address);
 
     console.log(
         warning(
@@ -396,7 +396,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
     env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
     env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, process.env.ENV_FILE!);
     env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
-    env.modify('TOKEN_MULTIPLIER_SETTER_ADDRESS', baseTokenAdjuster.address, process.env.ENV_FILE!);
+    env.modify('TOKEN_MULTIPLIER_SETTER_ADDRESS', tokenMultiplierSetter.address, process.env.ENV_FILE!);
 
     if (feeReceiver) {
         env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, process.env.ENV_FILE!);

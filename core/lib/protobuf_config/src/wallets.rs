@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::configs::{
     self,
-    wallets::{AddressWallet, BaseTokenAdjuster, EthSender, StateKeeper, Wallet},
+    wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet},
 };
 use zksync_protobuf::{required, ProtoRepr};
 use zksync_types::{Address, K256PrivateKey};
@@ -54,25 +54,27 @@ impl ProtoRepr for proto::Wallets {
             None
         };
 
-        let base_token_adjuster = if let Some(base_token_adjuster) = &self.base_token_adjuster {
-            let wallet = Wallet::from_private_key_bytes(
-                parse_h256(
-                    required(&base_token_adjuster.private_key).context("base_token_adjuster")?,
-                )?,
-                base_token_adjuster
-                    .address
-                    .as_ref()
-                    .and_then(|a| parse_h160(a).ok()),
-            )?;
-            Some(BaseTokenAdjuster { wallet })
-        } else {
-            None
-        };
+        let token_multiplier_setter =
+            if let Some(token_multiplier_setter) = &self.token_multiplier_setter {
+                let wallet = Wallet::from_private_key_bytes(
+                    parse_h256(
+                        required(&token_multiplier_setter.private_key)
+                            .context("base_token_adjuster")?,
+                    )?,
+                    token_multiplier_setter
+                        .address
+                        .as_ref()
+                        .and_then(|a| parse_h160(a).ok()),
+                )?;
+                Some(TokenMultiplierSetter { wallet })
+            } else {
+                None
+            };
 
         Ok(Self::Type {
             eth_sender,
             state_keeper,
-            base_token_adjuster,
+            token_multiplier_setter,
         })
     }
 
@@ -107,21 +109,21 @@ impl ProtoRepr for proto::Wallets {
                 address: Some(format!("{:?}", state_keeper.fee_account.address())),
             });
 
-        let base_token_adjuster = this
-            .base_token_adjuster
-            .as_ref()
-            .map(|base_token_adjuster| {
-                create_pk_wallet(
-                    base_token_adjuster.wallet.address(),
-                    base_token_adjuster.wallet.private_key(),
-                )
-            });
+        let token_multiplier_setter =
+            this.token_multiplier_setter
+                .as_ref()
+                .map(|token_multiplier_setter| {
+                    create_pk_wallet(
+                        token_multiplier_setter.wallet.address(),
+                        token_multiplier_setter.wallet.private_key(),
+                    )
+                });
 
         Self {
             blob_operator,
             operator,
             fee_account,
-            base_token_adjuster,
+            token_multiplier_setter,
         }
     }
 }

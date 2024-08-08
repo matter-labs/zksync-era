@@ -70,7 +70,7 @@ pub struct StateKeeper {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BaseTokenAdjuster {
+pub struct TokenMultiplierSetter {
     pub wallet: Wallet,
 }
 
@@ -78,7 +78,7 @@ pub struct BaseTokenAdjuster {
 pub struct Wallets {
     pub eth_sender: Option<EthSender>,
     pub state_keeper: Option<StateKeeper>,
-    pub base_token_adjuster: Option<BaseTokenAdjuster>,
+    pub token_multiplier_setter: Option<TokenMultiplierSetter>,
 }
 
 impl Wallets {
@@ -93,7 +93,7 @@ impl Wallets {
             state_keeper: Some(StateKeeper {
                 fee_account: AddressWallet::from_address(H160::repeat_byte(0x3)),
             }),
-            base_token_adjuster: Some(BaseTokenAdjuster {
+            token_multiplier_setter: Some(TokenMultiplierSetter {
                 wallet: Wallet::from_private_key_bytes(H256::repeat_byte(0x4), None).unwrap(),
             }),
         }

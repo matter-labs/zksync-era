@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use zksync_basic_types::{Address, H256};
 use zksync_config::configs::wallets::{
-    AddressWallet, BaseTokenAdjuster, EthSender, StateKeeper, Wallet, Wallets,
+    AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets,
 };
 
 use crate::FromEnv;
@@ -49,21 +49,22 @@ impl FromEnv for Wallets {
             None
         };
 
-        let base_token_adjuster_pk = pk_from_env(
-            "BASE_TOKEN_ADJUSTER_PRIVATE_KEY",
-            "Malformed base token adjuster pk",
+        let token_multiplier_setter_pk = pk_from_env(
+            "TOKEN_MULTIPLIER_SETTER_PRIVATE_KEY",
+            "Malformed token multiplier setter pk",
         )?;
-        let base_token_adjuster = if let Some(base_toke_adjuster_pk) = base_token_adjuster_pk {
-            let wallet = Wallet::from_private_key_bytes(base_toke_adjuster_pk, None)?;
-            Some(BaseTokenAdjuster { wallet })
-        } else {
-            None
-        };
+        let token_multiplier_setter =
+            if let Some(token_multiplier_setter_pk) = token_multiplier_setter_pk {
+                let wallet = Wallet::from_private_key_bytes(token_multiplier_setter_pk, None)?;
+                Some(TokenMultiplierSetter { wallet })
+            } else {
+                None
+            };
 
         Ok(Self {
             eth_sender,
             state_keeper,
-            base_token_adjuster,
+            token_multiplier_setter,
         })
     }
 }

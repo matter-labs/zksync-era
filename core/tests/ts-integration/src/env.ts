@@ -127,7 +127,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
-    const priorityTxMaxGasLimit = 100000000n;
+    const priorityTxMaxGasLimit = 72000000n;
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     return {

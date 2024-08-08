@@ -13,6 +13,6 @@ deployer:
 governor:
   private_key: 0x0324a1a769864837a67b051112e19b47c3ef0d2b300a7a9e3eb83a36156956f9
   address: 0xF8A3188d179133204bFE984d5275D926D140953b
-base_token_adjuster:
+token_multiplier_setter:
   private_key: 0xd08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6
   address: 0x5711E991397FCa8F5651c9Bb6FA06b57e4a4DCC0

@@ -92,7 +92,7 @@ impl BaseTokenAdjusterConfig {
 
     #[deprecated]
     pub fn private_key(&self) -> anyhow::Result<Option<K256PrivateKey>> {
-        std::env::var("BASE_TOKEN_ADJUSTER_PRIVATE_KEY")
+        std::env::var("TOKEN_MULTIPLIER_SETTER_PRIVATE_KEY")
             .ok()
             .map(|pk| {
                 let private_key_bytes: H256 =

@@ -86,18 +86,18 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             .expect("base token address is not set");
         let diamond_proxy_contract_address = self.contracts_config.diamond_proxy_addr;
         let chain_admin_contract_address = self.contracts_config.chain_admin_addr;
-        let base_token_adjuster_wallet = self
+        let token_multiplier_setter_wallet = self
             .wallets_config
-            .base_token_adjuster
+            .token_multiplier_setter
             .expect("base token adjuster wallet is not set")
             .wallet;
 
-        let account_private_key = base_token_adjuster_wallet.private_key();
-        let account_address = base_token_adjuster_wallet.address();
+        let tms_private_key = token_multiplier_setter_wallet.private_key();
+        let tms_address = token_multiplier_setter_wallet.address();
         let EthInterfaceResource(query_client) = input.eth_client;
 
         let signing_client = PKSigningClient::new_raw(
-            account_private_key.clone(),
+            tms_private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
             DEFAULT_PRIORITY_FEE_PER_GAS,
             #[allow(clippy::useless_conversion)]
@@ -112,7 +112,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             price_api_client.0,
             Box::new(signing_client),
             input.l1_tx_params.0,
-            account_address,
+            tms_address,
             diamond_proxy_contract_address,
             chain_admin_contract_address,
         );
