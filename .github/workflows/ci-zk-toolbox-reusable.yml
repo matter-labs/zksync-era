@@ -158,6 +158,7 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_validium \
+          --port-offset 2000 \
           --chain chain_validium
   
       - name: Init external node (Validium)
