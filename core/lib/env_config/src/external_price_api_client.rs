@@ -27,6 +27,7 @@ mod tests {
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
             forced_numerator: Some(100),
             forced_denominator: Some(1),
+            forced_fluctuation: None,
         }
     }
 
