@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                l2_da_validator_address AS \"l2_da_validator_address!\",\n                pubdata_type AS \"pubdata_type!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -35,59 +35,73 @@
       },
       {
         "ordinal": 6,
+        "name": "l2_da_validator_address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "pubdata_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
         "name": "base_fee_per_gas",
         "type_info": "Numeric"
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "l1_gas_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "l2_fair_gas_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "gas_per_pubdata_limit",
         "type_info": "Int8"
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "bootloader_code_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "default_aa_code_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "protocol_version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "virtual_blocks",
         "type_info": "Int8"
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "fair_pubdata_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 17,
         "name": "gas_limit",
         "type_info": "Int8"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,
@@ -106,5 +120,5 @@
       true
     ]
   },
-  "hash": "f35d539db19ed626a2e0b537468bcef1260bd43f7eee2710dfbdeed1a0228318"
+  "hash": "5a64b5cb569d8bfaf57c9172e6d3195f3786519c592305b7c8791b43146566e0"
 }

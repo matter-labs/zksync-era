@@ -694,6 +694,8 @@ impl BlocksDal<'_, '_> {
                     virtual_blocks,
                     fair_pubdata_price,
                     gas_limit,
+                    l2_da_validator_address,
+                    pubdata_type,
                     created_at,
                     updated_at
                 )
@@ -715,6 +717,8 @@ impl BlocksDal<'_, '_> {
                     $14,
                     $15,
                     $16,
+                    $17,
+                    $18,
                     NOW(),
                     NOW()
                 )
@@ -741,6 +745,11 @@ impl BlocksDal<'_, '_> {
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
             l2_block_header.gas_limit as i64,
+            l2_block_header
+                .pubdata_params
+                .l2_da_validator_address
+                .as_bytes(),
+            l2_block_header.pubdata_params.pubdata_type.to_string(),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -758,6 +767,8 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 fee_account_address AS "fee_account_address!",
+                l2_da_validator_address AS "l2_da_validator_address!",
+                pubdata_type AS "pubdata_type!",
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
@@ -797,6 +808,8 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 fee_account_address AS "fee_account_address!",
+                l2_da_validator_address AS "l2_da_validator_address!",
+                pubdata_type AS "pubdata_type!",
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
