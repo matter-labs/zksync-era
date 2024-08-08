@@ -8161,6 +8161,7 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "tracing",
  "url",
  "zksync_basic_types",
  "zksync_concurrency",
@@ -8655,7 +8656,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.15.0"
+version = "24.16.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8726,6 +8727,22 @@ dependencies = [
  "url",
  "zksync_config",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_external_proof_integration_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bincode",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_prover_interface",
 ]
 
 [[package]]
@@ -9076,6 +9093,7 @@ dependencies = [
  "zksync_eth_sender",
  "zksync_eth_watch",
  "zksync_external_price_api",
+ "zksync_external_proof_integration_api",
  "zksync_health_check",
  "zksync_house_keeper",
  "zksync_metadata_calculator",
