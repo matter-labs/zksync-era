@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
@@ -17,7 +16,7 @@ use zksync_config::{
 };
 
 use crate::{
-    consts::{CONFIG_NAME, PROVER_CONFIG_NAME},
+    consts::PROVER_CONFIG_NAME,
     find_file,
     traits::{FileConfigWithDefaultName, ReadConfig, ZkToolboxConfig},
     PROVER_FILE, SECRETS_FILE,
@@ -114,7 +113,7 @@ impl GeneralProverConfig {
 
         shell.change_dir(&path);
 
-        let prover = match GeneralProverConfig::read(shell, CONFIG_NAME) {
+        let prover = match GeneralProverConfig::read(shell, PROVER_CONFIG_NAME) {
             Ok(mut config) => {
                 config.shell = shell.clone().into();
                 config

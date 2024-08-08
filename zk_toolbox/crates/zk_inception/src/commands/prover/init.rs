@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::{
     copy_prover_configs, traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig,
     ProverConfig,
@@ -18,7 +18,7 @@ use super::{
 use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONFIGS_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
@@ -26,15 +26,19 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     //todo: uncomment check_prover_prequisites(shell);
 
+    let current_path = shell.current_dir();
+
     let prover_only_mode = match EcosystemConfig::from_file(shell) {
         Ok(_) => false,
-        Err(_) => match GeneralProverConfig::from_file(shell) {
-            Ok(_) => true,
-            Err(_) => {
-                let current_dir = shell.current_dir();
-                return Err(anyhow::anyhow!("No ecosystem or prover config found in the current directory {current_dir}"));
+        Err(_) => {
+            let _dir = shell.push_dir(current_path.clone());
+            match GeneralProverConfig::from_file(shell) {
+                Ok(_) => true,
+                Err(_) => {
+                    return Err(anyhow::anyhow!(MSG_CONFIGS_NOT_FOUND_ERR));
+                }
             }
-        },
+        }
     };
 
     let (link_to_code, configs) = if prover_only_mode {

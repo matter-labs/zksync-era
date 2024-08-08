@@ -2,10 +2,7 @@ use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::{
-    MSG_PROVER_ONLY_MODE_PROMPT, MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT,
-    MSG_THREADS_PROMPT,
-};
+use crate::messages::{MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverRunArgs {

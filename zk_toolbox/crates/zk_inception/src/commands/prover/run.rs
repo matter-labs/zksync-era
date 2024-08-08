@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, logger};
+use common::{cmd::Cmd, logger};
 use config::{EcosystemConfig, GeneralProverConfig};
 use xshell::{cmd, Shell};
 

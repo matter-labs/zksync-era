@@ -3,19 +3,23 @@ use config::{EcosystemConfig, GeneralProverConfig};
 use xshell::{cmd, Shell};
 
 use super::utils::get_link_to_prover;
-use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED};
+use crate::messages::{MSG_CONFIGS_NOT_FOUND_ERR, MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED};
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
 
+    let current_path = shell.current_dir();
     let link_to_code = match EcosystemConfig::from_file(shell) {
         Ok(ecosystem_config) => ecosystem_config.link_to_code,
-        Err(_) => match GeneralProverConfig::from_file(shell) {
-            Ok(general_prover_config) => general_prover_config.link_to_code,
-            Err(_) => {
-                return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
+        Err(_) => {
+            let _dir = shell.push_dir(current_path);
+            match GeneralProverConfig::from_file(shell) {
+                Ok(general_prover_config) => general_prover_config.link_to_code,
+                Err(_) => {
+                    return Err(anyhow::anyhow!(MSG_CONFIGS_NOT_FOUND_ERR));
+                }
             }
-        },
+        }
     };
     let link_to_prover = get_link_to_prover(link_to_code);
     shell.change_dir(&link_to_prover);
