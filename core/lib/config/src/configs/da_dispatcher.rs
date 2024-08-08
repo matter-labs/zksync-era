@@ -14,6 +14,9 @@ pub struct DADispatcherConfig {
     pub max_rows_to_dispatch: Option<u32>,
     /// The maximum number of retries for the dispatch of a blob.
     pub max_retries: Option<u16>,
+    /// Enable on-chain verification of the data availability.
+    #[serde(default)]
+    pub enable_onchain_verification: bool,
 }
 
 impl DADispatcherConfig {
@@ -22,6 +25,7 @@ impl DADispatcherConfig {
             polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
             max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
+            enable_onchain_verification: false,
         }
     }
 
