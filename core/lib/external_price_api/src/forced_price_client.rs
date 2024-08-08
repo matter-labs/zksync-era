@@ -48,8 +48,8 @@ impl PriceAPIClient for ForcedPriceClient {
                     let max = (value_f64 * (1.0 + x as f64 / 100.0)).round() as u64;
                     rng.gen_range(min..=max)
                 };
-                let new_numerator = adjust_range(self.ratio.numerator.clone());
-                let new_denominator = adjust_range(self.ratio.denominator.clone());
+                let new_numerator = adjust_range(self.ratio.numerator);
+                let new_denominator = adjust_range(self.ratio.denominator);
 
                 return Ok(BaseTokenAPIRatio {
                     numerator: NonZeroU64::new(new_numerator).unwrap_or(self.ratio.numerator),
@@ -58,6 +58,6 @@ impl PriceAPIClient for ForcedPriceClient {
                 });
             }
         }
-        Ok(self.ratio.clone())
+        Ok(self.ratio)
     }
 }
