@@ -164,6 +164,7 @@ describe('web3 API compatibility tests', () => {
                 if (response.highestBlock > BigInt(0) && response.currentBlock > BigInt(0)) {
                     break;
                 }
+                await zksync.utils.sleep(alice.provider.pollingInterval);
             }
         }
     });
