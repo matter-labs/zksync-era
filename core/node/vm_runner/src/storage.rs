@@ -57,8 +57,8 @@ struct BatchData {
 /// Abstraction for VM runner's storage layer that provides two main features:
 ///
 /// 1. A [`ReadStorageFactory`] implementation backed by either Postgres or RocksDB (if it's
-/// caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
-/// once RocksDB cache is caught up.
+///    caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
+///    once RocksDB cache is caught up.
 /// 2. Loads data needed to re-execute the next unprocessed L1 batch.
 ///
 /// Users of `VmRunnerStorage` are not supposed to retain storage access to batches that are less
