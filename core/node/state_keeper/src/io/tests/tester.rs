@@ -5,7 +5,7 @@ use std::{slice, sync::Arc, time::Duration};
 use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
-    GasAdjusterConfig,
+    ContractsConfig, GasAdjusterConfig, GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -126,6 +126,8 @@ impl Tester {
             pool,
             &config,
             wallets.state_keeper.unwrap().fee_account.address(),
+            Default::default(),
+            Default::default(),
             Duration::from_secs(1),
             L2ChainId::from(270),
         )

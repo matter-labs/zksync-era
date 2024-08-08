@@ -12,7 +12,7 @@ use anyhow::Context as _;
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, SystemEnv, VmInterface},
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     VmInstance,
@@ -25,6 +25,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api::{self, state_override::StateOverride},
     block::{pack_block_info, unpack_block_info, L2BlockHasher},
+    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
@@ -245,7 +246,7 @@ impl<'a> Sandbox<'a> {
             execution_mode: execution_args.execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
-            pubdata_params: PubdataParams::extract_from_env(),
+            pubdata_params: resolved_block_info.pubdata_params,
         };
         let l1_batch_env = L1BatchEnv {
             previous_batch_hash: None,
@@ -419,6 +420,7 @@ pub(crate) struct ResolvedBlockInfo {
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
+    pubdata_params: PubdataParams,
     pub(crate) protocol_version: ProtocolVersionId,
     historical_fee_input: Option<BatchFeeInput>,
 }
@@ -501,6 +503,7 @@ impl BlockArgs {
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
             state_l2_block_hash: l2_block_header.hash,
+            pubdata_params: l2_block_header.pubdata_params,
             vm_l1_batch_number,
             l1_batch_timestamp,
             protocol_version,

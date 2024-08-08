@@ -35,6 +35,7 @@ fn to_fetched_block(
         l1_gas_price: payload.l1_gas_price,
         l2_fair_gas_price: payload.l2_fair_gas_price,
         fair_pubdata_price: payload.fair_pubdata_price,
+        pubdata_params: payload.pubdata_params,
         virtual_blocks: payload.virtual_blocks,
         operator_address: payload.operator_address,
         transactions: payload

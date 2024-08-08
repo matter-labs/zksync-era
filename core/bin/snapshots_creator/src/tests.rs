@@ -150,6 +150,7 @@ async fn create_l2_block(
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: 0,
         batch_fee_input: Default::default(),
+        pubdata_params: Default::default(),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,

@@ -370,6 +370,7 @@ pub async fn create_genesis_l1_batch(
         l2_tx_count: 0,
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
+        pubdata_params: Default::default(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),

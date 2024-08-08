@@ -9,7 +9,9 @@ use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::{attester, validator};
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
-    abi, ethabi,
+    abi,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    ethabi,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -50,6 +52,22 @@ impl ProtoFmt for AttestationStatus {
     }
 }
 
+impl proto::L1BatchCommitDataGeneratorMode {
+    pub(crate) fn new(n: &L1BatchCommitmentMode) -> Self {
+        match n {
+            L1BatchCommitmentMode::Rollup => Self::Rollup,
+            L1BatchCommitmentMode::Validium => Self::Validium,
+        }
+    }
+
+    pub(crate) fn parse(&self) -> L1BatchCommitmentMode {
+        match self {
+            Self::Rollup => L1BatchCommitmentMode::Rollup,
+            Self::Validium => L1BatchCommitmentMode::Validium,
+        }
+    }
+}
+
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]
 pub struct Payload {
@@ -62,6 +80,7 @@ pub struct Payload {
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
+    pub pubdata_params: PubdataParams,
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
 }
@@ -99,6 +118,10 @@ impl ProtoFmt for Payload {
             }
         }
 
+        let pubdata_params = required(&r.pubdata_params)
+            .context("pubdata_params")?
+            .clone();
+
         Ok(Self {
             protocol_version,
             hash: required(&r.hash)
@@ -117,6 +140,15 @@ impl ProtoFmt for Payload {
                 .context("operator_address")?,
             transactions,
             last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: required(&pubdata_params.l2_da_validator_address)
+                    .and_then(|a| parse_h160(a))
+                    .context("operator_address")?,
+                pubdata_type: required(&pubdata_params.pubdata_type)
+                    .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+                    .context("l1_batch_commit_data_generator_mode")?
+                    .parse(),
+            },
         })
     }
 
@@ -135,6 +167,17 @@ impl ProtoFmt for Payload {
             transactions: vec![],
             transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
+            pubdata_params: Some(proto::PubdataParams {
+                l2_da_validator_address: Some(
+                    self.pubdata_params
+                        .l2_da_validator_address
+                        .as_bytes()
+                        .into(),
+                ),
+                pubdata_type: Some(proto::L1BatchCommitDataGeneratorMode::new(
+                    &self.pubdata_params.pubdata_type,
+                ) as i32),
+            }),
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
