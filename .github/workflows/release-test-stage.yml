@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   changed_files:
-    runs-on: [matterlabs-default-infra-runners]
+    runs-on: ubuntu-latest
     name: Test changed-files
     outputs:
       core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
@@ -42,7 +42,6 @@ jobs:
     runs-on: [matterlabs-deployer-stage]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
-      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4

@@ -11,6 +11,7 @@ use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_gener
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
@@ -35,7 +36,6 @@ mod utils;
 
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -77,35 +77,7 @@ async fn main() -> anyhow::Result<()> {
     let observability_config = general_config
         .observability
         .context("observability config")?;
-    let log_format: zksync_vlog::LogFormat = observability_config
-        .log_format
-        .parse()
-        .context("Invalid log format")?;
-
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &observability_config.sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(observability_config.sentry_environment);
-    }
-    if let Some(opentelemetry) = observability_config.opentelemetry {
-        builder = builder
-            .with_opentelemetry(
-                &opentelemetry.level,
-                opentelemetry.endpoint,
-                "zksync-witness-generator".into(),
-            )
-            .expect("Invalid OpenTelemetry config");
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = observability_config.sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}",);
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
+    let _observability_guard = observability_config.install()?;
 
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
@@ -180,31 +152,31 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut tasks = Vec::new();
+    let prometheus_config = if use_push_gateway {
+        let prometheus_config = prometheus_config
+            .clone()
+            .context("prometheus config needed when use_push_gateway enabled")?;
+        PrometheusExporterConfig::push(
+            prometheus_config
+                .gateway_endpoint()
+                .context("gateway_endpoint needed when use_push_gateway enabled")?,
+            prometheus_config.push_interval(),
+        )
+    } else {
+        PrometheusExporterConfig::pull(prometheus_listener_port as u16)
+    };
+    let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
-    for (i, round) in rounds.iter().enumerate() {
+    let mut tasks = Vec::new();
+    tasks.push(tokio::spawn(prometheus_task));
+
+    for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
             round,
             opt.batch_size,
             &protocol_version
         );
-
-        let prometheus_config = if use_push_gateway {
-            let prometheus_config = prometheus_config
-                .clone()
-                .context("prometheus config needed when use_push_gateway enabled")?;
-            PrometheusExporterConfig::push(
-                prometheus_config
-                    .gateway_endpoint()
-                    .context("gateway_endpoint needed when use_push_gateway enabled")?,
-                prometheus_config.push_interval(),
-            )
-        } else {
-            // `u16` cast is safe since i is in range [0, 4)
-            PrometheusExporterConfig::pull(prometheus_listener_port + i as u16)
-        };
-        let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
@@ -276,7 +248,6 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        tasks.push(tokio::spawn(prometheus_task));
         tasks.push(tokio::spawn(witness_generator_task));
 
         tracing::info!(
@@ -284,7 +255,7 @@ async fn main() -> anyhow::Result<()> {
             round,
             started_at.elapsed()
         );
-        SERVER_METRICS.init_latency[&(*round).into()].set(started_at.elapsed());
+        SERVER_METRICS.init_latency[&round.into()].set(started_at.elapsed());
     }
 
     let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);

@@ -12,7 +12,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 use zksync_types::{
-    api::state_override::StateOverride,
     get_known_code_key,
     storage::{StorageKey, StorageValue},
     H256,
@@ -29,8 +28,10 @@ pub use self::{
         RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
     },
     shadow_storage::ShadowStorage,
-    storage_factory::{BatchDiff, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory},
-    storage_overrides::StorageOverrides,
+    storage_factory::{
+        BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory,
+        RocksdbWithMemory,
+    },
     storage_view::{StorageView, StorageViewCache, StorageViewMetrics},
     witness::WitnessStorage,
 };
@@ -42,7 +43,6 @@ mod postgres;
 mod rocksdb;
 mod shadow_storage;
 mod storage_factory;
-mod storage_overrides;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
@@ -92,9 +92,3 @@ pub trait WriteStorage: ReadStorage {
 
 /// Smart pointer to [`WriteStorage`].
 pub type StoragePtr<S> = Rc<RefCell<S>>;
-
-/// Functionality to override the storage state.
-pub trait OverrideStorage {
-    /// Apply state override to the storage.
-    fn apply_state_override(&mut self, overrides: &StateOverride);
-}

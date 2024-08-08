@@ -1,10 +1,10 @@
 # Decentralization
 
-In the default setup the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
+In the default setup, the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
 the reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which
 will eventually be used instead of ZKsync API for synchronizing data.
 
-On the gossipnet, the data integrity will be protected by the BFT (byzantine fault tolerant) consensus algorithm
+On the gossipnet, the data integrity will be protected by the BFT (byzantine fault-tolerant) consensus algorithm
 (currently data is signed just by the main node though).
 
 ## Enabling gossipnet on your node
@@ -17,19 +17,24 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 > current implementation it may take a couple of hours and gets faster the more nodes you add to the
 > `gossip_static_outbound` list (see below). We are working to remove this inconvenience.
 
+> [!NOTE]
+>
+> The minimal supported server version for this is
+> [24.11.0](https://github.com/matter-labs/zksync-era/releases/tag/core-v24.11.0)
+
 ### Generating secrets
 
 Each participant node of the gossipnet has to have an identity (a public/secret key pair). When running your node for
 the first time, generate the secrets by running:
 
 ```
-cargo run -p zksync_external_node -- generate-secrets > consensus_secrets.yaml
+docker run --entrypoint /usr/bin/zksync_external_node "matterlabs/external-node:2.0-v24.12.0" generate-secrets > consensus_secrets.yaml
 chmod 600 consensus_secrets.yaml
 ```
 
 > [!NOTE]
 >
-> NEVER reveal the secret keys used by your node. Otherwise someone can impersonate your node on the gossipnet. If you
+> NEVER reveal the secret keys used by your node. Otherwise, someone can impersonate your node on the gossipnet. If you
 > suspect that your secret key has been leaked, you can generate fresh keys using the same tool.
 >
 > If you want someone else to connect to your node, give them your PUBLIC key instead. Both public and secret keys are
@@ -76,11 +81,11 @@ EN_CONSENSUS_SECRETS_PATH=...
 These variables should point to your consensus config and secrets files that we have just created. Tweak the paths to
 the files if you have placed them differently.
 
-### Add `--enable-consensus` flag to your entry point
+### Add `--enable-consensus` flag to your entry point command
 
 For the consensus configuration to take effect you have to add `--enable-consensus` flag to the command line when
-running the node:
+running the node, for example:
 
 ```
-cargo run -p zksync_external_node -- <all the other flags> --enable-consensus
+docker run "matterlabs/external-node:2.0-v24.12.0" <all the other flags> --enable-consensus
 ```

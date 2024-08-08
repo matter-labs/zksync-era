@@ -1,7 +1,6 @@
 name: Workflow template for CI jobs for Prover Components
 on:
   workflow_call:
-
 jobs:
   lint:
     runs-on: [matterlabs-ci-runner]
