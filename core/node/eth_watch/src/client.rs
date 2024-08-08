@@ -40,6 +40,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
+const TOO_MANY_RESULTS_RETH: &str = "query exceeds max block range";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
@@ -178,6 +179,7 @@ impl EthClient for EthHttpQueryClient {
             // check whether the error is related to having too many results
             if err_message.contains(TOO_MANY_RESULTS_INFURA)
                 || err_message.contains(TOO_MANY_RESULTS_ALCHEMY)
+                || err_message.contains(TOO_MANY_RESULTS_RETH)
             {
                 // get the numeric block ids
                 let from_number = match from {
