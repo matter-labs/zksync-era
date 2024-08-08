@@ -40,8 +40,7 @@ impl IntoResponse for ProcessorError {
                 match err {
                     ObjectStoreError::KeyNotFound(_) => (
                         StatusCode::NOT_FOUND,
-                        "Proof verification not possible anymore, batch is too old."
-                            .to_owned(),
+                        "Proof verification not possible anymore, batch is too old.".to_owned(),
                     ),
                     _ => (
                         StatusCode::INTERNAL_SERVER_ERROR,
