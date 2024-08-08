@@ -152,10 +152,6 @@ impl TreeUpdater {
             // right away without having to implement dedicated code.
 
             if let Some(object_key) = &object_key {
-                storage
-                    .tee_verifier_input_producer_dal()
-                    .create_tee_verifier_input_producer_job(l1_batch_number)
-                    .await?;
                 // Save the proof generation details to Postgres
                 storage
                     .proof_generation_dal()
