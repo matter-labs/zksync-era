@@ -20,7 +20,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
+    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
@@ -159,8 +159,6 @@ pub struct GenesisBatchParams {
 }
 
 pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::L1ChainId;
-
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
     let first_l1_verifier_config = L1VerifierConfig::default();
 
@@ -175,6 +173,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),
+        sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,

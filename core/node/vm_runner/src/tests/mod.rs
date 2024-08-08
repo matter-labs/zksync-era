@@ -9,6 +9,7 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
+use zksync_state::{OwnedPostgresStorage, OwnedStorage};
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
@@ -17,16 +18,48 @@ use zksync_types::{
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_utils::storage::L1BatchParamsProvider;
 
-use super::{OutputHandlerFactory, VmRunnerIo};
+use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
+use crate::storage::{load_batch_execute_data, StorageLoader};
 
 mod output_handler;
 mod process;
 mod storage;
+mod storage_writer;
+
+const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
+#[derive(Debug)]
+struct PostgresLoader(ConnectionPool<Core>);
+
+#[async_trait]
+impl StorageLoader for PostgresLoader {
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
+        let mut conn = self.0.connection().await?;
+        let Some(data) = load_batch_execute_data(
+            &mut conn,
+            l1_batch_number,
+            &L1BatchParamsProvider::new(),
+            L2ChainId::default(),
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let storage = OwnedPostgresStorage::new(self.0.clone(), l1_batch_number - 1);
+        Ok(Some((data, storage.into())))
+    }
+}
 
 #[derive(Debug, Default)]
 struct IoMock {
@@ -141,7 +174,7 @@ mod wait {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct TestOutputFactory {
     delays: HashMap<L1BatchNumber, Duration>,
 }
@@ -152,11 +185,11 @@ impl OutputHandlerFactory for TestOutputFactory {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        let delay = self.delays.get(&l1_batch_number).copied();
         #[derive(Debug)]
         struct TestOutputHandler {
             delay: Option<Duration>,
         }
+
         #[async_trait]
         impl StateKeeperOutputHandler for TestOutputHandler {
             async fn handle_l2_block(
@@ -176,6 +209,8 @@ impl OutputHandlerFactory for TestOutputFactory {
                 Ok(())
             }
         }
+
+        let delay = self.delays.get(&l1_batch_number).copied();
         Ok(Box::new(TestOutputHandler { delay }))
     }
 }
@@ -289,12 +324,11 @@ async fn store_l1_batches(
 
         // Insert a fictive L2 block at the end of the batch
         let mut fictive_l2_block = create_l2_block(l2_block_number.0);
-        let mut digest = L2BlockHasher::new(
+        let digest = L2BlockHasher::new(
             fictive_l2_block.number,
             fictive_l2_block.timestamp,
             last_l2_block_hash,
         );
-        digest.push_tx_hash(tx.hash());
         fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
         l2_block_number += 1;
         conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
@@ -337,9 +371,7 @@ async fn store_l1_batches(
     Ok(batches)
 }
 
-async fn fund(pool: &ConnectionPool<Core>, accounts: &[Account]) {
-    let mut conn = pool.connection().await.unwrap();
-
+async fn fund(conn: &mut Connection<'_, Core>, accounts: &[Account]) {
     let eth_amount = U256::from(10).pow(U256::from(32)); //10^32 wei
 
     for account in accounts {

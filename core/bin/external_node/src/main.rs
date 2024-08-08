@@ -826,7 +826,7 @@ async fn main() -> anyhow::Result<()> {
     }
     // Note: when old code will be removed, observability must be build within
     // tokio context.
-    let _guard = config.observability.build_observability()?;
+    let guard = config.observability.build_observability()?;
 
     // Build L1 and L2 clients.
     let main_node_url = &config.required.main_node_url;
@@ -841,7 +841,7 @@ async fn main() -> anyhow::Result<()> {
     let eth_client_url = &config.required.eth_client_url;
     let eth_client = Client::http(eth_client_url.clone())
         .context("failed creating JSON-RPC client for Ethereum")?
-        .for_network(config.required.l1_chain_id.into())
+        .for_network(config.required.settlement_layer_id().into())
         .build();
     let eth_client = Box::new(eth_client);
 
@@ -859,7 +859,7 @@ async fn main() -> anyhow::Result<()> {
         std::thread::spawn(move || {
             let node =
                 ExternalNodeBuilder::new(config)?.build(opt.components.0.into_iter().collect())?;
-            node.run()?;
+            node.run(guard)?;
             anyhow::Ok(())
         })
         .join()
@@ -880,6 +880,7 @@ async fn main() -> anyhow::Result<()> {
     RUST_METRICS.initialize();
     EN_METRICS.observe_config(
         config.required.l1_chain_id,
+        config.required.settlement_layer_id(),
         config.required.l2_chain_id,
         config.postgres.max_connections,
     );
@@ -985,7 +986,7 @@ async fn run_node(
     });
 
     let validate_chain_ids_task = ValidateChainIdsTask::new(
-        config.required.l1_chain_id,
+        config.required.settlement_layer_id(),
         config.required.l2_chain_id,
         eth_client.clone(),
         main_node_client.clone(),
@@ -1037,7 +1038,7 @@ async fn run_node(
         .allow_rolling_back_executed_batches()
         .enable_rolling_back_postgres()
         .enable_rolling_back_merkle_tree(config.required.merkle_tree_path.clone())
-        .enable_rolling_back_state_keeper_cache(config.required.state_cache_path.clone());
+        .add_rocksdb_storage_path_to_rollback(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during

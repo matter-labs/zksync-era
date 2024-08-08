@@ -38,6 +38,8 @@ enum SupervisorSubcommands {
     Clean(CleanCommands),
     #[command(subcommand, about = "Snapshots creator")]
     Snapshot(SnapshotCommands),
+    #[command(hide = true)]
+    Markdown,
 }
 
 #[derive(Parser, Debug)]
@@ -89,6 +91,9 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Test(command) => commands::test::run(shell, command)?,
         SupervisorSubcommands::Clean(command) => commands::clean::run(shell, command)?,
         SupervisorSubcommands::Snapshot(command) => commands::snapshot::run(shell, command).await?,
+        SupervisorSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Supervisor>();
+        }
     }
     Ok(())
 }

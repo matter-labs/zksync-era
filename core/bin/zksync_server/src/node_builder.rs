@@ -143,7 +143,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
-            self.genesis_config.l1_chain_id,
+            self.genesis_config.settlement_layer_id(),
             wallets,
         ));
         Ok(self)
@@ -153,7 +153,7 @@ impl MainNodeBuilder {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.l1_chain_id, eth_config.l1_rpc_url);
+            QueryEthClientLayer::new(genesis.settlement_layer_id(), eth_config.l1_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -326,7 +326,14 @@ impl MainNodeBuilder {
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let with_debug_namespace = state_keeper_config.save_call_traces;
 
-        let mut namespaces = Namespace::DEFAULT.to_vec();
+        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
+            namespaces
+                .iter()
+                .map(|a| a.parse())
+                .collect::<Result<_, _>>()?
+        } else {
+            Namespace::DEFAULT.to_vec()
+        };
         if with_debug_namespace {
             namespaces.push(Namespace::Debug)
         }

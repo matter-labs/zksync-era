@@ -115,7 +115,7 @@ impl GasAdjusterFeesOracle {
         base_fee_to_use: u64,
     ) -> Result<(), EthSenderError> {
         let next_block_minimal_base_fee = self.gas_adjuster.get_next_block_minimal_base_fee();
-        if base_fee_to_use <= min(next_block_minimal_base_fee, previous_base_fee) {
+        if base_fee_to_use < min(next_block_minimal_base_fee, previous_base_fee) {
             // If the base fee is lower than the previous used one
             // or is lower than the minimal possible value for the next block, sending is skipped.
             tracing::info!(
