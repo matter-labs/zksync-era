@@ -31,8 +31,9 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    xl2::XL2Tx,
+    AccountTreeId, Address, ExecuteTransactionCommon, ExternalTx, L2ChainId, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -360,7 +361,7 @@ impl TxSender {
     #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ?tx.hash()))]
     pub async fn submit_tx(
         &self,
-        tx: L2Tx,
+        tx: ExternalTx,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
@@ -444,7 +445,7 @@ impl TxSender {
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    tx.nonce().0,
+                    0, // tx.nonce().0,
                 ))
             }
             L2TxSubmissionResult::Duplicate => {
@@ -487,6 +488,17 @@ impl TxSender {
     }
 
     async fn validate_tx(
+        &self,
+        tx: &ExternalTx,
+        protocol_version: ProtocolVersionId,
+    ) -> Result<(), SubmitTxError> {
+        match tx {
+            ExternalTx::L2Tx(tx) => self.validate_l2_tx(tx, protocol_version).await,
+            ExternalTx::XL2Tx(tx) => self.validate_xl2_tx(tx, protocol_version).await,
+        }
+    }
+
+    async fn validate_l2_tx(
         &self,
         tx: &L2Tx,
         protocol_version: ProtocolVersionId,
@@ -559,6 +571,80 @@ impl TxSender {
         // Even though without enough balance the tx will not pass anyway
         // we check the user for enough balance explicitly here for better DevEx.
         self.validate_enough_balance(tx).await?;
+        Ok(())
+    }
+
+    async fn validate_xl2_tx(
+        &self,
+        tx: &XL2Tx,
+        protocol_version: ProtocolVersionId,
+    ) -> Result<(), SubmitTxError> {
+        // This check is intended to ensure that the gas-related values will be safe to convert to u64 in the future computations.
+        let max_gas = U256::from(u64::MAX);
+        if tx.common_data.gas_limit > max_gas || tx.common_data.gas_per_pubdata_limit > max_gas {
+            return Err(SubmitTxError::GasLimitIsTooBig);
+        }
+
+        let max_allowed_gas_limit = get_max_batch_gas_limit(protocol_version.into());
+        if tx.common_data.gas_limit > max_allowed_gas_limit.into() {
+            return Err(SubmitTxError::GasLimitIsTooBig);
+        }
+
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await?;
+
+        // TODO (SMA-1715): do not subsidize the overhead for the transaction
+
+        if tx.common_data.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of GasLimitIsTooBig {}",
+                tx.hash(),
+                tx.common_data.gas_limit,
+            );
+            return Err(SubmitTxError::GasLimitIsTooBig);
+        }
+        if tx.common_data.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+            tracing::info!(
+                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
+                tx.hash(),
+                tx.common_data.max_fee_per_gas
+            );
+            return Err(SubmitTxError::MaxFeePerGasTooLow);
+        }
+        // if tx.common_data.max_fee_per_gas < tx.common_data.max_priority_fee_per_gas {
+        //     tracing::info!(
+        //         "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
+        //         tx.hash(),
+        //         tx.common_data.max_fee_per_gas
+        //     );
+        //     return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
+        // }
+        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
+            return Err(SubmitTxError::TooManyFactoryDependencies(
+                tx.execute.factory_deps.len(),
+                MAX_NEW_FACTORY_DEPS,
+            ));
+        }
+
+        let intrinsic_consts = get_intrinsic_constants();
+        assert!(
+            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
+            "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
+        );
+        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
+        if tx.common_data.gas_limit < min_gas_limit {
+            return Err(SubmitTxError::IntrinsicGas);
+        }
+
+        // We still double-check the nonce manually
+        // to make sure that only the correct nonce is submitted and the transaction's hashes never repeat
+        // self.validate_account_nonce(tx).await?;
+        // Even though without enough balance the tx will not pass anyway
+        // we check the user for enough balance explicitly here for better DevEx.
+        // self.validate_enough_balance(tx).await?;
         Ok(())
     }
 
@@ -681,6 +767,12 @@ impl TxSender {
                     l1_common_data.gas_limit * l1_common_data.max_fee_per_gas + tx.execute.value;
                 l1_common_data.to_mint = required_funds;
             }
+            ExecuteTransactionCommon::XL2(xl2_common_data) => {
+                xl2_common_data.gas_limit = forced_gas_limit.into();
+                let required_funds =
+                    xl2_common_data.gas_limit * xl2_common_data.max_fee_per_gas + tx.execute.value;
+                xl2_common_data.to_mint = required_funds;
+            }
             ExecuteTransactionCommon::L2(l2_common_data) => {
                 l2_common_data.fee.gas_limit = forced_gas_limit.into();
             }
@@ -771,6 +863,9 @@ impl TxSender {
                 common_data.fee.max_priority_fee_per_gas = base_fee.into();
             }
             ExecuteTransactionCommon::L1(common_data) => {
+                common_data.max_fee_per_gas = base_fee.into();
+            }
+            ExecuteTransactionCommon::XL2(common_data) => {
                 common_data.max_fee_per_gas = base_fee.into();
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {

@@ -1,7 +1,8 @@
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 
 use zksync_types::{
-    l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
+    l1::L1Tx, l2::L2Tx, xl2::XL2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId,
+    Transaction,
 };
 
 use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
@@ -23,6 +24,8 @@ pub struct MempoolStats {
 pub struct MempoolStore {
     /// Pending L1 transactions
     l1_transactions: HashMap<PriorityOpId, L1Tx>,
+    /// Pending XL2 transactions
+    xl2_transactions: HashMap<PriorityOpId, XL2Tx>,
     /// Pending L2 transactions grouped by initiator address
     l2_transactions_per_account: HashMap<Address, AccountTransactions>,
     /// Global priority queue for L2 transactions. Used for scoring
@@ -39,6 +42,7 @@ impl MempoolStore {
     pub fn new(next_priority_id: PriorityOpId, capacity: u64) -> Self {
         Self {
             l1_transactions: HashMap::new(),
+            xl2_transactions: HashMap::new(),
             l2_transactions_per_account: HashMap::new(),
             l2_priority_queue: BTreeSet::new(),
             next_priority_id,
@@ -70,6 +74,17 @@ impl MempoolStore {
                     self.l1_transactions.insert(
                         data.serial_id,
                         L1Tx {
+                            execute,
+                            common_data: data,
+                            received_timestamp_ms,
+                        },
+                    );
+                }
+                ExecuteTransactionCommon::XL2(data) => {
+                    tracing::trace!("inserting XL2 transaction {}", data.serial_id);
+                    self.xl2_transactions.insert(
+                        data.serial_id,
+                        XL2Tx {
                             execute,
                             common_data: data,
                             received_timestamp_ms,
@@ -188,6 +203,9 @@ impl MempoolStore {
             ExecuteTransactionCommon::L1(data) => {
                 // reset next priority id
                 self.next_priority_id = self.next_priority_id.min(data.serial_id);
+            }
+            ExecuteTransactionCommon::XL2(_data) => {
+                // we don't need to reset the priority id
             }
             ExecuteTransactionCommon::L2(_) => {
                 if let Some(score) = self

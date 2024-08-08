@@ -12,7 +12,7 @@ use zksync_dal::{
     Core, CoreDal, DalError,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256, U256};
+use zksync_types::{api, fee::TransactionExecutionMetrics, Address, ExternalTx, Nonce, H256, U256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
@@ -40,7 +40,7 @@ pub(crate) struct TxCache {
 
 #[derive(Debug, Default)]
 struct TxCacheInner {
-    transactions_by_hash: HashMap<H256, L2Tx>,
+    transactions_by_hash: HashMap<H256, ExternalTx>,
     tx_hashes_by_initiator: HashMap<(Address, Nonce), HashSet<H256>>,
     nonces_by_account: HashMap<Address, BTreeSet<Nonce>>,
 }
@@ -95,7 +95,7 @@ impl TxCacheInner {
 }
 
 impl TxCache {
-    async fn push(&self, tx: L2Tx) {
+    async fn push(&self, tx: ExternalTx) {
         let mut inner = self.inner.write().await;
         inner
             .nonces_by_account
@@ -110,7 +110,7 @@ impl TxCache {
         inner.transactions_by_hash.insert(tx.hash(), tx);
     }
 
-    async fn get(&self, tx_hash: H256) -> Option<L2Tx> {
+    async fn get(&self, tx_hash: H256) -> Option<ExternalTx> {
         self.inner
             .read()
             .await
@@ -220,8 +220,8 @@ impl TxProxy {
         }
     }
 
-    async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
-        let input_data = tx.common_data.input_data().expect("raw tx is absent");
+    async fn submit_tx_impl(&self, tx: &ExternalTx) -> EnrichedClientResult<H256> {
+        let input_data = tx.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::web3::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
         tracing::info!("Proxying tx {tx_hash:?}");
@@ -236,7 +236,7 @@ impl TxProxy {
         &self,
         storage: &mut Connection<'_, Core>,
         tx_hash: H256,
-    ) -> Result<Option<L2Tx>, Web3Error> {
+    ) -> Result<Option<ExternalTx>, Web3Error> {
         let Some(tx) = self.tx_cache.get(tx_hash).await else {
             return Ok(None);
         };
@@ -306,7 +306,7 @@ impl AccountNonceSweeperTask {
 impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
-        tx: &L2Tx,
+        tx: &ExternalTx,
         _execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.
@@ -346,7 +346,7 @@ impl TxSink for TxProxy {
             // If the transaction is not in the db, check the cache
             if let Some(tx) = self.find_tx(storage, hash).await? {
                 // check nonce for initiator
-                return Ok(Some(tx.into()));
+                return Ok(Some(tx.clone().into()));
             }
         }
         Ok(None)
@@ -359,7 +359,7 @@ impl TxSink for TxProxy {
     ) -> Result<Option<api::TransactionDetails>, Web3Error> {
         if let Some(tx) = self.find_tx(storage, hash).await? {
             let received_at_ms =
-                i64::try_from(tx.received_timestamp_ms).context("received timestamp overflow")?;
+                i64::try_from(tx.received_timestamp_ms()).context("received timestamp overflow")?;
             let received_at = Utc
                 .timestamp_millis_opt(received_at_ms)
                 .single()
@@ -368,7 +368,7 @@ impl TxSink for TxProxy {
                 is_l1_originated: false,
                 status: api::TransactionStatus::Pending,
                 fee: U256::zero(), // always zero for pending transactions
-                gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
+                gas_per_pubdata: tx.gas_per_pubdata_limit(),
                 initiator_address: tx.initiator_account(),
                 received_at,
                 eth_commit_tx_hash: None,
@@ -399,14 +399,14 @@ mod tests {
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
         insert_genesis_batch(&mut storage, &params).await.unwrap();
 
-        let tx = create_l2_transaction(10, 100);
+        let tx = ExternalTx::L2Tx(create_l2_transaction(10, 100));
         let send_tx_called = Arc::new(AtomicBool::new(false));
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", {
                 let send_tx_called = send_tx_called.clone();
                 let tx = tx.clone();
                 move |bytes: Bytes| {
-                    assert_eq!(bytes.0, tx.common_data.input_data().unwrap());
+                    assert_eq!(bytes.0, tx.input_data().unwrap());
                     send_tx_called.store(true, Ordering::Relaxed);
                     Ok(tx.hash())
                 }
@@ -450,8 +450,13 @@ mod tests {
         let tx = create_l2_transaction(10, 100);
         let tx_hash = tx.hash();
 
-        tx_cache.push(tx.clone()).await;
-        assert_eq!(tx_cache.get(tx_hash).await.unwrap(), tx);
+        tx_cache
+            .push(zksync_types::ExternalTx::L2Tx(tx.clone()))
+            .await;
+        assert_eq!(
+            tx_cache.get(tx_hash).await.unwrap(),
+            ExternalTx::L2Tx(tx.clone())
+        );
         assert_eq!(
             tx_cache
                 .get_nonces_for_account(tx.initiator_account())
@@ -479,7 +484,7 @@ mod tests {
     #[tokio::test]
     async fn low_level_transaction_cache_operations_with_replacing_transaction() {
         let tx_cache = TxCache::default();
-        let tx = create_l2_transaction(10, 100);
+        let tx = ExternalTx::L2Tx(create_l2_transaction(10, 100));
         let tx_hash = tx.hash();
         let mut replacing_tx = create_l2_transaction(10, 100);
         replacing_tx.common_data.initiator_address = tx.initiator_account();
@@ -487,7 +492,7 @@ mod tests {
         assert_ne!(replacing_tx_hash, tx_hash);
 
         tx_cache.push(tx.clone()).await;
-        tx_cache.push(replacing_tx).await;
+        tx_cache.push(ExternalTx::L2Tx(replacing_tx)).await;
         tx_cache.get(tx_hash).await.unwrap();
         tx_cache.get(replacing_tx_hash).await.unwrap();
         // Both transactions have the same nonce
@@ -515,7 +520,7 @@ mod tests {
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
         insert_genesis_batch(&mut storage, &params).await.unwrap();
 
-        let tx = create_l2_transaction(10, 100);
+        let tx = zksync_types::ExternalTx::L2Tx(create_l2_transaction(10, 100));
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| {
                 Err::<H256, _>(ClientError::RequestTimeout)
@@ -576,7 +581,7 @@ mod tests {
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
         insert_genesis_batch(&mut storage, &params).await.unwrap();
 
-        let tx = create_l2_transaction(10, 100);
+        let tx = ExternalTx::L2Tx(create_l2_transaction(10, 100));
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
             .build();
@@ -648,13 +653,15 @@ mod tests {
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
         insert_genesis_batch(&mut storage, &params).await.unwrap();
 
-        let tx = create_l2_transaction(10, 100);
+        let tx = ExternalTx::L2Tx(create_l2_transaction(10, 100));
         let mut replacing_tx = create_l2_transaction(10, 100);
         assert_eq!(tx.nonce(), replacing_tx.nonce());
         replacing_tx.common_data.initiator_address = tx.initiator_account();
+        let replacing_external_tx = ExternalTx::L2Tx(replacing_tx);
         let mut future_tx = create_l2_transaction(10, 100);
         future_tx.common_data.initiator_address = tx.initiator_account();
         future_tx.common_data.nonce = Nonce(1);
+        let future_external_tx = ExternalTx::L2Tx(future_tx);
 
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
@@ -665,11 +672,14 @@ mod tests {
             .await
             .unwrap();
         proxy
-            .submit_tx(&replacing_tx, TransactionExecutionMetrics::default())
+            .submit_tx(
+                &replacing_external_tx,
+                TransactionExecutionMetrics::default(),
+            )
             .await
             .unwrap();
         proxy
-            .submit_tx(&future_tx, TransactionExecutionMetrics::default())
+            .submit_tx(&future_external_tx, TransactionExecutionMetrics::default())
             .await
             .unwrap();
         {
@@ -680,11 +690,11 @@ mod tests {
             assert_eq!(cache_inner.tx_hashes_by_initiator.len(), 2);
             assert_eq!(
                 cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(0))],
-                HashSet::from([tx.hash(), replacing_tx.hash()])
+                HashSet::from([tx.hash(), replacing_external_tx.hash()])
             );
             assert_eq!(
                 cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
-                HashSet::from([future_tx.hash()])
+                HashSet::from([future_external_tx.hash()])
             );
         }
 
@@ -703,7 +713,7 @@ mod tests {
             .unwrap();
 
         cache_update_method
-            .apply(&pool, &proxy, replacing_tx.hash())
+            .apply(&pool, &proxy, replacing_external_tx.hash())
             .await;
 
         // Original and replacing transactions should be removed from the cache, and the future transaction should be retained.
@@ -712,7 +722,7 @@ mod tests {
             assert!(!cache_inner.transactions_by_hash.contains_key(&tx.hash()));
             assert!(!cache_inner
                 .transactions_by_hash
-                .contains_key(&replacing_tx.hash()));
+                .contains_key(&replacing_external_tx.hash()));
             assert_eq!(
                 cache_inner.nonces_by_account[&tx.initiator_account()],
                 BTreeSet::from([Nonce(1)])
@@ -722,11 +732,11 @@ mod tests {
                 .contains_key(&(tx.initiator_account(), Nonce(0))));
             assert_eq!(
                 cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
-                HashSet::from([future_tx.hash()])
+                HashSet::from([future_external_tx.hash()])
             );
         }
 
-        for missing_hash in [tx.hash(), replacing_tx.hash()] {
+        for missing_hash in [tx.hash(), replacing_external_tx.hash()] {
             let looked_up_tx = proxy
                 .lookup_tx(&mut storage, api::TransactionId::Hash(missing_hash))
                 .await
@@ -739,12 +749,15 @@ mod tests {
             assert!(looked_up_tx.is_none());
         }
         proxy
-            .lookup_tx(&mut storage, api::TransactionId::Hash(future_tx.hash()))
+            .lookup_tx(
+                &mut storage,
+                api::TransactionId::Hash(future_external_tx.hash()),
+            )
             .await
             .unwrap()
             .expect("no transaction");
         proxy
-            .lookup_tx_details(&mut storage, future_tx.hash())
+            .lookup_tx_details(&mut storage, future_external_tx.hash())
             .await
             .unwrap()
             .expect("no transaction");

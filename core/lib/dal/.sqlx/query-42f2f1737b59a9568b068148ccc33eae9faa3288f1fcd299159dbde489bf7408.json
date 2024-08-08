@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                transactions (\n                    hash,\n                    is_priority,\n                    initiator_address,\n                    nonce,\n                    gas_limit,\n                    max_fee_per_gas,\n                    gas_per_pubdata_limit,\n                    input,\n                    data,\n                    tx_format,\n                    contract_address,\n                    value,\n                    paymaster,\n                    paymaster_input,\n                    execution_info,\n                    received_at,\n                    l1_tx_mint,\n                    l1_tx_refund_recipient,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                (\n                    $1,\n                    FALSE,\n                    $2,\n                    $3,\n                    $4,\n                    $5,\n                    $6,\n                    $7,\n                    $8,\n                    $9,\n                    $10,\n                    $11,\n                    $12,\n                    $13,\n                    JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),\n                    $17,\n                    $18,\n                    $19,\n                    NOW(),\n                    NOW()\n                )\n            ON CONFLICT (initiator_address, nonce) DO\n            UPDATE\n            SET\n                hash = $1,\n                gas_limit = $4,\n                max_fee_per_gas = $5,\n                gas_per_pubdata_limit = $6,\n                input = $7,\n                data = $8,\n                tx_format = $9,\n                contract_address = $10,\n                value = $11,\n                paymaster = $12,\n                paymaster_input = $13,\n                execution_info = JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),\n                in_mempool = FALSE,\n                received_at = $17,\n                l1_tx_mint = $18,\n                l1_tx_refund_recipient = $19,\n                created_at = NOW(),\n                updated_at = NOW(),\n                error = NULL\n            WHERE\n                transactions.is_priority = FALSE\n                AND transactions.miniblock_number IS NULL\n            RETURNING\n                (\n                    SELECT\n                        hash\n                    FROM\n                        transactions\n                    WHERE\n                        transactions.initiator_address = $2\n                        AND transactions.nonce = $3\n                ) IS NOT NULL AS \"is_replaced!\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "is_replaced!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Int8",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Bytea",
+        "Jsonb",
+        "Int4",
+        "Bytea",
+        "Numeric",
+        "Bytea",
+        "Bytea",
+        "Int8",
+        "Int4",
+        "Int4",
+        "Timestamp",
+        "Numeric",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "42f2f1737b59a9568b068148ccc33eae9faa3288f1fcd299159dbde489bf7408"
+}

@@ -11,7 +11,7 @@ use zksync_multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
-use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_types::{Address, ExternalTx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
     apply,
@@ -35,7 +35,7 @@ impl TransactionExecutor {
         &self,
         connection_pool: ConnectionPool<Core>,
         vm_permit: VmPermit,
-        tx: L2Tx,
+        tx: ExternalTx,
         shared_args: TxSharedArgs,
         block_args: BlockArgs,
         computational_gas_limit: u32,
@@ -124,13 +124,13 @@ impl TransactionExecutor {
 /// sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
     connection: &mut Connection<'_, Core>,
-    tx: &L2Tx,
+    tx: &ExternalTx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
 ) -> anyhow::Result<ValidationTracerParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
-    let user_address = tx.common_data.initiator_address;
-    let paymaster_address = tx.common_data.paymaster_params.paymaster;
+    let user_address = tx.initiator_account();
+    let paymaster_address = tx.payer();
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.

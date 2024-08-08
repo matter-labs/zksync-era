@@ -12,10 +12,10 @@ use zksync_types::{
     transaction_request::PaymasterParams,
     vm_trace::{Call, LegacyCall, LegacyMixedCall},
     web3::Bytes,
-    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    Address, Execute, ExecuteTransactionCommon, InputData, L1TxCommonData, L2ChainId,
+    L2TxCommonData, Nonce, PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    XL2TxCommonData, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256,
+    INTEROP_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
@@ -249,6 +249,113 @@ impl From<StorageTransaction> for L2TxCommonData {
     }
 }
 
+impl From<StorageTransaction> for XL2TxCommonData {
+    fn from(tx: StorageTransaction) -> Self {
+        let gas_limit = {
+            let gas_limit_string = tx
+                .gas_limit
+                .as_ref()
+                .expect("gas limit is mandatory for xl2 transaction")
+                .to_string();
+
+            U256::from_dec_str(&gas_limit_string).unwrap_or_else(|_| {
+                panic!("Incorrect xl2 gas limit value in DB {}", gas_limit_string)
+            })
+        };
+        let nonce = PriorityOpId(tx.nonce.expect("no nonce in xL2 tx in DB") as u64);
+        let max_fee_per_gas = {
+            let max_fee_per_gas_string = tx
+                .max_fee_per_gas
+                .as_ref()
+                .expect("max price per gas is mandatory for xl2 transaction")
+                .to_string();
+
+            U256::from_dec_str(&max_fee_per_gas_string).unwrap_or_else(|_| {
+                panic!(
+                    "Incorrect xl2 max price per gas value in DB {}",
+                    max_fee_per_gas_string
+                )
+            })
+        };
+
+        // let max_priority_fee_per_gas = {
+        //     let max_priority_fee_per_gas_string = tx
+        //         .max_priority_fee_per_gas
+        //         .as_ref()
+        //         .expect("max priority fee per gas is mandatory for xl2 transaction")
+        //         .to_string();
+
+        //     U256::from_dec_str(&max_priority_fee_per_gas_string).unwrap_or_else(|_| {
+        //         panic!(
+        //             "Incorrect xl2 max priority fee per gas value in DB {}",
+        //             max_priority_fee_per_gas_string
+        //         )
+        //     })
+        // };
+
+        let gas_per_pubdata_limit = {
+            let gas_per_pubdata_limit_string = tx
+                .gas_per_pubdata_limit
+                .as_ref()
+                .expect("gas price per pubdata limit is mandatory for xl2 transaction")
+                .to_string();
+            U256::from_dec_str(&gas_per_pubdata_limit_string).unwrap_or_else(|_| {
+                panic!(
+                    "Incorrect xl2 gas price per pubdata limit value in DB {}",
+                    gas_per_pubdata_limit_string
+                )
+            })
+        };
+
+        let fee = Fee {
+            gas_limit,
+            max_fee_per_gas,
+            max_priority_fee_per_gas: U256::zero(),
+            gas_per_pubdata_limit,
+        };
+
+        // let tx_format = match tx.tx_format.map(|a| a as u8) {
+        //     Some(EIP_712_TX_TYPE) => TransactionType::EIP712Transaction,
+        //     Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
+        //     Some(EIP_1559_TX_TYPE) => TransactionType::EIP1559Transaction,
+        //     Some(0) | None => TransactionType::LegacyTransaction,
+        //     Some(_) => unreachable!("Unsupported tx type"),
+        // };
+
+        let StorageTransaction {
+            initiator_address,
+            hash,
+            input,
+            ..
+        } = tx;
+
+        XL2TxCommonData::new(
+            Address::from_slice(&initiator_address),
+            PriorityOpId(nonce.0),
+            U256::zero(),
+            U256::try_from(fee.gas_limit.full_mul(fee.max_fee_per_gas)).unwrap(),
+            fee.max_fee_per_gas,
+            fee.gas_limit,
+            fee.gas_per_pubdata_limit,
+            OpProcessingType::Common,
+            PriorityQueueType::Deque,
+            H256::from_slice(&hash),
+            U256::from_dec_str(
+                &tx.l1_tx_mint
+                    .as_ref()
+                    .expect("l1 tx mint limit is mandatory xl2")
+                    .to_string(),
+            )
+            .unwrap(),
+            Address::from_slice(&tx.l1_tx_refund_recipient.unwrap()),
+            Some(InputData {
+                hash: H256::from_slice(&hash),
+                data: input.expect("input data is mandatory for xl2 transactions"),
+            }),
+        )
+    }
+}
+
 impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
     fn from(tx: StorageTransaction) -> Self {
         let gas_limit = {
@@ -306,6 +413,12 @@ impl From<StorageTransaction> for Transaction {
             },
             Some(t) if t == i32::from(PROTOCOL_UPGRADE_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::ProtocolUpgrade(tx.into()),
+                execute,
+                received_timestamp_ms,
+                raw_bytes: None,
+            },
+            Some(t) if t == i32::from(INTEROP_TX_TYPE) => Transaction {
+                common_data: ExecuteTransactionCommon::XL2(tx.into()),
                 execute,
                 received_timestamp_ms,
                 raw_bytes: None,

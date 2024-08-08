@@ -10,7 +10,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
-    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
+    ExecuteTransactionCommon, ExternalTx, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 use super::{
@@ -29,12 +29,12 @@ pub(crate) struct TxExecutionArgs {
 }
 
 impl TxExecutionArgs {
-    pub fn for_validation(tx: &L2Tx) -> Self {
+    pub fn for_validation(tx: &ExternalTx) -> Self {
         Self {
             execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            enforced_base_fee: Some(tx.max_fee_per_gas().as_u64()),
             missed_storage_invocation_limit: usize::MAX,
         }
     }
@@ -64,6 +64,7 @@ impl TxExecutionArgs {
         let added_balance = match &tx.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
             ExecuteTransactionCommon::L1(_) => U256::zero(),
+            ExecuteTransactionCommon::XL2(_) => U256::zero(),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
         };
 
