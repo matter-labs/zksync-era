@@ -1,11 +1,8 @@
-use std::{fmt::Debug, str::FromStr};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use zksync_contracts::BaseSystemContracts;
-use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataParams},
-    Address, L2ChainId, ProtocolVersionId,
-};
+use zksync_types::{commitment::PubdataParams, L2ChainId, ProtocolVersionId};
 
 /// Params related to the execution process, not batch it self
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

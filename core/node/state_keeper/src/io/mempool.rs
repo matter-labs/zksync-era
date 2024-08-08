@@ -428,6 +428,7 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
 }
 
 impl MempoolIO {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,

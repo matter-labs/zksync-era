@@ -5,7 +5,7 @@ use std::{slice, sync::Arc, time::Duration};
 use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
-    ContractsConfig, GasAdjusterConfig, GenesisConfig,
+    GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
