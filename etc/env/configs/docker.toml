@@ -1,6 +1,6 @@
 __imports__ = [ "base", "l1-inits/.init.env", "l2-inits/docker.init.env" ]
 
-ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Calldata"
+ETH_SENDER_SENDER_PUBDATA_SENDING_MODE = "Blobs"
 
 sqlx_offline = true
 database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
