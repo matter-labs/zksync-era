@@ -4,7 +4,8 @@ use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 
 use crate::{
     implementations::resources::{
-        fee_input::SequencerFeeInputResource, main_node_client::MainNodeClientResource,
+        fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
+        main_node_client::MainNodeClientResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -26,7 +27,8 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    pub fee_input: SequencerFeeInputResource,
+    pub sequencer_fee_input: SequencerFeeInputResource,
+    pub api_fee_input: ApiFeeInputResource,
     #[context(task)]
     pub fetcher: MainNodeFeeParamsFetcherTask,
 }
@@ -44,7 +46,8 @@ impl WiringLayer for MainNodeFeeParamsFetcherLayer {
         let MainNodeClientResource(main_node_client) = input.main_node_client;
         let fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client));
         Ok(Output {
-            fee_input: fetcher.clone().into(),
+            sequencer_fee_input: fetcher.clone().into(),
+            api_fee_input: fetcher.clone().into(),
             fetcher: MainNodeFeeParamsFetcherTask { fetcher },
         })
     }
