@@ -1,4 +1,4 @@
-use std::{backtrace::Backtrace, panic::PanicInfo, str::FromStr};
+use std::{backtrace::Backtrace, str::FromStr};
 
 use serde::Deserialize;
 use tracing_subscriber::{fmt, registry::LookupSpan, EnvFilter, Layer};
@@ -129,7 +129,8 @@ impl Logs {
     }
 }
 
-fn json_panic_handler(panic_info: &PanicInfo) {
+#[allow(deprecated)] // Not available yet on stable, so we can't switch right now.
+fn json_panic_handler(panic_info: &std::panic::PanicInfo) {
     let backtrace = Backtrace::force_capture();
     let timestamp = chrono::Utc::now();
     let panic_message = if let Some(s) = panic_info.payload().downcast_ref::<String>() {
