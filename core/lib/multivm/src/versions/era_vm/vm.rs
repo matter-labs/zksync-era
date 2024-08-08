@@ -3,9 +3,10 @@ use std::{cell::RefCell, collections::HashMap, fmt::Write, io::Read, rc::Rc, str
 use era_vm::{
     store::{InMemory, L2ToL1Log, StorageError, StorageKey as EraStorageKey},
     vm::ExecutionOutput,
-    LambdaVm, VMState,
+    EraVM, VMState,
 };
-use zksync_state::{StoragePtr, WriteStorage};
+use once_cell::sync::Lazy;
+use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     l1::is_l1_tx_type, AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160,
     KNOWN_CODES_STORAGE_ADDRESS, U256,
@@ -35,7 +36,7 @@ use crate::{
 };
 
 pub struct Vm<S: WriteStorage> {
-    pub(crate) inner: LambdaVm,
+    pub(crate) inner: EraVM,
     suspended_at: u16,
     gas_for_account_validation: u32,
     last_tx_result: Option<ExecutionResult>,
@@ -54,32 +55,25 @@ pub struct Vm<S: WriteStorage> {
 }
 
 impl<S: WriteStorage + 'static> Vm<S> {
-    pub fn run(&mut self, execution_mode: VmExecutionMode) -> (ExecutionResult, VMState) {
+    pub fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
-            let (result, mut final_vm) = self.inner.run_program_with_custom_bytecode();
+            let result = self.inner.run_program_with_custom_bytecode();
             let result = match result {
-                ExecutionOutput::Ok(output) => {
-                    return (ExecutionResult::Success { output }, final_vm)
-                }
+                ExecutionOutput::Ok(output) => return ExecutionResult::Success { output },
                 ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
                     TxRevertReason::TxReverted(output) => {
-                        return (ExecutionResult::Revert { output }, final_vm)
+                        return ExecutionResult::Revert { output }
                     }
-                    TxRevertReason::Halt(reason) => {
-                        return (ExecutionResult::Halt { reason }, final_vm)
-                    }
+                    TxRevertReason::Halt(reason) => return ExecutionResult::Halt { reason },
                 },
                 ExecutionOutput::Panic => {
-                    return (
-                        ExecutionResult::Halt {
-                            reason: if self.inner.state.gas_left().unwrap() == 0 {
-                                Halt::BootloaderOutOfGas
-                            } else {
-                                Halt::VMPanic
-                            },
+                    return ExecutionResult::Halt {
+                        reason: if self.inner.state.gas_left().unwrap() == 0 {
+                            Halt::BootloaderOutOfGas
+                        } else {
+                            Halt::VMPanic
                         },
-                        final_vm,
-                    )
+                    }
                 }
                 ExecutionOutput::SuspendedOnHook {
                     hook,
@@ -143,12 +137,11 @@ impl<S: WriteStorage + 'static> Vm<S> {
                 Hook::TxHasEnded => {
                     // println!("TX HAS ENDED");
                     if let VmExecutionMode::OneTx = execution_mode {
-                        return (self.last_tx_result.take().unwrap(), final_vm);
+                        return self.last_tx_result.take().unwrap();
                     }
                 }
             }
-            final_vm.current_frame_mut().unwrap().pc = self.suspended_at as u64;
-            self.inner.state = final_vm;
+            self.inner.state.current_frame_mut().unwrap().pc = self.suspended_at as u64;
         }
     }
 
@@ -242,7 +235,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .default_aa
                 .hash
                 .to_fixed_bytes(),
-            vm_hook_position,
+            vm_hook_position as u64,
         );
         let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
         pre_contract_storage.borrow_mut().insert(
@@ -260,7 +253,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
                 .code,
         );
         let world_storage = World::new(storage.clone(), pre_contract_storage.clone());
-        let mut vm = LambdaVm::new(vm_state, Rc::new(RefCell::new(world_storage)));
+        let mut vm = EraVM::new(vm_state, Rc::new(RefCell::new(world_storage)));
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         // The bootloader shouldn't pay for growing memory and it writes results
@@ -350,14 +343,13 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             enable_refund_tracer = true;
         }
 
-        let (result, final_vm_state) = self.run(execution_mode);
-        //dbg!(&result);
+        let result = self.run(execution_mode);
 
         VmExecutionResultAndLogs {
             result,
             logs: VmExecutionLogs {
                 storage_logs: Default::default(),
-                events: merge_events(&final_vm_state.events, self.batch_env.number),
+                events: merge_events(&self.inner.state.events, self.batch_env.number),
                 user_l2_to_l1_logs: Default::default(),
                 system_l2_to_l1_logs: Default::default(),
                 total_log_queries_count: 0, // This field is unused
@@ -481,7 +473,7 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
 
     fn storage_drop(&mut self, key: EraStorageKey) -> Result<(), StorageError> {
         println!("STORAGE DROP");
-        todo!()
+        Ok(())
     }
 
     fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
@@ -513,13 +505,38 @@ impl<S: WriteStorage> era_vm::store::Storage for World<S> {
 
     fn fake_clone(&self) -> InMemory {
         println!("FAKE CLONE");
-        // InMemory::new(self.contract_storage.clone(), self.storage.clone())
-        InMemory::new_empty()
+        let storage = self.storage.borrow();
+        let values = storage.read_storage_keys().clone();
+        let mut era_vm_storage = HashMap::new();
+        for (k, v) in values {
+            let key = era_vm::store::StorageKey {
+                address: *k.account().address(),
+                key: U256::from_big_endian(&k.key().as_bytes()),
+            };
+            let value = U256::from_big_endian(&v.as_bytes());
+            era_vm_storage.insert(key, value);
+        }
+        let contract_storage = self.contract_storage.borrow().to_owned();
+        InMemory::new(contract_storage, era_vm_storage)
     }
 
     fn get_all_keys(&self) -> Vec<EraStorageKey> {
+        let storage = self.storage.borrow();
+        let values = storage.read_storage_keys().clone();
+        let mut keys = vec![];
+        for (k, _) in values {
+            let key = era_vm::store::StorageKey {
+                address: *k.account().address(),
+                key: U256::from_big_endian(&k.key().as_bytes()),
+            };
+            keys.push(key);
+        }
         println!("GET ALL KEYS");
-        Vec::new()
+        keys
+    }
+
+    fn get_state_storage(&self) -> &HashMap<EraStorageKey, U256> {
+        unimplemented!();
     }
 }
 
