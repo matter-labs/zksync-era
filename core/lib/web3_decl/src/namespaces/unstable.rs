@@ -1,7 +1,11 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::{api::TransactionExecutionInfo, H256};
+use zksync_types::{
+    api::{TeeProof, TransactionExecutionInfo},
+    tee_types::TeeType,
+    L1BatchNumber, H256,
+};
 
 use crate::client::{ForNetwork, L2};
 
@@ -20,4 +24,11 @@ pub trait UnstableNamespace {
         &self,
         hash: H256,
     ) -> RpcResult<Option<TransactionExecutionInfo>>;
+
+    #[method(name = "getTeeProofs")]
+    async fn tee_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        tee_type: Option<TeeType>,
+    ) -> RpcResult<Vec<TeeProof>>;
 }
