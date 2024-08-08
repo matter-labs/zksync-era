@@ -161,9 +161,9 @@ describe('web3 API compatibility tests', () => {
                     startingBlock: expect.stringMatching(HEX_VALUE_REGEX)
                 };
                 expect(response).toMatchObject(expectedObject);
-            }
-            if (response.highestBlock > BigInt(0) && response.currentBlock > BigInt(0)) {
-                break;
+                if (response.highestBlock > BigInt(0) && response.currentBlock > BigInt(0)) {
+                    break;
+                }
             }
         }
     });
