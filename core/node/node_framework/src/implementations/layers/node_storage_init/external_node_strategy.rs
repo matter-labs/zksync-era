@@ -80,12 +80,13 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     .master_pool
                     .get_custom(self.max_postgres_concurrency.get() as u32)
                     .await?;
-                Some(Arc::new(ExternalNodeSnapshotRecovery {
+                let recovery = Arc::new(ExternalNodeSnapshotRecovery {
                     client: client.clone(),
                     pool: recovery_pool,
                     recovery_config,
                     app_health,
-                }) as Arc<dyn InitializeStorage>)
+                }) as Arc<dyn InitializeStorage>;
+                Some(recovery)
             }
             None => None,
         };

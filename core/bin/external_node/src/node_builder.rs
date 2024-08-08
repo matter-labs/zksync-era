@@ -69,11 +69,19 @@ pub(crate) struct ExternalNodeBuilder {
 }
 
 impl ExternalNodeBuilder {
+    #[cfg(test)]
     pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             config,
         })
+    }
+
+    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig) -> Self {
+        Self {
+            node: ZkStackServiceBuilder::on_runtime(runtime),
+            config,
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {

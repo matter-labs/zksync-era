@@ -171,7 +171,8 @@ fn main() -> anyhow::Result<()> {
         .block_on(config.fetch_remote(main_node_client.as_ref()))
         .context("failed fetching remote part of node config from main node")?;
 
-    let node = ExternalNodeBuilder::new(config)?.build(opt.components.0.into_iter().collect())?;
+    let node = ExternalNodeBuilder::on_runtime(runtime, config)
+        .build(opt.components.0.into_iter().collect())?;
     node.run(guard)?;
     anyhow::Ok(())
 }
