@@ -5,13 +5,13 @@ use zksync_consensus_executor::{
     self as executor,
     attestation::{AttestationStatusClient, AttestationStatusRunner},
 };
-use zksync_consensus_network::gossip;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
@@ -201,7 +201,16 @@ impl EN {
             .await?
             .context("fetch_consensus_genesis()")?
             .context("main node is not running consensus component")?;
-        Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
+        // Deserialize the json, but don't allow for unknown fields.
+        // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
+        // do.
+        Ok(validator::GenesisRaw::read(
+            &zksync_protobuf::serde::deserialize_proto_with_options(
+                &genesis.0, /*deny_unknown_fields=*/ true,
+            )
+            .context("deserialize")?,
+        )?
+        .with_hash())
     }
 
     /// Fetches (with retries) the given block from the main node.
@@ -213,7 +222,7 @@ impl EN {
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if err.is_transient() => {}
+                Err(err) if err.is_retriable() => {}
                 Err(err) => {
                     return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}", n).into());
                 }
@@ -269,7 +278,7 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
     async fn attestation_status(
         &self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<gossip::AttestationStatus>> {
+    ) -> ctx::Result<Option<(attester::GenesisHash, attester::BatchNumber)>> {
         match ctx.wait(self.0.fetch_attestation_status()).await? {
             Ok(Some(status)) => {
                 // If this fails the AttestationStatusRunner will log it an retry it later,
@@ -277,11 +286,8 @@ impl AttestationStatusClient for MainNodeAttestationStatus {
                 let status: consensus_dal::AttestationStatus =
                     zksync_protobuf::serde::deserialize(&status.0)
                         .context("deserialize(AttestationStatus")?;
-                let status = gossip::AttestationStatus {
-                    genesis: status.genesis,
-                    next_batch_to_attest: status.next_batch_to_attest,
-                };
-                Ok(Some(status))
+
+                Ok(Some((status.genesis, status.next_batch_to_attest)))
             }
             Ok(None) => Ok(None),
             Err(err) => {

@@ -397,6 +397,34 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
     tester.assert_just_sent_tx_count_equals(2).await;
 }
 
+#[test_log::test(tokio::test)]
+async fn transactions_are_not_resent_on_the_same_block() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
+
+    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_l1_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // first iteration sends commit tx for the first time
+    tester.assert_just_sent_tx_count_equals(1).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // second iteration re-sends commit tx for the first time
+    tester
+        .run_eth_sender_tx_manager_iteration_after_n_blocks(0)
+        .await;
+    // third iteration shouldn't resend the transaction as we're in the same block
+    tester.assert_just_sent_tx_count_equals(0).await;
+}
+
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
 async fn correct_order_for_confirmations(

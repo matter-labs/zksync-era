@@ -247,9 +247,9 @@ impl EthTxManager {
         match self.l1_interface.send_raw_tx(raw_tx, operator_type).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                // In transient errors, server may have received the transaction
+                // In retriable errors, server may have received the transaction
                 // we don't want to loose record about it in case that happens
-                if !error.is_transient() {
+                if !error.is_retriable() {
                     storage
                         .eth_sender_dal()
                         .remove_tx_history(tx_history_id)
@@ -334,16 +334,22 @@ impl EthTxManager {
             // that `tx` is not mined and we should resend it.
             // We only resend the first un-mined transaction.
             if operator_nonce.latest <= tx.nonce {
+                let last_sent_at_block = storage
+                    .eth_sender_dal()
+                    .get_block_number_on_last_sent_attempt(tx.id)
+                    .await
+                    .unwrap();
+                // the transaction may still be included in last block, we shouldn't resend it yet
+                if last_sent_at_block >= Some(l1_block_numbers.latest.0) {
+                    continue;
+                }
+
                 // None means txs hasn't been sent yet
                 let first_sent_at_block = storage
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
                     .await
                     .unwrap();
-                // the transaction may still be included in block, we shouldn't resend it yet
-                if first_sent_at_block == Some(l1_block_numbers.latest.0) {
-                    continue;
-                }
                 return Ok(Some((
                     tx,
                     first_sent_at_block.unwrap_or(l1_block_numbers.latest.0),
@@ -500,9 +506,6 @@ impl EthTxManager {
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let pool = self.pool.clone();
 
-        // It's mandatory to set `last_known_l1_block` to zero, otherwise the first iteration
-        // will never check in-flight txs status
-        let mut last_known_l1_block = L1BlockNumber(0);
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
@@ -513,10 +516,7 @@ impl EthTxManager {
             let l1_block_numbers = self.l1_interface.get_l1_block_numbers().await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
-            if last_known_l1_block < l1_block_numbers.latest {
-                self.loop_iteration(&mut storage, l1_block_numbers).await;
-                last_known_l1_block = l1_block_numbers.latest;
-            }
+            self.loop_iteration(&mut storage, l1_block_numbers).await;
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
@@ -616,7 +616,7 @@ impl EthTxManager {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {:?}", error);
-                if error.is_transient() {
+                if error.is_retriable() {
                     METRICS.l1_transient_errors.inc();
                 }
             }

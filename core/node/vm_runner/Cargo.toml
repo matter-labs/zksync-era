@@ -39,3 +39,4 @@ backon.workspace = true
 futures = { workspace = true, features = ["compat"] }
 rand.workspace = true
 tempfile.workspace = true
+test-casing.workspace = true
