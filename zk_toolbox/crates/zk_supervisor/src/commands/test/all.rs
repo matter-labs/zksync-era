@@ -34,10 +34,10 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
     );
 
     logger::info("Run recovery tests (from snapshot)");
-    let _ = recovery::run(shell, RecoveryArgs { snapshot: true });
+    let _ = recovery::run(shell, RecoveryArgs { snapshot: true })?;
 
     logger::info("Run recovery tests (from genesis)");
-    let _ = recovery::run(shell, RecoveryArgs { snapshot: false });
+    let _ = recovery::run(shell, RecoveryArgs { snapshot: false })?;
 
     logger::info("Run external-node");
     let _handle = thread::spawn(move || {
@@ -60,7 +60,7 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
         IntegrationArgs {
             external_node: true,
         },
-    );
+    )?;
 
     logger::info("Run revert tests");
     let _ = revert::run(
@@ -69,7 +69,7 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
             enable_consensus: false,
             external_node: false,
         },
-    );
+    )?;
 
     logger::info("Run revert tests (external node)");
     let _ = revert::run(
@@ -78,10 +78,10 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
             enable_consensus: false,
             external_node: true,
         },
-    );
+    )?;
 
     logger::info("Run upgrade test");
-    let _ = upgrade::run(shell);
+    let _ = upgrade::run(shell)?;
 
     Ok(())
 }
