@@ -1,3 +1,5 @@
+use crate::commands::lint::Extension;
+
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 
@@ -132,3 +134,15 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 
 /// Snapshot creator related messages
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
+
+// Lint related messages
+pub(super) fn msg_running_linters_for_files(extensions: &Vec<Extension>) -> String {
+    let extensions: Vec<String> = extensions
+        .iter()
+        .map(|e| format!(".{}", e.to_string()))
+        .collect();
+    format!(
+        "Running linters for files with extensions: {:?}",
+        extensions
+    )
+}

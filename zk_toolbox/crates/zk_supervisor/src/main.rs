@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
-use commands::{database::DatabaseCommands, snapshot::SnapshotCommands, test::TestCommands};
+use commands::{
+    database::DatabaseCommands, lint::LintArgs, snapshot::SnapshotCommands, test::TestCommands,
+};
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -39,7 +41,7 @@ enum SupervisorSubcommands {
     #[command(subcommand, about = "Snapshots creator")]
     Snapshot(SnapshotCommands),
     #[command(about = MSG_SUBCOMMAND_LINT_ABOUT, alias = "l")]
-    Lint,
+    Lint(LintArgs),
     #[command(hide = true)]
     Markdown,
 }
@@ -96,7 +98,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Supervisor>();
         }
-        SupervisorSubcommands::Lint => todo!(),
+        SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
     }
     Ok(())
 }
