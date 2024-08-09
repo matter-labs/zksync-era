@@ -165,10 +165,10 @@ jobs:
 
       - name: Run tests on all chains
         run: |
-          ci_run zk_supervisor test all --chain chain_rollup &>rollup.log &
+          ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test all --chain chain_validium &>validium.log &
+          ci_run zk_supervisor test all --no-deps --chain chain_validium &>validium.log &
           PID2=$!
   
           wait $PID1

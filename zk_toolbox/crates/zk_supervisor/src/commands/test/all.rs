@@ -6,11 +6,12 @@ use xshell::{cmd, Shell};
 use super::{
     args::{
         all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
+        upgrade::UpgradeArgs,
     },
     integration, recovery, revert, upgrade,
 };
 
-pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     logger::info("Run server");
     let _handle = thread::spawn(move || {
         let chain = global_config().chain_name.clone();
@@ -30,14 +31,27 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
         shell,
         IntegrationArgs {
             external_node: false,
+            no_deps: args.no_deps,
         },
     )?;
 
     logger::info("Run recovery tests (from snapshot)");
-    recovery::run(shell, RecoveryArgs { snapshot: true })?;
+    recovery::run(
+        shell,
+        RecoveryArgs {
+            snapshot: true,
+            no_deps: args.no_deps,
+        },
+    )?;
 
     logger::info("Run recovery tests (from genesis)");
-    recovery::run(shell, RecoveryArgs { snapshot: false })?;
+    recovery::run(
+        shell,
+        RecoveryArgs {
+            snapshot: false,
+            no_deps: args.no_deps,
+        },
+    )?;
 
     logger::info("Run external-node");
     let _handle = thread::spawn(move || {
@@ -59,6 +73,7 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
         shell,
         IntegrationArgs {
             external_node: true,
+            no_deps: args.no_deps,
         },
     )?;
 
@@ -68,6 +83,7 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
         RevertArgs {
             enable_consensus: false,
             external_node: false,
+            no_deps: args.no_deps,
         },
     )?;
 
@@ -77,11 +93,17 @@ pub fn run(shell: &Shell, _args: AllArgs) -> anyhow::Result<()> {
         RevertArgs {
             enable_consensus: false,
             external_node: true,
+            no_deps: args.no_deps,
         },
     )?;
 
     logger::info("Run upgrade test");
-    upgrade::run(shell)?;
+    upgrade::run(
+        shell,
+        UpgradeArgs {
+            no_deps: args.no_deps,
+        },
+    )?;
 
     Ok(())
 }

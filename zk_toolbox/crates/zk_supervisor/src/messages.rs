@@ -75,7 +75,9 @@ pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
 pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_ALL_TEST_ABOUT: &str = "Run all tests";
+pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
+pub(super) const MSG_BUILD_DEPENDENSCIES_HELP: &str = "Install and build dependencies";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 

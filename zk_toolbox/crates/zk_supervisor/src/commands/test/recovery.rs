@@ -13,7 +13,11 @@ pub fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
     Server::new(None, ecosystem_config.link_to_code.clone()).build(shell)?;
-    install_and_build_dependencies(shell, &ecosystem_config)?;
+
+    if args.no_deps {
+        install_and_build_dependencies(shell, &ecosystem_config)?;
+    }
+
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_RECOVERY_TEST_RUN_SUCCESS);
 

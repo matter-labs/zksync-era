@@ -17,8 +17,10 @@ pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     logger::info(msg_integration_tests_run(args.external_node));
 
-    build_repository(shell, &ecosystem_config)?;
-    build_test_contracts(shell, &ecosystem_config)?;
+    if args.no_deps {
+        build_repository(shell, &ecosystem_config)?;
+        build_test_contracts(shell, &ecosystem_config)?;
+    }
 
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000").env(
         "CHAIN_NAME",
@@ -31,6 +33,7 @@ pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
     }
+
     if global_config().verbose {
         command = command.env(
             "ZKSYNC_DEBUG_LOGS",
