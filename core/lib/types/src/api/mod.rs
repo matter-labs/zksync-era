@@ -3,6 +3,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
+    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
     L1BatchNumber, H160, H2048, H256, H64, U256, U64,
 };
@@ -808,6 +809,18 @@ pub struct StorageProof {
 pub struct Proof {
     pub address: Address,
     pub storage_proof: Vec<StorageProof>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeeProof {
+    pub l1_batch_number: L1BatchNumber,
+    pub tee_type: Option<TeeType>,
+    pub pubkey: Option<Vec<u8>>,
+    pub signature: Option<Vec<u8>>,
+    pub proof: Option<Vec<u8>>,
+    pub proved_at: DateTime<Utc>,
+    pub attestation: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
