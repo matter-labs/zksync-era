@@ -692,6 +692,7 @@ impl BlocksDal<'_, '_> {
                     gas_per_pubdata_limit,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_simulator_code_hash,
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
@@ -717,6 +718,7 @@ impl BlocksDal<'_, '_> {
                     $14,
                     $15,
                     $16,
+                    $17,
                     NOW(),
                     NOW()
                 )
@@ -738,6 +740,10 @@ impl BlocksDal<'_, '_> {
             l2_block_header
                 .base_system_contracts_hashes
                 .default_aa
+                .as_bytes(),
+            l2_block_header
+                .base_system_contracts_hashes
+                .evm_simulator
                 .as_bytes(),
             l2_block_header.protocol_version.map(|v| v as i32),
             i64::from(l2_block_header.virtual_blocks),
