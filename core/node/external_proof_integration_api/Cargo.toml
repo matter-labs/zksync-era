@@ -21,3 +21,4 @@ zksync_dal.workspace = true
 tokio.workspace = true
 bincode.workspace = true
 anyhow.workspace = true
+vise.workspace = true

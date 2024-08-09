@@ -88,7 +88,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn get_available_batch(&mut self) -> DalResult<L1BatchNumber> {
+    pub async fn get_latest_proven_batch(&mut self) -> DalResult<L1BatchNumber> {
         let result = sqlx::query!(
             r#"
             SELECT

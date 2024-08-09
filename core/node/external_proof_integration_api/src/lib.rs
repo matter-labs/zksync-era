@@ -1,4 +1,5 @@
 mod error;
+mod metrics;
 mod processor;
 
 use std::{net::SocketAddr, sync::Arc};
