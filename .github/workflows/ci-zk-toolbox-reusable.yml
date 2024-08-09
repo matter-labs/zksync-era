@@ -136,6 +136,7 @@ jobs:
       - name: Run all tests on Rollup chain
         run: |
           ci_run zk_supervisor test all --chain chain_rollup &>rollup.log &
+          PID1=$!
 
       - name: Create and initialize Validium chain
         run: |
@@ -170,6 +171,12 @@ jobs:
       - name: Run all tests on Validium chain
         run: |
           ci_run zk_supervisor test all --chain chain_validium &>validium.log &
+          PID2=$!
+
+      - name: Wait for tests to run
+        run: |
+          wait $PID1
+          wait $PID2
             
       - name: Show rollup.log logs
         if: always()
