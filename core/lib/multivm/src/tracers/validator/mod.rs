@@ -16,6 +16,7 @@ pub use crate::tracers::validator::types::{ValidationError, ValidationTracerPara
 use crate::{
     glue::tracers::IntoOldVmTracer,
     tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
+    vm_latest::tracers::gas_limiter::GasLimiter,
 };
 
 mod types;
@@ -40,8 +41,7 @@ pub struct ValidationTracer<H> {
     trusted_slots: HashSet<(Address, U256)>,
     trusted_addresses: HashSet<Address>,
     trusted_address_slots: HashSet<(Address, U256)>,
-    computational_gas_used: u32,
-    computational_gas_limit: u32,
+    gas_limiter: GasLimiter,
     vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
     _marker: PhantomData<fn(H) -> H>,
@@ -66,8 +66,7 @@ impl<H> ValidationTracer<H> {
                 trusted_slots: params.trusted_slots,
                 trusted_addresses: params.trusted_addresses,
                 trusted_address_slots: params.trusted_address_slots,
-                computational_gas_used: 0,
-                computational_gas_limit: params.computational_gas_limit,
+                gas_limiter: GasLimiter::new(params.computational_gas_limit),
                 vm_version,
                 result: result.clone(),
                 _marker: Default::default(),
@@ -187,7 +186,7 @@ impl<H> ValidationTracer<H> {
             trusted_slots: self.trusted_slots.clone(),
             trusted_addresses: self.trusted_addresses.clone(),
             trusted_address_slots: self.trusted_address_slots.clone(),
-            computational_gas_limit: self.computational_gas_limit,
+            computational_gas_limit: self.gas_limiter.gas_limit,
         }
     }
 }
