@@ -2,6 +2,7 @@ use std::ops::Add;
 
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::{web3::Bytes, H160};
 
 use crate::{
     consts::CONTRACTS_FILE,
@@ -60,6 +61,7 @@ impl ContractsConfig {
         self.l1.multicall3_addr = deploy_l1_output.multicall3_addr;
         self.ecosystem_contracts.validator_timelock_addr =
             deploy_l1_output.deployed_addresses.validator_timelock_addr;
+        self.ecosystem_contracts.native_token_vault_addr = deploy_l1_output.deployed_addresses.native_token_vault_addr;
         self.l1.verifier_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -71,6 +73,7 @@ impl ContractsConfig {
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
         self.l1.rollup_l1_da_validator_addr = deploy_l1_output.deployed_addresses.rollup_l1_da_validator_addr;
         self.l1.validium_l1_da_validator_addr = deploy_l1_output.deployed_addresses.validium_l1_da_validator_addr;
+        self.l1.force_deployments_data = deploy_l1_output.contracts_config.force_deployments_data.clone();
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -86,6 +89,12 @@ impl ContractsConfig {
         self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         self.l2.da_validator_addr = initialize_bridges_output.l2_da_validator_addr;
+
+        // FIXME: delete this variable
+        self.l2.native_token_vault_addr = H160([
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x04,
+        ]);
         Ok(())
     }
 
@@ -111,6 +120,7 @@ pub struct EcosystemContracts {
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
+    pub native_token_vault_addr: Address
 }
 
 impl ZkToolboxConfig for EcosystemContracts {}
@@ -140,12 +150,14 @@ pub struct L1Contracts {
     pub validator_timelock_addr: Address,
     pub base_token_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
-    pub validium_l1_da_validator_addr: Address   
+    pub validium_l1_da_validator_addr: Address,
+    pub force_deployments_data: Bytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
-    pub da_validator_addr: Address
+    pub da_validator_addr: Address,
+    pub native_token_vault_addr: Address
 }

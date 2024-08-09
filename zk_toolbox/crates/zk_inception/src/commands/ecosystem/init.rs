@@ -5,12 +5,7 @@ use std::{
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    git, logger,
-    spinner::Spinner,
-    Prompt,
+    cmd::Cmd, config::global_config, forge::{Forge, ForgeScriptArgs}, git, hardhat::build_l2_contracts, logger, spinner::Spinner, Prompt
 };
 use config::{
     forge_interface::{
@@ -177,6 +172,7 @@ async fn init(
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(

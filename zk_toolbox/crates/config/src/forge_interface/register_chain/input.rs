@@ -2,7 +2,7 @@ use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
-use zksync_basic_types::L2ChainId;
+use zksync_basic_types::{web3::Bytes, L2ChainId};
 
 use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
@@ -21,6 +21,7 @@ struct DeployedAddresses {
     state_transition: StateTransition,
     bridgehub: Bridgehub,
     validator_timelock_addr: Address,
+    native_token_vault_addr: Address
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -48,6 +49,7 @@ pub struct ChainL1Config {
     pub base_token_gas_price_multiplier_denominator: u64,
     pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
+    pub force_deployments_data: Bytes,
 }
 
 impl ZkToolboxConfig for RegisterChainL1Config {}
@@ -70,6 +72,7 @@ impl RegisterChainL1Config {
                     bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
+                native_token_vault_addr: contracts.ecosystem_contracts.native_token_vault_addr
             },
             chain: ChainL1Config {
                 chain_chain_id: genesis_config.l2_chain_id,
@@ -85,6 +88,7 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
+                force_deployments_data: contracts.l1.force_deployments_data.clone()
             },
             owner_address: wallets_config.governor.address,
         })

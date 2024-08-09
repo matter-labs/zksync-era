@@ -69,6 +69,11 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        let command = format!("forge script {} --legacy {}", script_path.to_str().unwrap(), args_no_resume.join(" "));
+
+        println!("Command: {}", command);
+
         let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"

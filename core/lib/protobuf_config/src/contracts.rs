@@ -114,13 +114,13 @@ impl ProtoRepr for proto::Contracts {
                 .transpose()
                 .context("base_token_addr")?,
             l2_native_token_vault_proxy_addr: l2
-                .l2_native_token_vault_proxy_addr
+                .native_token_vault_addr
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_native_token_vault_proxy_addr")?,
             l2_da_validator_addr: l2
-                .l2_da_validator_addr
+                .da_validator_addr
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
@@ -166,10 +166,10 @@ impl ProtoRepr for proto::Contracts {
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
-                l2_native_token_vault_proxy_addr: this
+                native_token_vault_addr: this
                     .l2_native_token_vault_proxy_addr
                     .map(|a| format!("{:?}", a)),
-                l2_da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
+                da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

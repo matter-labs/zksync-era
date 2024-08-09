@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::web3::Bytes;
 
 use crate::{
     consts::ERC20_CONFIGS_FILE,
@@ -36,6 +37,7 @@ pub struct DeployL1ContractsConfigOutput {
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_node_level_vk_hash: H256,
     pub diamond_cut_data: String,
+    pub force_deployments_data: Bytes,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -48,7 +50,8 @@ pub struct DeployL1DeployedAddressesOutput {
     pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,
     pub rollup_l1_da_validator_addr: Address,
-    pub validium_l1_da_validator_addr: Address
+    pub validium_l1_da_validator_addr: Address,
+    pub native_token_vault_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

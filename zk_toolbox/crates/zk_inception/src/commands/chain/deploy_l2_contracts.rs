@@ -2,10 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    spinner::Spinner,
+    cmd::Cmd, config::global_config, forge::{Forge, ForgeScriptArgs}, hardhat::build_l2_contracts, spinner::Spinner
 };
 use config::{
     forge_interface::{
@@ -19,6 +16,8 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::{cmd, Shell};
+use zksync_basic_types::H256;
+use zksync_config::configs::chain;
 
 use crate::{
     messages::{
@@ -201,15 +200,10 @@ async fn call_forge(
 
     forge = fill_forge_private_key(
         forge,
-        ecosystem_config.get_wallets()?.governor_private_key(),
+        chain_config.get_wallets_config()?.governor_private_key(),
     )?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())
-}
-
-fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn l2 build")).run()?)
 }
