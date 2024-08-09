@@ -83,7 +83,6 @@ fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option
 
 fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
     let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
-    println!("PATH: {:?}", path);
     load_contract_if_present(path)
 }
 
@@ -97,7 +96,6 @@ fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
         return contract;
     };
 
-    println!("HARDHAT");
     load_contract_for_hardhat(path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })

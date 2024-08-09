@@ -60,8 +60,6 @@ impl StorageL1BatchHeader {
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
     ) -> L1BatchHeader {
-        println!("{:?}", &self);
-        println!("INTO L1 BATCH HEADER WITH LOGS");
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -163,8 +161,6 @@ impl StorageL1Batch {
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
     ) -> L1BatchHeader {
-        println!("{:?}", &self);
-        println!("INTO L1 BATCH HEADER WITH LOGS ASD");
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -294,7 +290,6 @@ pub(crate) struct StorageBlockDetails {
 
 impl From<StorageBlockDetails> for api::BlockDetails {
     fn from(details: StorageBlockDetails) -> Self {
-        println!("FROM STORAGEBLOCKDETAILS");
         let status = if details.number == 0 || details.execute_tx_hash.is_some() {
             api::BlockStatus::Verified
         } else {
@@ -372,7 +367,6 @@ pub(crate) struct StorageL1BatchDetails {
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
     fn from(details: StorageL1BatchDetails) -> Self {
-        println!("FROM");
         let status = if details.number == 0 || details.execute_tx_hash.is_some() {
             api::BlockStatus::Verified
         } else {
@@ -456,7 +450,6 @@ pub(crate) struct StorageL2BlockHeader {
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
     fn from(row: StorageL2BlockHeader) -> Self {
-        println!("FROM L2 BLOCK HEADER");
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
 
         let fee_input = protocol_version
