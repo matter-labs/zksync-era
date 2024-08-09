@@ -1,3 +1,5 @@
+use crate::commands::lint::Extension;
+
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 
@@ -9,6 +11,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
+pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
@@ -131,3 +134,12 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 
 /// Snapshot creator related messages
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
+
+// Lint related messages
+pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String {
+    let extensions: Vec<String> = extensions.iter().map(|e| format!(".{}", e)).collect();
+    format!(
+        "Running linters for files with extensions: {:?}",
+        extensions
+    )
+}
