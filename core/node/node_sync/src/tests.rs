@@ -13,7 +13,7 @@ use zksync_node_test_utils::{
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_executor::TestBatchExecutorBuilder,
+    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
@@ -132,7 +132,7 @@ impl StateKeeperHandles {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(NoopSealer),
-            Arc::new(pool),
+            Arc::new(MockReadStorageFactory),
         );
 
         Self {
