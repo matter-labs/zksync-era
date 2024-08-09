@@ -14,3 +14,6 @@ zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
 zk_evm.workspace = true
 once_cell.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
