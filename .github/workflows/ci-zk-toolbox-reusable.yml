@@ -92,18 +92,18 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose
 
-      - name: Create and initialize chain
+      - name: Create and initialize Rollup chain
         run: |
           ci_run zk_inception chain create \
           --chain-name chain_rollup \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode  rollup \
+          --l1-batch-commit-data-generator-mode rollup \
           --base-token-address 0x0000000000000000000000000000000000000001 \
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
-          --set-as-default true \
+          --set-as-default false \
           --ignore-prerequisites
 
           ci_run zk_inception chain init \
@@ -112,61 +112,65 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --server-db-name=zksync_server_localhost_rollup \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --prover-db-name=zksync_prover_localhost_rollup
+          --prover-db-name=zksync_prover_localhost_rollup \
+          --chain chain_rollup
 
-      - name: Run server
-        run: |
-          ci_run zk_inception server --ignore-prerequisites &>server.log &
-          ci_run sleep 5
-
-      - name: Run integration tests
-        run: |
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose
-
-      - name: Init external node server
+      - name: Init external node (Rollup)
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545
-          ci_run zk_inception external-node init --ignore-prerequisites
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup
 
-      - name: Run recovery tests (from snapshot)
+      - name: Create and initialize Validium chain
         run: |
-          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
-            
-      - name: Run recovery tests (from genesis)
-        run: |
-          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
+          ci_run zk_inception chain create \
+          --chain-name chain_validium \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://reth:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --server-db-name=zksync_server_localhost_validium \
+          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-name=zksync_prover_localhost_validium \
+          --port-offset 2000 \
+          --chain chain_validium
   
-      - name: Run external node server
+      - name: Init external node (Validium)
         run: |
-          ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
-          ci_run sleep 5
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
-      - name: Run integration tests en
+      - name: Run tests on all chains
         run: |
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node
+          ci_run zk_supervisor test build
 
-      - name: Run revert tests
-        run: |
-          ci_run zk_supervisor test revert --ignore-prerequisites --verbose
+          ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
+          PID1=$!
 
-      - name: Run revert tests (external node)
-        run: |
-          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose
-
-      # This test should be the last one as soon as it
-      # finished bootloader will be different
-      - name: Run upgrade test
-        run: |
-          ci_run zk_supervisor test upgrade
-        
-      - name: Show server.log logs
+          ci_run zk_supervisor test all --no-deps --chain chain_validium &>validium.log &
+          PID2=$!
+  
+          wait $PID1
+          wait $PID2
+            
+      - name: Show rollup.log logs
         if: always()
-        run: ci_run cat server.log || true
+        run: ci_run cat rollup.log || true
 
-      - name: Show external_node.log logs
+      - name: Show validium.log logs
         if: always()
-        run: ci_run cat external_node.log || true
+        run: ci_run cat validium.log || true
 
       - name: Show revert.log logs
         if: always()

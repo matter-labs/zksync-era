@@ -169,10 +169,14 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        await executeCommandWithLogs(
-            fileConfig.loadFromFile ? `zk_supervisor snapshot create` : 'zk run snapshots-creator',
-            'snapshot-creator.log'
-        );
+        let command = '';
+        if (fileConfig.loadFromFile) {
+            command = `zk_supervisor snapshot create`;
+            command += ` --chain ${fileConfig.chain}`;
+        } else {
+            command = `zk run snapshots-creator`;
+        }
+        await executeCommandWithLogs(command, 'snapshot-creator.log');
     });
 
     step('validate snapshot', async () => {
@@ -226,7 +230,7 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node', async () => {
@@ -234,7 +238,9 @@ describe('snapshot recovery', () => {
             externalNodeEnv,
             'snapshot-recovery.log',
             pathToHome,
-            fileConfig.loadFromFile
+            NodeComponents.STANDARD,
+            fileConfig.loadFromFile,
+            fileConfig.chain
         );
 
         let recoveryFinished = false;
@@ -356,8 +362,9 @@ describe('snapshot recovery', () => {
             externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
+            components,
             fileConfig.loadFromFile,
-            components
+            fileConfig.chain
         );
 
         let isDbPrunerReady = false;

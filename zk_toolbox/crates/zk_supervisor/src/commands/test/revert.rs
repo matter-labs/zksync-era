@@ -1,4 +1,4 @@
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -15,7 +15,11 @@ pub fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     shell.change_dir(ecosystem_config.link_to_code.join(REVERT_TESTS_PATH));
 
     logger::info(MSG_REVERT_TEST_RUN_INFO);
-    install_and_build_dependencies(shell, &ecosystem_config)?;
+
+    if args.no_deps {
+        install_and_build_dependencies(shell, &ecosystem_config)?;
+    }
+
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_REVERT_TEST_RUN_SUCCESS);
 
@@ -48,7 +52,13 @@ fn run_test(
         cmd!(shell, "yarn mocha tests/revert-and-restart.test.ts")
     };
 
-    let mut cmd = Cmd::new(cmd).env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let mut cmd = Cmd::new(cmd).env(
+        "CHAIN_NAME",
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(ecosystem_config.default_chain.as_ref()),
+    );
     if args.enable_consensus {
         cmd = cmd.env("ENABLE_CONSENSUS", "true");
     }

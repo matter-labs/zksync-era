@@ -1,6 +1,6 @@
 import * as utils from 'utils';
 import { loadConfig, shouldLoadConfigFromFile, getAllConfigsPath } from 'utils/build/file-configs';
-import { runServerInBackground } from 'utils/build/server';
+import { runServerInBackground } from './utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -137,7 +137,8 @@ describe('Block reverting test', function () {
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -250,7 +251,8 @@ describe('Block reverting test', function () {
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(30);
 
@@ -300,7 +302,8 @@ describe('Block reverting test', function () {
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(30);
 

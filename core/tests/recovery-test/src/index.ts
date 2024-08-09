@@ -83,9 +83,11 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(useZkSupervisor: boolean, env: { [key: string]: string }) {
+export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
     if (useZkSupervisor) {
-        await executeNodeCommand(env, 'zk_inception external-node init');
+        let cmd = 'zk_inception external-node init';
+        cmd += chain ? ` --chain ${chain}` : '';
+        await executeNodeCommand(env, cmd);
     } else {
         await executeNodeCommand(env, 'zk db reset');
         await executeNodeCommand(env, 'zk clean --database');
@@ -149,8 +151,9 @@ export class NodeProcess {
         env: { [key: string]: string },
         logsFile: FileHandle | string,
         pathToHome: string,
-        useZkInception: boolean,
-        components: NodeComponents = NodeComponents.STANDARD
+        components: NodeComponents = NodeComponents.STANDARD,
+        useZkInception?: boolean,
+        chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
 
@@ -159,7 +162,8 @@ export class NodeProcess {
             stdio: [null, logs.fd, logs.fd],
             cwd: pathToHome,
             env,
-            useZkInception
+            useZkInception,
+            chain
         });
 
         return new NodeProcess(childProcess, logs);

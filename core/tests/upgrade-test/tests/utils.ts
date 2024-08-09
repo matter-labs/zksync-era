@@ -7,16 +7,23 @@ export function runServerInBackground({
     components,
     stdio,
     cwd,
-    useZkInception
+    useZkInception,
+    chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     useZkInception?: boolean;
+    chain?: string;
 }) {
-    let command = useZkInception
-        ? 'zk_inception server'
-        : 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
+    let command = '';
+
+    if (useZkInception) {
+        command = 'zk_inception server';
+        command += chain ? ` --chain ${chain}` : '';
+    } else {
+        command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
+    }
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
     }

@@ -1,7 +1,8 @@
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
+use super::args::upgrade::UpgradeArgs;
 use crate::messages::{
     MSG_UPGRADE_TEST_INSTALLING_DEPENDENCIES, MSG_UPGRADE_TEST_RUN_INFO,
     MSG_UPGRADE_TEST_RUN_SUCCESS,
@@ -9,12 +10,16 @@ use crate::messages::{
 
 const UPGRADE_TESTS_PATH: &str = "core/tests/upgrade-test";
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(UPGRADE_TESTS_PATH));
 
     logger::info(MSG_UPGRADE_TEST_RUN_INFO);
-    install_and_build_dependencies(shell, &ecosystem_config)?;
+
+    if args.no_deps {
+        install_and_build_dependencies(shell, &ecosystem_config)?;
+    }
+
     run_test(shell, &ecosystem_config)?;
     logger::outro(MSG_UPGRADE_TEST_RUN_SUCCESS);
 
@@ -36,8 +41,13 @@ fn install_and_build_dependencies(
 
 fn run_test(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
     Spinner::new(MSG_UPGRADE_TEST_RUN_INFO).freeze();
-    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/upgrade.test.ts"))
-        .env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/upgrade.test.ts")).env(
+        "CHAIN_NAME",
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(ecosystem_config.default_chain.as_ref()),
+    );
     cmd.with_force_run().run()?;
 
     Ok(())

@@ -1,4 +1,4 @@
-use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger, server::Server, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -13,7 +13,11 @@ pub fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
     Server::new(None, ecosystem_config.link_to_code.clone()).build(shell)?;
-    install_and_build_dependencies(shell, &ecosystem_config)?;
+
+    if args.no_deps {
+        install_and_build_dependencies(shell, &ecosystem_config)?;
+    }
+
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_RECOVERY_TEST_RUN_SUCCESS);
 
@@ -45,7 +49,14 @@ fn run_test(
         cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts")
     };
 
-    let cmd = Cmd::new(cmd).env("CHAIN_NAME", &ecosystem_config.default_chain);
+    let cmd = Cmd::new(cmd).env(
+        "CHAIN_NAME",
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(ecosystem_config.default_chain.as_ref()),
+    );
+
     cmd.with_force_run().run()?;
 
     Ok(())
