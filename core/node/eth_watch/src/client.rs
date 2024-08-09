@@ -70,6 +70,7 @@ impl EthHttpQueryClient {
             diamond_proxy_addr,
             governance_address
         );
+        dbg!(&state_transition_manager_contract());
         Self {
             client: client.for_component("watch"),
             topics: Vec::new(),

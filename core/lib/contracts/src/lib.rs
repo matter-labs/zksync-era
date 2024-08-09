@@ -83,6 +83,7 @@ fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option
 
 fn load_contract_for_hardhat(path: (&str, &str)) -> Option<Contract> {
     let path = Path::new(HARDHAT_PATH_PREFIX).join(path.0).join(path.1);
+    println!("PATH: {:?}", path);
     load_contract_if_present(path)
 }
 
@@ -96,6 +97,7 @@ fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
         return contract;
     };
 
+    println!("HARDHAT");
     load_contract_for_hardhat(path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })
@@ -284,7 +286,7 @@ fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
 /// Hash of code and code which consists of 32 bytes words
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SystemContractCode {
     pub code: Vec<U256>,
     pub hash: H256,
@@ -294,18 +296,21 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
+    pub evm_simulator: SystemContractCode,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct BaseSystemContractsHashes {
     pub bootloader: H256,
     pub default_aa: H256,
+    pub evm_simulator: H256,
 }
 
 impl PartialEq for BaseSystemContracts {
     fn eq(&self, other: &Self) -> bool {
         self.bootloader.hash == other.bootloader.hash
             && self.default_aa.hash == other.default_aa.hash
+            && self.evm_simulator.hash == other.evm_simulator.hash
     }
 }
 
@@ -326,9 +331,19 @@ impl BaseSystemContracts {
             hash,
         };
 
+        let evm_simulator_bytecode =
+            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+        let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
+
+        let evm_simulator = SystemContractCode {
+            code: bytes_to_be_words(evm_simulator_bytecode),
+            hash: evm_simulator_hash,
+        };
+
         BaseSystemContracts {
             bootloader,
             default_aa,
+            evm_simulator,
         }
     }
     // BaseSystemContracts with proved bootloader - for handling transactions.
@@ -465,6 +480,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
+            evm_simulator: self.evm_simulator.hash,
         }
     }
 }

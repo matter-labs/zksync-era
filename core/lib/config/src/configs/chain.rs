@@ -137,6 +137,8 @@ pub struct StateKeeperConfig {
     pub bootloader_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::default_aa_hash instead")]
     pub default_aa_hash: Option<H256>,
+    #[deprecated(note = "Use GenesisConfig::evm_simulator_hash instead")]
+    pub evm_simulator_hash: Option<H256>,
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -181,6 +183,7 @@ impl StateKeeperConfig {
             protective_reads_persistence_enabled: true,
             bootloader_hash: None,
             default_aa_hash: None,
+            evm_simulator_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
         }
     }

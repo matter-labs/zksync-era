@@ -154,6 +154,12 @@ impl EnNamespace {
             genesis_commitment: Some(genesis_batch.metadata.commitment),
             bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
             default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
+            evm_simulator_hash: Some(
+                genesis_batch
+                    .header
+                    .base_system_contracts_hashes
+                    .evm_simulator,
+            ),
             l1_chain_id: self.state.api_config.l1_chain_id,
             sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,

@@ -17,6 +17,7 @@ pub struct GenesisConfig {
     pub genesis_commitment: Option<H256>,
     pub bootloader_hash: Option<H256>,
     pub default_aa_hash: Option<H256>,
+    pub evm_simulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
     pub sl_chain_id: Option<SLChainId>,
     pub l2_chain_id: L2ChainId,
@@ -42,6 +43,7 @@ impl GenesisConfig {
             genesis_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
+            evm_simulator_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
             sl_chain_id: None,
             protocol_version: Some(ProtocolSemanticVersion {

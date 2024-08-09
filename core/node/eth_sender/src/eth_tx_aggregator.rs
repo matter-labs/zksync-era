@@ -259,9 +259,23 @@ impl EthTxAggregator {
                 )));
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
+
+            let multicall3_evm_simulator =
+                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
+            if multicall3_evm_simulator.len() != 32 {
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
+                        "multicall3 evm simulator hash data is not of the len of 32: {:?}",
+                        multicall3_evm_simulator
+                    ),
+                )));
+            }
+            let evm_simulator = H256::from_slice(&multicall3_evm_simulator);
+
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,
                 default_aa,
+                evm_simulator,
             };
 
             call_results_iterator.next().unwrap();

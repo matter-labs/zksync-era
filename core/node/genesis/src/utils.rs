@@ -129,10 +129,14 @@ pub(super) async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
 ) -> Result<(), GenesisError> {
-    let factory_deps = [&contracts.bootloader, &contracts.default_aa]
-        .iter()
-        .map(|c| (c.hash, be_words_to_bytes(&c.code)))
-        .collect();
+    let factory_deps = [
+        &contracts.bootloader,
+        &contracts.default_aa,
+        &contracts.evm_simulator,
+    ]
+    .iter()
+    .map(|c| (c.hash, be_words_to_bytes(&c.code)))
+    .collect();
 
     Ok(storage
         .factory_deps_dal()

@@ -9,8 +9,9 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_types::{
-    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus,
+    web3::contract, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    ZKPORTER_IS_AVAILABLE,
 };
 
 /// Typesafe wrapper around [`L2BlockHeader`] returned by [`L1BatchParamsProvider`].
@@ -301,7 +302,11 @@ impl L1BatchParamsProvider {
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = storage
             .factory_deps_dal()
-            .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
+            .get_base_system_contracts(
+                contract_hashes.bootloader,
+                contract_hashes.default_aa,
+                contract_hashes.evm_simulator,
+            )
             .await
             .context("failed getting base system contracts")?;
 

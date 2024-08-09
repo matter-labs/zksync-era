@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id AS \"minor!\",\n                timestamp,\n                bootloader_code_hash,\n                default_account_code_hash,\n                upgrade_tx_hash\n            FROM\n                protocol_versions\n            WHERE\n                id = $1\n            ",
+  "query": "\n            SELECT\n                id AS \"minor!\",\n                timestamp,\n                bootloader_code_hash,\n                default_account_code_hash,\n                evm_simulator_code_hash,\n                upgrade_tx_hash\n            FROM\n                protocol_versions\n            WHERE\n                id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -25,6 +25,11 @@
       },
       {
         "ordinal": 4,
+        "name": "evm_simulator_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
         "name": "upgrade_tx_hash",
         "type_info": "Bytea"
       }
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "5556ebdb040428b42c04ea9121b3c2a3d0a09c5ee88bdd671462904d4d27a355"
+  "hash": "5b623ec03908aef2f9f4de80ccd108525bf32965ca06e847082c0fc3c54a1dde"
 }

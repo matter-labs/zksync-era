@@ -182,6 +182,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_account_addr: None,
             bootloader_hash: None,
             default_aa_hash: None,
+            evm_simulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
         }
     }
@@ -701,6 +702,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             genesis_commitment: Some(rng.gen()),
             bootloader_hash: Some(rng.gen()),
             default_aa_hash: Some(rng.gen()),
+            evm_simulator_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
             sl_chain_id: None,

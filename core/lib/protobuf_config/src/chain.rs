@@ -87,6 +87,7 @@ impl ProtoRepr for proto::StateKeeper {
             // needed during the initialization from files
             bootloader_hash: None,
             default_aa_hash: None,
+            evm_simulator_hash: None,
             fee_account_addr: None,
             l1_batch_commit_data_generator_mode: Default::default(),
         })

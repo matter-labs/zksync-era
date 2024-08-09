@@ -101,6 +101,9 @@ impl GenesisParams {
             default_aa: config
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
+            evm_simulator: config
+                .evm_simulator_hash
+                .ok_or(GenesisError::MalformedConfig("evm_simulator_hash"))?,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
@@ -172,6 +175,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Some(H256::default()),
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
+        evm_simulator_hash: Some(base_system_contracts_hashes.evm_simulator),
         l1_chain_id: L1ChainId(9),
         sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
@@ -236,6 +240,10 @@ pub async fn insert_genesis_batch(
             .config
             .default_aa_hash
             .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
+        evm_simulator: genesis_params
+            .config
+            .evm_simulator_hash
+            .ok_or(GenesisError::MalformedConfig("evm_simulator_hash"))?,
     };
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,

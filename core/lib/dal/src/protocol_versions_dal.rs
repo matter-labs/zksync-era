@@ -195,7 +195,8 @@ impl ProtocolVersionsDal<'_, '_> {
             r#"
             SELECT
                 bootloader_code_hash,
-                default_account_code_hash
+                default_account_code_hash,
+                evm_simulator_code_hash
             FROM
                 protocol_versions
             WHERE
@@ -214,6 +215,10 @@ impl ProtocolVersionsDal<'_, '_> {
                 .get_base_system_contracts(
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
+                    H256::from_slice(
+                        &row.evm_simulator_code_hash
+                            .unwrap_or(H256::zero().as_bytes().to_vec()),
+                    ),
                 )
                 .await?;
             Some(contracts)
@@ -234,6 +239,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.timestamp,
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
+                protocol_versions.evm_simulator_code_hash,
                 protocol_patches.patch,
                 protocol_patches.recursion_scheduler_level_vk_hash
             FROM
