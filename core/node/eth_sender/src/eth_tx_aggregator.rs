@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},

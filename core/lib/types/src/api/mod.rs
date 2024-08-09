@@ -847,6 +847,17 @@ pub struct TransactionExecutionInfo {
     pub execution_info: Value,
 }
 
+/// The fee history type returned from `eth_feeHistory` call.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeHistory {
+    #[serde(flatten)]
+    pub inner: zksync_basic_types::web3::FeeHistory,
+    /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
+    #[serde(default)]
+    pub l2_pubdata_price: Vec<U256>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -67,7 +67,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
+use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -153,8 +153,15 @@ impl MainNodeBuilder {
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
-        let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.settlement_layer_id(), eth_config.l1_rpc_url);
+        let query_eth_client_layer = QueryEthClientLayer::new(
+            genesis.settlement_layer_id(),
+            eth_config.l1_rpc_url,
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
+        );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }

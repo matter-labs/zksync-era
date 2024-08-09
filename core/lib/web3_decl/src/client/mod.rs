@@ -37,8 +37,8 @@ use zksync_types::url::SensitiveUrl;
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
-    mock::MockClient,
-    network::{ForNetwork, Network, TaggedClient, L1, L2},
+    mock::{MockClient, MockClientBuilder},
+    network::{ForWeb3Network, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
 
@@ -227,7 +227,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
     }
 }
 
-impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
+impl<Net: Network, C: ClientBase> ForWeb3Network for Client<Net, C> {
     type Net = Net;
 
     fn network(&self) -> Self::Net {
