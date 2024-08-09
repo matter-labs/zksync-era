@@ -51,25 +51,17 @@ use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::{
-    interface::{
-        types::{
-            errors::BytecodeCompressionError,
-            inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
-            outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
-        },
-        FinishedL1Batch, VmMemoryMetrics,
+use crate::interface::{
+    types::{
+        errors::BytecodeCompressionError,
+        inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
+        outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
     },
-    tracers::TracerDispatcher,
-    vm_latest::HistoryEnabled,
-    HistoryMode,
+    FinishedL1Batch, VmMemoryMetrics,
 };
 
-pub trait VmInterface<S, H: HistoryMode> {
-    type TracerDispatcher: Default + From<TracerDispatcher<S, H>>;
-
-    /// Initialize VM.
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
+pub trait VmInterface {
+    type TracerDispatcher: Default;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
@@ -148,14 +140,32 @@ pub trait VmInterface<S, H: HistoryMode> {
     }
 }
 
+/// Encapsulates creating VM instance based on the provided environment.
+pub trait VmFactory<S>: VmInterface {
+    /// Creates a new VM instance.
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
+}
+
 /// Methods of VM requiring history manipulations.
-pub trait VmInterfaceHistoryEnabled<S>: VmInterface<S, HistoryEnabled> {
+///
+/// # Snapshot workflow
+///
+/// External callers must follow the following snapshot workflow:
+///
+/// - Each new snapshot created using `make_snapshot()` must be either popped or rolled back before creating the following snapshot.
+///   OTOH, it's not required to call either of these methods by the end of VM execution.
+/// - `pop_snapshot_no_rollback()` may be called spuriously, when no snapshot was created. It is a no-op in this case.
+///
+/// These rules guarantee that at each given moment, a VM instance has at most one snapshot (unless the VM makes snapshots internally),
+/// which may allow additional VM optimizations.
+pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Create a snapshot of the current VM state and push it into memory.
     fn make_snapshot(&mut self);
 
     /// Roll back VM state to the latest snapshot and destroy the snapshot.
     fn rollback_to_the_latest_snapshot(&mut self);
 
-    /// Pop the latest snapshot from memory and destroy it.
+    /// Pop the latest snapshot from memory and destroy it. If there are no snapshots, this should be a no-op
+    /// (i.e., the VM must not panic in this case).
     fn pop_snapshot_no_rollback(&mut self);
 }

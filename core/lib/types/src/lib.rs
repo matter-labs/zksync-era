@@ -16,7 +16,7 @@ pub use protocol_upgrade::{ProtocolUpgrade, ProtocolVersion};
 use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::Execute;
-pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
+pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
 pub use zksync_crypto_primitives::*;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
