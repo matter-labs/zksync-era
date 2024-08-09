@@ -8,7 +8,7 @@ use std::{
 
 use zksync_types::{StorageKey, StorageValue, H256};
 
-use crate::{ReadStorage, WriteStorage};
+use crate::{ReadStorage, StoragePtr, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -224,6 +224,46 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 }
 
+/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any
+/// modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes.
+#[derive(Debug)]
+pub struct ImmutableStorageView<S>(StoragePtr<StorageView<S>>);
+
+impl<S: ReadStorage> ImmutableStorageView<S> {
+    /// Creates a new view based on the provided storage pointer.
+    pub fn new(ptr: StoragePtr<StorageView<S>>) -> Self {
+        Self(ptr)
+    }
+}
+
+// All methods other than `read_value()` do not read back modified storage slots, so we proxy them as-is.
+impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        let started_at = Instant::now();
+        let mut this = self.0.borrow_mut();
+        let cached_value = this.read_storage_keys().get(key);
+        cached_value.copied().unwrap_or_else(|| {
+            let value = this.storage_handle.read_value(key);
+            this.cache.read_storage_keys.insert(*key, value);
+            this.metrics.time_spent_on_storage_missed += started_at.elapsed();
+            this.metrics.storage_invocations_missed += 1;
+            value
+        })
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        self.0.borrow_mut().is_write_initial(key)
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        self.0.borrow_mut().load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.0.borrow_mut().get_enumeration_index(key)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use zksync_types::{AccountTreeId, Address, H256};
@@ -271,5 +311,24 @@ mod test {
         assert_eq!(metrics.storage_invocations_missed, 2);
         assert_eq!(metrics.get_value_storage_invocations, 3);
         assert_eq!(metrics.set_value_storage_invocations, 2);
+    }
+
+    #[test]
+    fn immutable_storage_view() {
+        let account: AccountTreeId = AccountTreeId::new(Address::from([0xfe; 20]));
+        let key = H256::from_low_u64_be(61);
+        let value = H256::from_low_u64_be(73);
+        let key = StorageKey::new(account, key);
+
+        let mut raw_storage = InMemoryStorage::default();
+        raw_storage.set_value(key, value);
+        let storage_view = StorageView::new(raw_storage).to_rc_ptr();
+        let mut immutable_view = ImmutableStorageView::new(storage_view.clone());
+
+        let new_value = H256::repeat_byte(0x11);
+        let prev_value = storage_view.borrow_mut().set_value(key, new_value);
+        assert_eq!(prev_value, value);
+
+        assert_eq!(immutable_view.read_value(&key), value);
     }
 }
