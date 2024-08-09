@@ -862,11 +862,20 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
     }
 }
 
+impl Distribution<configs::wallets::TokenMultiplierSetter> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::TokenMultiplierSetter {
+        configs::wallets::TokenMultiplierSetter {
+            wallet: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::wallets::Wallets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallets {
         configs::wallets::Wallets {
             state_keeper: self.sample_opt(|| self.sample(rng)),
             eth_sender: self.sample_opt(|| self.sample(rng)),
+            token_multiplier_setter: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -991,6 +1000,10 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
         configs::base_token_adjuster::BaseTokenAdjusterConfig {
             price_polling_interval_ms: self.sample(rng),
             price_cache_update_interval_ms: self.sample(rng),
+            max_tx_gas: self.sample(rng),
+            default_priority_fee_per_gas: self.sample(rng),
+            persister_l1_receipt_checking_max_attempts: self.sample(rng),
+            persister_l1_receipt_checking_sleep_ms: self.sample(rng),
         }
     }
 }
@@ -1020,6 +1033,7 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
             client_timeout_ms: self.sample(rng),
             forced_numerator: self.sample(rng),
             forced_denominator: self.sample(rng),
+            forced_fluctuation: self.sample(rng),
         }
     }
 }

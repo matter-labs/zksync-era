@@ -58,5 +58,6 @@ pub fn create_localhost_wallets(
         blob_operator: Wallet::from_mnemonic(&eth_mnemonic.test_mnemonic, &base_path, 2)?,
         fee_account: Wallet::from_mnemonic(&eth_mnemonic.test_mnemonic, &base_path, 3)?,
         governor: Wallet::from_mnemonic(&eth_mnemonic.test_mnemonic, &base_path, 4)?,
+        token_multiplier_setter: Wallet::from_mnemonic(&eth_mnemonic.test_mnemonic, &base_path, 5)?,
     })
 }
