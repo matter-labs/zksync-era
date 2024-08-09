@@ -397,6 +397,8 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
+            // TODO(EVM-676): generate it randomly once this value is used
+            settlement_mode: Default::default(),
         }
     }
 }
@@ -995,6 +997,19 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
     }
 }
 
+impl Distribution<configs::external_proof_integration_api::ExternalProofIntegrationApiConfig>
+    for EncodeDist
+{
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
+        configs::external_proof_integration_api::ExternalProofIntegrationApiConfig {
+            http_port: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -1044,6 +1059,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             base_token_adjuster: self.sample(rng),
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
+            external_proof_integration_api_config: self.sample(rng),
         }
     }
 }

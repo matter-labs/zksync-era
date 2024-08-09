@@ -8,10 +8,7 @@ use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 // Public re-export to simplify the API use.
 pub use zksync_eth_client as eth_client;
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    BoundEthInterface, CallFunctionArgs, EthInterface, Options,
-};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
@@ -538,7 +535,7 @@ impl BlockReverter {
 
     #[tracing::instrument(err)]
     async fn get_l1_batch_number_from_contract(
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         contract_address: Address,
         op: AggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
@@ -560,7 +557,7 @@ impl BlockReverter {
     /// Returns suggested values for a reversion.
     pub async fn suggested_values(
         &self,
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
         eth_config: &BlockReverterEthConfig,
         reverter_address: Address,
     ) -> anyhow::Result<SuggestedRevertValues> {
