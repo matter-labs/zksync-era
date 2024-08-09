@@ -41,7 +41,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
         args.extensions.clone()
     };
 
-    logger::info(&msg_running_linters_for_files(&extensions));
+    logger::info(msg_running_linters_for_files(&extensions));
 
     let ecosystem = EcosystemConfig::from_file(shell)?;
 

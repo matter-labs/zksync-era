@@ -136,11 +136,8 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
 
 // Lint related messages
-pub(super) fn msg_running_linters_for_files(extensions: &Vec<Extension>) -> String {
-    let extensions: Vec<String> = extensions
-        .iter()
-        .map(|e| format!(".{}", e.to_string()))
-        .collect();
+pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String {
+    let extensions: Vec<String> = extensions.iter().map(|e| format!(".{}", e)).collect();
     format!(
         "Running linters for files with extensions: {:?}",
         extensions
