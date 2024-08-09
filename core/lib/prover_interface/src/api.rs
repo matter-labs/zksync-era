@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    tee_types::TeeType,
     L1BatchNumber,
 };
 
@@ -52,7 +53,10 @@ pub enum RegisterTeeAttestationResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationDataRequest {}
 
-pub type TeeProofGenerationDataRequest = ProofGenerationDataRequest;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeeProofGenerationDataRequest {
+    pub tee_type: TeeType,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
