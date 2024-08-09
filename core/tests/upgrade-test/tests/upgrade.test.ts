@@ -170,7 +170,7 @@ describe('Upgrade test', function () {
 
         if (!zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS)) {
             await (await tester.syncWallet.approveERC20(baseToken, ethers.MaxUint256)).wait();
-            await mintToWallet(baseToken, tester.syncWallet, depositAmount * 10n);
+            await mintToAddress(baseToken, tester.ethWallet, tester.syncWallet.address, depositAmount * 10n);
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
@@ -575,10 +575,15 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
     };
 }
 
-async function mintToWallet(baseTokenAddress: zksync.types.Address, ethersWallet: ethers.Wallet, amountToMint: bigint) {
+async function mintToAddress(
+    baseTokenAddress: zksync.types.Address,
+    ethersWallet: ethers.Wallet,
+    addressToMintTo: string,
+    amountToMint: bigint
+) {
     const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
     const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
-    await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();
+    await (await l1Erc20Contract.mint(addressToMintTo, amountToMint)).wait();
 }
 
 const SEMVER_MINOR_VERSION_MULTIPLIER = 4294967296;
