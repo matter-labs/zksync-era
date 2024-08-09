@@ -249,7 +249,11 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
-        let experimental_vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let experimental_vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
                 .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
