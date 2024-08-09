@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
+import { Wallet } from 'ethers';
+import path from 'path';
 
 export async function build(): Promise<void> {
     await utils.spawn('yarn l1-contracts build');
@@ -222,8 +224,19 @@ export async function registerHyperchain({
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    let tokenMultiplierSetterAddress = process.env.TOKEN_MULTIPLIER_SETTER_ADDRESS;
 
-    const tokenMultiplierSetterAddress = process.env.TOKEN_MULTIPLIER_SETTER_ADDRESS;
+    if (baseTokenName && !tokenMultiplierSetterAddress) {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+        // this is one of the rich accounts
+        tokenMultiplierSetterAddress = Wallet.fromMnemonic(
+            process.env.MNEMONIC ?? ethTestConfig.mnemonic,
+            "m/44'/60'/0'/0/2"
+        ).address;
+        console.log(`Defaulting token multiplier setter address to ${tokenMultiplierSetterAddress}`);
+    }
+
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',

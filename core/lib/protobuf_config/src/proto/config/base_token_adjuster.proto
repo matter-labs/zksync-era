@@ -8,4 +8,5 @@ message BaseTokenAdjuster {
   optional uint64 persister_l1_receipt_checking_sleep_ms = 3;
   optional uint32 persister_l1_receipt_checking_max_attempts = 4;
   optional uint64 max_tx_gas = 5;
+  optional uint64 default_priority_fee_per_gas = 6;
 }

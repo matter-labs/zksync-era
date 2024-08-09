@@ -29,7 +29,7 @@ impl ForcedPriceClient {
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             },
-            forced_fluctuation: config.forced_fluctuation,
+            forced_fluctuation: config.forced_fluctuation.map(|x| x.clamp(0, 100)),
         }
     }
 }

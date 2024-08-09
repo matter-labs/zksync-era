@@ -14,6 +14,10 @@ pub struct ExternalPriceApiClientConfig {
     /// Forced conversion ratio. Only used with the ForcedPriceClient.
     pub forced_numerator: Option<u64>,
     pub forced_denominator: Option<u64>,
+    /// Forced fluctuation is only used in  ForcedPriceClient. It defines how much percent numerator /
+    /// denominator should fluctuate from their forced values. If it's None or 0, then ForcedPriceClient
+    /// will return the same quote every time it's called. Otherwise, ForcedPriceClient will return
+    /// forced_quote +/- forced_fluctuation % from its values.
     pub forced_fluctuation: Option<u32>,
 }
 

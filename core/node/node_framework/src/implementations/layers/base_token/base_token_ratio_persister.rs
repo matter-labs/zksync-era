@@ -19,9 +19,6 @@ use crate::{
     FromContext, IntoContext,
 };
 
-// TODO: make configurable
-const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 20000000000;
-
 /// Wiring layer for `BaseTokenRatioPersister`
 ///
 /// Responsible for orchestrating communications with external API feeds to get ETH<->BaseToken
@@ -99,7 +96,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let signing_client = PKSigningClient::new_raw(
             tms_private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
-            DEFAULT_PRIORITY_FEE_PER_GAS,
+            self.config.default_priority_fee_per_gas,
             #[allow(clippy::useless_conversion)]
             self.l1_chain_id.into(),
             query_client.clone().for_component("base_token_adjuster"),

@@ -518,12 +518,10 @@ impl TxSender {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
         if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
-            let a: U256 = fee_input.fair_l2_gas_price().into();
             tracing::info!(
-                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {} {}",
+                "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas,
-                a
             );
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }
