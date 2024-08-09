@@ -209,10 +209,10 @@ export class TestContextOwner {
         const wallets = this.createTestWallets(suites);
         const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
         const baseTokenAddress = await bridgehubContract.baseToken(this.env.l2ChainId);
-        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
-        await this.cancelAllowances();
-        await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
-        await this.distributeL2Tokens(wallets);
+        //await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
+        //await this.cancelAllowances();
+        //await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
+        //await this.distributeL2Tokens(wallets);
 
         this.reporter.finishAction();
         return wallets;

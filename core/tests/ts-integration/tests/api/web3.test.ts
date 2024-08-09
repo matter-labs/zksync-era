@@ -10,6 +10,7 @@ import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
 import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-ethers/build/utils';
 import { NodeMode } from '../../src/types';
+import { log, error } from "console";
 
 // Regular expression to match variable-length hex number.
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
@@ -151,9 +152,11 @@ describe('web3 API compatibility tests', () => {
 
     test('Should check the syncing status', async () => {
         while (true) {
+            log("try to query");
             // We can't know whether the node is synced (in EN case), so we just check the validity of the response.
             const response = await alice.provider.send('eth_syncing', []);
             // Sync status is either `false` or an object with the following fields.
+            log(JSON.stringify(response));
             if (response !== false) {
                 const expectedObject = {
                     currentBlock: expect.stringMatching(HEX_VALUE_REGEX),
@@ -161,6 +164,8 @@ describe('web3 API compatibility tests', () => {
                     startingBlock: expect.stringMatching(HEX_VALUE_REGEX)
                 };
                 expect(response).toMatchObject(expectedObject);
+                log(response.highestBlock);
+                log(response.currentBlock);
                 if (response.highestBlock > BigInt(0) && response.currentBlock > BigInt(0)) {
                     break;
                 }
