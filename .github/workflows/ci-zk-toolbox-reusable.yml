@@ -135,7 +135,7 @@ jobs:
 
       - name: Run all tests on Rollup chain
         run: |
-          ci_run zk_supervisor test all --chain chain_rollup
+          ci_run zk_supervisor test all --chain chain_rollup &>rollup.log &
 
       - name: Create and initialize Validium chain
         run: |
@@ -169,15 +169,15 @@ jobs:
 
       - name: Run all tests on Validium chain
         run: |
-          ci_run zk_supervisor test all --chain chain_validium
+          ci_run zk_supervisor test all --chain chain_validium &>validium.log &
             
-      - name: Show server.log logs
+      - name: Show rollup.log logs
         if: always()
-        run: ci_run cat server.log || true
+        run: ci_run cat rollup.log || true
 
-      - name: Show external_node.log logs
+      - name: Show validium.log logs
         if: always()
-        run: ci_run cat external_node.log || true
+        run: ci_run cat validium.log || true
 
       - name: Show revert.log logs
         if: always()
