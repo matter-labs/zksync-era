@@ -9,7 +9,7 @@ use crate::{
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
-        CommitmentGeneratorConfig, ExperimentalVmPlaygroundConfig, ExternalPriceApiClientConfig,
+        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig,
@@ -43,7 +43,6 @@ pub struct GeneralConfig {
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
-    pub vm_playground_config: Option<ExperimentalVmPlaygroundConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub pruning: Option<PruningConfig>,
@@ -52,4 +51,5 @@ pub struct GeneralConfig {
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub consensus_config: Option<ConsensusConfig>,
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
+    pub experimental_vm_config: Option<ExperimentalVmConfig>,
 }

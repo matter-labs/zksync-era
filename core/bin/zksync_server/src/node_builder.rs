@@ -242,8 +242,10 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
+        let experimental_vm_config = try_load_config!(self.configs.experimental_vm_config);
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
+                .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
@@ -568,9 +570,9 @@ impl MainNodeBuilder {
     }
 
     fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
-        let vm_playground_config = try_load_config!(self.configs.vm_playground_config);
+        let vm_config = try_load_config!(self.configs.experimental_vm_config);
         self.node.add_layer(VmPlaygroundLayer::new(
-            vm_playground_config,
+            vm_config.playground,
             self.genesis_config.l2_chain_id,
         ));
 

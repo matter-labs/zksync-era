@@ -295,14 +295,27 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
 impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmPlaygroundConfig {
         configs::ExperimentalVmPlaygroundConfig {
-            fast_vm_mode: match rng.gen_range(0..3) {
-                0 => FastVmMode::Old,
-                1 => FastVmMode::New,
-                _ => FastVmMode::Shadow,
-            },
+            fast_vm_mode: gen_fast_vm_mode(rng),
             db_path: self.sample(rng),
             first_processed_batch: L1BatchNumber(rng.gen()),
             reset: self.sample(rng),
+        }
+    }
+}
+
+fn gen_fast_vm_mode<R: Rng + ?Sized>(rng: &mut R) -> FastVmMode {
+    match rng.gen_range(0..3) {
+        0 => FastVmMode::Old,
+        1 => FastVmMode::New,
+        _ => FastVmMode::Shadow,
+    }
+}
+
+impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmConfig {
+        configs::ExperimentalVmConfig {
+            playground: self.sample(rng),
+            state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }
@@ -1066,7 +1079,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             da_dispatcher_config: self.sample(rng),
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
-            vm_playground_config: self.sample(rng),
             commitment_generator: self.sample(rng),
             snapshot_recovery: self.sample(rng),
             pruning: self.sample(rng),
@@ -1075,6 +1087,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: self.sample(rng),
+            experimental_vm_config: self.sample(rng),
         }
     }
 }

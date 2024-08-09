@@ -12,7 +12,7 @@ use zksync_config::{
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmPlaygroundConfig,
+        CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
@@ -71,7 +71,6 @@ pub struct TempConfigStore {
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
-    pub vm_playground_config: Option<ExperimentalVmPlaygroundConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
@@ -79,6 +78,7 @@ pub struct TempConfigStore {
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
+    pub experimental_vm_config: Option<ExperimentalVmConfig>,
 }
 
 impl TempConfigStore {
@@ -107,7 +107,6 @@ impl TempConfigStore {
             da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
-            vm_playground_config: self.vm_playground_config.clone(),
             core_object_store: self.core_object_store.clone(),
             base_token_adjuster: self.base_token_adjuster_config.clone(),
             commitment_generator: self.commitment_generator.clone(),
@@ -118,6 +117,7 @@ impl TempConfigStore {
             external_proof_integration_api_config: self
                 .external_proof_integration_api_config
                 .clone(),
+            experimental_vm_config: self.experimental_vm_config.clone(),
         }
     }
 
@@ -183,7 +183,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
-        vm_playground_config: ExperimentalVmPlaygroundConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
         base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
         commitment_generator: None,
@@ -191,6 +190,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
+        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
     })
 }
 

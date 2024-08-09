@@ -5,7 +5,7 @@ use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto::experimental as proto;
+use crate::{proto::experimental as proto, read_optional_repr};
 
 impl ProtoRepr for proto::Db {
     type Type = configs::ExperimentalDBConfig;
@@ -95,6 +95,31 @@ impl ProtoRepr for proto::VmPlayground {
             db_path: Some(this.db_path.clone()),
             first_processed_batch: Some(this.first_processed_batch.0),
             reset: Some(this.reset),
+        }
+    }
+}
+
+impl ProtoRepr for proto::Vm {
+    type Type = configs::ExperimentalVmConfig;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            playground: read_optional_repr(&self.playground).unwrap_or_default(),
+            state_keeper_fast_vm_mode: self
+                .state_keeper_fast_vm_mode
+                .map(proto::FastVmMode::try_from)
+                .transpose()
+                .context("fast_vm_mode")?
+                .map_or_else(FastVmMode::default, |mode| mode.parse()),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            playground: Some(ProtoRepr::build(&this.playground)),
+            state_keeper_fast_vm_mode: Some(
+                proto::FastVmMode::new(this.state_keeper_fast_vm_mode).into(),
+            ),
         }
     }
 }
