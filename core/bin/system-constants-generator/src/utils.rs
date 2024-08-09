@@ -8,7 +8,7 @@ use zksync_contracts::{
 use zksync_multivm::{
     interface::{
         dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory, VmInterface,
     },
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
@@ -276,8 +276,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
-    let mut vm: Vm<_, HistoryEnabled> =
-        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
+    let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
     let result = vm.inspect(tracer.into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");

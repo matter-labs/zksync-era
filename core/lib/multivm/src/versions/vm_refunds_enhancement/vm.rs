@@ -7,7 +7,7 @@ use crate::{
     glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_latest::HistoryEnabled,
@@ -35,21 +35,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
-        Self {
-            bootloader_state,
-            state,
-            storage,
-            system_env,
-            batch_env,
-            snapshots: vec![],
-            _phantom: Default::default(),
-        }
-    }
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -83,7 +70,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// This method should be used only after the batch execution.
     /// Otherwise it can panic.
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (deduplicated_events_logs, raw_events, l1_messages) = self.state.event_sink.flatten();
+        let (raw_events, l1_messages) = self.state.event_sink.flatten();
         let events: Vec<_> = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
@@ -93,13 +80,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .into_iter()
             .map(|log| UserL2ToL1Log(log.glue_into()))
             .collect();
-        let total_log_queries = self.state.event_sink.get_log_queries()
-            + self
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.state.storage.get_final_log_queries().len();
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
 
@@ -115,12 +95,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             used_contract_hashes: self.get_used_contracts(),
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
-            total_log_queries,
-            cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs: deduplicated_events_logs
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
             pubdata_costs: Vec::new(),
         }
@@ -157,14 +131,27 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-/// Methods of vm, which required some history manipulations
-impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
+impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        Self {
+            bootloader_state,
+            state,
+            storage,
+            system_env,
+            batch_env,
+            snapshots: vec![],
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {
-        self.make_snapshot_inner()
+        self.make_snapshot_inner();
     }
 
-    /// Rollback vm state to the latest snapshot and destroy the snapshot
     fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
@@ -173,10 +160,7 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
         self.rollback_to_snapshot(snapshot);
     }
 
-    /// Pop the latest snapshot from the memory and destroy it
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots
-            .pop()
-            .expect("Snapshot should be created before rolling it back");
+        self.snapshots.pop();
     }
 }

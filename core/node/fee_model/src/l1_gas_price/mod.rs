@@ -3,13 +3,12 @@
 use std::fmt;
 
 pub use self::{
-    gas_adjuster::GasAdjuster, main_node_fetcher::MainNodeFeeParamsFetcher,
-    singleton::GasAdjusterSingleton,
+    gas_adjuster::{GasAdjuster, GasAdjusterClient},
+    main_node_fetcher::MainNodeFeeParamsFetcher,
 };
 
 mod gas_adjuster;
 mod main_node_fetcher;
-mod singleton;
 
 /// Abstraction that provides parameters to set the fee for an L1 transaction, taking the desired
 /// mining time into account.

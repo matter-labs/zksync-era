@@ -30,11 +30,11 @@ impl NetworkConfig {
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
-///  Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
-///  processing the batch on L1.
+///    Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
+///    processing the batch on L1.
 ///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
-///  The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
-///  processing the batch on L1.
+///    The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+///    processing the batch on L1.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 pub enum FeeModelVersion {
     V1,

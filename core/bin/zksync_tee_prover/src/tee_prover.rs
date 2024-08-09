@@ -112,7 +112,7 @@ impl TeeProver {
     }
 
     async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job().await? {
+        match self.api_client.get_job(self.tee_type).await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
                 self.api_client

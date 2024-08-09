@@ -19,7 +19,7 @@ use zksync_prover_interface::inputs::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::Verify;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
 use zksync_vm_utils::storage::L1BatchParamsProvider;
 
@@ -241,7 +241,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .context("failed to mark job as successful for TeeVerifierInputProducer")?;
         transaction
             .tee_proof_generation_dal()
-            .insert_tee_proof_generation_job(job_id)
+            .insert_tee_proof_generation_job(job_id, TeeType::Sgx)
             .await?;
         transaction
             .commit()

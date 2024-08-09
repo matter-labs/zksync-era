@@ -30,6 +30,7 @@ mod secrets;
 mod snapshots_creator;
 
 mod external_price_api_client;
+mod external_proof_integration_api;
 mod snapshot_recovery;
 #[cfg(test)]
 mod tests;

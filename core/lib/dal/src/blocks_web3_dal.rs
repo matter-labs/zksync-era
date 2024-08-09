@@ -5,6 +5,7 @@ use zksync_db_connection::{
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
+    fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::{BlockHeader, Bytes},
@@ -564,17 +565,21 @@ impl BlocksWeb3Dal<'_, '_> {
         .collect())
     }
 
-    /// Returns `base_fee_per_gas` for L2 block range [min(newest_block - block_count + 1, 0), newest_block]
+    /// Returns `base_fee_per_gas` and `fair_pubdata_price` for L2 block range [min(newest_block - block_count + 1, 0), newest_block]
     /// in descending order of L2 block numbers.
     pub async fn get_fee_history(
         &mut self,
         newest_block: L2BlockNumber,
         block_count: u64,
-    ) -> DalResult<Vec<U256>> {
+    ) -> DalResult<(Vec<U256>, Vec<U256>)> {
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
-                base_fee_per_gas
+                base_fee_per_gas,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                protocol_version,
+                l1_gas_price
             FROM
                 miniblocks
             WHERE
@@ -593,10 +598,27 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| bigdecimal_to_u256(row.base_fee_per_gas))
+        .map(|row| {
+            let fee_input = BatchFeeInput::for_protocol_version(
+                row.protocol_version
+                    .map(|x| (x as u16).try_into().unwrap())
+                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                row.l2_fair_gas_price as u64,
+                row.fair_pubdata_price.map(|x| x as u64),
+                row.l1_gas_price as u64,
+            );
+
+            (
+                bigdecimal_to_u256(row.base_fee_per_gas),
+                U256::from(fee_input.fair_pubdata_price()),
+            )
+        })
         .collect();
 
-        Ok(result)
+        let (base_fee_per_gas, effective_pubdata_price): (Vec<U256>, Vec<U256>) =
+            result.into_iter().unzip();
+
+        Ok((base_fee_per_gas, effective_pubdata_price))
     }
 
     pub async fn get_block_details(
