@@ -193,7 +193,7 @@ where
                 return Ok(result);
             }
             Err(err) => {
-                if !err.is_transient() || retries > max_retries {
+                if !err.is_retriable() || retries > max_retries {
                     return Err(err);
                 }
 

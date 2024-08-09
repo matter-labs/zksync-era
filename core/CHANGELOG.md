@@ -1,5 +1,26 @@
 # Changelog
 
+## [24.15.0](https://github.com/matter-labs/zksync-era/compare/core-v24.14.0...core-v24.15.0) (2024-08-07)
+
+
+### Features
+
+* optimize LWG and NWG ([#2512](https://github.com/matter-labs/zksync-era/issues/2512)) ([0d00650](https://github.com/matter-labs/zksync-era/commit/0d00650f3e97248617b88a7e082c515ac48d5d5b))
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+* **zk_toolbox:** allow to run `zk_inception chain create` non-interactively ([#2579](https://github.com/matter-labs/zksync-era/issues/2579)) ([555fcf7](https://github.com/matter-labs/zksync-era/commit/555fcf79bc950f79e218697be9f1a316e4723322))
+
+
+### Bug Fixes
+
+* **core:** Handle GCS Response retriable errors ([#2588](https://github.com/matter-labs/zksync-era/issues/2588)) ([4b74092](https://github.com/matter-labs/zksync-era/commit/4b74092dbe4631824d518f72318efcb3bf8d37be))
+* **node:** respect namespaces configuration ([#2578](https://github.com/matter-labs/zksync-era/issues/2578)) ([e2d9060](https://github.com/matter-labs/zksync-era/commit/e2d90606d1286e61f3b4c601d4b2237ed26aeb80))
+* **vm-runner:** Fix data race in storage loader ([1810b78](https://github.com/matter-labs/zksync-era/commit/1810b78594083f1f98d2901f3643b5687ce9d8e8))
+
+
+### Reverts
+
+* "feat: Poll the main node for the next batch to sign (BFT-496)" ([#2574](https://github.com/matter-labs/zksync-era/issues/2574)) ([72d3be8](https://github.com/matter-labs/zksync-era/commit/72d3be87efcb059f70b4633cddd707346612c4db))
+
 ## [24.14.0](https://github.com/matter-labs/zksync-era/compare/core-v24.13.0...core-v24.14.0) (2024-08-01)
 
 

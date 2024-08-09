@@ -19,8 +19,8 @@ use zksync_config::{
         ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_env_config::FromEnv;
 use zksync_protobuf::repr::ProtoRepr;
@@ -77,6 +77,7 @@ pub struct TempConfigStore {
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
 }
 
@@ -113,6 +114,9 @@ impl TempConfigStore {
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
             consensus_config: None,
+            external_proof_integration_api_config: self
+                .external_proof_integration_api_config
+                .clone(),
             experimental_vm_config: self.experimental_vm_config.clone(),
         }
     }
@@ -185,6 +189,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         pruning: None,
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
     })
 }

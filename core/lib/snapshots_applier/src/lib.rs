@@ -82,7 +82,7 @@ enum SnapshotsApplierError {
 
 impl SnapshotsApplierError {
     fn object_store(err: ObjectStoreError, context: String) -> Self {
-        if err.is_transient() {
+        if err.is_retriable() {
             Self::Retryable(anyhow::Error::from(err).context(context))
         } else {
             Self::Fatal(anyhow::Error::from(err).context(context))
@@ -209,10 +209,10 @@ pub enum RecoveryCompletionStatus {
 /// Snapshot applier configuration options.
 #[derive(Debug, Clone)]
 pub struct SnapshotsApplierConfig {
-    /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
+    /// Number of retries for retriable errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
     pub retry_count: usize,
-    /// Initial back-off interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,
