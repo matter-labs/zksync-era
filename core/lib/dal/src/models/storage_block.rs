@@ -248,6 +248,11 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                         .default_aa_code_hash
                         .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
                 ),
+                evm_simulator_code_hash: H256::from_slice(
+                    &batch
+                        .evm_simulator_code_hash
+                        .ok_or(L1BatchMetadataError::Incomplete("evm_simulator_code_hash"))?,
+                ),
                 protocol_version: batch
                     .protocol_version
                     .map(|v| (v as u16).try_into().unwrap()),

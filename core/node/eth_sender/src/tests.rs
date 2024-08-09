@@ -74,6 +74,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: H256::default(),
             default_aa_code_hash: H256::default(),
+            evm_simulator_code_hash: H256::default(),
             protocol_version: Some(ProtocolVersionId::default()),
         },
         aux_data_hash: H256::default(),

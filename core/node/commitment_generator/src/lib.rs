@@ -178,6 +178,7 @@ impl CommitmentGenerator {
             rollup_root_hash: tree_data.hash,
             bootloader_code_hash: header.base_system_contracts_hashes.bootloader,
             default_aa_code_hash: header.base_system_contracts_hashes.default_aa,
+            evm_simulator_code_hash: header.base_system_contracts_hashes.evm_simulator,
             protocol_version,
         };
         let touched_slots = connection

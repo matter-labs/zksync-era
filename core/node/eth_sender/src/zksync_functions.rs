@@ -11,6 +11,7 @@ pub(super) struct ZkSyncFunctions {
     pub(super) post_shared_bridge_execute: Option<Function>,
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
+    pub(super) get_evm_simulator_bytecode_hash: Function,
     pub(super) get_verifier: Function,
     pub(super) get_verifier_params: Function,
     pub(super) get_protocol_version: Function,
@@ -59,6 +60,8 @@ impl Default for ZkSyncFunctions {
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
         let get_l2_default_account_bytecode_hash =
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
+        let get_evm_simulator_bytecode_hash =
+            get_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
@@ -74,6 +77,7 @@ impl Default for ZkSyncFunctions {
             post_shared_bridge_execute,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
+            get_evm_simulator_bytecode_hash,
             get_verifier,
             get_verifier_params,
             get_protocol_version,
