@@ -14,7 +14,8 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -82,7 +83,7 @@ impl<H: HistoryMode> VmTester<H> {
 
         let mut l1_batch = self.vm.batch_env.clone();
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
+            let last_l2_block = load_last_l2_block(&self.storage).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
                 hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),

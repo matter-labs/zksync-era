@@ -62,9 +62,6 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     .map(UserL2ToL1Log)
                     .collect(),
                 system_logs: vec![],
-                total_log_queries: value.full_result.total_log_queries,
-                cycles_used: value.full_result.cycles_used,
-                deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
                 pubdata_costs: Vec::new(),
             },
@@ -121,9 +118,6 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     .map(UserL2ToL1Log)
                     .collect(),
                 system_logs: vec![],
-                total_log_queries: value.full_result.total_log_queries,
-                cycles_used: value.full_result.cycles_used,
-                deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
                 pubdata_costs: Vec::new(),
             },
@@ -179,9 +173,6 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     .map(UserL2ToL1Log)
                     .collect(),
                 system_logs: vec![],
-                total_log_queries: value.full_result.total_log_queries,
-                cycles_used: value.full_result.cycles_used,
-                deduplicated_events_logs: vec![],
                 storage_refunds: Vec::new(),
                 pubdata_costs: Vec::new(),
             },

@@ -6,6 +6,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
 use zksync_consensus_utils::EncodeDist;
@@ -287,6 +288,34 @@ impl Distribution<configs::ExperimentalDBConfig> for EncodeDist {
             protective_reads_persistence_enabled: self.sample(rng),
             processing_delay_ms: self.sample(rng),
             include_indices_and_filters_in_block_cache: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmPlaygroundConfig {
+        configs::ExperimentalVmPlaygroundConfig {
+            fast_vm_mode: gen_fast_vm_mode(rng),
+            db_path: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+            reset: self.sample(rng),
+        }
+    }
+}
+
+fn gen_fast_vm_mode<R: Rng + ?Sized>(rng: &mut R) -> FastVmMode {
+    match rng.gen_range(0..3) {
+        0 => FastVmMode::Old,
+        1 => FastVmMode::New,
+        _ => FastVmMode::Shadow,
+    }
+}
+
+impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ExperimentalVmConfig {
+        configs::ExperimentalVmConfig {
+            playground: self.sample(rng),
+            state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }
@@ -1060,6 +1089,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             external_price_api_client_config: self.sample(rng),
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: self.sample(rng),
+            experimental_vm_config: self.sample(rng),
         }
     }
 }
