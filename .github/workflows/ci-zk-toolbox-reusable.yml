@@ -165,6 +165,8 @@ jobs:
 
       - name: Run tests on all chains
         run: |
+          ci_run zk_supervisor test build
+
           ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
           PID1=$!
 
