@@ -72,9 +72,58 @@ impl TeeVerifierInputProducerDal<'_, '_> {
         Ok(())
     }
 
+    // Returns inclusive range, i.e. [low,high]
+    pub async fn get_new_l1_batches(
+        &mut self,
+    ) -> DalResult<Option<(L1BatchNumber, L1BatchNumber)>> {
+        // Since we depend on Merkle paths, we use the proof_generation_details table to inform us of newly available to-be-proven batches.
+        let row_high = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                proof_generation_details
+            "#
+        )
+        .instrument("get_sealed_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?
+        .number
+        .unwrap();
+
+        let row_low = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) + 1 AS "number"
+            FROM
+                tee_verifier_input_producer_jobs
+            "#
+        )
+        .instrument("get_latest_tee_job_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?
+        .number
+        // If the table is empty, we start with the most recent batch.
+        .unwrap_or(row_high);
+
+        Ok(Some((
+            L1BatchNumber(row_low as u32),
+            L1BatchNumber(row_high as u32),
+        )))
+    }
+
     pub async fn get_next_tee_verifier_input_producer_job(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
+        if let Some((low, high)) = self.get_new_l1_batches().await? {
+            for i in low.0..=high.0 {
+                self.create_tee_verifier_input_producer_job(L1BatchNumber(i))
+                    .await?
+            }
+        }
+
         let l1_batch_number = sqlx::query!(
             r#"
             UPDATE tee_verifier_input_producer_jobs
