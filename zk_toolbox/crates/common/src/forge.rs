@@ -70,7 +70,11 @@ impl ForgeScript {
             }
         }
 
-        let command = format!("forge script {} --legacy {}", script_path.to_str().unwrap(), args_no_resume.join(" "));
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
 
         println!("Command: {}", command);
 

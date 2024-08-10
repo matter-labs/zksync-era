@@ -21,7 +21,7 @@ struct DeployedAddresses {
     state_transition: StateTransition,
     bridgehub: Bridgehub,
     validator_timelock_addr: Address,
-    native_token_vault_addr: Address
+    native_token_vault_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -72,7 +72,7 @@ impl RegisterChainL1Config {
                     bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
-                native_token_vault_addr: contracts.ecosystem_contracts.native_token_vault_addr
+                native_token_vault_addr: contracts.ecosystem_contracts.native_token_vault_addr,
             },
             chain: ChainL1Config {
                 chain_chain_id: genesis_config.l2_chain_id,
@@ -88,7 +88,7 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
-                force_deployments_data: contracts.l1.force_deployments_data.clone()
+                force_deployments_data: contracts.l1.force_deployments_data.clone(),
             },
             owner_address: wallets_config.governor.address,
         })

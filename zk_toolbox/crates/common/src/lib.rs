@@ -10,9 +10,9 @@ pub mod ethereum;
 pub mod files;
 pub mod forge;
 pub mod git;
+pub mod hardhat;
 pub mod server;
 pub mod wallets;
-pub mod hardhat;
 
 pub use prerequisites::{check_general_prerequisites, check_prover_prequisites};
 pub use prompt::{init_prompt_theme, Prompt, PromptConfirm, PromptSelect};

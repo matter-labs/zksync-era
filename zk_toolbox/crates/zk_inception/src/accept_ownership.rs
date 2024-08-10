@@ -103,7 +103,15 @@ pub async fn set_da_validator_pair(
     forge_args.resume = false;
 
     let calldata = ACCEPT_ADMIN
-        .encode("setDAValidatorPair", (governor_contract, diamond_proxy_address, l1_da_validator_address, l2_da_validator_address))
+        .encode(
+            "setDAValidatorPair",
+            (
+                governor_contract,
+                diamond_proxy_address,
+                l1_da_validator_address,
+                l2_da_validator_address,
+            ),
+        )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)

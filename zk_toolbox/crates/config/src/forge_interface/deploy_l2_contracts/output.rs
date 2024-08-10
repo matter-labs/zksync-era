@@ -11,7 +11,7 @@ impl ZkToolboxConfig for DefaultL2UpgradeOutput {}
 pub struct InitializeBridgeOutput {
     pub l2_shared_bridge_proxy: Address,
     // TODO: move it out into a different script.
-    pub l2_da_validator_addr: Address
+    pub l2_da_validator_addr: Address,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

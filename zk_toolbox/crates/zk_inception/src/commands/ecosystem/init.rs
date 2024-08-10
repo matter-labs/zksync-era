@@ -5,7 +5,14 @@ use std::{
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd, config::global_config, forge::{Forge, ForgeScriptArgs}, git, hardhat::build_l2_contracts, logger, spinner::Spinner, Prompt
+    cmd::Cmd,
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    git,
+    hardhat::build_l2_contracts,
+    logger,
+    spinner::Spinner,
+    Prompt,
 };
 use config::{
     forge_interface::{

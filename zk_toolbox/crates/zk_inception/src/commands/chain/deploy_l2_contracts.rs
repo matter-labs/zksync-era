@@ -2,7 +2,11 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd, config::global_config, forge::{Forge, ForgeScriptArgs}, hardhat::build_l2_contracts, spinner::Spinner
+    cmd::Cmd,
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    hardhat::build_l2_contracts,
+    spinner::Spinner,
 };
 use config::{
     forge_interface::{
@@ -172,8 +176,10 @@ async fn call_forge(
 ) -> anyhow::Result<()> {
     let input = DeployL2ContractsInput::new(
         chain_config,
-        &ecosystem_config.get_contracts_config().expect("contracts config"), 
-        ecosystem_config.era_chain_id
+        &ecosystem_config
+            .get_contracts_config()
+            .expect("contracts config"),
+        ecosystem_config.era_chain_id,
     )?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;

@@ -26,7 +26,9 @@ use crate::{
         genesis::genesis,
     },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_GENESIS_DATABASE_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -110,10 +112,10 @@ pub async fn init(
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-    
+
     // TODO: move it into a separate func
-    let validium_mode = chain_config.l1_batch_commit_data_generator_mode
-    == L1BatchCommitmentMode::Validium;
+    let validium_mode =
+        chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
 
     let l1_da_validator_addr = if validium_mode {
         contracts_config.l1.validium_l1_da_validator_addr

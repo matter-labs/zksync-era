@@ -24,14 +24,14 @@ pub struct DeployL2ContractsInput {
 impl DeployL2ContractsInput {
     pub fn new(
         chain_config: &ChainConfig,
-        contracts_config: &ContractsConfig, 
-        era_chain_id: L2ChainId
+        contracts_config: &ContractsConfig,
+        era_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let contracts = chain_config.get_contracts_config()?;
         let wallets = chain_config.get_wallets_config()?;
 
-        let validium_mode = chain_config.l1_batch_commit_data_generator_mode
-            == L1BatchCommitmentMode::Validium;
+        let validium_mode =
+            chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
 
         let l1_da_validator_addr = if validium_mode {
             contracts.l1.validium_l1_da_validator_addr
