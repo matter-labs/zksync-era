@@ -360,7 +360,7 @@ impl EthTxManager {
             // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.finalized <= tx.nonce {
+            if operator_nonce.finalized < tx.nonce {
                 continue;
             }
 
@@ -411,6 +411,8 @@ impl EthTxManager {
         tx_status: ExecutedTxStatus,
         finalized_block: L1BlockNumber,
     ) {
+        // println!("status: {:#?}", tx_status);
+        // println!("finalized block: {:#?}", finalized_block);
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
             if tx_status.success {

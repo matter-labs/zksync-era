@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
 
-use crate::{traits::ZkToolboxConfig, ChainConfig};
+use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
 impl ZkToolboxConfig for DeployL2ContractsInput {}
 
@@ -22,7 +22,11 @@ pub struct DeployL2ContractsInput {
 }
 
 impl DeployL2ContractsInput {
-    pub fn new(chain_config: &ChainConfig, era_chain_id: L2ChainId) -> anyhow::Result<Self> {
+    pub fn new(
+        chain_config: &ChainConfig,
+        contracts_config: &ContractsConfig, 
+        era_chain_id: L2ChainId
+    ) -> anyhow::Result<Self> {
         let contracts = chain_config.get_contracts_config()?;
         let wallets = chain_config.get_wallets_config()?;
 
@@ -30,9 +34,9 @@ impl DeployL2ContractsInput {
             == L1BatchCommitmentMode::Validium;
 
         let l1_da_validator_addr = if validium_mode {
-            contracts.l1.rollup_l1_da_validator_addr
-        } else {
             contracts.l1.validium_l1_da_validator_addr
+        } else {
+            contracts.l1.rollup_l1_da_validator_addr
         };
 
         Ok(Self {
@@ -40,7 +44,7 @@ impl DeployL2ContractsInput {
             chain_id: chain_config.chain_id,
             l1_shared_bridge: contracts.bridges.shared.l1_address,
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
-            governance: wallets.governor.address,
+            governance: contracts_config.l1.governance_addr,
             erc20_bridge: contracts.bridges.erc20.l1_address,
             diamond_proxy_addr: contracts.l1.diamond_proxy_addr,
             validium_mode,

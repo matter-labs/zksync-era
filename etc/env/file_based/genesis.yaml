@@ -1,9 +1,9 @@
 genesis_root: 0x53b2db8a7a5954757679b80a3403f077b7e1b8f398383a0075d95eadae08366c
 genesis_rollup_leaf_index: 71
 genesis_batch_commitment: 0x8933c43b571c2bd43bc73fbaaa2ea8de7e07fcedcbd58935400f1c18620c396f
-genesis_protocol_semantic_version: '0.24.1'
+genesis_protocol_semantic_version: '0.25.0'
 # deprecated
-genesis_protocol_version: 24
+genesis_protocol_version: 25
 default_aa_hash: 0x0100055de356de05b75c83195567a6688d9050a17b58ccc5c5c91d05cd2bfb6d
 bootloader_hash: 0x010008eb70b467979695d3f240d8db04b1b179dd02c0d7fd45a027fb4bd9ecaf
 l1_chain_id: 9

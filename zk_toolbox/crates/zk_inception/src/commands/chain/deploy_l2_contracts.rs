@@ -170,7 +170,11 @@ async fn call_forge(
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
-    let input = DeployL2ContractsInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let input = DeployL2ContractsInput::new(
+        chain_config,
+        &ecosystem_config.get_contracts_config().expect("contracts config"), 
+        ecosystem_config.era_chain_id
+    )?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(
@@ -200,7 +204,7 @@ async fn call_forge(
 
     forge = fill_forge_private_key(
         forge,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        ecosystem_config.get_wallets()?.governor_private_key(),
     )?;
 
     check_the_balance(&forge).await?;
