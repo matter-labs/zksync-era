@@ -281,7 +281,7 @@ async fn deploy_ecosystem(
             L1Network::Localhost => {
                 ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
             }
-            L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
+            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => ecosystem_config
                 .get_preexisting_configs_path()
                 .join(format!(
                     "{}.yaml",
