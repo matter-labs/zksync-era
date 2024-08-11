@@ -26,7 +26,7 @@ pub enum Network {
     Goerli,
     /// Ethereum Sepolia testnet.
     Sepolia,
-    /// Ethereum Holešky testnet. 
+    /// Ethereum Holešky testnet.
     Holesky,
     /// Self-hosted Ethereum network.
     Localhost,
