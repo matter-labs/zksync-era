@@ -23,23 +23,26 @@ impl DataAvailabilityDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
         blob_id: &str,
+        verify_inclusion: bool,
         sent_at: chrono::NaiveDateTime,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-                data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
+                data_availability (l1_batch_number, blob_id, verify_inclusion, sent_at, created_at, updated_at)
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+                ($1, $2, $3, $4, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
+            verify_inclusion,
             sent_at,
         )
         .instrument("insert_l1_batch_da")
         .with_arg("number", &number)
         .with_arg("blob_id", &blob_id)
+        .with_arg("verify_inclusion", &verify_inclusion)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -158,6 +161,7 @@ impl DataAvailabilityDal<'_, '_> {
                 l1_batch_number,
                 blob_id,
                 inclusion_data,
+                verify_inclusion,
                 sent_at
             FROM
                 data_availability

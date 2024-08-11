@@ -96,7 +96,6 @@ pub struct L1BatchMetadata {
     pub state_diffs_compressed: Vec<u8>,
 
     pub da_inclusion_data: Option<Vec<u8>>,
-    pub verify_da_inclusion: Option<bool>,
 
     pub aggregation_root: H256,
     pub local_root: H256,
