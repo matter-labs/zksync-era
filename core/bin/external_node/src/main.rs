@@ -94,7 +94,7 @@ async fn build_state_keeper(
         stop_receiver_clone.changed().await?;
         result
     }));
-    let batch_executor_base: Box<dyn BatchExecutor> =
+    let batch_executor: Box<dyn BatchExecutor> =
         Box::new(MainBatchExecutor::new(save_call_traces, true));
 
     let io = ExternalIO::new(
@@ -108,7 +108,7 @@ async fn build_state_keeper(
     Ok(ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
-        batch_executor_base,
+        batch_executor,
         output_handler,
         Arc::new(NoopSealer),
         Arc::new(storage_factory),

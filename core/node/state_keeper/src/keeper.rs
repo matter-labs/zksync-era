@@ -64,7 +64,7 @@ trait ErasedBatchExecutor: fmt::Debug + Send {
 /// The only [`ErasedBatchExecutor`] implementation.
 #[derive(Debug)]
 struct ErasedBatchExecutorImpl<S> {
-    batch_executor_base: Box<dyn BatchExecutor<S>>,
+    batch_executor: Box<dyn BatchExecutor<S>>,
     storage_factory: Arc<dyn ReadStorageFactory<S>>,
 }
 
@@ -83,7 +83,7 @@ impl<S: 'static + fmt::Debug> ErasedBatchExecutor for ErasedBatchExecutorImpl<S>
             .context("failed creating VM storage")?
             .ok_or(Error::Canceled)?;
         Ok(self
-            .batch_executor_base
+            .batch_executor
             .init_batch(storage, l1_batch_env, system_env))
     }
 }
@@ -110,7 +110,7 @@ impl ZkSyncStateKeeper {
     pub fn new<S: 'static + fmt::Debug>(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn BatchExecutor<S>>,
+        batch_executor: Box<dyn BatchExecutor<S>>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory<S>>,
@@ -119,7 +119,7 @@ impl ZkSyncStateKeeper {
             stop_receiver,
             io: sequencer,
             batch_executor: Box::new(ErasedBatchExecutorImpl {
-                batch_executor_base,
+                batch_executor,
                 storage_factory,
             }),
             output_handler,
