@@ -3,7 +3,7 @@ use zksync_state::WriteStorage;
 
 use crate::{
     interface::{
-        types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
+        tracer::{TracerExecutionStatus, VmExecutionStopReason},
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     vm_1_4_1::{

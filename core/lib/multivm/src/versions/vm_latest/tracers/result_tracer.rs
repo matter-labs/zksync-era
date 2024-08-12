@@ -11,9 +11,9 @@ use zksync_types::U256;
 
 use crate::{
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
-        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmRevertReason,
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
     vm_latest::{
         constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},

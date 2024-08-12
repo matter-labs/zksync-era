@@ -11,9 +11,9 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
         ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{

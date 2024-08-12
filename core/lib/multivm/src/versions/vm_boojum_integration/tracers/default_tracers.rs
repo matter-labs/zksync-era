@@ -17,9 +17,8 @@ use zksync_state::{StoragePtr, WriteStorage};
 use super::PubdataTracer;
 use crate::{
     interface::{
-        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
-        types::tracer::TracerExecutionStatus,
         Halt, VmExecutionMode,
     },
     vm_boojum_integration::{

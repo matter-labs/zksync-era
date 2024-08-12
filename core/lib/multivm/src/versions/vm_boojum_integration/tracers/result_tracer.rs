@@ -10,9 +10,9 @@ use zksync_types::U256;
 
 use crate::{
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
-        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmRevertReason,
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
     vm_boojum_integration::{
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},

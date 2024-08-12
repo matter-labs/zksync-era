@@ -11,7 +11,7 @@ use zksync_utils::ceil_div_u256;
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer, types::tracer::TracerExecutionStatus,
+        tracer::TracerExecutionStatus, traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
         L1BatchEnv, Refunds,
     },
     vm_latest::{

@@ -19,8 +19,7 @@ use crate::{
     glue::GlueInto,
     interface::{
         dyn_tracers::vm_1_5_0::DynTracer,
-        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        types::tracer::TracerExecutionStatus,
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
     vm_latest::{

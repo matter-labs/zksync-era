@@ -7,7 +7,7 @@ use zksync_types::{
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::VmExecutionLogs,
     vm_refunds_enhancement::{
         old_vm::{events::merge_events, utils::precompile_calls_count_after_timestamp},
         vm::Vm,

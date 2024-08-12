@@ -52,12 +52,8 @@ use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::interface::{
-    types::{
-        errors::BytecodeCompressionError,
-        inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode},
-        outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
-    },
-    FinishedL1Batch, VmMemoryMetrics,
+    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch, L1BatchEnv,
+    L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {

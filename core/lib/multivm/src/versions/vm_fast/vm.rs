@@ -35,8 +35,10 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        BytecodeCompressionError, Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, ExecutionResult,
+        FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxRevertReason,
+        VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics, VmRevertReason,
     },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -49,9 +51,7 @@ use crate::{
             get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
             TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
-        L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        MultiVMSubversion,
     },
 };
 
@@ -575,7 +575,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
     }
 
-    fn record_vm_memory_metrics(&self) -> crate::vm_latest::VmMemoryMetrics {
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         todo!("Unused during batch execution")
     }
 

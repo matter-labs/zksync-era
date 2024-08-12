@@ -8,7 +8,7 @@ use zksync_types::{
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::VmExecutionLogs,
     vm_boojum_integration::{
         old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm,
     },

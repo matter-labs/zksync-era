@@ -20,8 +20,7 @@ use crate::{
     interface::{
         dyn_tracers::vm_1_4_1::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        types::inputs::L1BatchEnv,
-        VmExecutionMode,
+        L1BatchEnv, VmExecutionMode,
     },
     vm_1_4_1::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},

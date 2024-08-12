@@ -11,8 +11,8 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 
 use crate::{
     interface::{
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
-        types::tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         Halt,
     },
     tracers::validator::{

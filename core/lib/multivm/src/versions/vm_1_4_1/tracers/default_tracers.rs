@@ -18,9 +18,8 @@ use super::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
-        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
-        types::tracer::TracerExecutionStatus,
         Halt, VmExecutionMode,
     },
     vm_1_4_1::{

@@ -27,6 +27,7 @@ use zksync_utils::{
 };
 
 use crate::{
+    interface::L1BatchEnv,
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,
@@ -37,7 +38,6 @@ use crate::{
         vm_instance::ZkSyncVmState,
         OracleTools, VmInstance,
     },
-    vm_latest::L1BatchEnv,
 };
 
 // TODO (SMA-1703): move these to config and make them programmatically generable.

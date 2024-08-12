@@ -17,7 +17,7 @@ use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256}
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer, types::tracer::TracerExecutionStatus,
+        tracer::TracerExecutionStatus, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         L1BatchEnv, Refunds,
     },
     vm_boojum_integration::{

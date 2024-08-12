@@ -18,7 +18,7 @@ use zksync_types::{
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::VmExecutionLogs,
     vm_m5::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
