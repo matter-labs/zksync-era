@@ -18,3 +18,4 @@ zksync_types.workspace = true # FIXME: move VM-related types? (e.g., VM events, 
 hex.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+tracing.workspace = true

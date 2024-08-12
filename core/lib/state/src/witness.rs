@@ -1,6 +1,5 @@
 use zksync_types::{witness_block_state::WitnessStorageState, StorageKey, StorageValue, H256};
-
-use crate::ReadStorage;
+use zksync_vm_interface::storage::ReadStorage;
 
 /// [`ReadStorage`] implementation backed by binary serialized [`WitnessHashBlockState`].
 /// Note that `load_factory_deps` is not used.
