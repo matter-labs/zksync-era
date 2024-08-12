@@ -348,10 +348,7 @@ impl ZksNamespace {
 
         let mut log_leaf_proof = LogLeafProof::new(proof);
 
-        let settlement_layer: u64 = std::env::var("ETH_CLIENT_CHAIN_ID")
-            .unwrap()
-            .parse()
-            .unwrap();
+        let settlement_layer: u64 = self.state.api_config.sl_chain_id.0;
 
         if settlement_layer == EXPECTED_SYNC_LAYER_CHAIN_ID {
             println!("\nI am on sync layer!!\n");
@@ -360,7 +357,10 @@ impl ZksNamespace {
 
             // Create a client for pinging the RPC.
             let client: Client<L2> = Client::http(
-                std::env::var("SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL")
+                self.state
+                    .api_config
+                    .settlement_layer_url
+                    .clone()
                     .unwrap()
                     .parse()
                     .unwrap(),

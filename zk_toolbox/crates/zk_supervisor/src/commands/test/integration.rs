@@ -20,11 +20,8 @@ pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     build_repository(shell, &ecosystem_config)?;
     build_test_contracts(shell, &ecosystem_config)?;
 
-    let mut command = cmd!(
-        shell,
-        "yarn jest --forceExit --testTimeout 350000 -- ether.test.ts"
-    )
-    .env("CHAIN_NAME", ecosystem_config.default_chain);
+    let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 350000")
+        .env("CHAIN_NAME", ecosystem_config.default_chain);
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
