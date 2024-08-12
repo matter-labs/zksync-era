@@ -23,7 +23,6 @@ pub use self::{
         BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory,
         RocksdbWithMemory,
     },
-    witness::WitnessStorage,
 };
 
 mod cache;
@@ -34,4 +33,3 @@ mod shadow_storage;
 mod storage_factory;
 #[cfg(test)]
 mod test_utils;
-mod witness;
