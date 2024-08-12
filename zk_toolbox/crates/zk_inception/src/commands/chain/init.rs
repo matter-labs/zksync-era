@@ -16,7 +16,6 @@ use config::{
     update_from_chain_config, update_ports, ChainConfig, ContractsConfig, EcosystemConfig,
     GeneralConfig,
 };
-use url::Url;
 use xshell::Shell;
 
 use crate::{

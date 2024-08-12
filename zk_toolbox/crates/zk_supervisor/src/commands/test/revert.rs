@@ -1,4 +1,4 @@
-use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
