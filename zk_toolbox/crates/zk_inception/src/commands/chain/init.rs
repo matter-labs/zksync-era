@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
@@ -11,9 +11,10 @@ use config::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
-    set_l1_rpc_url,
+    ports_config, set_l1_rpc_url,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig,
+    update_from_chain_config, update_ports, ChainConfig, ContractsConfig, EcosystemConfig,
+    GeneralConfig,
 };
 use url::Url;
 use xshell::Shell;
@@ -167,34 +168,17 @@ async fn register_chain(
 }
 
 fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
-    if let Some(ref mut api) = general_config.api_config {
-        api.web3_json_rpc.http_port += port_offset;
-        api.web3_json_rpc.ws_port += port_offset;
+    let Some(mut ports_config) = ports_config(&general_config) else {
+        bail!("Missing ports config");
+    };
 
-        let mut http_url = Url::parse(&api.web3_json_rpc.http_url)?;
-        let _ = http_url.set_port(http_url.port().map(|p| p + port_offset));
-        api.web3_json_rpc.http_url = http_url.to_string();
+    ports_config.web3_json_rpc_http_port += port_offset;
+    ports_config.web3_json_rpc_ws_port += port_offset;
+    ports_config.healthcheck_port += port_offset;
+    ports_config.merkle_tree_port += port_offset;
+    ports_config.prometheus_listener_port += port_offset;
 
-        let mut ws_url = Url::parse(&api.web3_json_rpc.ws_url)?;
-        let _ = ws_url.set_port(ws_url.port().map(|p| p + port_offset));
-        api.web3_json_rpc.ws_url = ws_url.to_string();
-
-        api.prometheus.listener_port += port_offset;
-        api.healthcheck.port += port_offset;
-        api.merkle_tree.port += port_offset;
-    }
-
-    if let Some(ref mut contract_verifier) = general_config.contract_verifier {
-        contract_verifier.port += port_offset;
-
-        let mut url = Url::parse(&contract_verifier.url)?;
-        let _ = url.set_port(url.port().map(|p| p + port_offset));
-        contract_verifier.url = url.to_string();
-    }
-
-    if let Some(ref mut prometheus) = general_config.prometheus_config {
-        prometheus.listener_port += port_offset;
-    }
+    update_ports(general_config, &ports_config)?;
 
     Ok(())
 }
