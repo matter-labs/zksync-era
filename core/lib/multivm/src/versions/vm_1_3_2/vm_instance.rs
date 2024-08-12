@@ -381,7 +381,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop().unwrap();
+        self.snapshots.pop();
     }
 
     /// Returns the amount of gas remaining to the VM.
@@ -768,7 +768,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
                 // after because draining will drop timestamps.
-                let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
+                let (raw_events, l1_messages) = self.state.event_sink.flatten();
                 full_result.events = merge_events(raw_events)
                     .into_iter()
                     .map(|e| {

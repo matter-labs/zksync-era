@@ -435,4 +435,15 @@ impl<'a> Connection<'a> {
             last,
         })
     }
+
+    /// Wrapper for `consensus_dal().attestation_status()`.
+    pub async fn attestation_status(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<consensus_dal::AttestationStatus>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().attestation_status())
+            .await?
+            .context("attestation_status()")?)
+    }
 }

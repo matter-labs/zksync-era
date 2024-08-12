@@ -11,7 +11,7 @@ use zksync_types::{
 };
 
 use crate::{
-    client::{ForEthereumLikeNetwork, L2},
+    client::{ForWeb3Network, L2},
     types::{
         Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64,
     },
@@ -19,11 +19,11 @@ use crate::{
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
+    rpc(server, client, namespace = "eth", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "eth", client_bounds(Self: ForEthereumLikeNetwork<Net = L2>))
+    rpc(client, namespace = "eth", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait EthNamespace {
     #[method(name = "blockNumber")]

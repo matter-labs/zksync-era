@@ -12,9 +12,9 @@ pub enum EthSenderError {
 }
 
 impl EthSenderError {
-    pub fn is_transient(&self) -> bool {
+    pub fn is_retriable(&self) -> bool {
         match self {
-            EthSenderError::EthereumGateway(err) => err.is_transient(),
+            EthSenderError::EthereumGateway(err) => err.is_retriable(),
             _ => false,
         }
     }

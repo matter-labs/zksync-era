@@ -56,9 +56,8 @@ impl TxSink for MasterPoolSink {
                 .transactions_dal()
                 .insert_transaction_l2(tx, execution_metrics)
                 .await
-                .map(|submission_res_handle| {
-                    APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
-                    submission_res_handle
+                .inspect(|submission_res_handle| {
+                    APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();
                 })
                 .map_err(|err| err.generalize().into()),
             Err(err) => Err(err.generalize().into()),

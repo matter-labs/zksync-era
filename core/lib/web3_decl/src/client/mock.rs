@@ -14,7 +14,7 @@ use jsonrpsee::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::{boxed::RawParams, ForEthereumLikeNetwork, Network, TaggedClient};
+use super::{boxed::RawParams, ForWeb3Network, Network, TaggedClient};
 
 /// Object-safe counterpart to [`Handler`]. We need it because async closures aren't available on stable Rust.
 #[async_trait]
@@ -177,7 +177,7 @@ impl<Net: Network> MockClient<Net> {
     }
 }
 
-impl<Net: Network> ForEthereumLikeNetwork for MockClient<Net> {
+impl<Net: Network> ForWeb3Network for MockClient<Net> {
     type Net = Net;
 
     fn network(&self) -> Self::Net {

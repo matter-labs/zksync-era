@@ -241,9 +241,9 @@ impl EthTxManager {
         match self.l1_interface.send_raw_tx(raw_tx, operator_type).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                // In transient errors, server may have received the transaction
+                // In retriable errors, server may have received the transaction
                 // we don't want to loose record about it in case that happens
-                if !error.is_transient() {
+                if !error.is_retriable() {
                     storage
                         .eth_sender_dal()
                         .remove_tx_history(tx_history_id)
@@ -659,7 +659,7 @@ impl EthTxManager {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {:?}", error);
-                if error.is_transient() {
+                if error.is_retriable() {
                     METRICS.l1_transient_errors.inc();
                 }
             }

@@ -38,7 +38,7 @@ use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
     mock::{MockClient, MockClientBuilder},
-    network::{ForEthereumLikeNetwork, Network, TaggedClient, L1, L2},
+    network::{ForWeb3Network, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
 
@@ -227,7 +227,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
     }
 }
 
-impl<Net: Network, C: ClientBase> ForEthereumLikeNetwork for Client<Net, C> {
+impl<Net: Network, C: ClientBase> ForWeb3Network for Client<Net, C> {
     type Net = Net;
 
     fn network(&self) -> Self::Net {

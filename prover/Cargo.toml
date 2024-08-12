@@ -53,16 +53,16 @@ tokio = "1"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3" }
-vise = "0.1.0"
+vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.2-rc.2"
-circuit_sequencer_api = "=0.150.2-rc.2"
-zkevm_test_harness = "=0.150.2-rc.2"
+circuit_definitions = "=0.150.2-rc.3"
+circuit_sequencer_api = "=0.150.2-rc.3"
+zkevm_test_harness = "=0.150.2-rc.3"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.0-gpu-wrapper.1" }
-shivini = "=0.150.2-rc.2"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.140.1-gpu-wrapper.1" }
+shivini = "=0.150.2-rc3"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
