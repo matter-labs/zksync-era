@@ -5,12 +5,15 @@ use zk_evm_1_5_0::{
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
-    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
+    interface::{
+        dyn_tracers::vm_1_5_0::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
+    },
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

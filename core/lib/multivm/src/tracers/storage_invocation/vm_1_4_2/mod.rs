@@ -1,7 +1,6 @@
-use zksync_state::WriteStorage;
-
 use crate::{
     interface::{
+        storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         Halt,

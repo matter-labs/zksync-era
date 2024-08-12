@@ -1,11 +1,13 @@
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, VmExecutionResultAndLogs,
+        dyn_tracers::vm_1_3_3::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::VmExecutionStopReason,
+        VmExecutionResultAndLogs,
     },
     vm_virtual_blocks::{
         BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory,

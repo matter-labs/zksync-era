@@ -6,7 +6,6 @@ use vm2::{
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
-use zksync_state::ReadStorage;
 use zksync_types::{
     event::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
@@ -35,10 +34,11 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, ExecutionResult,
-        FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxRevertReason,
-        VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics, VmRevertReason,
+        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
+        TxRevertReason, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmRevertReason,
     },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},

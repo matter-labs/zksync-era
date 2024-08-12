@@ -24,7 +24,7 @@
 //!     tracers::CallTracer ,
 //!     vm_latest::ToTracerPointer
 //! };
-//! use zksync_state::{InMemoryStorage, StorageView};
+//! use crate::interface::storage::{InMemoryStorage, StorageView};
 //! use zksync_types::Transaction;
 //!
 //! // Prepare the environment for the VM.
@@ -47,13 +47,13 @@
 //! let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
 //! ```
 
-use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::interface::{
-    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch, L1BatchEnv,
-    L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
+    storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
+    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    VmMemoryMetrics,
 };
 
 pub trait VmInterface {

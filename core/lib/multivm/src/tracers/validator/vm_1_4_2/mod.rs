@@ -2,7 +2,6 @@ use zk_evm_1_4_1::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
 use zksync_types::{
     get_code_key, vm_trace::ViolatedValidationRule, AccountTreeId, StorageKey, H256,
@@ -11,6 +10,7 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 
 use crate::{
     interface::{
+        storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         Halt,

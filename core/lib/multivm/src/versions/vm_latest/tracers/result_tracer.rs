@@ -5,12 +5,12 @@ use zk_evm_1_5_0::{
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::U256;
 
 use crate::{
     interface::{
+        storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,

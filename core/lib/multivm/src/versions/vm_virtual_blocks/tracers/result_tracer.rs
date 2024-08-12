@@ -3,13 +3,15 @@ use zk_evm_1_3_3::{
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, ExecutionResult, Halt,
-        TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs, VmRevertReason,
+        dyn_tracers::vm_1_3_3::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::VmExecutionStopReason,
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs,
+        VmRevertReason,
     },
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,

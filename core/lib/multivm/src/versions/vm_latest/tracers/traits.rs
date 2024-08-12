@@ -1,8 +1,7 @@
-use zksync_state::WriteStorage;
-
 use crate::{
     interface::{
         dyn_tracers::vm_1_5_0::DynTracer,
+        storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
     vm_latest::{

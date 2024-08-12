@@ -12,12 +12,12 @@ use zk_evm_1_4_1::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 
 use super::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
+        storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         Halt, VmExecutionMode,

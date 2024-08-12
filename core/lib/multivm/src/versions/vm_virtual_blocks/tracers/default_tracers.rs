@@ -12,10 +12,14 @@ use zk_evm_1_3_3::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{Opcode, RetOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::{
-    interface::{dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, VmExecutionMode},
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::VmExecutionStopReason,
+        VmExecutionMode,
+    },
     vm_virtual_blocks::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

@@ -1,7 +1,6 @@
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
@@ -15,6 +14,7 @@ use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h2
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
 use crate::{
     glue::tracers::IntoOldVmTracer,
+    interface::storage::{StoragePtr, WriteStorage},
     tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
 };
 

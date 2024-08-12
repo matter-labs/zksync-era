@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use zk_evm_1_3_3::tracing::{BeforeExecutionData, VmLocalStateData};
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{StorageKey, H256};
 
 use super::{
@@ -9,7 +8,10 @@ use super::{
     StorageAccess,
 };
 use crate::{
-    interface::dyn_tracers::vm_1_3_3::DynTracer,
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+    },
     tracers::prestate_tracer::U256,
     vm_refunds_enhancement::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
@@ -63,7 +65,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
     }
 }
 
-impl<S: zksync_state::WriteStorage, H: HistoryMode> StorageAccess for ZkSyncVmState<S, H> {
+impl<S: WriteStorage, H: HistoryMode> StorageAccess for ZkSyncVmState<S, H> {
     fn read_from_storage(&self, key: &StorageKey) -> U256 {
         self.storage.storage.read_from_storage(key)
     }

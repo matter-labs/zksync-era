@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zk_evm_1_3_3::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_contracts::deployer_contract;
-use zksync_state::WriteStorage;
 use zksync_types::{
     ethabi::{Address, Token},
     web3::keccak256,
@@ -21,6 +20,7 @@ use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
 };
 
+use crate::interface::storage::WriteStorage;
 /// The tests here help us with the testing the VM
 use crate::vm_1_3_2::{
     event_sink::InMemoryEventSink,

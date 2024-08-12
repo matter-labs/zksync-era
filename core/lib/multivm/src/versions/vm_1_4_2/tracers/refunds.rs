@@ -7,7 +7,6 @@ use zk_evm_1_4_1::{
     vm_state::VmLocalState,
     zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -18,7 +17,9 @@ use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256}
 
 use crate::{
     interface::{
-        tracer::TracerExecutionStatus, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
+        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         L1BatchEnv, Refunds,
     },
     vm_1_4_2::{

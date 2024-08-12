@@ -10,7 +10,6 @@ use zk_evm_1_3_3::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
@@ -20,7 +19,7 @@ use zksync_types::{
 
 use crate::{
     glue::GlueInto,
-    interface::VmExecutionLogs,
+    interface::{storage::WriteStorage, VmExecutionLogs},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},

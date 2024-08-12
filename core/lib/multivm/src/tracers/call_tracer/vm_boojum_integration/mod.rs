@@ -5,7 +5,6 @@ use zk_evm_1_4_0::{
         RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     vm_trace::{Call, CallType},
@@ -16,7 +15,9 @@ use zksync_types::{
 use crate::{
     glue::GlueInto,
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+        storage::{StoragePtr, WriteStorage},
+        tracer::VmExecutionStopReason,
+        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         VmRevertReason,
     },
     tracers::call_tracer::CallTracer,

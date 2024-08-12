@@ -13,7 +13,6 @@ use zk_evm_1_3_3::{
     },
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::WriteStorage;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, l1::is_l1_tx_type, Address, Transaction,
@@ -27,7 +26,7 @@ use zksync_utils::{
 };
 
 use crate::{
-    interface::L1BatchEnv,
+    interface::{storage::WriteStorage, L1BatchEnv},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,
