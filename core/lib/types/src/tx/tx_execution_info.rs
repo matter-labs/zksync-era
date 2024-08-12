@@ -12,6 +12,7 @@ use crate::{
     ProtocolVersionId,
 };
 
+// FIXME: move as well
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum TxExecutionStatus {
     Success,

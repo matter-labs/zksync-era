@@ -2,11 +2,12 @@ use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::ExecutionMetrics,
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics},
+    vm_trace::Call,
     StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
 
-use crate::{Halt, VmExecutionStatistics, VmRevertReason};
+use crate::{CompressedBytecodeInfo, Halt, VmExecutionStatistics, VmRevertReason};
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -100,6 +101,37 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransactionExecutionResult {
+    pub transaction: Transaction,
+    pub hash: H256,
+    pub execution_info: ExecutionMetrics,
+    pub execution_status: TxExecutionStatus,
+    pub refunded_gas: u64,
+    pub operator_suggested_refund: u64,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub revert_reason: Option<String>,
+}
+
+impl TransactionExecutionResult {
+    pub fn call_trace(&self) -> Option<Call> {
+        if self.call_traces.is_empty() {
+            None
+        } else {
+            Some(Call::new_high_level(
+                self.transaction.gas_limit().as_u64(),
+                self.transaction.gas_limit().as_u64() - self.refunded_gas,
+                self.transaction.execute.value,
+                self.transaction.execute.calldata.clone(),
+                vec![],
+                self.revert_reason.clone(),
+                self.call_traces.clone(),
+            ))
         }
     }
 }

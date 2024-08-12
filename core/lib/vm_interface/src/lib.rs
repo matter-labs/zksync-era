@@ -8,9 +8,10 @@ pub use crate::{
         },
         inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
         outputs::{
-            BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-            Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
-            VmMemoryMetrics,
+            compress_bytecode, BootloaderMemory, CompressedBytecodeInfo, CurrentExecutionState,
+            ExecutionResult, FailedToCompressBytecodeError, FinishedL1Batch, L2Block, Refunds,
+            TransactionExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs,
+            VmExecutionStatistics, VmMemoryMetrics,
         },
         tracer,
     },

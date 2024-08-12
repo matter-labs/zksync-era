@@ -367,6 +367,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_multivm::{
+        interface::TransactionExecutionResult,
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
@@ -375,7 +376,7 @@ mod tests {
     use zksync_types::{
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-        tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
+        tx::tx_execution_info::TxExecutionStatus,
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue, VmEvent,
     };

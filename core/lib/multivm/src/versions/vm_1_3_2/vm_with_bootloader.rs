@@ -19,14 +19,11 @@ use zksync_types::{
     BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
-    address_to_u256,
-    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
-    bytes_to_be_words, h256_to_u256,
-    misc::ceil_div,
+    address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
 };
 
 use crate::{
-    interface::{storage::WriteStorage, L1BatchEnv},
+    interface::{compress_bytecode, storage::WriteStorage, CompressedBytecodeInfo, L1BatchEnv},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,

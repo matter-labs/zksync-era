@@ -10,7 +10,9 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-use zksync_multivm::vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT;
+use zksync_multivm::{
+    interface::TransactionExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+};
 use zksync_node_fee_model::{
     l1_gas_price::{GasAdjuster, GasAdjusterClient},
     MainNodeFeeInputProvider,
@@ -27,7 +29,6 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
-    tx::TransactionExecutionResult,
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };
 

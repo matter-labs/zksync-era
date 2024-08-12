@@ -1,8 +1,7 @@
 use zksync_types::event::extract_long_l2_to_l1_messages;
-use zksync_utils::bytecode::compress_bytecode;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{compress_bytecode, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
         utils::read_test_contract,

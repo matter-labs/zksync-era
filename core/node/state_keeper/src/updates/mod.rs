@@ -1,7 +1,8 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs,
+        storage::StorageViewCache, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, SystemEnv,
+        VmExecutionResultAndLogs,
     },
     utils::get_batch_base_fee,
 };
@@ -11,7 +12,6 @@ use zksync_types::{
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction,
 };
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{

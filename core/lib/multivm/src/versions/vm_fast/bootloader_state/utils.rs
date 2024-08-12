@@ -1,9 +1,9 @@
 use zksync_types::{ethabi, U256};
-use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_u256};
+use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::{l2_block::BootloaderL2Block, tx::BootloaderTx};
 use crate::{
-    interface::{BootloaderMemory, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, TxExecutionMode},
     versions::vm_fast::pubdata::PubdataInput,
     vm_latest::constants::{
         BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE,

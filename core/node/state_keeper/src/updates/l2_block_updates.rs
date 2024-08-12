@@ -1,18 +1,21 @@
 use std::collections::HashMap;
 
 use zksync_multivm::{
-    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
+    interface::{
+        CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
+        VmExecutionResultAndLogs,
+    },
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     event::extract_bytecodes_marked_as_known,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics},
     vm_trace::Call,
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
-use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::metrics::KEEPER_METRICS;
 

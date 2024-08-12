@@ -1,11 +1,16 @@
 pub use self::{
-    execution_result::{ExecutionResult, Refunds, VmExecutionLogs, VmExecutionResultAndLogs},
+    bytecode::{compress_bytecode, CompressedBytecodeInfo, FailedToCompressBytecodeError},
+    execution_result::{
+        ExecutionResult, Refunds, TransactionExecutionResult, VmExecutionLogs,
+        VmExecutionResultAndLogs,
+    },
     execution_state::{BootloaderMemory, CurrentExecutionState},
     finished_l1batch::FinishedL1Batch,
     l2_block::L2Block,
     statistic::{VmExecutionStatistics, VmMemoryMetrics},
 };
 
+mod bytecode;
 mod execution_result;
 mod execution_state;
 mod finished_l1batch;

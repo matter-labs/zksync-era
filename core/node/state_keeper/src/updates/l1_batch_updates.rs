@@ -1,9 +1,7 @@
-use zksync_multivm::interface::FinishedL1Batch;
+use zksync_multivm::interface::{FinishedL1Batch, TransactionExecutionResult};
 use zksync_types::{
-    block::BlockGasCount,
-    priority_op_onchain_data::PriorityOpOnchainData,
-    tx::{tx_execution_info::ExecutionMetrics, TransactionExecutionResult},
-    ExecuteTransactionCommon, L1BatchNumber,
+    block::BlockGasCount, priority_op_onchain_data::PriorityOpOnchainData,
+    tx::tx_execution_info::ExecutionMetrics, ExecuteTransactionCommon, L1BatchNumber,
 };
 
 use crate::{updates::l2_block_updates::L2BlockUpdates, utils::new_block_gas_count};

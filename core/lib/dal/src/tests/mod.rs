@@ -12,10 +12,11 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics},
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
     L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
 };
+use zksync_vm_interface::TransactionExecutionResult;
 
 use crate::{
     blocks_dal::BlocksDal,

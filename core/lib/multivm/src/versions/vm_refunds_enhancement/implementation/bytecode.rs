@@ -1,14 +1,12 @@
 use itertools::Itertools;
 use zksync_types::U256;
-use zksync_utils::{
-    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
-    bytes_to_be_words,
-};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::{
     interface::{
+        compress_bytecode,
         storage::{StoragePtr, WriteStorage},
-        VmInterface,
+        CompressedBytecodeInfo, VmInterface,
     },
     vm_refunds_enhancement::Vm,
     HistoryMode,

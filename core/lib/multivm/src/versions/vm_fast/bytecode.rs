@@ -1,12 +1,9 @@
 use itertools::Itertools;
 use zksync_types::H256;
-use zksync_utils::{
-    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
-    h256_to_u256,
-};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use super::Vm;
-use crate::interface::storage::ReadStorage;
+use crate::interface::{compress_bytecode, storage::ReadStorage, CompressedBytecodeInfo};
 
 impl<S: ReadStorage> Vm<S> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
