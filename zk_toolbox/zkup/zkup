@@ -12,6 +12,8 @@ BINS=(zk_inception zk_supervisor)
 main() {
   parse_args "$@"
 
+  zktoolbox_banner
+
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
 
@@ -21,7 +23,11 @@ main() {
     install_from_repo
   fi
 
-  success "zk_toolbox installed successfully"
+  zktoolbox_banner
+
+  for bin in "${BINS[@]}"; do
+    success "Installed $bin to $ZKT_BIN_DIR/$bin"
+  done
 }
 
 PREREQUISITES=(cargo git)
@@ -186,6 +192,32 @@ warn() {
 
 err() {
   echo -e "\033[1;31mERROR: $1\033[0m" >&2
+}
+
+zktoolbox_banner() {
+  printf '
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+███████╗██╗  ██╗    ████████╗ ██████╗  ██████╗ ██╗     ██████╗  ██████╗ ██╗  ██╗
+╚══███╔╝██║ ██╔╝    ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔══██╗██╔═══██╗╚██╗██╔╝
+  ███╔╝ █████╔╝        ██║   ██║   ██║██║   ██║██║     ██████╔╝██║   ██║ ╚███╔╝ 
+ ███╔╝  ██╔═██╗        ██║   ██║   ██║██║   ██║██║     ██╔══██╗██║   ██║ ██╔██╗ 
+███████╗██║  ██╗       ██║   ╚██████╔╝╚██████╔╝███████╗██████╔╝╚██████╔╝██╔╝ ██╗
+╚══════╝╚═╝  ╚═╝       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+                                                                                               
+                                
+    A Comprehensive Toolkit for Creating and Managing ZK Stack Chains
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+Repo       : https://github.com/matter-labs/zksync-era/
+Docs       : https://docs.zksync.io/
+Contribute : https://github.com/matter-labs/zksync-era/pulls
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+'
 }
 
 main "$@"
