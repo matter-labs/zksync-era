@@ -11,7 +11,6 @@ use crate::{
             BoundEthInterfaceResource,
         },
         gas_adjuster::GasAdjusterResource,
-        l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,

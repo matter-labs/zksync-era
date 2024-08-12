@@ -5,10 +5,7 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{MockSettlementLayer, L2},
-    BaseFees, BoundEthInterface,
-};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -20,7 +17,7 @@ use zksync_types::{
 };
 
 use crate::{
-    abstract_l1_interface::{L1BlockNumbers, OperatorType, RealL1Interface},
+    abstract_l1_interface::{L1BlockNumbers, OperatorType},
     aggregated_operations::AggregatedOperation,
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
