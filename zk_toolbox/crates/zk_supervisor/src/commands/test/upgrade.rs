@@ -16,7 +16,7 @@ pub fn run(shell: &Shell, args: UpgradeArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_UPGRADE_TEST_RUN_INFO);
 
-    if args.no_deps {
+    if !args.no_deps {
         install_and_build_dependencies(shell, &ecosystem_config)?;
     }
 

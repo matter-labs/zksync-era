@@ -17,7 +17,7 @@ pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     logger::info(msg_integration_tests_run(args.external_node));
 
-    if args.no_deps {
+    if !args.no_deps {
         build_repository(shell, &ecosystem_config)?;
         build_test_contracts(shell, &ecosystem_config)?;
     }

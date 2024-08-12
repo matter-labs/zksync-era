@@ -16,7 +16,7 @@ pub fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
 
     logger::info(MSG_REVERT_TEST_RUN_INFO);
 
-    if args.no_deps {
+    if !args.no_deps {
         install_and_build_dependencies(shell, &ecosystem_config)?;
     }
 
