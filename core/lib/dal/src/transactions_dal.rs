@@ -11,12 +11,12 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     block::L2BlockExecutionData, fee::TransactionExecutionMetrics, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, tx::tx_execution_info::TxExecutionStatus, vm_trace::Call,
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    protocol_upgrade::ProtocolUpgradeTx, vm_trace::Call, Address, ExecuteTransactionCommon,
+    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
-use zksync_vm_interface::TransactionExecutionResult;
+use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus};
 
 use crate::{
     models::storage_transaction::{CallTrace, StorageTransaction},

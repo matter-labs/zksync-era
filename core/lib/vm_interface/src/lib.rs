@@ -10,8 +10,8 @@ pub use crate::{
         outputs::{
             compress_bytecode, BootloaderMemory, CompressedBytecodeInfo, CurrentExecutionState,
             ExecutionResult, FailedToCompressBytecodeError, FinishedL1Batch, L2Block, Refunds,
-            TransactionExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs,
-            VmExecutionStatistics, VmMemoryMetrics,
+            TransactionExecutionResult, TxExecutionStatus, VmExecutionLogs,
+            VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
         },
         tracer,
     },

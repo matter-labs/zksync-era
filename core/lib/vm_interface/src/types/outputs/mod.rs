@@ -1,7 +1,7 @@
 pub use self::{
     bytecode::{compress_bytecode, CompressedBytecodeInfo, FailedToCompressBytecodeError},
     execution_result::{
-        ExecutionResult, Refunds, TransactionExecutionResult, VmExecutionLogs,
+        ExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus, VmExecutionLogs,
         VmExecutionResultAndLogs,
     },
     execution_state::{BootloaderMemory, CurrentExecutionState},

@@ -12,23 +12,6 @@ use crate::{
     ProtocolVersionId,
 };
 
-// FIXME: move as well
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum TxExecutionStatus {
-    Success,
-    Failure,
-}
-
-impl TxExecutionStatus {
-    pub fn from_has_failed(has_failed: bool) -> Self {
-        if has_failed {
-            Self::Failure
-        } else {
-            Self::Success
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct DeduplicatedWritesMetrics {
     pub initial_storage_writes: usize,

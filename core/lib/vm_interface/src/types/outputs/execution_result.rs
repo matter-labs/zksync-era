@@ -2,7 +2,7 @@ use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics},
+    tx::ExecutionMetrics,
     vm_trace::Call,
     StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
@@ -101,6 +101,22 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum TxExecutionStatus {
+    Success,
+    Failure,
+}
+
+impl TxExecutionStatus {
+    pub fn from_has_failed(has_failed: bool) -> Self {
+        if has_failed {
+            Self::Failure
+        } else {
+            Self::Success
         }
     }
 }
