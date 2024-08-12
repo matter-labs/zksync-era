@@ -143,3 +143,10 @@ pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String 
         extensions
     )
 }
+
+pub(super) fn msg_running_linter_for_extension_spinner(extension: &Extension) -> String {
+    format!("Running linter for files with extension: .{}", extension)
+}
+
+pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
+pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
