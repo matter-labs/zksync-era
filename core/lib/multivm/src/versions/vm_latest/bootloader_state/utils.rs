@@ -1,12 +1,12 @@
-use zksync_types::{ethabi, U256};
+use zksync_types::{
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    ethabi, U256,
+};
 use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
 use crate::{
-    interface::{
-        types::inputs::system_env::{PubdataParams, PubdataType},
-        BootloaderMemory, TxExecutionMode,
-    },
+    interface::{BootloaderMemory, TxExecutionMode},
     vm_latest::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
@@ -134,7 +134,7 @@ pub(crate) fn get_encoded_pubdata(
     pubdata_params: PubdataParams,
     l2_version: bool,
 ) -> Vec<u8> {
-    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == PubdataType::Rollup {
+    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == L1BatchCommitmentMode::Rollup {
         RollupPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
     } else {
         ValidiumPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)

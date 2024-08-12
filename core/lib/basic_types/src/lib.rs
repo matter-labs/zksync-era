@@ -214,10 +214,26 @@ basic_type!(
 );
 
 basic_type!(
+    /// ChainId of a settlement layer.
+    SLChainId,
+    u64
+);
+
+basic_type!(
     /// ChainId in the Ethereum network.
+    /// IMPORTANT: Please, use this method when exactly the L1 chain id is required.
+    /// Note, that typically this is not the case and the majority of methods need to work
+    /// with *settlement layer* chain id, which is represented by `SLChainId`.
     L1ChainId,
     u64
 );
+
+// Every L1 can be a settlement layer.
+impl From<L1ChainId> for SLChainId {
+    fn from(value: L1ChainId) -> Self {
+        SLChainId(value.0)
+    }
+}
 
 #[allow(clippy::derivable_impls)]
 impl Default for L2BlockNumber {

@@ -8,7 +8,7 @@ use std::{fmt, str::FromStr};
 use serde::{Deserialize, Serialize};
 
 // Workspace uses
-use crate::L1ChainId;
+use crate::SLChainId;
 
 // Local uses
 
@@ -28,8 +28,7 @@ pub enum Network {
     Sepolia,
     /// Self-hosted Ethereum network.
     Localhost,
-    /// Default L2 development network. Note, that unlike other networks, it
-    /// is actually an Era-based L2, not an L1.
+    /// Self-hosted L2 network.
     LocalhostL2,
     /// Unknown network type.
     Unknown,
@@ -63,7 +62,7 @@ impl fmt::Display for Network {
             Self::Ropsten => write!(f, "ropsten"),
             Self::Goerli => write!(f, "goerli"),
             Self::Localhost => write!(f, "localhost"),
-            Self::LocalhostL2 => write!(f, "LocalhostL2"),
+            Self::LocalhostL2 => write!(f, "localhostL2"),
             Self::Sepolia => write!(f, "sepolia"),
             Self::Unknown => write!(f, "unknown"),
             Self::Test => write!(f, "test"),
@@ -73,7 +72,7 @@ impl fmt::Display for Network {
 
 impl Network {
     /// Returns the network chain ID on the Ethereum side.
-    pub fn from_chain_id(chain_id: L1ChainId) -> Self {
+    pub fn from_chain_id(chain_id: SLChainId) -> Self {
         match *chain_id {
             1 => Self::Mainnet,
             3 => Self::Ropsten,
@@ -87,15 +86,15 @@ impl Network {
     }
 
     /// Returns the network chain ID on the Ethereum side.
-    pub fn chain_id(self) -> L1ChainId {
+    pub fn chain_id(self) -> SLChainId {
         match self {
-            Self::Mainnet => L1ChainId(1),
-            Self::Ropsten => L1ChainId(3),
-            Self::Rinkeby => L1ChainId(4),
-            Self::Goerli => L1ChainId(5),
-            Self::Localhost => L1ChainId(9),
-            Self::LocalhostL2 => L1ChainId(270),
-            Self::Sepolia => L1ChainId(11155111),
+            Self::Mainnet => SLChainId(1),
+            Self::Ropsten => SLChainId(3),
+            Self::Rinkeby => SLChainId(4),
+            Self::Goerli => SLChainId(5),
+            Self::Localhost => SLChainId(9),
+            Self::Sepolia => SLChainId(11155111),
+            Self::LocalhostL2 => SLChainId(270),
             Self::Unknown => panic!("Unknown chain ID"),
             Self::Test => panic!("Test chain ID"),
         }

@@ -99,6 +99,7 @@ pub mod gpu_prover {
             }
         }
 
+        #[tracing::instrument(name = "Prover::get_setup_data", skip_all)]
         fn get_setup_data(
             &self,
             key: ProverServiceDataKey,
@@ -124,6 +125,11 @@ pub mod gpu_prover {
             })
         }
 
+        #[tracing::instrument(
+            name = "Prover::prove",
+            skip_all,
+            fields(l1_batch = %job.witness_vector_artifacts.prover_job.block_number)
+        )]
         pub fn prove(
             job: GpuProverJob,
             setup_data: Arc<GoldilocksGpuProverSetupData>,

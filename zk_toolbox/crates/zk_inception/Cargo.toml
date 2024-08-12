@@ -1,6 +1,6 @@
 [package]
 name = "zk_inception"
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -33,3 +33,4 @@ thiserror.workspace = true
 zksync_config.workspace = true
 slugify-rs.workspace = true
 zksync_basic_types.workspace = true
+clap-markdown.workspace = true

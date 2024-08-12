@@ -13,7 +13,7 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, PubdataParams, PubdataType, SystemEnv},
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
@@ -22,6 +22,7 @@ use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi::Token,
     get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
@@ -262,7 +263,7 @@ impl Tester {
             self.config.validation_computational_gas_limit;
         system_params.pubdata_params = PubdataParams {
             l2_da_validator_address: get_da_contract_address(),
-            pubdata_type: PubdataType::Rollup,
+            pubdata_type: L1BatchCommitmentMode::Rollup,
         };
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.

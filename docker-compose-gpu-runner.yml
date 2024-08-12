@@ -16,7 +16,7 @@ services:
       - 127.0.0.1:8545:8545
 
   zk:
-    image: "matterlabs/zk-environment:cuda-11-8-latest"
+    image: "ghcr.io/matter-labs/zk-environment:cuda-11-8-latest"
     container_name: zk
     depends_on:
       - reth

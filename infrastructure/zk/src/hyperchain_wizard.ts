@@ -746,7 +746,8 @@ async function configDemoHyperchain(cmd: Command) {
         testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! },
         // TODO(EVM-573): support Validium mode
         runObservability: false,
-        deploymentMode: DeploymentMode.Rollup
+        deploymentMode: DeploymentMode.Rollup,
+        shouldCheckPostgres: true
     });
 
     env.mergeInitToEnv();

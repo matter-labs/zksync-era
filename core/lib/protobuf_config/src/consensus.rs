@@ -139,8 +139,8 @@ impl ProtoRepr for proto::Config {
                 .enumerate()
                 .map(|(i, e)| read_addr(e).context(i))
                 .collect::<Result<_, _>>()?,
-            genesis_spec: read_optional_repr(&self.genesis_spec).context("genesis_spec")?,
-            rpc: read_optional_repr(&self.rpc_config).context("rpc_config")?,
+            genesis_spec: read_optional_repr(&self.genesis_spec),
+            rpc: read_optional_repr(&self.rpc_config),
         })
     }
 

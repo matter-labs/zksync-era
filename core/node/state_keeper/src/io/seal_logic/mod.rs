@@ -374,6 +374,7 @@ impl L2BlockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.fee_account_address,
+            pubdata_params: self.pubdata_params,
             base_fee_per_gas: self.base_fee_per_gas,
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,

@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use ethabi::Address;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter};
 
@@ -40,4 +43,25 @@ impl Detokenize for L1BatchCommitmentMode {
             _ => Err(error(&tokens)),
         }
     }
+}
+
+impl FromStr for L1BatchCommitmentMode {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Rollup" => Ok(Self::Rollup),
+            "Validium" => Ok(Self::Validium),
+            _ => {
+                Err("Incorrect l1 batch commitment mode type; expected one of `Rollup`, `Validium`")
+            }
+        }
+    }
+}
+
+#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PubdataParams {
+    pub l2_da_validator_address: Address,
+    // TOODO: maybe rename / use new type.
+    pub pubdata_type: L1BatchCommitmentMode,
 }

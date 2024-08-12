@@ -73,7 +73,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
 
-    const network = ecosystem.l1_network;
+    const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome, network);
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 

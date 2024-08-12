@@ -244,7 +244,6 @@ impl Detokenize for VerifierParams {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct L1VerifierConfig {
-    pub params: VerifierParams,
     pub recursion_scheduler_level_vk_hash: H256,
 }
 

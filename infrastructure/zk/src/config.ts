@@ -205,6 +205,9 @@ export function pushConfig(environment?: string, diff?: string) {
     }
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
+    env.modify('VM_RUNNER_PROTECTIVE_READS_DB_PATH', `./db/${environment}/protective_reads`, l2InitFile, false);
+    env.modify('VM_RUNNER_BWIP_DB_PATH', `./db/${environment}/basic_witness_input_producer`, l2InitFile, false);
+
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
 

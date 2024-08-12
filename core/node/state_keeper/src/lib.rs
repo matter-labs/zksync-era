@@ -7,7 +7,7 @@ use zksync_config::configs::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_types::L2ChainId;
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
 
 pub use self::{
     batch_executor::{
@@ -46,6 +46,8 @@ pub async fn create_state_keeper(
     async_cache: AsyncRocksdbCache,
     l2chain_id: L2ChainId,
     mempool_config: &MempoolConfig,
+    l2_da_validator_address: Address,
+    pubdata_type: L1BatchCommitmentMode,
     pool: ConnectionPool<Core>,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
@@ -60,6 +62,8 @@ pub async fn create_state_keeper(
         pool,
         &state_keeper_config,
         wallets.fee_account.address(),
+        l2_da_validator_address,
+        pubdata_type,
         mempool_config.delay_interval(),
         l2chain_id,
     )

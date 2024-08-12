@@ -22,4 +22,5 @@ message Observability {
 message Opentelemetry {
   optional string level = 1; // required
   optional string endpoint = 2; // required
+  optional string logs_endpoint = 3; // optional
 }

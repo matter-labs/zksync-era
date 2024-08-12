@@ -1,5 +1,6 @@
 use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration};
 
+#[tracing::instrument(skip_all)]
 fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
     tracing::info!("Downloading initial setup from {:?}", key_download_url);
 
@@ -32,6 +33,7 @@ fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
         .and_then(|response| response.bytes().map(|bytes| bytes.to_vec()))
 }
 
+#[tracing::instrument(skip_all)]
 pub fn download_initial_setup_keys_if_not_present(
     initial_setup_key_path: &str,
     key_download_url: &str,

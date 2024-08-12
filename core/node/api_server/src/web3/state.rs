@@ -95,6 +95,7 @@ impl BlockStartInfo {
 /// The intention is to only keep the actually used information here.
 #[derive(Debug, Clone)]
 pub struct InternalApiConfig {
+    /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
     pub max_tx_size: usize,

@@ -66,6 +66,7 @@ impl ProtoRepr for proto::Opentelemetry {
         Ok(Self::Type {
             level: required(&self.level).context("level")?.clone(),
             endpoint: required(&self.endpoint).context("endpoint")?.clone(),
+            logs_endpoint: self.logs_endpoint.clone(),
         })
     }
 
@@ -73,6 +74,7 @@ impl ProtoRepr for proto::Opentelemetry {
         Self {
             level: Some(this.level.clone()),
             endpoint: Some(this.endpoint.clone()),
+            logs_endpoint: this.logs_endpoint.clone(),
         }
     }
 }
