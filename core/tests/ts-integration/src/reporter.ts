@@ -88,8 +88,8 @@ export class Reporter {
     /**
      * Prints an error message to the console.
      */
-    error(message: string) {
-        console.log(this.indent(`${errorPrefix('Error:')}: ${fail(message)}`));
+    error(message: string, ...args: any[]) {
+        console.log(this.indent(`${errorPrefix('Error:')}: ${fail(message)}`), ...args);
     }
 
     /**

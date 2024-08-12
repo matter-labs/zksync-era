@@ -49,9 +49,10 @@ impl TeeRequestProcessor {
 
         let l1_batch_number_result = connection
             .tee_proof_generation_dal()
-            .get_next_block_to_be_proven(self.config.proof_generation_timeout())
+            .get_next_batch_to_be_proven(request.tee_type, self.config.proof_generation_timeout())
             .await
             .map_err(RequestProcessorError::Dal)?;
+
         let l1_batch_number = match l1_batch_number_result {
             Some(number) => number,
             None => return Ok(Json(TeeProofGenerationDataResponse(None))),
@@ -63,9 +64,9 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(
-            tee_verifier_input,
-        )))))
+        let response = TeeProofGenerationDataResponse(Some(Box::new(tee_verifier_input)));
+
+        Ok(Json(response))
     }
 
     pub(crate) async fn submit_proof(
@@ -82,16 +83,16 @@ impl TeeRequestProcessor {
         let mut dal = connection.tee_proof_generation_dal();
 
         tracing::info!(
-            "Received proof {:?} for block number: {:?}",
+            "Received proof {:?} for batch number: {:?}",
             proof,
             l1_batch_number
         );
         dal.save_proof_artifacts_metadata(
             l1_batch_number,
-            &proof.0.signature,
-            &proof.0.pubkey,
-            &proof.0.proof,
             proof.0.tee_type,
+            &proof.0.pubkey,
+            &proof.0.signature,
+            &proof.0.proof,
         )
         .await
         .map_err(RequestProcessorError::Dal)?;

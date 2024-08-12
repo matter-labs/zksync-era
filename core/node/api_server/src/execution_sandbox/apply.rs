@@ -40,7 +40,7 @@ use super::{
 };
 
 type VmStorageView<'a> = StorageView<StorageWithOverrides<PostgresStorage<'a>>>;
-type BoxedVm<'a> = Box<VmInstance<VmStorageView<'a>, HistoryDisabled>>;
+type BoxedVm<'a> = Box<VmInstance<StorageWithOverrides<PostgresStorage<'a>>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -301,7 +301,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     block_args: BlockArgs, // Block arguments for the transaction.
     state_override: Option<StateOverride>,
     apply: impl FnOnce(
-        &mut VmInstance<VmStorageView<'_>, HistoryDisabled>,
+        &mut VmInstance<StorageWithOverrides<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
         ProtocolVersionId,
     ) -> T,
