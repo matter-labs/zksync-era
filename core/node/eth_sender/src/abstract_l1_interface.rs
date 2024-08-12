@@ -3,7 +3,6 @@ use std::fmt;
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
@@ -91,11 +90,14 @@ pub(super) struct RealL1Interface {
 }
 
 impl RealL1Interface {
-    pub(crate) fn query_client(&self) -> &DynClient<L1> {
+    pub(crate) fn query_client(&self) -> &dyn EthInterface {
         self.ethereum_gateway().as_ref()
     }
 
-    pub(crate) fn query_client_for_operator(&self, operator_type: OperatorType) -> &DynClient<L1> {
+    pub(crate) fn query_client_for_operator(
+        &self,
+        operator_type: OperatorType,
+    ) -> &dyn EthInterface {
         if operator_type == OperatorType::Blob {
             self.ethereum_gateway_blobs().unwrap().as_ref()
         } else {
@@ -103,6 +105,7 @@ impl RealL1Interface {
         }
     }
 }
+
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
     async fn failure_reason(&self, tx_hash: H256) -> Option<FailureInfo> {

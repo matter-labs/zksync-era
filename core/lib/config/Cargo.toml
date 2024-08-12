@@ -16,6 +16,7 @@ zksync_crypto_primitives.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_concurrency.workspace = true
 zksync_vlog = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 
 url.workspace = true
 anyhow.workspace = true
@@ -25,4 +26,4 @@ serde = { workspace = true, features = ["derive"] }
 
 [features]
 default = []
-observability_ext = ["zksync_vlog"]
+observability_ext = ["zksync_vlog", "tracing"]

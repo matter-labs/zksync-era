@@ -28,6 +28,7 @@ use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
 use crate::storage::{load_batch_execute_data, StorageLoader};
 
 mod output_handler;
+mod playground;
 mod process;
 mod storage;
 mod storage_writer;
@@ -306,11 +307,12 @@ async fn store_l1_batches(
         digest.push_tx_hash(tx.hash());
         new_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
 
-        l2_block_number += 1;
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
         last_l2_block_hash = new_l2_block.hash;
+        l2_block_number += 1;
+
         let tx_result = execute_l2_transaction(tx.clone());
         conn.transactions_dal()
             .mark_txs_as_executed_in_l2_block(
@@ -330,9 +332,9 @@ async fn store_l1_batches(
             last_l2_block_hash,
         );
         fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
-        l2_block_number += 1;
         conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
         last_l2_block_hash = fictive_l2_block.hash;
+        l2_block_number += 1;
 
         let header = L1BatchHeader::new(
             l1_batch_number,

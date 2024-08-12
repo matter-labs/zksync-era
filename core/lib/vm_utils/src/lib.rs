@@ -1,20 +1,20 @@
-pub mod storage;
-
 use anyhow::{anyhow, Context};
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
-    interface::{VmInterface, VmInterfaceHistoryEnabled},
+    interface::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 use crate::storage::L1BatchParamsProvider;
 
+pub mod storage;
+
 pub type VmAndStorage<'a> = (
-    VmInstance<StorageView<PostgresStorage<'a>>, HistoryEnabled>,
+    VmInstance<PostgresStorage<'a>, HistoryEnabled>,
     StoragePtr<StorageView<PostgresStorage<'a>>>,
 );
 
@@ -58,7 +58,7 @@ pub fn create_vm(
     Ok((vm, storage_view))
 }
 
-pub fn execute_tx<S: WriteStorage>(
+pub fn execute_tx<S: ReadStorage>(
     tx: &Transaction,
     vm: &mut VmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<()> {

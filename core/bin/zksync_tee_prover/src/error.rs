@@ -11,19 +11,19 @@ pub(crate) enum TeeProverError {
 }
 
 impl TeeProverError {
-    pub fn is_transient(&self) -> bool {
+    pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Request(err) => is_transient_http_error(err),
+            Self::Request(err) => is_retriable_http_error(err),
             _ => false,
         }
     }
 }
 
-fn is_transient_http_error(err: &reqwest::Error) -> bool {
+fn is_retriable_http_error(err: &reqwest::Error) -> bool {
     err.is_timeout()
             || err.is_connect()
             // Not all request errors are logically transient, but a significant part of them are (e.g.,
-            // `hyper` protocol-level errors), and it's safer to consider an error transient.
+            // `hyper` protocol-level errors), and it's safer to consider an error retriable.
             || err.is_request()
             || has_transient_io_source(err)
             || err.status() == Some(StatusCode::BAD_GATEWAY)
@@ -31,8 +31,8 @@ fn is_transient_http_error(err: &reqwest::Error) -> bool {
 }
 
 fn has_transient_io_source(err: &(dyn StdError + 'static)) -> bool {
-    // We treat any I/O errors as transient. This isn't always true, but frequently occurring I/O errors
-    // (e.g., "connection reset by peer") *are* transient, and treating an error as transient is a safer option,
+    // We treat any I/O errors as retriable. This isn't always true, but frequently occurring I/O errors
+    // (e.g., "connection reset by peer") *are* transient, and treating an error as retriable is a safer option,
     // even if it can lead to unnecessary retries.
     get_source::<io::Error>(err).is_some()
 }

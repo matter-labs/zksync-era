@@ -9,13 +9,13 @@ use crate::{
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
-        CommitmentGeneratorConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-        FriWitnessVectorGeneratorConfig, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig,
+        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ExternalProofIntegrationApiConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,4 +50,6 @@ pub struct GeneralConfig {
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub consensus_config: Option<ConsensusConfig>,
+    pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
+    pub experimental_vm_config: Option<ExperimentalVmConfig>,
 }
