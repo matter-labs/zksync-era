@@ -163,7 +163,7 @@ impl BlocksDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+        Ok(row.number.map(|num| L2BlockNumber(num as u32)))
     }
 
     pub async fn get_last_l1_batch_number_with_tree_data(
