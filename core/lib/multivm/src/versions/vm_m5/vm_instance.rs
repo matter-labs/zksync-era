@@ -12,13 +12,13 @@ use zk_evm_1_3_1::{
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::VmExecutionTrace,
     L1BatchNumber, VmEvent, U256,
 };
 
 use crate::{
     glue::GlueInto,
     interface::VmExecutionLogs,
+    versions::shared::VmExecutionTrace,
     vm_m5::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},

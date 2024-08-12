@@ -3,9 +3,7 @@ use zk_evm_1_4_0::{
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-use zksync_types::{
-    get_code_key, vm_trace::ViolatedValidationRule, AccountTreeId, StorageKey, H256,
-};
+use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
 use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
 use crate::{
@@ -17,7 +15,7 @@ use crate::{
     tracers::{
         dynamic::vm_1_4_0::DynTracer,
         validator::{
-            types::{NewTrustedValidationItems, ValidationTracerMode},
+            types::{NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule},
             ValidationRoundResult, ValidationTracer,
         },
     },

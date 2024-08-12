@@ -1,6 +1,7 @@
-use std::{collections::HashSet, fmt::Display};
+use std::{collections::HashSet, fmt, fmt::Display};
 
-use zksync_types::{vm_trace::ViolatedValidationRule, Address, H256, U256};
+use zksync_types::{Address, H256, U256};
+use zksync_utils::u256_to_h256;
 
 use crate::interface::Halt;
 
@@ -35,6 +36,40 @@ pub struct ValidationTracerParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+}
+
+#[derive(Debug, Clone)]
+pub enum ViolatedValidationRule {
+    TouchedUnallowedStorageSlots(Address, U256),
+    CalledContractWithNoCode(Address),
+    TouchedUnallowedContext,
+    TookTooManyComputationalGas(u32),
+}
+
+impl fmt::Display for ViolatedValidationRule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
+                f,
+                "Touched unallowed storage slots: address {}, key: {}",
+                hex::encode(contract),
+                hex::encode(u256_to_h256(*key))
+            ),
+            ViolatedValidationRule::CalledContractWithNoCode(contract) => {
+                write!(f, "Called contract with no code: {}", hex::encode(contract))
+            }
+            ViolatedValidationRule::TouchedUnallowedContext => {
+                write!(f, "Touched unallowed context")
+            }
+            ViolatedValidationRule::TookTooManyComputationalGas(gas_limit) => {
+                write!(
+                    f,
+                    "Took too many computational gas, allowed limit: {}",
+                    gas_limit
+                )
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

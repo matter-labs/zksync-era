@@ -6,8 +6,7 @@ use zksync_system_constants::{
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    vm::VmVersion, vm_trace::ViolatedValidationRule, web3::keccak256, AccountTreeId, Address,
-    StorageKey, H256, U256,
+    vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
@@ -15,7 +14,9 @@ pub use crate::tracers::validator::types::{ValidationError, ValidationTracerPara
 use crate::{
     glue::tracers::IntoOldVmTracer,
     interface::storage::{StoragePtr, WriteStorage},
-    tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
+    tracers::validator::types::{
+        NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule,
+    },
 };
 
 mod types;
