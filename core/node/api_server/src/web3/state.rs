@@ -115,7 +115,7 @@ pub struct InternalApiConfig {
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub user_facing_bridgehub_addr: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
-    pub first_sync_layer_batch_number: Option<L1BatchNumber>,
+    pub first_gateway_batch_number: Option<L1BatchNumber>,
 }
 
 impl InternalApiConfig {
@@ -185,7 +185,7 @@ impl InternalApiConfig {
                     .map(|a| a.bridgehub_proxy_addr),
             ),
             l2_native_token_vault_proxy_addr: contracts_config.l2_native_token_vault_proxy_addr,
-            first_sync_layer_batch_number: contracts_config.first_sync_layer_batch_number,
+            first_gateway_batch_number: contracts_config.first_gateway_batch_number,
         }
     }
 }

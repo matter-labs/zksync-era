@@ -173,7 +173,7 @@ impl EnNamespace {
             .await)
     }
 
-    pub fn get_first_sync_layer_batch_number_impl(&self) -> Option<L1BatchNumber> {
-        self.state.api_config.first_sync_layer_batch_number
+    pub fn get_first_gateway_batch_number_impl(&self) -> Option<L1BatchNumber> {
+        self.state.api_config.first_gateway_batch_number
     }
 }

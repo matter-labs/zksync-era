@@ -256,7 +256,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             user_facing_bridgehub_proxy_addr: rng.gen(),
             user_facing_diamond_proxy_addr: rng.gen(),
             l2_native_token_vault_proxy_addr: rng.gen(),
-            first_sync_layer_batch_number: Some(L1BatchNumber(rng.gen())),
+            first_gateway_batch_number: Some(L1BatchNumber(rng.gen())),
         }
     }
 }

@@ -279,7 +279,7 @@ impl ExternalNodeBuilder {
             layer = layer.with_migration_details(
                 self.config
                     .remote
-                    .first_sync_layer_batch_number
+                    .first_gateway_batch_number
                     .expect("First gateway batch number is not set"),
                 self.config
                     .remote
@@ -317,7 +317,7 @@ impl ExternalNodeBuilder {
             layer = layer.with_migration_details(
                 self.config
                     .remote
-                    .first_sync_layer_batch_number
+                    .first_gateway_batch_number
                     .expect("First gateway batch number is not set"),
                 self.config
                     .remote

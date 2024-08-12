@@ -81,7 +81,7 @@ mod tests {
                 "0xfc073319977e314f251eae6ae6be76b0b3baeecf",
             )),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
-            first_sync_layer_batch_number: Some(1000.into()),
+            first_gateway_batch_number: Some(1000.into()),
         }
     }
 
