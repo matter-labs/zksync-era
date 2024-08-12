@@ -3,10 +3,7 @@ use zksync_utils::{bytecode::CompressedBytecodeInfo, bytes_to_be_words, h256_to_
 
 use super::tx::BootloaderTx;
 use crate::{
-    interface::{
-        types::inputs::system_env::{PubdataParams, PubdataType},
-        BootloaderMemory, TxExecutionMode,
-    },
+    interface::{types::inputs::system_env::PubdataParams, BootloaderMemory, TxExecutionMode},
     vm_latest::{
         bootloader_state::l2_block::BootloaderL2Block,
         constants::{
@@ -17,7 +14,7 @@ use crate::{
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
         },
         types::internals::{
-            pubdata::{PubdataBuilder, RollupPubdataBuilder, ValidiumPubdataBuilder},
+            pubdata::{PubdataBuilder, RollupPubdataBuilder},
             PubdataInput,
         },
     },
@@ -134,11 +131,9 @@ pub(crate) fn get_encoded_pubdata(
     pubdata_params: PubdataParams,
     l2_version: bool,
 ) -> Vec<u8> {
-    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == PubdataType::Rollup {
-        RollupPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
-    } else {
-        ValidiumPubdataBuilder::new().build_pubdata(pubdata_information, l2_version)
-    };
+    // TODO: if Validium - use ValidiumPubdataBuilder
+    let pubdata_bytes: Vec<u8> =
+        RollupPubdataBuilder::new().build_pubdata(pubdata_information, l2_version);
 
     if l2_version {
         ethabi::encode(&[

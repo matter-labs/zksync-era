@@ -122,6 +122,7 @@ impl PubdataBuilder for RollupPubdataBuilder {
 pub struct ValidiumPubdataBuilder {}
 
 impl ValidiumPubdataBuilder {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {}
     }
