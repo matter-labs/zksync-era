@@ -426,7 +426,7 @@ impl EthTxManager {
     fn operator_type(&self, tx: &EthTx) -> OperatorType {
         if tx.is_gateway {
             OperatorType::Gateway
-        } else if tx.from_addr == None {
+        } else if tx.from_addr.is_none() {
             OperatorType::NonBlob
         } else {
             OperatorType::Blob

@@ -249,8 +249,7 @@ impl AbstractL1Interface for RealL1Interface {
                 .query_client(operator_type)
                 .block_number()
                 .await?
-                .as_u64()
-                .into();
+                .as_u64();
 
             let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
             (finalized, finalized)
