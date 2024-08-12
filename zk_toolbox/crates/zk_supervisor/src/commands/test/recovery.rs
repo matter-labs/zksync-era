@@ -49,13 +49,7 @@ fn run_test(
         cmd!(shell, "yarn mocha tests/genesis-recovery.test.ts")
     };
 
-    let cmd = Cmd::new(cmd).env(
-        "CHAIN_NAME",
-        global_config()
-            .chain_name
-            .as_deref()
-            .unwrap_or(ecosystem_config.default_chain.as_ref()),
-    );
+    let cmd = Cmd::new(cmd).env("CHAIN_NAME", ecosystem_config.current_chain());
 
     cmd.with_force_run().run()?;
 

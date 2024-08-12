@@ -22,13 +22,8 @@ pub fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         build_test_contracts(shell, &ecosystem_config)?;
     }
 
-    let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000").env(
-        "CHAIN_NAME",
-        global_config()
-            .chain_name
-            .as_deref()
-            .unwrap_or(ecosystem_config.default_chain.as_ref()),
-    );
+    let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
+        .env("CHAIN_NAME", ecosystem_config.current_chain());
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))

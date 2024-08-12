@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::logger;
+use common::{config::global_config, logger};
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use types::{L1Network, ProverMode, WalletCreation};
@@ -134,6 +134,13 @@ impl EcosystemConfig {
             }
         };
         Ok(ecosystem)
+    }
+
+    pub fn current_chain(&self) -> &str {
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(self.default_chain.as_ref())
     }
 
     pub fn load_chain(&self, name: Option<String>) -> Option<ChainConfig> {
