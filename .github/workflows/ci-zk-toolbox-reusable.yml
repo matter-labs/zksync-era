@@ -167,6 +167,8 @@ jobs:
         run: |
           ci_run zk_supervisor test build
 
+          lsof -PiTCP -sTCP:LISTEN
+
           ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
           PID1=$!
 
