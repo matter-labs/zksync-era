@@ -1,0 +1,12 @@
+[package]
+name = "zksync_vm_interfaces"
+description = "ZKsync Era VM interfaces"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+

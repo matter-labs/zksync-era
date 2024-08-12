@@ -9757,6 +9757,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vm_interfaces"
+version = "0.1.0"
+
+[[package]]
 name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
