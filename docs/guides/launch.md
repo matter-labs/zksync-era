@@ -331,7 +331,9 @@ Error: Cannot read properties of undefined (reading 'compilerPath')
 error Command failed with exit code 1.
 ```
 
-**Description**. The compiler downloader [could not verify](https://github.com/NomicFoundation/hardhat/blob/0d850d021f3ab33b59b1ea2ae70d1e659e579e40/packages/hardhat-core/src/internal/solidity/compiler/downloader.ts#L336-L383) that the Solidity compiler it downloaded actually works.
+**Description**. The compiler downloader
+[could not verify](https://github.com/NomicFoundation/hardhat/blob/0d850d021f3ab33b59b1ea2ae70d1e659e579e40/packages/hardhat-core/src/internal/solidity/compiler/downloader.ts#L336-L383)
+that the Solidity compiler it downloaded actually works.
 
 **Solution**. Delete the cached `*.does.not.work` file to run the check again:
 
