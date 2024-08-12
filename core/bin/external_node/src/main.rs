@@ -94,8 +94,8 @@ async fn build_state_keeper(
         stop_receiver_clone.changed().await?;
         result
     }));
-    let batch_executor_base: Box<dyn BatchExecutor> =
-        Box::new(MainBatchExecutor::new(save_call_traces, true));
+    let batch_executor = MainBatchExecutor::new(save_call_traces, true);
+    let batch_executor: Box<dyn BatchExecutor> = Box::new(batch_executor);
 
     let io = ExternalIO::new(
         connection_pool,
@@ -108,7 +108,7 @@ async fn build_state_keeper(
     Ok(ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
-        batch_executor_base,
+        batch_executor,
         output_handler,
         Arc::new(NoopSealer),
         Arc::new(storage_factory),
@@ -1038,7 +1038,7 @@ async fn run_node(
         .allow_rolling_back_executed_batches()
         .enable_rolling_back_postgres()
         .enable_rolling_back_merkle_tree(config.required.merkle_tree_path.clone())
-        .enable_rolling_back_state_keeper_cache(config.required.state_cache_path.clone());
+        .add_rocksdb_storage_path_to_rollback(config.required.state_cache_path.clone());
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     // We're checking for the reorg in the beginning because we expect that if reorg is detected during
