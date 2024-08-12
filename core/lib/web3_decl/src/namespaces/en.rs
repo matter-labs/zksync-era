@@ -4,15 +4,15 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
-use crate::client::{ForNetwork, L2};
+use crate::client::{ForWeb3Network, L2};
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "en", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "en", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait EnNamespace {
     #[method(name = "syncL2Block")]

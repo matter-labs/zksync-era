@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource,
+        fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
@@ -67,7 +67,7 @@ pub struct TxSenderLayer {
 pub struct Input {
     pub tx_sink: TxSinkResource,
     pub replica_pool: PoolResource<ReplicaPool>,
-    pub fee_input: FeeInputResource,
+    pub fee_input: ApiFeeInputResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
 }

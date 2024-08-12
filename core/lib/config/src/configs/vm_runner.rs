@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use zksync_basic_types::L1BatchNumber;
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ProtectiveReadsWriterConfig {
     /// Path to the RocksDB data directory that serves state cache.
     #[serde(default = "ProtectiveReadsWriterConfig::default_db_path")]
@@ -18,7 +18,7 @@ impl ProtectiveReadsWriterConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct BasicWitnessInputProducerConfig {
     /// Path to the RocksDB data directory that serves state cache.
     #[serde(default = "BasicWitnessInputProducerConfig::default_db_path")]

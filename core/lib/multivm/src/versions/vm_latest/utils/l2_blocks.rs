@@ -52,7 +52,7 @@ pub(crate) fn l2_block_hash(
 }
 
 /// Get last saved block from storage
-pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Block> {
+pub fn load_last_l2_block<S: ReadStorage>(storage: &StoragePtr<S>) -> Option<L2Block> {
     // Get block number and timestamp
     let current_l2_block_info_key = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),

@@ -79,6 +79,8 @@ pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 pub(super) const MSG_L1_CONTRACTS_ABOUT: &str = "Run L1 contracts tests";
 pub(super) const MSG_L1_CONTRACTS_TEST_SUCCESS: &str = "L1 contracts tests ran successfully";
+pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
+pub(super) const MSG_PROVER_TEST_SUCCESS: &str = "Prover tests ran successfully";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {

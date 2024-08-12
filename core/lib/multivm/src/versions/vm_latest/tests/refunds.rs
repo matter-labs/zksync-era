@@ -1,9 +1,12 @@
+use ethabi::Token;
+use zksync_types::{Address, Execute, U256};
+
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
+            utils::{read_expensive_contract, read_test_contract},
         },
         types::internals::TransactionData,
         HistoryEnabled,
@@ -162,5 +165,64 @@ fn test_predetermined_refunded_gas() {
     assert_eq!(
         current_state_with_changed_predefined_refunds.used_contract_hashes,
         current_state_without_predefined_refunds.used_contract_hashes
+    );
+}
+
+#[test]
+fn negative_pubdata_for_transaction() {
+    let expensive_contract_address = Address::random();
+    let (expensive_contract_bytecode, expensive_contract) = read_expensive_contract();
+    let expensive_function = expensive_contract.function("expensive").unwrap();
+    let cleanup_function = expensive_contract.function("cleanUp").unwrap();
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .with_custom_contracts(vec![(
+            expensive_contract_bytecode,
+            expensive_contract_address,
+            false,
+        )])
+        .build();
+
+    let expensive_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: expensive_contract_address,
+            calldata: expensive_function
+                .encode_input(&[Token::Uint(10.into())])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(expensive_tx);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful: {result:#?}"
+    );
+
+    // This transaction cleans all initial writes in the contract, thus having negative `pubdata` impact.
+    let clean_up_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: expensive_contract_address,
+            calldata: cleanup_function.encode_input(&[]).unwrap(),
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(clean_up_tx);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful: {result:#?}"
+    );
+    assert!(result.refunds.operator_suggested_refund > 0);
+    assert_eq!(
+        result.refunds.gas_refunded,
+        result.refunds.operator_suggested_refund
     );
 }
