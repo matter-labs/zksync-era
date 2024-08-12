@@ -65,9 +65,9 @@ impl EcosystemCreateArgs {
             }
         });
 
-        let l1_network = self
-            .l1_network
-            .unwrap_or_else(|| PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask());
+        let l1_network = self.l1_network.unwrap_or_else(|| {
+            PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask()
+        });
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
