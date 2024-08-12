@@ -167,7 +167,7 @@ async fn register_chain(
 }
 
 fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
-    let Some(mut ports_config) = ports_config(&general_config) else {
+    let Some(mut ports_config) = ports_config(general_config) else {
         bail!("Missing ports config");
     };
 
