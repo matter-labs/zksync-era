@@ -22,6 +22,7 @@ use zksync_node_framework::{
         consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
@@ -400,6 +401,11 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
+        Ok(self)
+    }
+
     fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
@@ -585,7 +591,8 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?;
+                        .add_batch_status_updater_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
             }
         }

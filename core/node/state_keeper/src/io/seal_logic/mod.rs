@@ -9,10 +9,13 @@ use std::{
 use anyhow::Context as _;
 use itertools::Itertools;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
+use zksync_multivm::{
+    utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
+    zk_evm_latest::ethereum_types::BloomInput,
+};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{build_bloom, L1BatchHeader, L2BlockHeader},
     event::extract_long_l2_to_l1_messages,
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
@@ -358,6 +361,17 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
+        let iter = self.l2_block.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain(std::iter::once(BloomInput::Raw(event.address.as_bytes())))
+        });
+        let logs_bloom = build_bloom(iter);
+        progress.observe(Some(self.l2_block.events.len()));
+
         // Seal block header at the last step.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
         let definite_vm_version = self
@@ -379,6 +393,7 @@ impl L2BlockSealCommand {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
             virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
+            logs_bloom,
         };
 
         let mut connection = strategy.connection().await?;

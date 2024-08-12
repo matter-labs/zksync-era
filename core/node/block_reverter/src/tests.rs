@@ -66,6 +66,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             protocol_version: Some(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             gas_limit: 0,
+            logs_bloom: Default::default(),
         };
         storage
             .blocks_dal()

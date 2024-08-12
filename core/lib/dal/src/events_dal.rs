@@ -409,6 +409,56 @@ impl EventsDal<'_, '_> {
             .collect();
         Ok(Some(events))
     }
+
+    pub async fn get_bloom_items_for_l2_block(
+        &mut self,
+        from_l2_block: L2BlockNumber,
+        to_l2_block: L2BlockNumber,
+    ) -> DalResult<HashMap<L2BlockNumber, Vec<Vec<u8>>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                address,
+                topic1,
+                topic2,
+                topic3,
+                topic4,
+                miniblock_number
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            ORDER BY
+                miniblock_number
+            "#,
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
+        )
+        .instrument("get_bloom_items_for_l2_block")
+        .fetch_all(self.storage)
+        .await?;
+
+        let mut items = HashMap::new();
+        for row in rows {
+            let block = L2BlockNumber(row.miniblock_number as u32);
+            let vec: &mut Vec<_> = items.entry(block).or_default();
+            vec.push(row.address);
+            if !row.topic1.is_empty() {
+                vec.push(row.topic1);
+            }
+            if !row.topic2.is_empty() {
+                vec.push(row.topic2);
+            }
+            if !row.topic3.is_empty() {
+                vec.push(row.topic3);
+            }
+            if !row.topic4.is_empty() {
+                vec.push(row.topic4);
+            }
+        }
+
+        Ok(items)
+    }
 }
 
 #[cfg(test)]

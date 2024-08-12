@@ -23,7 +23,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     l2_to_l1_log::UserL2ToL1Log,
     writes::TreeWrite,
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
@@ -691,6 +691,7 @@ impl BlocksDal<'_, '_> {
                     virtual_blocks,
                     fair_pubdata_price,
                     gas_limit,
+                    logs_bloom,
                     created_at,
                     updated_at
                 )
@@ -712,6 +713,7 @@ impl BlocksDal<'_, '_> {
                     $14,
                     $15,
                     $16,
+                    $17,
                     NOW(),
                     NOW()
                 )
@@ -738,6 +740,7 @@ impl BlocksDal<'_, '_> {
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
             l2_block_header.gas_limit as i64,
+            l2_block_header.logs_bloom.as_bytes(),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -764,7 +767,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
-                gas_limit
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
             ORDER BY
@@ -803,7 +807,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
-                gas_limit
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
             WHERE
@@ -2333,6 +2338,84 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(results.into_iter().map(L::from).collect())
+    }
+
+    pub async fn get_last_l2_block_bloom(&mut self) -> DalResult<Option<Bloom>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                logs_bloom
+            FROM
+                miniblocks
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_last_l2_block_bloom")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row
+            .and_then(|row| row.logs_bloom)
+            .map(|b| Bloom::from_slice(&b)))
+    }
+
+    pub async fn get_max_l2_block_without_bloom(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(number) AS "max?"
+            FROM
+                miniblocks
+            WHERE
+                logs_bloom IS NULL
+            "#,
+        )
+        .instrument("get_max_l2_block_without_bloom")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.max.map(|n| L2BlockNumber(n as u32)))
+    }
+
+    pub async fn range_update_logs_bloom(
+        &mut self,
+        from_l2_block: L2BlockNumber,
+        to_l2_block: L2BlockNumber,
+        blooms: Vec<Bloom>,
+    ) -> DalResult<()> {
+        let numbers: Vec<_> = (i64::from(from_l2_block.0)..=i64::from(to_l2_block.0)).collect();
+        assert_eq!(
+            numbers.len(),
+            blooms.len(),
+            "range_update_logs_bloom: inconsistent array lengths"
+        );
+
+        let blooms: Vec<_> = blooms.into_iter().map(|b| b.0.to_vec()).collect();
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                logs_bloom = data.logs_bloom
+            FROM
+                (
+                    SELECT
+                        UNNEST($1::BIGINT[]) AS number,
+                        UNNEST($2::BYTEA[]) AS logs_bloom
+                ) AS data
+            WHERE
+                miniblocks.number = data.number
+            "#,
+            &numbers,
+            &blooms,
+        )
+        .instrument("range_update_logs_bloom")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 }
 

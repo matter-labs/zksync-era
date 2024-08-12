@@ -48,6 +48,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     }
 }
 pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
