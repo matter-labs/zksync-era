@@ -47,6 +47,28 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
     }
+
+    /// Waits for the `number` L1 batch hash.
+    pub async fn wait_for_batch_hash(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<attester::BatchHash> {
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
+        loop {
+            if let Some(hash) = self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .batch_hash(ctx, number)
+                .await
+                .with_wrap(|| format!("batch_hash({number})"))?
+            {
+                return Ok(hash);
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
+    }
 }
 
 /// Context-aware `zksync_dal::Connection<Core>` wrapper.
