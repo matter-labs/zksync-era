@@ -40,12 +40,12 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     )?;
 
     logger::info("Run external-node");
+    let en_shell = shell.clone();
     let _handle = thread::spawn(move || {
         let chain = global_config().chain_name.clone();
 
-        let server_shell = Shell::new().unwrap();
         let mut cmd =
-            cmd!(server_shell, "zk_inception external-node run").arg("--ignore-prerequisites");
+            cmd!(en_shell, "zk_inception external-node run").arg("--ignore-prerequisites");
 
         if let Some(chain) = chain {
             cmd = cmd.arg("--chain").arg(chain);
