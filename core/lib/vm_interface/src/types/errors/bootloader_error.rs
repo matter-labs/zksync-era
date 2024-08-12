@@ -1,6 +1,6 @@
 /// Error codes returned by the bootloader.
 #[derive(Debug)]
-pub(crate) enum BootloaderErrorCode {
+pub enum BootloaderErrorCode {
     EthCall,
     AccountTxValidationFailed,
     FailedToChargeFee,

@@ -8927,7 +8927,6 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "pretty_assertions",
- "serde",
  "thiserror",
  "tokio",
  "tracing",
@@ -8945,6 +8944,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9757,8 +9757,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_vm_interfaces"
+name = "zksync_vm_interface"
 version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "thiserror",
+ "zksync_contracts",
+ "zksync_system_constants",
+ "zksync_types",
+]
 
 [[package]]
 name = "zksync_vm_runner"

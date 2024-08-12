@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt;
 
 use super::{halt::Halt, BootloaderErrorCode, VmRevertReason};
 
@@ -135,8 +135,8 @@ impl TxRevertReason {
     }
 }
 
-impl Display for TxRevertReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for TxRevertReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             TxRevertReason::TxReverted(reason) => write!(f, "{}", reason),
             TxRevertReason::Halt(reason) => write!(f, "{}", reason),

@@ -10,7 +10,7 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
+[dependencies] # FIXME: revise
 zk_evm_1_5_0.workspace = true
 zk_evm_1_4_1.workspace = true
 zk_evm_1_4_0.workspace = true
@@ -29,14 +29,13 @@ zksync_state.workspace = true
 zksync_contracts.workspace = true
 zksync_utils.workspace = true
 zksync_system_constants.workspace = true
-
+zksync_vm_interface.workspace = true
 
 anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
 pretty_assertions.workspace = true
-serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true

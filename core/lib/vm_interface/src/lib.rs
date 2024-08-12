@@ -7,7 +7,7 @@ pub use crate::types::{
     inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
     outputs::{
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-        Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+        Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
     tracer,
 };
