@@ -12,7 +12,6 @@ BINS=(zk_inception zk_supervisor)
 main() {
   parse_args "$@"
 
-  say "Installing zk_toolbox"
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
 
