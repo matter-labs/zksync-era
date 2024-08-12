@@ -50,6 +50,9 @@ file_backed_base_path = "artifacts"
 [en.main_node]
 url = "http://127.0.0.1:3050"
 
+[en.gateway]
+url = "http://127.0.0.1:3060"
+
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
