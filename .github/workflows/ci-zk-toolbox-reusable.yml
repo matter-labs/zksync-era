@@ -126,6 +126,11 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_rollup \
           --chain chain_rollup
+      
+      - name: Run server on Rollup chain
+        run: |
+          ci_run zk_inception server --ignore-prerequisites --chain chain_rollup &>server_rollup.log &
+          ci_run sleep 5
 
       - name: Init external node (Rollup)
         run: |
@@ -156,12 +161,18 @@ jobs:
           --prover-db-name=zksync_prover_localhost_validium \
           --port-offset 2000 \
           --chain chain_validium
-  
+
       - name: Init external node (Validium)
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
+
+      - name: Run server on Validium chain
+        run: |
+          ci_run zk_inception server --ignore-prerequisites --chain chain_validium &>server_validium.log &
+          ci_run sleep 5
+
 
       - name: Run tests on all chains
         run: |
@@ -176,9 +187,17 @@ jobs:
           wait $PID1
           wait $PID2
             
+      - name: Show server_rollup.log logs
+        if: always()
+        run: ci_run cat server_rollup.log || true
+
       - name: Show rollup.log logs
         if: always()
         run: ci_run cat rollup.log || true
+
+      - name: Show server_validium.log logs
+        if: always()
+        run: ci_run cat server_validium.log || true
 
       - name: Show validium.log logs
         if: always()

@@ -12,20 +12,6 @@ use super::{
 };
 
 pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
-    logger::info("Run server");
-    let _handle = thread::spawn(move || {
-        let chain = global_config().chain_name.clone();
-
-        let server_shell = Shell::new().unwrap();
-        let mut cmd = cmd!(server_shell, "zk_inception server").arg("--ignore-prerequisites");
-
-        if let Some(chain) = chain {
-            cmd = cmd.arg("--chain").arg(chain);
-        }
-
-        let _out = Cmd::new(cmd).run_with_output().unwrap();
-    });
-
     logger::info("Run integration tests");
     integration::run(
         shell,
