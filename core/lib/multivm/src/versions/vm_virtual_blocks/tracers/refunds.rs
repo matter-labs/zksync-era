@@ -17,10 +17,10 @@ use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256}
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
         storage::{StoragePtr, WriteStorage},
         L1BatchEnv, Refunds, VmExecutionResultAndLogs,
     },
+    tracers::dyn_tracers::vm_1_3_3::DynTracer,
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},

@@ -1,9 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use zksync_multivm::{
-    interface::{
-        dyn_tracers::vm_1_5_0::DynTracer, storage::WriteStorage, tracer::TracerExecutionStatus,
-    },
+    interface::{storage::WriteStorage, tracer::TracerExecutionStatus},
+    tracers::dyn_tracers::vm_1_5_0::DynTracer,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

@@ -4,11 +4,11 @@ use zksync_types::{get_nonce_key, Execute, U256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },
+    tracers::dyn_tracers::vm_1_5_0::DynTracer,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},

@@ -15,11 +15,10 @@ use zksync_types::{
 use crate::{
     glue::GlueInto,
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
         storage::{StoragePtr, WriteStorage},
         VmExecutionResultAndLogs, VmRevertReason,
     },
-    tracers::call_tracer::CallTracer,
+    tracers::{call_tracer::CallTracer, dyn_tracers::vm_1_3_3::DynTracer},
     vm_virtual_blocks::{
         ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },

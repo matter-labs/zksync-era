@@ -7,12 +7,12 @@ use zksync_contracts::{
 };
 use zksync_multivm::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
         VmInterface,
     },
+    tracers::dyn_tracers::vm_1_5_0::DynTracer,
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,

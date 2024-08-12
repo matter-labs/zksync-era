@@ -1,16 +1,13 @@
 use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
-use zksync_types::StorageKey;
+use zksync_types::{StorageKey, U256};
 
 use super::{
     get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
     StorageAccess,
 };
 use crate::{
-    interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
-        storage::{StoragePtr, WriteStorage},
-    },
-    tracers::prestate_tracer::U256,
+    interface::storage::{StoragePtr, WriteStorage},
+    tracers::dyn_tracers::vm_1_4_1::DynTracer,
     vm_1_4_1::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

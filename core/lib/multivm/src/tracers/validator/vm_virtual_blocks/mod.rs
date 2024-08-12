@@ -10,13 +10,15 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
         storage::{StoragePtr, WriteStorage},
         VmExecutionResultAndLogs,
     },
-    tracers::validator::{
-        types::{NewTrustedValidationItems, ValidationTracerMode},
-        ValidationRoundResult, ValidationTracer,
+    tracers::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        validator::{
+            types::{NewTrustedValidationItems, ValidationTracerMode},
+            ValidationRoundResult, ValidationTracer,
+        },
     },
     vm_virtual_blocks::{
         tracers::utils::{

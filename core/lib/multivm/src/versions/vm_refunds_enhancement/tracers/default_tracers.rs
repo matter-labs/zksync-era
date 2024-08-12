@@ -12,11 +12,11 @@ use zk_evm_1_3_3::{
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
+    tracers::dyn_tracers::vm_1_3_3::DynTracer,
     vm_refunds_enhancement::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

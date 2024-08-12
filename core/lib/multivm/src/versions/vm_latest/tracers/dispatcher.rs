@@ -4,10 +4,10 @@ use zk_evm_1_5_0::tracing::{
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
+    tracers::dyn_tracers::vm_1_5_0::DynTracer,
     vm_latest::{
         BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
     },

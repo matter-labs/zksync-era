@@ -1,18 +1,15 @@
 use std::collections::HashMap;
 
 use zk_evm_1_3_3::tracing::{BeforeExecutionData, VmLocalStateData};
-use zksync_types::{StorageKey, H256};
+use zksync_types::{StorageKey, H256, U256};
 
 use super::{
     get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
     StorageAccess,
 };
 use crate::{
-    interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
-        storage::{StoragePtr, WriteStorage},
-    },
-    tracers::prestate_tracer::U256,
+    interface::storage::{StoragePtr, WriteStorage},
+    tracers::dyn_tracers::vm_1_3_3::DynTracer,
     vm_refunds_enhancement::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

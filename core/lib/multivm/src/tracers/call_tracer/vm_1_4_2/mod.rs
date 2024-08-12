@@ -17,10 +17,9 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::VmExecutionStopReason,
-        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         VmRevertReason,
     },
-    tracers::call_tracer::CallTracer,
+    tracers::{call_tracer::CallTracer, dyn_tracers::vm_1_4_1::DynTracer},
     vm_1_4_2::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

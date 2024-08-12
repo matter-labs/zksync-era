@@ -18,9 +18,9 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         Halt, VmExecutionMode,
     },
+    tracers::dyn_tracers::vm_1_4_0::DynTracer,
     vm_boojum_integration::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

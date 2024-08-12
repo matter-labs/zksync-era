@@ -11,9 +11,9 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
+    tracers::dyn_tracers::vm_1_4_0::DynTracer,
     vm_boojum_integration::{
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},

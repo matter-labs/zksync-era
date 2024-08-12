@@ -12,12 +12,14 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
         Halt,
     },
-    tracers::validator::{
-        types::{NewTrustedValidationItems, ValidationTracerMode},
-        ValidationRoundResult, ValidationTracer,
+    tracers::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        validator::{
+            types::{NewTrustedValidationItems, ValidationTracerMode},
+            ValidationRoundResult, ValidationTracer,
+        },
     },
     vm_refunds_enhancement::{
         tracers::utils::{

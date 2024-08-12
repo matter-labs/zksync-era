@@ -17,11 +17,11 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmExecutionMode,
     },
+    tracers::dyn_tracers::vm_1_4_1::DynTracer,
     vm_1_4_2::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

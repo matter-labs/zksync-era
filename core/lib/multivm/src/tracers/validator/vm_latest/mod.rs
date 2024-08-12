@@ -12,12 +12,14 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
         Halt,
     },
-    tracers::validator::{
-        types::{NewTrustedValidationItems, ValidationTracerMode},
-        ValidationRoundResult, ValidationTracer,
+    tracers::{
+        dyn_tracers::vm_1_5_0::DynTracer,
+        validator::{
+            types::{NewTrustedValidationItems, ValidationTracerMode},
+            ValidationRoundResult, ValidationTracer,
+        },
     },
     vm_latest::{
         tracers::utils::{computational_gas_price, get_calldata_page_via_abi, VmHook},

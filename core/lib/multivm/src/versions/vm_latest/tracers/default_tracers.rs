@@ -17,11 +17,11 @@ use super::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
+    tracers::dyn_tracers::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

@@ -19,9 +19,9 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
-        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
         L1BatchEnv, Refunds,
     },
+    tracers::dyn_tracers::vm_1_4_1::DynTracer,
     vm_1_4_1::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},

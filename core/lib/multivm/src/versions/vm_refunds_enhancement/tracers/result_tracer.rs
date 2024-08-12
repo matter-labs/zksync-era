@@ -7,11 +7,11 @@ use zksync_types::U256;
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
+    tracers::dyn_tracers::vm_1_3_3::DynTracer,
     vm_refunds_enhancement::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
