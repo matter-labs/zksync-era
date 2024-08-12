@@ -11,5 +11,3 @@ mod bytecode_compression;
 mod halt;
 mod tx_revert_reason;
 mod vm_revert_reason;
-
-// FIXME: make errors non-exhaustive?

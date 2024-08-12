@@ -1,5 +1,6 @@
 /// Error codes returned by the bootloader.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum BootloaderErrorCode {
     EthCall,
     AccountTxValidationFailed,

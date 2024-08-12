@@ -3,6 +3,7 @@ use std::fmt;
 use zksync_types::U256;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VmRevertReasonParsingError {
     #[error("Incorrect data offset. Data: {0:?}")]
     IncorrectDataOffset(Vec<u8>),
@@ -14,6 +15,7 @@ pub enum VmRevertReasonParsingError {
 
 /// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum VmRevertReason {
     General {
         msg: String,
