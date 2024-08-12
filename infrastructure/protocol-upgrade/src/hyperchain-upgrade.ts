@@ -230,3 +230,23 @@ command
             await hyperchainUpgradeValidators();
         }
     });
+
+command
+    .command('nova-post-upgrade-calldata')
+    .option('--environment <environment>')
+    .action(async (options) => {
+        let calldata = new ethers.utils.AbiCoder().encode(
+            ['address', 'uint256', 'address', 'address', 'address', 'address'],
+            [
+                process.env.CONTRACTS_CHAIN_ADMIN_ADDR,
+                process.env.CONTRACTS_ERA_CHAIN_ID,
+                process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR,
+                process.env.CONTRACTS_STATE_TRANSITION_PROXY_ADDR,
+                process.env.CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR,
+                process.env.CONTRACTS_VALIDATOR_TIMELOCK_ADDR
+            ]
+        );
+        let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(options.environment);
+
+        fs.writeFileSync(postUpgradeCalldataFileName, JSON.stringify(calldata, null, 2));
+    });

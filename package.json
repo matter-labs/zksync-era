@@ -34,7 +34,8 @@
     "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
     "utils": "yarn workspace utils",
-    "zk": "yarn workspace zk"
+    "zk": "yarn workspace zk",
+    "protocol-upgrade": "yarn workspace protocol-upgrade-tool"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.7.4",
