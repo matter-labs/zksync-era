@@ -14,7 +14,7 @@ use zksync_merkle_tree::{
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
-        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface,
+        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     vm_latest::HistoryEnabled,
     VmInstance,
@@ -22,9 +22,8 @@ use zksync_multivm::{
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, Transaction, H256};
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_vm_utils::execute_tx;
 
 /// A structure to hold the result of verification.
 pub struct VerificationResult {
@@ -238,13 +237,40 @@ fn generate_tree_instructions(
         .collect::<Result<Vec<_>, _>>()
 }
 
+fn execute_tx<S: ReadStorage>(
+    tx: &Transaction,
+    vm: &mut VmInstance<S, HistoryEnabled>,
+) -> anyhow::Result<()> {
+    // Attempt to run VM with bytecode compression on.
+    vm.make_snapshot();
+    if vm
+        .execute_transaction_with_bytecode_compression(tx.clone(), true)
+        .0
+        .is_ok()
+    {
+        vm.pop_snapshot_no_rollback();
+        return Ok(());
+    }
+
+    // If failed with bytecode compression, attempt to run without bytecode compression.
+    vm.rollback_to_the_latest_snapshot();
+    if vm
+        .execute_transaction_with_bytecode_compression(tx.clone(), false)
+        .0
+        .is_err()
+    {
+        anyhow::bail!("compression can't fail if we don't apply it");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::U256;
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_object_store::StoredObject;
     use zksync_prover_interface::inputs::TeeVerifierInput;
+    use zksync_types::U256;
 
     use super::*;
 

@@ -1,16 +1,16 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
-        storage::{ReadStorage, StoragePtr, StorageView},
-        VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        storage::{StoragePtr, StorageView},
+        VmFactory,
     },
     vm_latest::HistoryEnabled,
     VmInstance,
 };
 use zksync_state::PostgresStorage;
-use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
+use zksync_types::{L1BatchNumber, L2ChainId};
 
 use crate::storage::L1BatchParamsProvider;
 
@@ -59,31 +59,4 @@ pub fn create_vm(
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
     Ok((vm, storage_view))
-}
-
-pub fn execute_tx<S: ReadStorage>(
-    tx: &Transaction,
-    vm: &mut VmInstance<S, HistoryEnabled>,
-) -> anyhow::Result<()> {
-    // Attempt to run VM with bytecode compression on.
-    vm.make_snapshot();
-    if vm
-        .execute_transaction_with_bytecode_compression(tx.clone(), true)
-        .0
-        .is_ok()
-    {
-        vm.pop_snapshot_no_rollback();
-        return Ok(());
-    }
-
-    // If failed with bytecode compression, attempt to run without bytecode compression.
-    vm.rollback_to_the_latest_snapshot();
-    if vm
-        .execute_transaction_with_bytecode_compression(tx.clone(), false)
-        .0
-        .is_err()
-    {
-        return Err(anyhow!("compression can't fail if we don't apply it"));
-    }
-    Ok(())
 }
