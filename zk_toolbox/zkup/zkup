@@ -129,7 +129,7 @@ install_local() {
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
-    ensure_spinner cargo install --root $ZKT_DIR --path ./crates/$bin --force
+    ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
   done
 }
 
@@ -164,25 +164,8 @@ install_from_repo() {
 }
 
 ensure() {
-  if ! "$@" >/dev/null 2>&1; then
+  if ! "$@"; then
     err "command failed: $*"
-    exit 1
-  fi
-}
-
-ensure_spinner() {
-  local cmd="$*"
-  "$@" >/dev/null 2>&1 &
-  local pid=$!
-  local status
-
-  spinner $pid
-
-  wait $pid
-  status=$?
-
-  if [ $status -ne 0 ]; then
-    err "command failed: $cmd"
     exit 1
   fi
 }
@@ -204,24 +187,6 @@ warn() {
 
 err() {
   echo -e "\033[1;31mERROR: $1\033[0m" >&2
-}
-
-spinner() {
-  local pid=$1
-  local delay=0.1
-  local spinstr='|/-\'
-  local i=0
-
-  tput civis
-
-  while kill -0 "$pid" 2>/dev/null; do
-    i=$(((i + 1) % 4))
-    printf "\r[%c] " "${spinstr:$i:1}"
-    sleep $delay
-  done
-
-  tput cnorm
-  printf "\r    \r"
 }
 
 main "$@"
