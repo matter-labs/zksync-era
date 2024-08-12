@@ -57,7 +57,7 @@ pub struct Vm<S: WriteStorage> {
 impl<S: WriteStorage + 'static> Vm<S> {
     pub fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
-            let result = self.inner.run_program_with_custom_bytecode();
+            let (result, blob_tracer) = self.inner.run_program_with_custom_bytecode();
             let result = match result {
                 ExecutionOutput::Ok(output) => return ExecutionResult::Success { output },
                 ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
@@ -269,6 +269,11 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
             system_env
                 .base_system_smart_contracts
                 .default_aa
+                .hash
+                .to_fixed_bytes(),
+            system_env
+                .base_system_smart_contracts
+                .default_aa //TODO: Add real evm interpreter
                 .hash
                 .to_fixed_bytes(),
             vm_hook_position,
