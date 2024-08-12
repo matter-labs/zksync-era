@@ -67,9 +67,6 @@ pub trait ZksNamespace {
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
-    #[method(name = "getFirstSyncLayerBatchNumber")]
-    async fn get_first_sync_layer_batch_number(&self) -> RpcResult<Option<L1BatchNumber>>;
-
     #[method(name = "getConfirmedTokens")]
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
 

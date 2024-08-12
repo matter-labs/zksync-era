@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber};
 
 use crate::client::{ForNetwork, L2};
 
@@ -48,4 +48,7 @@ pub trait EnNamespace {
 
     #[method(name = "getEcosystemContracts")]
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
+
+    #[method(name = "getFirstSyncLayerBatchNumber")]
+    async fn get_first_sync_layer_batch_number(&self) -> RpcResult<Option<L1BatchNumber>>;
 }

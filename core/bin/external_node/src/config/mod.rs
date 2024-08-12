@@ -702,7 +702,7 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
-            gateway_client_url: enconfig.gateway_url,
+            gateway_client_url: enconfig.gateway_url.clone(),
         })
     }
 

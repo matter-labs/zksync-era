@@ -142,10 +142,6 @@ impl ZksNamespace {
         }
     }
 
-    pub fn get_first_sync_layer_batch_number_impl(&self) -> Option<L1BatchNumber> {
-        self.state.api_config.first_sync_layer_batch_number
-    }
-
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
         self.state.api_config.l2_testnet_paymaster_addr
     }

@@ -172,4 +172,8 @@ impl EnNamespace {
             .read_whitelisted_tokens_for_aa_cache()
             .await)
     }
+
+    pub fn get_first_sync_layer_batch_number_impl(&self) -> Option<L1BatchNumber> {
+        self.state.api_config.first_sync_layer_batch_number
+    }
 }

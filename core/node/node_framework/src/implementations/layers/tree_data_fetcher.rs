@@ -47,7 +47,7 @@ impl TreeDataFetcherLayer {
         }
     }
 
-    pub fn with_migratoin_details(
+    pub fn with_migration_details(
         mut self,
         first_batch_migrated: L1BatchNumber,
         diamond_proxy_address: Address,

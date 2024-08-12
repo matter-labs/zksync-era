@@ -30,6 +30,10 @@ impl ProtoRepr for proto::ExternalNode {
             main_node_rate_limit_rps: self
                 .main_node_rate_limit_rps
                 .and_then(|a| NonZeroUsize::new(a as usize)),
+            gateway_url: self
+                .gateway_url
+                .as_ref()
+                .map(|a| a.parse().expect("gateway_url")),
         })
     }
 
@@ -45,6 +49,10 @@ impl ProtoRepr for proto::ExternalNode {
                 .into(),
             ),
             main_node_rate_limit_rps: this.main_node_rate_limit_rps.map(|a| a.get() as u64),
+            gateway_url: this
+                .gateway_url
+                .as_ref()
+                .map(|a| a.expose_str().to_string()),
         }
     }
 }
