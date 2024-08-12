@@ -12,7 +12,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
+use super::TxParamsProvider;
 
 mod metrics;
 #[cfg(test)]

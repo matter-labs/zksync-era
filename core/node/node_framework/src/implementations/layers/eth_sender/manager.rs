@@ -11,7 +11,7 @@ use crate::{
             BoundEthInterfaceResource,
         },
         gas_adjuster::GasAdjusterResource,
-        l1_tx_params::L1TxParamsResource,
+        l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
@@ -31,7 +31,7 @@ use crate::{
 /// - `PoolResource<ReplicaPool>`
 /// - `BoundEthInterfaceResource`
 /// - `BoundEthInterfaceForBlobsResource` (optional)
-/// - `L1TxParamsResource`
+/// - `TxParamsResource`
 /// - `CircuitBreakersResource` (adds a circuit breaker)
 ///
 /// ## Adds tasks
