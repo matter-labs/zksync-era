@@ -18,7 +18,7 @@ use config::{
             input::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
             },
-            output::{DeployErc20Output, DeployL1Output},
+            output::{DeployL1Output, ERC20Tokens},
         },
         script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
     },
@@ -164,7 +164,7 @@ async fn deploy_erc20(
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
     l1_rpc_url: String,
-) -> anyhow::Result<DeployErc20Output> {
+) -> anyhow::Result<ERC20Tokens> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     let wallets = ecosystem_config.get_wallets()?;
     DeployErc20Config::new(
@@ -194,7 +194,7 @@ async fn deploy_erc20(
     forge.run(shell)?;
     spinner.finish();
 
-    let result = DeployErc20Output::read(
+    let result = ERC20Tokens::read(
         shell,
         DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
