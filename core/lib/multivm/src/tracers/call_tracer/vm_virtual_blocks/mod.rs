@@ -18,7 +18,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         VmExecutionResultAndLogs, VmRevertReason,
     },
-    tracers::{call_tracer::CallTracer, dyn_tracers::vm_1_3_3::DynTracer},
+    tracers::{dynamic::vm_1_3_3::DynTracer, CallTracer},
     vm_virtual_blocks::{
         ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     },

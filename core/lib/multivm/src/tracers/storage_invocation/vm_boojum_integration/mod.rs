@@ -4,7 +4,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         Halt,
     },
-    tracers::{dyn_tracers::vm_1_4_0::DynTracer, storage_invocation::StorageInvocations},
+    tracers::{dynamic::vm_1_4_0::DynTracer, StorageInvocations},
     vm_boojum_integration::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

@@ -12,7 +12,7 @@ use zksync_multivm::{
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
         VmInterface,
     },
-    tracers::dyn_tracers::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,

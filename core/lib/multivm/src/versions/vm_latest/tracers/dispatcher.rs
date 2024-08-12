@@ -7,7 +7,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    tracers::dyn_tracers::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
     },

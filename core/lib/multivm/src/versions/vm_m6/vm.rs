@@ -21,7 +21,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    tracers::old_tracers::TracerDispatcher,
+    tracers::old::TracerDispatcher,
     vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
 };
 

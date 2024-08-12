@@ -19,7 +19,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    tracers::old_tracers::TracerDispatcher,
+    tracers::old::TracerDispatcher,
     vm_1_3_2::{events::merge_events, VmInstance},
 };
 

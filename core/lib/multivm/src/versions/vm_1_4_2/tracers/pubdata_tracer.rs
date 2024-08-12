@@ -21,7 +21,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmExecutionMode,
     },
-    tracers::dyn_tracers::vm_1_4_1::DynTracer,
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_2::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

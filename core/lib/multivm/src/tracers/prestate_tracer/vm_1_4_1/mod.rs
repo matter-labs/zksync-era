@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     interface::storage::{StoragePtr, WriteStorage},
-    tracers::dyn_tracers::vm_1_4_1::DynTracer,
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_1::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

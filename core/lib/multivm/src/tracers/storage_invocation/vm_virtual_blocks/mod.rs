@@ -1,6 +1,6 @@
 use crate::{
     interface::storage::WriteStorage,
-    tracers::{dyn_tracers::vm_1_3_3::DynTracer, storage_invocation::StorageInvocations},
+    tracers::{dynamic::vm_1_3_3::DynTracer, StorageInvocations},
     vm_virtual_blocks::{
         BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory,
         VmTracer, ZkSyncVmState,

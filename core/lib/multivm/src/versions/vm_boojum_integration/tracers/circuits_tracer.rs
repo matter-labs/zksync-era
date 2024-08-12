@@ -13,7 +13,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
     },
-    tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    tracers::dynamic::vm_1_4_0::DynTracer,
     vm_boojum_integration::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

@@ -19,7 +19,7 @@ use crate::{
         tracer::VmExecutionStopReason,
         VmRevertReason,
     },
-    tracers::{call_tracer::CallTracer, dyn_tracers::vm_1_4_0::DynTracer},
+    tracers::{dynamic::vm_1_4_0::DynTracer, CallTracer},
     vm_boojum_integration::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 

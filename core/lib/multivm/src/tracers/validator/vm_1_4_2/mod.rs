@@ -15,7 +15,7 @@ use crate::{
         Halt,
     },
     tracers::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        dynamic::vm_1_4_1::DynTracer,
         validator::{
             types::{NewTrustedValidationItems, ValidationTracerMode},
             ValidationRoundResult, ValidationTracer,

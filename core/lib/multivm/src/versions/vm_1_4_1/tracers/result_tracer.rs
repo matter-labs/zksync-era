@@ -13,7 +13,7 @@ use crate::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
-    tracers::dyn_tracers::vm_1_4_1::DynTracer,
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_1::{
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},

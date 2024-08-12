@@ -3,7 +3,7 @@ use crate::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    tracers::dyn_tracers::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

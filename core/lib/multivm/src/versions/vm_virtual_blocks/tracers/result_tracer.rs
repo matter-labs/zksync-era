@@ -12,7 +12,7 @@ use crate::{
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs,
         VmRevertReason,
     },
-    tracers::dyn_tracers::vm_1_3_3::DynTracer,
+    tracers::dynamic::vm_1_3_3::DynTracer,
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},

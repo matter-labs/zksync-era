@@ -16,7 +16,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
-    tracers::dyn_tracers::vm_1_3_3::DynTracer,
+    tracers::dynamic::vm_1_3_3::DynTracer,
     vm_refunds_enhancement::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

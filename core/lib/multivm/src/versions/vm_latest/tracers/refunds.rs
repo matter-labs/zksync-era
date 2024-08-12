@@ -14,7 +14,7 @@ use crate::{
         tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
-    tracers::dyn_tracers::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},

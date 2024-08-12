@@ -8,7 +8,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
     },
-    tracers::dyn_tracers::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
