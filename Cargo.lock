@@ -1980,6 +1980,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "era_vm"
+version = "0.1.0"
+source = "git+https://github.com/lambdaclass/era_vm.git?branch=main#d3f6a983870b3807b65e33e1269569f7d38b4634"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "primitive-types",
+ "rocksdb",
+ "thiserror",
+ "zk_evm_abstractions 1.5.1",
+ "zkevm_opcode_defs 1.5.0",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6559,18 +6573,18 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.50"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9a7210f5c9a7156bb50aa36aed4c95afb51df0df00713949448cf9e97d382d2"
+checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.50"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "266b2e40bc00e5a6c09c3584011e08b06f123c00362c92b975ba9843aaaa14b8"
+checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.36",
@@ -7927,6 +7941,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_evm_abstractions"
+version = "1.5.1"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.1#eecb28df7d6dbcb728d4e9106933d288e4cb267e"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 1.5.0",
+]
+
+[[package]]
 name = "zkevm_circuits"
 version = "0.140.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8037,6 +8063,22 @@ name = "zkevm_opcode_defs"
 version = "0.150.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3328c012d444bdbfadb754a72c01a56879eb66584efc71eac457e89e7843608"
+dependencies = [
+ "bitflags 2.6.0",
+ "blake2 0.10.6",
+ "ethereum-types",
+ "k256 0.13.3",
+ "lazy_static",
+ "p256",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+]
+
+[[package]]
+name = "zkevm_opcode_defs"
+version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.1#9c470e3dbb093c4878b04b61e4d9459d94b41d45"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -8924,6 +8966,7 @@ dependencies = [
  "circuit_sequencer_api 0.141.1",
  "circuit_sequencer_api 0.142.0",
  "circuit_sequencer_api 0.150.2-rc.3",
+ "era_vm",
  "ethabi",
  "hex",
  "itertools 0.10.5",

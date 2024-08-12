@@ -25,7 +25,7 @@ use super::{
 };
 use crate::{
     era_vm::{bytecode::compress_bytecodes, transaction_data::TransactionData},
-    interface::{Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
+    interface::{Halt, TxRevertReason, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason},
     vm_latest::{
         constants::{
             get_vm_hook_position, get_vm_hook_start_position_latest, VM_HOOK_PARAMS_COUNT,
@@ -52,6 +52,100 @@ pub struct Vm<S: WriteStorage> {
     pub(crate) system_env: SystemEnv,
 
     snapshots: Vec<VmSnapshot>, // TODO: Implement snapshots logic
+}
+
+/// Encapsulates creating VM instance based on the provided environment.
+impl<S: WriteStorage + 'static> VmFactory<S> for Vm<S> {
+    /// Creates a new VM instance.
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let bootloader_code = system_env
+            .clone()
+            .base_system_smart_contracts
+            .bootloader
+            .code;
+        let vm_hook_position =
+            get_vm_hook_position(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
+                * 32;
+        let vm_state = VMState::new(
+            bootloader_code.to_owned(),
+            Vec::new(),
+            BOOTLOADER_ADDRESS,
+            H160::zero(),
+            0_u128,
+            system_env
+                .base_system_smart_contracts
+                .default_aa
+                .hash
+                .to_fixed_bytes(),
+            system_env
+                .base_system_smart_contracts
+                .default_aa //TODO: Add real evm interpreter
+                .hash
+                .to_fixed_bytes(),
+            vm_hook_position,
+            true,
+        );
+        let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
+        pre_contract_storage.borrow_mut().insert(
+            h256_to_u256(
+                system_env
+                    .clone()
+                    .base_system_smart_contracts
+                    .default_aa
+                    .hash,
+            ),
+            system_env
+                .clone()
+                .base_system_smart_contracts
+                .default_aa
+                .code,
+        );
+        let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
+        let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
+        let mut vm = EraVM::new(
+            vm_state,
+            Rc::new(RefCell::new(world_storage1)),
+            Rc::new(RefCell::new(world_storage2)),
+        );
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        // The bootloader shouldn't pay for growing memory and it writes results
+        // to the end of its heap, so it makes sense to preallocate it in its entirety.
+        const BOOTLOADER_MAX_MEMORY_SIZE: u32 = 59000000;
+        vm.state
+            .heaps
+            .get_mut(era_vm::state::FIRST_HEAP)
+            .unwrap()
+            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
+        vm.state
+            .heaps
+            .get_mut(era_vm::state::FIRST_HEAP + 1)
+            .unwrap()
+            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
+
+        let mut mv = Self {
+            inner: vm,
+            suspended_at: 0,
+            gas_for_account_validation: system_env
+                .clone()
+                .default_validation_computational_gas_limit,
+            last_tx_result: None,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode.clone(),
+                bootloader_initial_memory(&batch_env),
+                batch_env.first_l2_block,
+            ),
+            program_cache: pre_contract_storage,
+            storage,
+            batch_env,
+            system_env,
+            snapshots: Vec::new(),
+        };
+
+        mv.write_to_bootloader_heap(bootloader_memory);
+        mv
+    }
+
 }
 
 impl<S: WriteStorage + 'static> Vm<S> {
@@ -248,97 +342,8 @@ impl<S: WriteStorage + 'static> Vm<S> {
     }
 }
 
-impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
+impl<S: WriteStorage + 'static> VmInterface for Vm<S> {
     type TracerDispatcher = ();
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let bootloader_code = system_env
-            .clone()
-            .base_system_smart_contracts
-            .bootloader
-            .code;
-        let vm_hook_position =
-            get_vm_hook_position(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
-                * 32;
-        let vm_state = VMState::new(
-            bootloader_code.to_owned(),
-            Vec::new(),
-            BOOTLOADER_ADDRESS,
-            H160::zero(),
-            0_u128,
-            system_env
-                .base_system_smart_contracts
-                .default_aa
-                .hash
-                .to_fixed_bytes(),
-            system_env
-                .base_system_smart_contracts
-                .default_aa //TODO: Add real evm interpreter
-                .hash
-                .to_fixed_bytes(),
-            vm_hook_position,
-            true,
-        );
-        let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
-        pre_contract_storage.borrow_mut().insert(
-            h256_to_u256(
-                system_env
-                    .clone()
-                    .base_system_smart_contracts
-                    .default_aa
-                    .hash,
-            ),
-            system_env
-                .clone()
-                .base_system_smart_contracts
-                .default_aa
-                .code,
-        );
-        let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
-        let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
-        let mut vm = EraVM::new(
-            vm_state,
-            Rc::new(RefCell::new(world_storage1)),
-            Rc::new(RefCell::new(world_storage2)),
-        );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
-
-        // The bootloader shouldn't pay for growing memory and it writes results
-        // to the end of its heap, so it makes sense to preallocate it in its entirety.
-        const BOOTLOADER_MAX_MEMORY_SIZE: u32 = 59000000;
-        vm.state
-            .heaps
-            .get_mut(era_vm::state::FIRST_HEAP)
-            .unwrap()
-            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
-        vm.state
-            .heaps
-            .get_mut(era_vm::state::FIRST_HEAP + 1)
-            .unwrap()
-            .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
-
-        let mut mv = Self {
-            inner: vm,
-            suspended_at: 0,
-            gas_for_account_validation: system_env
-                .clone()
-                .default_validation_computational_gas_limit,
-            last_tx_result: None,
-            bootloader_state: BootloaderState::new(
-                system_env.execution_mode.clone(),
-                bootloader_initial_memory(&batch_env),
-                batch_env.first_l2_block,
-            ),
-            program_cache: pre_contract_storage,
-            storage,
-            batch_env,
-            system_env,
-            snapshots: Vec::new(),
-        };
-
-        mv.write_to_bootloader_heap(bootloader_memory);
-        mv
-    }
 
     fn push_transaction(&mut self, tx: Transaction) {
         let tx: TransactionData = tx.into();
@@ -444,7 +449,7 @@ impl<S: WriteStorage + 'static> VmInterface<S, HistoryEnabled> for Vm<S> {
     }
 }
 
-impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled<S> for Vm<S> {
+impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
         todo!()
     }
