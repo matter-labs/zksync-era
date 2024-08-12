@@ -150,6 +150,22 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    pub async fn get_earliest_l2_block_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                miniblocks
+            "#
+        )
+        .instrument("get_earliest_l2_block_number")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
     pub async fn get_last_l1_batch_number_with_tree_data(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {

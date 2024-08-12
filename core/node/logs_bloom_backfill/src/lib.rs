@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{block::build_bloom, BloomInput, L2BlockNumber};
@@ -57,6 +58,13 @@ impl LogsBloomBackfill {
             tracing::info!("all blooms are already there, exiting migration");
             return Ok(());
         };
+        let first_l2_block = connection
+            .blocks_dal()
+            .get_earliest_l2_block_number()
+            .await?
+            .context(
+                "logs_bloom_backfill: missing l2 block in DB after waiting for at least one",
+            )?;
 
         tracing::info!("starting blooms backfill");
         let mut right_bound = max_block_without_bloom.0;
@@ -67,7 +75,7 @@ impl LogsBloomBackfill {
                 tracing::info!("received a stop signal; logs bloom backfill is shut down");
             }
 
-            let left_bound = right_bound.saturating_sub(WINDOW - 1);
+            let left_bound = right_bound.saturating_sub(WINDOW - 1).max(first_l2_block.0);
             let mut bloom_items = connection
                 .events_dal()
                 .get_bloom_items_for_l2_block(L2BlockNumber(left_bound), L2BlockNumber(right_bound))
@@ -92,7 +100,7 @@ impl LogsBloomBackfill {
                 .await?;
             tracing::info!("filled blooms for block range {left_bound}..={right_bound}");
 
-            if left_bound == 0 {
+            if left_bound == first_l2_block {
                 break;
             } else {
                 right_bound = left_bound - 1;
