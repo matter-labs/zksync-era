@@ -63,16 +63,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run revert tests");
-    revert::run(
-        shell,
-        RevertArgs {
-            enable_consensus: false,
-            external_node: false,
-            no_deps: args.no_deps,
-        },
-    )?;
-
     logger::info("Run revert tests (external node)");
     revert::run(
         shell,
