@@ -79,7 +79,6 @@ pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
-pub(super) const MSG_RUNNING_UNIT_TESTS_SPINNER: &str = "Running unit tests";
 pub(super) const MSG_UNIT_TESTS_RUN_SUCCESS: &str = "Unit tests ran successfully";
 pub(super) const MSG_USING_CARGO_NEXTEST: &str = "Using cargo-nextest for running tests";
 pub(super) const MSG_CARGO_NEXTEST_MISSING_ERR: &str = "cargo-nextest is missing, please run 'cargo install cargo-nextest'. Falling back to 'cargo test'";

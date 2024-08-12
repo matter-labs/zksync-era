@@ -1,11 +1,10 @@
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::args::rust::RustArgs;
 use crate::messages::{
-    MSG_CARGO_NEXTEST_MISSING_ERR, MSG_RUNNING_UNIT_TESTS_SPINNER, MSG_UNIT_TESTS_RUN_SUCCESS,
-    MSG_USING_CARGO_NEXTEST,
+    MSG_CARGO_NEXTEST_MISSING_ERR, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
 };
 
 pub fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
@@ -20,13 +19,13 @@ pub fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         cmd!(shell, "cargo test --release")
     };
 
-    let spinner = Spinner::new(MSG_RUNNING_UNIT_TESTS_SPINNER);
     if let Some(options) = args.options {
-        Cmd::new(cmd.args(options.split_whitespace())).run()?;
+        Cmd::new(cmd.args(options.split_whitespace()))
+            .with_force_run()
+            .run()?;
     } else {
-        Cmd::new(cmd).run()?;
+        Cmd::new(cmd).with_force_run().run()?;
     }
-    spinner.finish();
 
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
