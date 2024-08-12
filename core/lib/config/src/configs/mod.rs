@@ -9,8 +9,9 @@ pub use self::{
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
-    experimental::ExperimentalDBConfig,
+    experimental::{ExperimentalDBConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig},
     external_price_api_client::ExternalPriceApiClientConfig,
+    external_proof_integration_api::ExternalProofIntegrationApiConfig,
     fri_proof_compressor::FriProofCompressorConfig,
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
@@ -43,6 +44,7 @@ pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
 pub mod external_price_api_client;
+pub mod external_proof_integration_api;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;

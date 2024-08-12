@@ -9,6 +9,7 @@ use ethers::{
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
     "Chain not initialized. Please create a chain first";
+pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
@@ -50,6 +51,7 @@ pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
+pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -105,6 +107,7 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
+pub(super) const MSG_CHAIN_ID_HELP: &str = "Chain ID";
 pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
 pub(super) const MSG_WALLET_PATH_HELP: &str = "Wallet path";
 pub(super) const MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP: &str = "Commit data generation mode";
@@ -134,6 +137,10 @@ pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
 pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
 pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
+pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
+pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
+pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
+    "Localhost wallet is not supported for external networks";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
@@ -201,6 +208,7 @@ pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
     "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
 pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
+pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observability?";
 
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
@@ -290,7 +298,7 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
-pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud type:";
+pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
 pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {

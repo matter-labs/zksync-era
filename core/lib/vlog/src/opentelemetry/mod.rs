@@ -8,7 +8,7 @@ use opentelemetry_sdk::{
     Resource,
 };
 use opentelemetry_semantic_conventions::resource::{
-    K8S_NAMESPACE_NAME, K8S_POD_NAME, SERVICE_NAME,
+    DEPLOYMENT_ENVIRONMENT, K8S_CLUSTER_NAME, K8S_NAMESPACE_NAME, K8S_POD_NAME, SERVICE_NAME,
 };
 use tracing_subscriber::{registry::LookupSpan, EnvFilter, Layer};
 use url::Url;
@@ -16,19 +16,23 @@ use url::Url;
 /// Information about the service.
 ///
 /// This information is initially filled as follows:
-/// - Fields will be attempted to fetch from environment variables. See [`ServiceDescriptor::fill_from_env`].
-/// - If not found, some default values will be chosen.
+/// - Fields will be attempted to fetch from environment variables.
+/// - If not found, a default values will be chosen.
+///
+/// For environment variable names and default values, see the constants in the struct.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ServiceDescriptor {
     /// Name of the k8s pod.
-    /// If not provided directly or though env variable, the default value would be `zksync-0`.
     pub k8s_pod_name: String,
     /// Name of the k8s namespace.
-    /// If not provided directly or through env variable, the default value would be `local`.
     pub k8s_namespace_name: String,
+    /// Name of the k8s cluster.
+    pub k8s_cluster_name: String,
+    /// Name of the deployment environment.
+    /// Note that the single deployment environment can be spread among multiple clusters.
+    pub deployment_environment: String,
     /// Name of the service.
-    /// If not provided directly or through env variable, the default value would be `zksync`.
     pub service_name: String,
 }
 
@@ -43,12 +47,20 @@ impl ServiceDescriptor {
     pub const K8S_POD_NAME_ENV_VAR: &'static str = "POD_NAME";
     /// Environment variable to fetch the k8s namespace name.
     pub const K8S_NAMESPACE_NAME_ENV_VAR: &'static str = "POD_NAMESPACE";
+    /// Environment variable to fetch the k8s cluster name.
+    pub const K8S_CLUSTER_NAME_ENV_VAR: &'static str = "CLUSTER_NAME";
+    /// Environment variable to fetch the deployment environment.
+    pub const DEPLOYMENT_ENVIRONMENT_ENV_VAR: &'static str = "DEPLOYMENT_ENVIRONMENT";
     /// Environment variable to fetch the service name.
     pub const SERVICE_NAME_ENV_VAR: &'static str = "SERVICE_NAME";
     /// Default value for the k8s pod name.
     pub const DEFAULT_K8S_POD_NAME: &'static str = "zksync-0";
     /// Default value for the k8s namespace name.
     pub const DEFAULT_K8S_NAMESPACE_NAME: &'static str = "local";
+    /// Default value for the k8s cluster name.
+    pub const DEFAULT_K8S_CLUSTER_NAME: &'static str = "local";
+    /// Default value for the deployment environment.
+    pub const DEFAULT_DEPLOYMENT_ENVIRONMENT: &'static str = "local";
     /// Default value for the service name.
     pub const DEFAULT_SERVICE_NAME: &'static str = "zksync";
 
@@ -64,6 +76,14 @@ impl ServiceDescriptor {
             k8s_namespace_name: env_or(
                 Self::K8S_NAMESPACE_NAME_ENV_VAR,
                 Self::DEFAULT_K8S_NAMESPACE_NAME,
+            ),
+            k8s_cluster_name: env_or(
+                Self::K8S_CLUSTER_NAME_ENV_VAR,
+                Self::DEFAULT_K8S_CLUSTER_NAME,
+            ),
+            deployment_environment: env_or(
+                Self::DEPLOYMENT_ENVIRONMENT_ENV_VAR,
+                Self::DEFAULT_DEPLOYMENT_ENVIRONMENT,
             ),
             service_name: env_or(Self::SERVICE_NAME_ENV_VAR, Self::DEFAULT_SERVICE_NAME),
         }
@@ -94,6 +114,8 @@ impl ServiceDescriptor {
         let attributes = vec![
             KeyValue::new(K8S_POD_NAME, self.k8s_pod_name),
             KeyValue::new(K8S_NAMESPACE_NAME, self.k8s_namespace_name),
+            KeyValue::new(K8S_CLUSTER_NAME, self.k8s_cluster_name),
+            KeyValue::new(DEPLOYMENT_ENVIRONMENT, self.deployment_environment),
             KeyValue::new(SERVICE_NAME, self.service_name),
         ];
         Resource::new(attributes)

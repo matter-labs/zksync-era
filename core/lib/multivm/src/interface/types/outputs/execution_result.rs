@@ -10,7 +10,7 @@ use zksync_utils::bytecode::bytecode_len_in_bytes;
 use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
 
 /// Refunds produced for the user.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Refunds {
     pub gas_refunded: u64,
     pub operator_suggested_refund: u64,

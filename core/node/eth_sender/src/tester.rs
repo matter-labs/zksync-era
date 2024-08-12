@@ -5,9 +5,9 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockEthereum, BaseFees, BoundEthInterface};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
-use zksync_node_fee_model::l1_gas_price::GasAdjuster;
+use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
@@ -109,8 +109,8 @@ impl TestL1Batch {
 #[derive(Debug)]
 pub(crate) struct EthSenderTester {
     pub conn: ConnectionPool<Core>,
-    pub gateway: Box<MockEthereum>,
-    pub gateway_blobs: Box<MockEthereum>,
+    pub gateway: Box<MockSettlementLayer>,
+    pub gateway_blobs: Box<MockSettlementLayer>,
     pub manager: MockEthTxManager,
     pub aggregator: EthTxAggregator,
     pub gas_adjuster: Arc<GasAdjuster>,
@@ -152,14 +152,16 @@ impl EthSenderTester {
             .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
                 base_fee_per_blob_gas: 0.into(),
+                l2_pubdata_price: 0.into(),
             })
             .collect();
 
-        let gateway = MockEthereum::builder()
+        let gateway = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
+                    l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
                 .chain(history.clone())
@@ -174,11 +176,12 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
-        let gateway_blobs = MockEthereum::builder()
+        let gateway_blobs = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
                     base_fee_per_gas: 0,
                     base_fee_per_blob_gas: 0.into(),
+                    l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
                 .chain(history)
@@ -195,7 +198,7 @@ impl EthSenderTester {
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                Box::new(gateway.clone().into_client()),
+                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -401,9 +404,9 @@ impl EthSenderTester {
         self.send_tx(tx, confirm).await
     }
 
-    pub async fn run_eth_sender_tx_manager_iteration(&mut self) {
-        self.gateway.advance_block_number(1);
-        self.gateway_blobs.advance_block_number(1);
+    pub async fn run_eth_sender_tx_manager_iteration_after_n_blocks(&mut self, n: u64) {
+        self.gateway.advance_block_number(n);
+        self.gateway_blobs.advance_block_number(n);
         let tx_sent_before = self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count();
         self.manager
             .loop_iteration(
@@ -413,6 +416,11 @@ impl EthSenderTester {
             .await;
         self.tx_sent_in_last_iteration_count =
             (self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count()) - tx_sent_before;
+    }
+
+    pub async fn run_eth_sender_tx_manager_iteration(&mut self) {
+        self.run_eth_sender_tx_manager_iteration_after_n_blocks(1)
+            .await;
     }
 
     async fn get_l1_batch_header_from_db(&mut self, number: L1BatchNumber) -> L1BatchHeader {

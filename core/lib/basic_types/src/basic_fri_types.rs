@@ -27,6 +27,7 @@ type Eip4844BlobsInner = [Option<Blob>; MAX_4844_BLOBS_PER_BLOCK];
 ///   - there are between [1, 16] blobs
 ///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
 ///   - there may be no blobs in case of Validium
+///
 /// Creating a structure violating these constraints will panic.
 ///
 /// Note: blobs are padded to fit the correct size.

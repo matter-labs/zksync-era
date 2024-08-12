@@ -1,13 +1,6 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
-    secrets:
-      DOCKERHUB_USER:
-        description: "DOCKERHUB_USER"
-        required: true
-      DOCKERHUB_TOKEN:
-        description: "DOCKERHUB_TOKEN"
-        required: true
 
 env:
   CLICOLOR: 1
@@ -16,9 +9,6 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build:
     runs-on: [matterlabs-ci-runner]
@@ -34,7 +24,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -83,7 +72,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -102,7 +90,30 @@ jobs:
           --server-db-name=zksync_server_localhost_era \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_era \
-          --ignore-prerequisites --verbose
+          --ignore-prerequisites --verbose \
+          --observability=false
+
+      - name: Create and initialize chain
+        run: |
+          ci_run zk_inception chain create \
+          --chain-name chain_rollup \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode  rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default true \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://reth:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --server-db-name=zksync_server_localhost_rollup \
+          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-name=zksync_prover_localhost_rollup
 
       - name: Run server
         run: |
