@@ -89,8 +89,12 @@ impl TeeVerifierInputProducerDal<'_, '_> {
         .report_latency()
         .fetch_one(self.storage)
         .await?
-        .number
-        .unwrap();
+        .number;
+
+        let row_high = match row_high {
+            Some(number) => number,
+            None => return Ok(None),
+        };
 
         let row_low = sqlx::query!(
             r#"
