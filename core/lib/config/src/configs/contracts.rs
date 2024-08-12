@@ -1,7 +1,7 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, L1BatchNumber};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
@@ -44,6 +44,7 @@ pub struct ContractsConfig {
     pub user_facing_bridgehub_proxy_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
+    pub first_sync_layer_batch_number: Option<L1BatchNumber>,
 
     pub chain_admin_addr: Option<Address>,
 }
@@ -70,6 +71,7 @@ impl ContractsConfig {
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(0x0d)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
+            first_sync_layer_batch_number: Some(L1BatchNumber(1000)),
         }
     }
 }

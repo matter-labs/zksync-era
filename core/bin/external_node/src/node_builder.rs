@@ -269,11 +269,25 @@ impl ExternalNodeBuilder {
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(
+        let mut layer = ConsistencyCheckerLayer::new(
             self.config.remote.user_facing_diamond_proxy,
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
+
+        if self.config.optional.gateway_client_url.is_some() {
+            layer = layer.with_migration_details(
+                self.config
+                    .remote
+                    .first_sync_layer_batch_number
+                    .expect("First gateway batch number is not set"),
+                self.config
+                    .remote
+                    .gateway_diamond_proxy
+                    .expect("Gateway diamond proxy is not set"),
+            );
+        }
+
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -297,7 +311,21 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
+        let mut layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
+
+        if self.config.optional.gateway_client_url.is_some() {
+            layer = layer.with_migration_details(
+                self.config
+                    .remote
+                    .first_sync_layer_batch_number
+                    .expect("First gateway batch number is not set"),
+                self.config
+                    .remote
+                    .gateway_diamond_proxy
+                    .expect("Gateway diamond proxy is not set"),
+            );
+        }
+
         self.node.add_layer(layer);
         Ok(self)
     }

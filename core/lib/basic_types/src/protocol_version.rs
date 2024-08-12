@@ -174,6 +174,10 @@ impl ProtocolVersionId {
     pub fn is_post_1_5_0(&self) -> bool {
         self >= &ProtocolVersionId::Version23
     }
+
+    pub fn is_post_sync_layer(&self) -> bool {
+        self >= &ProtocolVersionId::Version25
+    }
 }
 
 impl Default for ProtocolVersionId {

@@ -23,6 +23,15 @@ impl Resource for BoundEthInterfaceResource {
     }
 }
 
+/// A resource that provides L1 interface for Gateway.
+#[derive(Debug, Clone)]
+pub struct GatewayEthInterfaceResource(pub Box<DynClient<L1>>);
+impl Resource for GatewayEthInterfaceResource {
+    fn name() -> String {
+        "common/gateway_eth_interface".into()
+    }
+}
+
 /// Same as `BoundEthInterfaceResource`, but for managing EIP-4844 blobs.
 #[derive(Debug, Clone)]
 pub struct BoundEthInterfaceForBlobsResource(pub Box<dyn BoundEthInterface>);

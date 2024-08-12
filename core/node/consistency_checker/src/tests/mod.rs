@@ -102,6 +102,7 @@ pub(crate) fn create_mock_checker(
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client.into_client()),
+        migration_setup: None,
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,

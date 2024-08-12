@@ -107,6 +107,14 @@ pub(super) struct L1DataProvider {
     diamond_proxy_address: Address,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
+    pub migration_setup: Option<MigrationSetup>,
+}
+
+#[derive(Debug)]
+pub(super) struct MigrationSetup {
+    client: Box<DynClient<L1>>,
+    diamond_proxy_address: Address,
+    first_migrated_batch: L1BatchNumber,
 }
 
 impl L1DataProvider {
@@ -129,7 +137,21 @@ impl L1DataProvider {
             diamond_proxy_address,
             block_commit_signature,
             past_l1_batch: None,
+            migration_setup: None,
         })
+    }
+
+    pub fn set_migration_details(
+        &mut self,
+        client: Box<DynClient<L1>>,
+        diamond_proxy_address: Address,
+        first_migrated_batch: L1BatchNumber,
+    ) {
+        self.migration_setup = Some(MigrationSetup {
+            client,
+            diamond_proxy_address,
+            first_migrated_batch,
+        });
     }
 
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
@@ -215,14 +237,20 @@ impl TreeDataProvider for L1DataProvider {
             }
         });
 
+        let (client, diamond_proxy) = match &self.migration_setup {
+            Some(MigrationSetup {
+                client,
+                first_migrated_batch,
+                diamond_proxy_address,
+            }) if *first_migrated_batch <= number => (client.as_ref(), *diamond_proxy_address),
+            _ => (self.eth_client.as_ref(), self.diamond_proxy_address),
+        };
+
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
-                    self.eth_client.as_ref(),
-                    l1_batch_seal_timestamp,
-                )
-                .await?;
+                let (approximate_block, steps) =
+                    Self::guess_l1_commit_block_number(client, l1_batch_seal_timestamp).await?;
                 tracing::debug!(
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"
@@ -237,7 +265,7 @@ impl TreeDataProvider for L1DataProvider {
 
         let number_topic = H256::from_low_u64_be(number.0.into());
         let filter = web3::FilterBuilder::default()
-            .address(vec![self.diamond_proxy_address])
+            .address(vec![diamond_proxy])
             .from_block(web3::BlockNumber::Number(from_block))
             .to_block(web3::BlockNumber::Number(from_block + Self::L1_BLOCK_RANGE))
             .topics(
@@ -247,7 +275,7 @@ impl TreeDataProvider for L1DataProvider {
                 None,
             )
             .build();
-        let mut logs = self.eth_client.logs(&filter).await?;
+        let mut logs = client.logs(&filter).await?;
         logs.retain(|log| !log.is_removed() && log.block_number.is_some());
 
         match logs.as_slice() {
@@ -268,7 +296,7 @@ impl TreeDataProvider for L1DataProvider {
                      {diff} block(s) after the `from` block from the filter"
                 );
 
-                let l1_commit_block = self.eth_client.block(l1_commit_block_number.into()).await?;
+                let l1_commit_block = client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
                     let err = "Block disappeared from L1 RPC provider";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
@@ -295,7 +323,7 @@ impl TreeDataProvider for L1DataProvider {
 /// Data provider combining [`L1DataProvider`] with a fallback provider.
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
-    l1: Option<L1DataProvider>,
+    pub l1: Option<L1DataProvider>,
     // Generic to allow for tests.
     rpc: Box<dyn TreeDataProvider>,
 }
@@ -310,6 +338,17 @@ impl CombinedDataProvider {
 
     pub fn set_l1(&mut self, l1: L1DataProvider) {
         self.l1 = Some(l1);
+    }
+
+    pub fn set_migration_details(
+        &mut self,
+        client: Box<DynClient<L1>>,
+        diamond_proxy_address: Address,
+        first_migrated_batch: L1BatchNumber,
+    ) {
+        if let Some(l1) = &mut self.l1 {
+            l1.set_migration_details(client, diamond_proxy_address, first_migrated_batch);
+        }
     }
 }
 

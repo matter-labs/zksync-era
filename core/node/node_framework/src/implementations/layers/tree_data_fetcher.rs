@@ -1,9 +1,9 @@
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
-use zksync_types::Address;
+use zksync_types::{Address, L1BatchNumber};
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource,
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -18,6 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,
+    migration_details: Option<(L1BatchNumber, Address)>,
 }
 
 #[derive(Debug, FromContext)]
@@ -28,6 +29,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub migration_client: Option<GatewayEthInterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -39,7 +41,19 @@ pub struct Output {
 
 impl TreeDataFetcherLayer {
     pub fn new(diamond_proxy_addr: Address) -> Self {
-        Self { diamond_proxy_addr }
+        Self {
+            diamond_proxy_addr,
+            migration_details: None,
+        }
+    }
+
+    pub fn with_migratoin_details(
+        mut self,
+        first_batch_migrated: L1BatchNumber,
+        diamond_proxy_address: Address,
+    ) -> Self {
+        self.migration_details = Some((first_batch_migrated, diamond_proxy_address));
+        self
     }
 }
 
@@ -61,17 +75,28 @@ impl WiringLayer for TreeDataFetcherLayer {
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task =
+        let mut fetcher =
             TreeDataFetcher::new(client, pool).with_l1_data(eth_client, self.diamond_proxy_addr)?;
+
+        if let Some((first_batch_migrated, diamond_proxy_address)) = self.migration_details {
+            fetcher = fetcher.with_migration_setup(
+                input
+                    .migration_client
+                    .expect("Migration client not configured")
+                    .0,
+                diamond_proxy_address,
+                first_batch_migrated,
+            )?;
+        }
 
         // Insert healthcheck
         input
             .app_health
             .0
-            .insert_component(task.health_check())
+            .insert_component(fetcher.health_check())
             .map_err(WiringError::internal)?;
 
-        Ok(Output { task })
+        Ok(Output { task: fetcher })
     }
 }
 

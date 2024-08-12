@@ -256,6 +256,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             user_facing_bridgehub_proxy_addr: rng.gen(),
             user_facing_diamond_proxy_addr: rng.gen(),
             l2_native_token_vault_proxy_addr: rng.gen(),
+            first_sync_layer_batch_number: Some(L1BatchNumber(rng.gen())),
         }
     }
 }
@@ -889,6 +890,8 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
+            gateway_url: self
+                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }

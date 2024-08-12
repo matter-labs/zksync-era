@@ -312,11 +312,19 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     l1_client: Box<DynClient<L1>>,
+    migration_setup: Option<MigrationSetup>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
     commitment_mode: L1BatchCommitmentMode,
+}
+
+#[derive(Debug)]
+pub struct MigrationSetup {
+    pub client: Box<DynClient<L1>>,
+    pub diamond_proxy_address: Option<Address>,
+    pub first_batch_migrated: L1BatchNumber,
 }
 
 impl ConsistencyChecker {
@@ -335,6 +343,7 @@ impl ConsistencyChecker {
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: l1_client.for_component("consistency_checker"),
+            migration_setup: None,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -345,6 +354,20 @@ impl ConsistencyChecker {
 
     pub fn with_diamond_proxy_addr(mut self, address: Address) -> Self {
         self.diamond_proxy_addr = Some(address);
+        self
+    }
+
+    pub fn with_migration_setup(
+        mut self,
+        client: Box<DynClient<L1>>,
+        first_batch_migrated: L1BatchNumber,
+        diamond_proxy_address: Option<Address>,
+    ) -> Self {
+        self.migration_setup = Some(MigrationSetup {
+            client: client.for_component("consistency_checker"),
+            diamond_proxy_address,
+            first_batch_migrated,
+        });
         self
     }
 
@@ -361,8 +384,16 @@ impl ConsistencyChecker {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
-        let commit_tx_status = self
-            .l1_client
+        let client = match &self.migration_setup {
+            Some(MigrationSetup {
+                first_batch_migrated,
+                client,
+                ..
+            }) if *first_batch_migrated <= local.l1_batch.header.number => client.as_ref(),
+            _ => self.l1_client.as_ref(),
+        };
+
+        let commit_tx_status = client
             .get_tx_status(commit_tx_hash)
             .await?
             .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
@@ -373,8 +404,7 @@ impl ConsistencyChecker {
         }
 
         // We can't get tx calldata from the DB because it can be fake.
-        let commit_tx = self
-            .l1_client
+        let commit_tx = client
             .get_tx(commit_tx_hash)
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
@@ -511,14 +541,25 @@ impl ConsistencyChecker {
     }
 
     async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
-        let Some(address) = self.diamond_proxy_addr else {
-            return Ok(());
-        };
-        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+        let regular = self
+            .diamond_proxy_addr
+            .map(|addr| (addr, self.l1_client.as_ref()));
+        let migration = self.migration_setup.as_ref().and_then(|setup| {
+            setup
+                .diamond_proxy_address
+                .map(|addr| (addr, setup.client.as_ref()))
+        });
 
+        if regular.is_none() && migration.is_none() {
+            return Ok(());
+        }
+
+        let (address, client) = regular.or(migration).unwrap();
+
+        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
         let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(address, &self.contract)
-            .call(self.l1_client.as_ref())
+            .call(client)
             .await?;
         tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
         Ok(())

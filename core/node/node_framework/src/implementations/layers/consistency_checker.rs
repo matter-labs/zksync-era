@@ -1,9 +1,9 @@
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_types::{commitment::L1BatchCommitmentMode, Address};
+use zksync_types::{commitment::L1BatchCommitmentMode, Address, L1BatchNumber};
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource,
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
@@ -19,6 +19,7 @@ pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
+    migration_details: Option<(L1BatchNumber, Address)>,
 }
 
 #[derive(Debug, FromContext)]
@@ -28,6 +29,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub migration_client: Option<GatewayEthInterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -47,7 +49,17 @@ impl ConsistencyCheckerLayer {
             diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
+            migration_details: None,
         }
+    }
+
+    pub fn with_migration_details(
+        mut self,
+        first_batch_migrated: L1BatchNumber,
+        diamond_proxy_address: Address,
+    ) -> Self {
+        self.migration_details = Some((first_batch_migrated, diamond_proxy_address));
+        self
     }
 }
 
@@ -66,7 +78,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         let singleton_pool = input.master_pool.get_singleton().await?;
 
-        let consistency_checker = ConsistencyChecker::new(
+        let mut consistency_checker = ConsistencyChecker::new(
             l1_client,
             self.max_batches_to_recheck,
             singleton_pool,
@@ -74,6 +86,17 @@ impl WiringLayer for ConsistencyCheckerLayer {
         )
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
+
+        if let Some((first_batch_migrated, diamond_proxy_address)) = self.migration_details {
+            consistency_checker = consistency_checker.with_migration_setup(
+                input
+                    .migration_client
+                    .expect("Migration client not provided")
+                    .0,
+                first_batch_migrated,
+                Some(diamond_proxy_address),
+            );
+        }
 
         input
             .app_health

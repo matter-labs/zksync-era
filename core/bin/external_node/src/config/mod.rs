@@ -105,6 +105,8 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub user_facing_diamond_proxy: Address,
+    pub gateway_diamond_proxy: Option<Address>,
+    pub first_sync_layer_batch_number: Option<L1BatchNumber>,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -146,6 +148,15 @@ impl RemoteENConfig {
         let user_facing_diamond_proxy = client
             .get_main_contract()
             .rpc_context("get_main_contract")
+            .await?;
+        let gateway_diamond_proxy = client
+            .get_gateway_main_contract()
+            .rpc_context("get_gateway_main_contract")
+            .await?;
+
+        let first_sync_layer_batch_number = client
+            .get_first_sync_layer_batch_number()
+            .rpc_context("get_first_sync_layer_batch_number")
             .await?;
 
         let user_facing_bridgehub = client
@@ -196,6 +207,8 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             user_facing_diamond_proxy,
+            gateway_diamond_proxy,
+            first_sync_layer_batch_number,
             user_facing_bridgehub,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -236,6 +249,8 @@ impl RemoteENConfig {
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
+            gateway_diamond_proxy: None,
+            first_sync_layer_batch_number: None,
         }
     }
 }
@@ -461,6 +476,8 @@ pub(crate) struct OptionalENConfig {
     /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
+    /// Gateway RPC URL, needed for operating during migration.
+    pub gateway_client_url: Option<SensitiveUrl>,
 }
 
 impl OptionalENConfig {
@@ -685,6 +702,7 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
+            gateway_client_url: enconfig.gateway_url,
         })
     }
 
@@ -1389,6 +1407,11 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
+            diamond_proxy_addr: config
+                .remote
+                .gateway_diamond_proxy
+                .unwrap_or(config.remote.user_facing_diamond_proxy),
+            first_sync_layer_batch_number: config.remote.first_sync_layer_batch_number,
         }
     }
 }

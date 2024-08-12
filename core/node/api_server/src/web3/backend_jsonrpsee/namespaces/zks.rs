@@ -51,6 +51,14 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_main_contract_impl())
     }
 
+    async fn get_gateway_main_contract(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_gateway_main_contract_impl())
+    }
+
+    async fn get_first_sync_layer_batch_number(&self) -> RpcResult<Option<L1BatchNumber>> {
+        Ok(self.get_first_sync_layer_batch_number_impl())
+    }
+
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
         Ok(self.get_testnet_paymaster_impl())
     }

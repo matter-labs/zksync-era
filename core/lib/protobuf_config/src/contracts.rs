@@ -125,6 +125,7 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
+            first_sync_layer_batch_number: self.first_sync_layer_batch_number.map(Into::into),
         })
     }
 
@@ -184,6 +185,7 @@ impl ProtoRepr for proto::Contracts {
             user_facing_diamond_proxy: this
                 .user_facing_diamond_proxy_addr
                 .map(|a| format!("{:?}", a)),
+            first_sync_layer_batch_number: this.first_sync_layer_batch_number.map(|n| n.0),
         }
     }
 }

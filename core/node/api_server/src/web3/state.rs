@@ -105,6 +105,7 @@ pub struct InternalApiConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Address,
+    pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
@@ -114,6 +115,7 @@ pub struct InternalApiConfig {
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub user_facing_bridgehub_addr: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
+    pub first_sync_layer_batch_number: Option<L1BatchNumber>,
 }
 
 impl InternalApiConfig {
@@ -168,6 +170,7 @@ impl InternalApiConfig {
             user_facing_diamond_proxy_addr: contracts_config
                 .user_facing_diamond_proxy_addr
                 .unwrap_or(contracts_config.diamond_proxy_addr),
+            diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
@@ -182,6 +185,7 @@ impl InternalApiConfig {
                     .map(|a| a.bridgehub_proxy_addr),
             ),
             l2_native_token_vault_proxy_addr: contracts_config.l2_native_token_vault_proxy_addr,
+            first_sync_layer_batch_number: contracts_config.first_sync_layer_batch_number,
         }
     }
 }

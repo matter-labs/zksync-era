@@ -146,6 +146,32 @@ impl TreeDataFetcher {
         Ok(self)
     }
 
+    pub fn with_migration_setup(
+        mut self,
+        client: Box<DynClient<L1>>,
+        diamond_proxy_address: Address,
+        first_migrated_batch: L1BatchNumber,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            self.data_provider.l1.is_some(),
+            "L1 data provider is not set up"
+        );
+        anyhow::ensure!(
+            self.data_provider
+                .l1
+                .as_ref()
+                .map(|l1| &l1.migration_setup)
+                .is_none(),
+            "Migration setup is already set up"
+        );
+        self.data_provider.set_migration_details(
+            client,
+            diamond_proxy_address,
+            first_migrated_batch,
+        );
+        Ok(self)
+    }
+
     /// Returns a health check for this fetcher.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
