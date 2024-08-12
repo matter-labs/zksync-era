@@ -14,6 +14,7 @@ categories.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true # FIXME: move VM-related types? (e.g., VM events, circuit stats)
+zksync_utils.workspace = true # FIXME: move VM-related types? (e.g., compressed bytecodes)
 
 hex.workspace = true
 serde.workspace = true
