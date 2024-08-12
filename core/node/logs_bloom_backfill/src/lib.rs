@@ -100,7 +100,7 @@ impl LogsBloomBackfill {
                 .await?;
             tracing::info!("filled blooms for block range {left_bound}..={right_bound}");
 
-            if left_bound == first_l2_block {
+            if left_bound == first_l2_block.0 {
                 break;
             } else {
                 right_bound = left_bound - 1;
