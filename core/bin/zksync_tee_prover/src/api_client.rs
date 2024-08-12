@@ -74,8 +74,11 @@ impl TeeApiClient {
 
     /// Fetches the next job for the TEE prover to process, verifying and signing it if the
     /// verification is successful.
-    pub async fn get_job(&self) -> Result<Option<Box<TeeVerifierInput>>, TeeProverError> {
-        let request = TeeProofGenerationDataRequest {};
+    pub async fn get_job(
+        &self,
+        tee_type: TeeType,
+    ) -> Result<Option<Box<TeeVerifierInput>>, TeeProverError> {
+        let request = TeeProofGenerationDataRequest { tee_type };
         let response = self
             .post::<_, TeeProofGenerationDataResponse, _>("/tee/proof_inputs", request)
             .await?;

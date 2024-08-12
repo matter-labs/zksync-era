@@ -8,7 +8,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -34,7 +34,7 @@ use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
-        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper, AggregationWrapperLegacy,
     },
 };
 
@@ -113,14 +113,7 @@ impl NodeAggregationWitnessGenerator {
         let mut proof_ids_iter = job.proofs_ids.into_iter();
         let mut proofs_ids = vec![];
         for queues in job.aggregations.chunks(RECURSION_ARITY) {
-            let mut proofs_for_chunk = vec![];
-            for (_, queue) in queues {
-                let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
-                    .take(queue.num_items as usize)
-                    .collect();
-                assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
-                proofs_for_chunk.extend(proofs_ids_for_queue);
-            }
+            let proofs_for_chunk: Vec<_> = (&mut proof_ids_iter).take(queues.len()).collect();
             proofs_ids.push(proofs_for_chunk);
         }
 
@@ -175,14 +168,12 @@ impl NodeAggregationWitnessGenerator {
                     &all_leafs_layer_params,
                 );
 
-                assert_eq!(job.circuit_id as u64, result_circuit_id);
-
                 let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
                     job.block_number,
                     circuit_idx,
                     vec![recursive_circuit],
                     AggregationRound::NodeAggregation,
-                    job.depth,
+                    job.depth + 1,
                     &*object_store,
                     Some(job.circuit_id),
                 )
@@ -453,10 +444,27 @@ async fn get_artifacts(
         circuit_id: metadata.circuit_id,
         depth: metadata.depth,
     };
-    object_store
-        .get(key)
-        .await
-        .unwrap_or_else(|_| panic!("node aggregation job artifacts missing: {:?}", key))
+    let result = object_store.get(key).await;
+
+    // TODO: remove after transition
+    return match result {
+        Ok(aggregation_wrapper) => aggregation_wrapper,
+        Err(error) => {
+            // probably legacy struct is saved in GCS
+            if let ObjectStoreError::Serialization(serialization_error) = error {
+                let legacy_wrapper: AggregationWrapperLegacy =
+                    object_store.get(key).await.unwrap_or_else(|inner_error| {
+                        panic!(
+                            "node aggregation job artifacts getting error. Key: {:?}, errors: {:?} {:?}",
+                            key, serialization_error, inner_error
+                        )
+                    });
+                AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
+            } else {
+                panic!("node aggregation job artifacts missing: {:?}", key)
+            }
+        }
+    };
 }
 
 #[tracing::instrument(

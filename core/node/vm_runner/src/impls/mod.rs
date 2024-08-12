@@ -1,7 +1,13 @@
+//! Components powered by a VM runner.
+
 mod bwip;
+mod playground;
 mod protective_reads;
 
-pub use bwip::{
-    BasicWitnessInputProducer, BasicWitnessInputProducerIo, BasicWitnessInputProducerTasks,
+pub use self::{
+    bwip::{
+        BasicWitnessInputProducer, BasicWitnessInputProducerIo, BasicWitnessInputProducerTasks,
+    },
+    playground::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask, VmPlaygroundTasks},
+    protective_reads::{ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks},
 };
-pub use protective_reads::{ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks};
