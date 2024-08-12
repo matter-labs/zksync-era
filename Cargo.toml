@@ -295,3 +295,17 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
+
+[patch.crates-io]
+zksync_consensus_bft = { path = '/home/gprusak/github/era-consensus/node/actors/bft' }
+zksync_consensus_crypto = { path = '/home/gprusak/github/era-consensus/node/libs/crypto' }
+zksync_consensus_executor = { path = '/home/gprusak/github/era-consensus/node/actors/executor' }
+zksync_consensus_network = { path = '/home/gprusak/github/era-consensus/node/actors/network' }
+zksync_consensus_roles = { path = '/home/gprusak/github/era-consensus/node/libs/roles' }
+zksync_consensus_storage = { path = '/home/gprusak/github/era-consensus/node/libs/storage' }
+zksync_consensus_utils = { path = '/home/gprusak/github/era-consensus/node/libs/utils' }
+zksync_concurrency = { path = '/home/gprusak/github/era-consensus/node/libs/concurrency' }
+zksync_protobuf = { path = '/home/gprusak/github/era-consensus/node/libs/protobuf' }
+zksync_protobuf_build = { path = '/home/gprusak/github/era-consensus/node/libs/protobuf_build' }
+
+
