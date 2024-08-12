@@ -12,14 +12,16 @@ use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
 use zksync_multivm::{
-    interface::{FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface},
+    interface::{
+        storage::{InMemoryStorage, ReadStorage, StorageView},
+        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface,
+    },
     vm_latest::HistoryEnabled,
     VmInstance,
 };
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
-use zksync_state::{InMemoryStorage, ReadStorage, StorageView};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_utils::execute_tx;

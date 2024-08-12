@@ -2,11 +2,14 @@ use anyhow::{anyhow, Context};
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
-    interface::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        storage::{ReadStorage, StoragePtr, StorageView},
+        VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+    },
     vm_latest::HistoryEnabled,
     VmInstance,
 };
-use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
+use zksync_state::PostgresStorage;
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 use crate::storage::L1BatchParamsProvider;

@@ -4,13 +4,13 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_multivm::{
     interface::{
-        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        storage::InMemoryStorage, L2BlockEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
     vm_fast::Vm,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use zksync_state::InMemoryStorage;
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::{encode, Token},

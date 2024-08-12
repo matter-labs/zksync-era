@@ -8939,7 +8939,6 @@ dependencies = [
  "zk_evm 0.150.0",
  "zksync_contracts",
  "zksync_eth_signer",
- "zksync_state",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
@@ -9515,6 +9514,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9763,6 +9763,7 @@ dependencies = [
  "hex",
  "serde",
  "thiserror",
+ "tracing",
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",

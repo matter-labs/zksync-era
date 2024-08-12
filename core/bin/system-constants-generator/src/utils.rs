@@ -7,8 +7,11 @@ use zksync_contracts::{
 };
 use zksync_multivm::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory, VmInterface,
+        dyn_tracers::vm_1_5_0::DynTracer,
+        storage::{InMemoryStorage, StorageView, WriteStorage},
+        tracer::VmExecutionStopReason,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
@@ -17,7 +20,6 @@ use zksync_multivm::{
     },
     zk_evm_latest::aux_structures::Timestamp,
 };
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,

@@ -6,10 +6,10 @@ use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
-    VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+    storage::StorageViewCache, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
+    Refunds, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use zksync_state::{OwnedStorage, StorageViewCache};
+use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
