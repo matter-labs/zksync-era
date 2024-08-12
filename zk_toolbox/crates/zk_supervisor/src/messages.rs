@@ -78,7 +78,6 @@ pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external no
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
-pub(super) const MSG_PROVER_TEST_SPINNER: &str = "Running prover tests...";
 pub(super) const MSG_PROVER_TEST_SUCCESS: &str = "Prover tests ran successfully";
 
 // Integration tests related messages
