@@ -32,9 +32,9 @@
     },
     "nullable": [
       false,
-      true,
-      true,
-      true
+      false,
+      false,
+      false
     ]
   },
   "hash": "daed1021023a37f01ba5a1207b1745d6bb2b76dbd3b366a177ddfc705500fa31"
