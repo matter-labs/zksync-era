@@ -88,7 +88,6 @@ export interface ProposedUpgrade {
     postUpgradeCalldata: BytesLike;
     upgradeTimestamp: ethers.BigNumber;
     newProtocolVersion: BigNumberish;
-    newAllowList: string;
 }
 
 function buildNoopL2UpgradeTx(): L2CanonicalTransaction {
@@ -122,10 +121,8 @@ export function buildProposeUpgrade(
     bootloaderHash?: BytesLike,
     defaultAccountHash?: BytesLike,
     verifier?: string,
-    newAllowList?: string,
     l2ProtocolUpgradeTx?: L2CanonicalTransaction
 ): ProposedUpgrade {
-    newAllowList = newAllowList ?? ethers.constants.AddressZero;
     bootloaderHash = bootloaderHash ?? ethers.constants.HashZero;
     defaultAccountHash = defaultAccountHash ?? ethers.constants.HashZero;
     l1ContractsUpgradeCalldata = l1ContractsUpgradeCalldata ?? '0x';
@@ -141,8 +138,7 @@ export function buildProposeUpgrade(
         postUpgradeCalldata,
         upgradeTimestamp,
         factoryDeps: [],
-        newProtocolVersion,
-        newAllowList
+        newProtocolVersion
     };
 }
 
@@ -290,11 +286,9 @@ export function buildDefaultUpgradeTx(
     environment,
     diamondUpgradeProposalId,
     upgradeAddress,
-    l2UpgraderAddress,
     oldProtocolVersion,
     oldProtocolVersionDeadline,
     upgradeTimestamp,
-    newAllowList,
     stmAddress,
     zksyncAddress,
     postUpgradeCalldataFlag,
@@ -314,6 +308,7 @@ export function buildDefaultUpgradeTx(
         facetCuts = JSON.parse(fs.readFileSync(facetCutsFileName).toString());
     }
     upgradeAddress = upgradeAddress ?? process.env.CONTRACTS_DEFAULT_UPGRADE_ADDR;
+    console.log(`Upgrade address: ${upgradeAddress}`);
 
     let bootloaderHash = ethers.constants.HashZero;
     let defaultAAHash = ethers.constants.HashZero;
@@ -356,7 +351,7 @@ export function buildDefaultUpgradeTx(
     let postUpgradeCalldataFileName = getPostUpgradeCalldataFileName(environment);
     if (postUpgradeCalldataFlag) {
         if (fs.existsSync(postUpgradeCalldataFileName)) {
-            console.log(`Found facet cuts file ${postUpgradeCalldataFileName}`);
+            console.log(`Found post upgrade calldata file ${postUpgradeCalldataFileName}`);
             postUpgradeCalldata = JSON.parse(fs.readFileSync(postUpgradeCalldataFileName).toString());
         } else {
             throw new Error(`Post upgrade calldata file ${postUpgradeCalldataFileName} not found`);
@@ -372,7 +367,6 @@ export function buildDefaultUpgradeTx(
         bootloaderHash,
         defaultAAHash,
         cryptoVerifierAddress,
-        newAllowList,
         l2UpgradeTx
     );
 
@@ -548,8 +542,6 @@ command
     .requiredOption('--upgrade-timestamp <upgradeTimestamp>')
     .option('--upgrade-address <upgradeAddress>')
     .option('--environment <env>')
-    .option('--new-allow-list <newAllowList>')
-    .option('--l2-upgrader-address <l2UpgraderAddress>')
     .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
     .option('--old-protocol-version <oldProtocolVersion>')
     .option('--old-protocol-version-deadline <oldProtocolVersionDeadline>')
@@ -575,11 +567,9 @@ command
             options.environment,
             diamondUpgradeProposalId,
             options.upgradeAddress,
-            options.l2UpgraderAddress,
             options.oldProtocolVersion,
             options.oldProtocolVersionDeadline,
             options.upgradeTimestamp,
-            options.newAllowList,
             options.stateTransitionManagerAddress,
             options.zksyncAddress,
             options.postUpgradeCalldata,
