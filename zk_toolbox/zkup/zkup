@@ -112,6 +112,7 @@ Options:
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
+  -a, --alias               Create aliases zki and zks for zk_inception and zk_supervisor binaries.
   --skip-zk-supervisor      Skip installation of the zk_supervisor binary.
   -h, --help                Show this help message and exit.
 
