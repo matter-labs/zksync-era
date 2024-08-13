@@ -424,7 +424,7 @@ impl MempoolIO {
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            l1_batch_params_provider: L1BatchParamsProvider::new(),
+            l1_batch_params_provider: L1BatchParamsProvider::uninitialized(),
             fee_account,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),

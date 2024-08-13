@@ -77,9 +77,7 @@ impl TeeVerifierInputProducer {
             .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?
             .unwrap();
 
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut connection)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
             .context("failed initializing L1 batch params provider")?;
 

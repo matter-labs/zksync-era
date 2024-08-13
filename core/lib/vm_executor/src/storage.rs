@@ -89,7 +89,15 @@ pub struct L1BatchParamsProvider {
 }
 
 impl L1BatchParamsProvider {
-    pub fn new() -> Self {
+    /// Creates a new provider.
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+        let mut this = Self::uninitialized();
+        this.initialize(storage).await?;
+        Ok(this)
+    }
+
+    /// Creates an uninitialized provider. Before use, it must be [`initialize`](Self::initialize())d.
+    pub fn uninitialized() -> Self {
         Self { snapshot: None }
     }
 

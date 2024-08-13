@@ -48,9 +48,8 @@ pub(crate) struct PostgresLoader {
 
 impl PostgresLoader {
     pub async fn new(pool: ConnectionPool<Core>, chain_id: L2ChainId) -> anyhow::Result<Self> {
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
         let mut conn = pool.connection_tagged("vm_runner").await?;
-        l1_batch_params_provider.initialize(&mut conn).await?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn).await?;
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -151,12 +150,11 @@ impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut conn)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         drop(conn);
+
         let state = Arc::new(RwLock::new(State {
             rocksdb: None,
             l1_batch_number: L1BatchNumber(0),
@@ -263,9 +261,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {
         let mut conn = pool.connection_tagged(io.name()).await?;
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut conn)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut conn)
             .await
             .context("Failed initializing L1 batch params provider")?;
         let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
