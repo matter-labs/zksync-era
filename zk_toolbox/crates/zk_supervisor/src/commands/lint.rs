@@ -49,16 +49,12 @@ pub struct LintArgs {
 }
 
 #[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone)]
+#[strum(serialize_all = "lowercase")]
 pub enum Extension {
-    #[strum(serialize = "rs")]
     Rs,
-    #[strum(serialize = "md")]
     Md,
-    #[strum(serialize = "sol")]
     Sol,
-    #[strum(serialize = "js")]
     Js,
-    #[strum(serialize = "ts")]
     Ts,
 }
 
