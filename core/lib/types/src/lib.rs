@@ -49,7 +49,6 @@ pub mod protocol_upgrade;
 pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
-pub mod storage_writes_deduplicator;
 pub mod system_contracts;
 pub mod tokens;
 pub mod tx;

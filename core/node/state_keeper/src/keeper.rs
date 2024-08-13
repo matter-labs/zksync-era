@@ -7,12 +7,14 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
-use zksync_multivm::interface::{Halt, L1BatchEnv, SystemEnv};
+use zksync_multivm::{
+    interface::{Halt, L1BatchEnv, SystemEnv},
+    utils::StorageWritesDeduplicator,
+};
 use zksync_state::ReadStorageFactory;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use super::{

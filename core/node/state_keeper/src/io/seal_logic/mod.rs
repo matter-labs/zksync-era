@@ -11,7 +11,10 @@ use itertools::Itertools;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::TransactionExecutionResult,
-    utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
+    utils::{
+        get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, ModifiedSlot,
+        StorageWritesDeduplicator,
+    },
 };
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
@@ -19,7 +22,6 @@ use zksync_types::{
     event::extract_long_l2_to_l1_messages,
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
-    storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation},
     utils::display_timestamp,
     Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog, Transaction,
