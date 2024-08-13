@@ -491,13 +491,6 @@ async fn pli_status_complete() {
         )
         .await;
 
-    Command::cargo_bin("prover_cli")
-        .unwrap()
-        .arg("config")
-        .arg(connection_pool.database_url().expose_str())
-        .assert()
-        .success();
-
     let batch_0 = L1BatchNumber(0);
 
     // A BWG is created for batch 0.
@@ -896,13 +889,6 @@ async fn pli_status_complete_verbose() {
             L1VerifierConfig::default(),
         )
         .await;
-
-    Command::cargo_bin("prover_cli")
-        .unwrap()
-        .arg("config")
-        .arg(connection_pool.database_url().expose_str())
-        .assert()
-        .success();
 
     let batch_0 = L1BatchNumber(0);
 
