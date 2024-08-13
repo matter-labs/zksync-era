@@ -8,16 +8,16 @@
 //! this module defines one primary trait:
 //!
 //! - `MultiVMTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
-//! a specific VM version.
+//!   a specific VM version.
 //!
 //! Specific traits for each VM version, which support Custom Tracers:
 //! - `IntoLatestTracer<S, H>`: This trait is responsible for converting a tracer
-//! into a form compatible with the latest VM version.
-//! It defines a method `latest` for obtaining a boxed tracer.
+//!   into a form compatible with the latest VM version.
+//!   It defines a method `latest` for obtaining a boxed tracer.
 //!
 //! - `IntoVmVirtualBlocksTracer<S, H>`: This trait is responsible for converting a tracer
-//! into a form compatible with the vm_virtual_blocks version.
-//! It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
+//!   into a form compatible with the vm_virtual_blocks version.
+//!   It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
 //!
 //! For `MultiVMTracer` to be implemented, the Tracer must implement all N currently
 //! existing sub-traits.

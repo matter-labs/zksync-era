@@ -12,14 +12,14 @@ use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
 use zksync_multivm::{
-    interface::{FinishedL1Batch, L2BlockEnv, VmInterface},
+    interface::{FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface},
     vm_latest::HistoryEnabled,
     VmInstance,
 };
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
+use zksync_state::{InMemoryStorage, ReadStorage, StorageView};
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, StorageLog, H256};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_vm_utils::execute_tx;
@@ -154,7 +154,7 @@ fn get_bowp_and_set_initial_values(
 }
 
 /// Executes the VM and returns `FinishedL1Batch` on success.
-fn execute_vm<S: WriteStorage>(
+fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     mut vm: VmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<FinishedL1Batch> {
