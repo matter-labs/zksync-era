@@ -82,7 +82,7 @@ fn test_get_used_contracts() {
     }
 }
 
-fn known_bytecodes_without_aa_code<S: ReadStorage>(vm: &Vm<S>) -> HashSet<U256> {
+fn known_bytecodes_without_aa_code<S: ReadStorage, T>(vm: &Vm<S, T>) -> HashSet<U256> {
     let mut known_bytecodes_without_aa_code = vm
         .world
         .bytecode_cache

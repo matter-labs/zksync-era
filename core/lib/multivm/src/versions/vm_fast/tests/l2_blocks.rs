@@ -401,8 +401,8 @@ fn test_l2_block_first_in_batch() {
     );
 }
 
-fn set_manual_l2_block_info<S: ReadStorage + 'static>(
-    vm: &mut Vm<S>,
+fn set_manual_l2_block_info<S: ReadStorage + 'static, T: vm2::Tracer>(
+    vm: &mut Vm<S, T>,
     tx_number: usize,
     block_info: L2BlockEnv,
 ) {

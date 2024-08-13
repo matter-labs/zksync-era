@@ -1,13 +1,16 @@
 use std::{collections::HashMap, fmt};
 
+use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, VirtualMachine,
+    CircuitCycleStatistic as VM2CircuitCycleStatistic, ExecutionEnd, Program, Settings, Tracer,
+    VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::ReadStorage;
 use zksync_types::{
+    circuit::CircuitStatistic,
     event::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
         L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
@@ -56,19 +59,50 @@ use crate::{
 };
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
+const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 
-pub struct Vm<S> {
-    pub(crate) world: World<S>,
-    pub(crate) inner: VirtualMachine,
+fn circuit_statistic_from_cycles(cycles: &VM2CircuitCycleStatistic) -> CircuitStatistic {
+    CircuitStatistic {
+        main_vm: cycles.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
+        ram_permutation: cycles.ram_permutation_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
+        storage_application: cycles.storage_application_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
+        storage_sorter: cycles.storage_sorter_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
+        code_decommitter: cycles.code_decommitter_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
+        code_decommitter_sorter: cycles.code_decommitter_sorter_cycles as f32
+            / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
+        log_demuxer: cycles.log_demuxer_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
+        events_sorter: cycles.events_sorter_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
+        keccak256: cycles.keccak256_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
+        ecrecover: cycles.ecrecover_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
+        sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+        secp256k1_verify: cycles.secp256k1_verify_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
+        transient_storage_checker: cycles.transient_storage_checker_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
+    }
+}
+
+pub struct Vm<S, T> {
+    pub(crate) world: World<S, T>,
+    pub(crate) inner: VirtualMachine<T>,
     suspended_at: u16,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
+    tracer: T,
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, T: Tracer> Vm<S, T> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
@@ -82,14 +116,8 @@ impl<S: ReadStorage> Vm<S> {
         let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
-            let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
-                ExecutionEnd::SuspendedOnHook {
-                    hook,
-                    pc_to_resume_from,
-                } => {
-                    self.suspended_at = pc_to_resume_from;
-                    hook
-                }
+            let hook = match self.inner.run(&mut self.world, &mut self.tracer) {
+                ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
                     break match TxRevertReason::parse_error(&output) {
@@ -352,8 +380,8 @@ impl<S: ReadStorage> Vm<S> {
 
 // We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
 // it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+impl<S: ReadStorage, T: Tracer> Vm<S, T> {
+    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S, tracer: T) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
@@ -403,6 +431,7 @@ impl<S: ReadStorage> Vm<S> {
             system_env,
             batch_env,
             snapshot: None,
+            tracer,
         };
 
         me.write_to_bootloader_heap(bootloader_memory);
@@ -417,7 +446,7 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl<S: ReadStorage> VmInterface for Vm<S> {
+impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
     type TracerDispatcher = ();
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
@@ -438,6 +467,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
+        self.inner.statistics = Default::default();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
@@ -491,6 +521,9 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         let pubdata_after = self.inner.world_diff.pubdata();
+
+        let circuit_statistic = circuit_statistic_from_cycles(&self.inner.statistics);
+
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -503,7 +536,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: Default::default(),
+                circuit_statistic,
             },
             refunds,
         }
@@ -615,7 +648,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
+impl<S: ReadStorage, T: Tracer> VmInterfaceHistoryEnabled for Vm<S, T> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -653,7 +686,7 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Vm<S> {
+impl<S: fmt::Debug, T> fmt::Debug for Vm<S, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field("suspended_at", &self.suspended_at)
@@ -672,15 +705,15 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
 }
 
 #[derive(Debug)]
-pub(crate) struct World<S> {
+pub(crate) struct World<S, T> {
     pub(crate) storage: S,
     // TODO (PLA-1008): Store `Program`s in an LRU cache
-    program_cache: HashMap<U256, Program>,
+    program_cache: HashMap<U256, Program<T>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
 
-impl<S: ReadStorage> World<S> {
-    fn new(storage: S, program_cache: HashMap<U256, Program>) -> Self {
+impl<S: ReadStorage, T> World<S, T> {
+    fn new(storage: S, program_cache: HashMap<U256, Program<T>>) -> Self {
         Self {
             storage,
             program_cache,
@@ -689,7 +722,7 @@ impl<S: ReadStorage> World<S> {
     }
 }
 
-impl<S: ReadStorage> vm2::World for World<S> {
+impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
     fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
         self.decommit(hash)
             .code_page()
@@ -703,7 +736,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .collect()
     }
 
-    fn decommit(&mut self, hash: U256) -> Program {
+    fn decommit(&mut self, hash: U256) -> Program<T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
@@ -760,7 +793,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
     }
 }
 
-fn bytecode_to_program(bytecode: &[u8]) -> Program {
+fn bytecode_to_program<T: Tracer>(bytecode: &[u8]) -> Program<T> {
     Program::new(
         decode_program(
             &bytecode
@@ -776,7 +809,10 @@ fn bytecode_to_program(bytecode: &[u8]) -> Program {
     )
 }
 
-fn convert_system_contract_code(code: &SystemContractCode, is_bootloader: bool) -> (U256, Program) {
+fn convert_system_contract_code<T: Tracer>(
+    code: &SystemContractCode,
+    is_bootloader: bool,
+) -> (U256, Program<T>) {
     (
         h256_to_u256(code.hash),
         Program::new(

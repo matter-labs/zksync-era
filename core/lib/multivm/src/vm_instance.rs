@@ -26,7 +26,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
-    VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
+    VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>, ()>),
     ShadowedVmFast(ShadowedFastVm<S, H>),
 }
 
@@ -261,7 +261,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
                 FastVmMode::New => {
                     let storage = ImmutableStorageView::new(storage_view);
-                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+                    Self::VmFast(crate::vm_fast::Vm::new(
+                        l1_batch_env,
+                        system_env,
+                        storage,
+                        (),
+                    ))
                 }
                 FastVmMode::Shadow => {
                     Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))

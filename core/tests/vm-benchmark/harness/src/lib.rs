@@ -62,7 +62,7 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
-pub struct BenchmarkingVm(Vm<&'static InMemoryStorage>);
+pub struct BenchmarkingVm(Vm<&'static InMemoryStorage, ()>);
 
 impl BenchmarkingVm {
     #[allow(clippy::new_without_default)]
@@ -97,6 +97,7 @@ impl BenchmarkingVm {
                 chain_id: L2ChainId::from(270),
             },
             &*STORAGE,
+            (),
         ))
     }
 

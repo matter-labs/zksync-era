@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ShadowVm<S, T> {
     main: T,
-    shadow: vm_fast::Vm<ImmutableStorageView<S>>,
+    shadow: vm_fast::Vm<ImmutableStorageView<S>, ()>,
 }
 
 impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
@@ -35,7 +35,12 @@ where
     ) -> Self {
         Self {
             main: T::new(batch_env.clone(), system_env.clone(), storage.clone()),
-            shadow: vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage)),
+            shadow: vm_fast::Vm::new(
+                batch_env,
+                system_env,
+                ImmutableStorageView::new(storage),
+                (),
+            ),
         }
     }
 }
@@ -251,6 +256,11 @@ impl DivergenceErrors {
         let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
+        self.check_match(
+            "statistics.circuit_statistic",
+            &main_result.statistics.circuit_statistic,
+            &shadow_result.statistics.circuit_statistic,
+        );
     }
 
     fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {
