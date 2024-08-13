@@ -6,7 +6,7 @@ use era_vm::{
     EraVM, VMState,
 };
 use once_cell::sync::Lazy;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{InMemoryStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     l1::is_l1_tx_type, AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160,
     KNOWN_CODES_STORAGE_ADDRESS, U256,
@@ -35,7 +35,7 @@ use crate::{
     },
 };
 
-pub struct Vm<S: WriteStorage> {
+pub struct Vm<S: ReadStorage> {
     pub(crate) inner: EraVM,
     suspended_at: u16,
     gas_for_account_validation: u32,
@@ -55,7 +55,7 @@ pub struct Vm<S: WriteStorage> {
 }
 
 /// Encapsulates creating VM instance based on the provided environment.
-impl<S: WriteStorage + 'static> VmFactory<S> for Vm<S> {
+impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
     /// Creates a new VM instance.
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let bootloader_code = system_env
@@ -148,7 +148,7 @@ impl<S: WriteStorage + 'static> VmFactory<S> for Vm<S> {
 
 }
 
-impl<S: WriteStorage + 'static> Vm<S> {
+impl<S: ReadStorage + 'static> Vm<S> {
     pub fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
         loop {
             let (result, blob_tracer) = self.inner.run_program_with_custom_bytecode();
@@ -342,7 +342,7 @@ impl<S: WriteStorage + 'static> Vm<S> {
     }
 }
 
-impl<S: WriteStorage + 'static> VmInterface for Vm<S> {
+impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
     type TracerDispatcher = ();
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -449,7 +449,7 @@ impl<S: WriteStorage + 'static> VmInterface for Vm<S> {
     }
 }
 
-impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
+impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
         todo!()
     }
@@ -464,13 +464,13 @@ impl<S: WriteStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct World<S: WriteStorage> {
+pub struct World<S: ReadStorage> {
     pub storage: StoragePtr<S>,
     pub contract_storage: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
 }
 
-impl<S: WriteStorage> World<S> {
+impl<S: ReadStorage> World<S> {
     pub fn new_empty(storage: StoragePtr<S>) -> Self {
         let contract_storage = Rc::new(RefCell::new(HashMap::new()));
         let l2_to_l1_logs = Vec::new();
@@ -493,7 +493,7 @@ impl<S: WriteStorage> World<S> {
     }
 }
 
-impl<S: WriteStorage> era_vm::store::InitialStorage for World<S> {
+impl<S: ReadStorage> era_vm::store::InitialStorage for World<S> {
     fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
         let mut storage = RefCell::borrow_mut(&self.storage);
         Ok(Some(
@@ -508,7 +508,7 @@ impl<S: WriteStorage> era_vm::store::InitialStorage for World<S> {
     }
 }
 
-impl<S: WriteStorage> era_vm::store::ContractStorage for World<S> {
+impl<S: ReadStorage> era_vm::store::ContractStorage for World<S> {
     fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
         Ok(Some(
             self.contract_storage
@@ -537,6 +537,7 @@ impl<S: WriteStorage> era_vm::store::ContractStorage for World<S> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
     use once_cell::sync::Lazy;

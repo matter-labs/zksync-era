@@ -7,7 +7,7 @@ use criterion::{
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
     cut_to_allowed_bytecode_size, get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx,
-    get_load_test_tx, get_realistic_load_test_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast,
+    get_load_test_tx, get_realistic_load_test_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast, Lambda,
     Legacy, LoadTestParams,
 };
 
@@ -90,9 +90,12 @@ criterion_group!(
     benches,
     benches_in_folder::<Fast, false>,
     benches_in_folder::<Fast, true>,
+    benches_in_folder::<Lambda, false>,
+    benches_in_folder::<Lambda, true>,
     benches_in_folder::<Legacy, false>,
     benches_in_folder::<Legacy, true>,
     bench_load_test::<Fast>,
+    bench_load_test::<Lambda>,
     bench_load_test::<Legacy>
 );
 criterion_main!(benches);

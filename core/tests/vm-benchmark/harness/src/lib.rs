@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 pub use zksync_contracts::test_contracts::LoadnextContractExecutionParams as LoadTestParams;
 use zksync_contracts::{deployer_contract, BaseSystemContracts, TestContract};
 use zksync_multivm::{
-    era_vm::vm::Vm,
+    era_vm,
     interface::{
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
@@ -75,6 +75,7 @@ static PRIVATE_KEY: Lazy<K256PrivateKey> =
 #[derive(Debug, Clone, Copy)]
 pub enum VmLabel {
     Fast,
+    Lambda,
     Legacy,
 }
 
@@ -83,6 +84,7 @@ impl VmLabel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Fast => "fast",
+            Self::Lambda => "lambda",
             Self::Legacy => "legacy",
         }
     }
@@ -91,6 +93,7 @@ impl VmLabel {
     pub const fn as_suffix(self) -> &'static str {
         match self {
             Self::Fast => "",
+            Self::Lambda => "/lambda",
             Self::Legacy => "/legacy",
         }
     }
@@ -110,6 +113,25 @@ pub trait BenchmarkingVmFactory {
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
     ) -> Self::Instance;
+}
+
+/// Factory for the LambdaClass VM.
+#[derive(Debug)]
+pub struct Lambda(());
+
+impl BenchmarkingVmFactory for Lambda {
+    const LABEL: VmLabel = VmLabel::Lambda;
+
+    type Instance = era_vm::vm::Vm<InMemoryStorage>;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> Self::Instance {
+        let storage = Rc::new(RefCell::new(storage.clone()));
+        era_vm::vm::Vm::new(batch_env, system_env, storage)
+    }
 }
 
 /// Factory for the new / fast VM.
