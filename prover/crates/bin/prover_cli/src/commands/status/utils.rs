@@ -56,6 +56,20 @@ pub enum Status {
     JobsNotFound,
 }
 
+impl From<ProverJobStatus> for Status {
+    fn from(status: ProverJobStatus) -> Self {
+        match status {
+            ProverJobStatus::Queued => Status::Queued,
+            ProverJobStatus::InProgress(_) => Status::InProgress, 
+            ProverJobStatus::Successful(_) => Status::Successful,
+            ProverJobStatus::Failed(_) => Status::Custom("Failed".to_owned()),
+            ProverJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
+            ProverJobStatus::Ignored => Status::Custom("Ignored".to_owned()),
+            ProverJobStatus::InGPUProof => Status::Custom("In GPU Proof".to_owned()),
+        }
+    }
+}
+
 impl From<WitnessJobStatus> for Status {
     fn from(status: WitnessJobStatus) -> Self {
         match status {

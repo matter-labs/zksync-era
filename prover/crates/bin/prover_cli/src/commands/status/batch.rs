@@ -39,7 +39,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
             format!("Batch {} Status", batch_data.batch_number).bold()
         );
 
-        if let Status::Custom(msg) = batch_data.compressor.witness_generator_jobs_status() {
+        if let Status::Custom(msg) = batch_data.compressor.witness_generator_jobs_status(10) {
             if msg.contains("Sent to server") {
                 println!("> Proof sent to server ✅");
                 continue;
@@ -48,7 +48,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
 
         let basic_witness_generator_status = batch_data
             .basic_witness_generator
-            .witness_generator_jobs_status();
+            .witness_generator_jobs_status(10);
         if matches!(basic_witness_generator_status, Status::JobsNotFound) {
             println!("> No batch found. 🚫");
             continue;
