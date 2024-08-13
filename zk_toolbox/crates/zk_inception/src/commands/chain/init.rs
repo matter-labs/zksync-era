@@ -171,11 +171,7 @@ fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> an
         bail!("Missing ports config");
     };
 
-    ports_config.web3_json_rpc_http_port += port_offset;
-    ports_config.web3_json_rpc_ws_port += port_offset;
-    ports_config.healthcheck_port += port_offset;
-    ports_config.merkle_tree_port += port_offset;
-    ports_config.prometheus_listener_port += port_offset;
+    ports_config.apply_offset(port_offset);
 
     update_ports(general_config, &ports_config)?;
 
