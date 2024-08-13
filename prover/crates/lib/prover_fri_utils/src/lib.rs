@@ -4,14 +4,18 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        circuit_definitions::recursion_layer::{
-            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+        boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness,
+        circuit_definitions::{
+            base_layer::ZkSyncBaseLayerCircuit,
+            recursion_layer::{
+                base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+            },
         },
         zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
     },
     get_current_pod_name,
-    keys::FriCircuitKey,
-    CircuitWrapper, ProverJob, ProverServiceDataKey,
+    keys::{FriCircuitKey, RamPermutationQueueWitnessKey},
+    CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
@@ -61,10 +65,52 @@ pub async fn fetch_next_circuit(
         depth: prover_job.depth,
     };
     let started_at = Instant::now();
-    let input = blob_store
+    let circuit_wrapper = blob_store
         .get(circuit_key)
         .await
         .unwrap_or_else(|err| panic!("{err:?}"));
+    let input = match circuit_wrapper {
+        a @ CircuitWrapper::Base(_) => a,
+        CircuitWrapper::BaseWithAuxData((circuit, aux_data)) => {
+            // inject additional data
+            if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
+                let sorted_witness_key = RamPermutationQueueWitnessKey {
+                    block_number: prover_job.block_number,
+                    circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
+                    is_sorted: true,
+                };
+
+                let sorted_witness_handle = blob_store.get(sorted_witness_key);
+
+                let unsorted_witness_key = RamPermutationQueueWitnessKey {
+                    block_number: prover_job.block_number,
+                    circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
+                    is_sorted: false,
+                };
+
+                let unsorted_witness_handle = blob_store.get(unsorted_witness_key);
+
+                let unsorted_witness: RamPermutationQueueWitness =
+                    unsorted_witness_handle.await.unwrap();
+                let sorted_witness: RamPermutationQueueWitness =
+                    sorted_witness_handle.await.unwrap();
+
+                let mut witness = circuit_instance.witness.take().unwrap();
+                witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
+                    elements: unsorted_witness.witness.into(),
+                };
+                witness.sorted_queue_witness = FullStateCircuitQueueRawWitness {
+                    elements: sorted_witness.witness.into(),
+                };
+                circuit_instance.witness.store(Some(witness));
+
+                CircuitWrapper::Base(ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance))
+            } else {
+                panic!("Unexpected circuit received with aux data");
+            }
+        }
+        _ => panic!("Invalid circuit wrapper received"),
+    };
 
     let label = CircuitLabels {
         circuit_type: prover_job.circuit_id,
@@ -97,7 +143,9 @@ pub fn get_base_layer_circuit_id_for_recursive_layer(recursive_layer_circuit_id:
 
 pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
-        CircuitWrapper::Base(circuit) => circuit.numeric_circuit_type(),
+        CircuitWrapper::Base(circuit) | CircuitWrapper::BaseWithAuxData((circuit, _)) => {
+            circuit.numeric_circuit_type()
+        }
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),
     }
 }
