@@ -6,6 +6,7 @@ ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
 ZKT_BIN_DIR="$ZKT_DIR/bin"
 
 ZKUP_SKIP_ZK_SUPERVISOR=0
+ZKUP_ALIAS=0
 
 BINS=(zk_inception zk_supervisor)
 
@@ -28,6 +29,10 @@ main() {
   for bin in "${BINS[@]}"; do
     success "Installed $bin to $ZKT_BIN_DIR/$bin"
   done
+
+  if [ $ZKUP_ALIAS -eq 1 ]; then
+    create_alias
+  fi
 }
 
 PREREQUISITES=(cargo git)
@@ -80,6 +85,7 @@ parse_args() {
       ZKUP_VERSION=$1
       ;;
     --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1 ;;
+    --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
       exit 0
@@ -165,6 +171,16 @@ install_from_repo() {
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
   else
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
+  fi
+}
+
+create_alias() {
+  say "Creating alias 'zki' for zk_inception"
+  ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 0 ]; then
+    say "Creating alias 'zks' for zk_supervisor"
+    ensure ln -sf "$ZKT_BIN_DIR/zk_supervisor" "$ZKT_BIN_DIR/zks"
   fi
 }
 
