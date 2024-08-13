@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, url::SensitiveUrl, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::l1_gas_price::GasAdjuster;
@@ -12,7 +12,7 @@ use crate::l1_gas_price::GasAdjuster;
 /// This is needed only for running the server.
 #[derive(Debug)]
 pub struct GasAdjusterSingleton {
-    chain_id: L1ChainId,
+    chain_id: SLChainId,
     web3_url: SensitiveUrl,
     gas_adjuster_config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
@@ -22,7 +22,7 @@ pub struct GasAdjusterSingleton {
 
 impl GasAdjusterSingleton {
     pub fn new(
-        chain_id: L1ChainId,
+        chain_id: SLChainId,
         web3_url: SensitiveUrl,
         gas_adjuster_config: GasAdjusterConfig,
         pubdata_sending_mode: PubdataSendingMode,

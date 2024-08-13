@@ -79,7 +79,27 @@ impl StoredObject for ClosedFormInputWrapper {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct AggregationWrapper(
+pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
+
+impl StoredObject for AggregationWrapper {
+    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
+    type Key<'a> = AggregationsKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        } = key;
+        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+/// TODO: remove after transition
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AggregationWrapperLegacy(
     pub  Vec<(
         u64,
         RecursionQueueSimulator<GoldilocksField>,
@@ -87,7 +107,7 @@ pub struct AggregationWrapper(
     )>,
 );
 
-impl StoredObject for AggregationWrapper {
+impl StoredObject for AggregationWrapperLegacy {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
     type Key<'a> = AggregationsKey;
 
@@ -154,22 +174,19 @@ pub async fn save_circuit(
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    sequence_number_offset: usize,
+    recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
     depth: u16,
     object_store: &dyn ObjectStore,
     base_layer_circuit_id: Option<u8>,
 ) -> Vec<(u8, String)> {
-    let mut ids_and_urls = Vec::with_capacity(aggregations.len());
-    for (sequence_number, (_, _, circuit)) in aggregations.into_iter().enumerate() {
+    let mut ids_and_urls = Vec::with_capacity(recursive_circuits.len());
+    for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
             block_number,
-            sequence_number,
+            sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,
             depth,
@@ -191,11 +208,7 @@ pub async fn save_node_aggregations_artifacts(
     block_number: L1BatchNumber,
     circuit_id: u8,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     object_store: &dyn ObjectStore,
 ) -> String {
     let key = AggregationsKey {
@@ -215,8 +228,8 @@ pub async fn load_proofs_for_job_ids(
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut proofs = Vec::with_capacity(job_ids.len());
-    for &job_id in job_ids {
-        proofs.push(object_store.get(job_id).await.unwrap());
+    for job_id in job_ids {
+        proofs.push(object_store.get(*job_id).await.unwrap());
     }
     proofs
 }

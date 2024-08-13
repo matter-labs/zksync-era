@@ -25,7 +25,7 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn attestation_status(&self) -> RpcResult<en::AttestationStatus> {
+    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>> {
         self.attestation_status_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))

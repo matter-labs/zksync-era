@@ -297,16 +297,16 @@ impl proto::SetupLoadMode {
 }
 
 impl proto::CloudType {
-    fn new(x: &configs::fri_prover::CloudType) -> Self {
-        use configs::fri_prover::CloudType as From;
+    fn new(x: &configs::fri_prover::CloudConnectionMode) -> Self {
+        use configs::fri_prover::CloudConnectionMode as From;
         match x {
             From::GCP => Self::Gcp,
             From::Local => Self::Local,
         }
     }
 
-    fn parse(&self) -> configs::fri_prover::CloudType {
-        use configs::fri_prover::CloudType as To;
+    fn parse(&self) -> configs::fri_prover::CloudConnectionMode {
+        use configs::fri_prover::CloudConnectionMode as To;
         match self {
             Self::Gcp => To::GCP,
             Self::Local => To::Local,

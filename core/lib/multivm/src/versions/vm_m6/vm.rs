@@ -6,7 +6,8 @@ use zk_evm_1_3_1::aux_structures::LogQuery;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Transaction, VmVersion,
+    vm::VmVersion,
+    Transaction,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, CompressedBytecodeInfo},
@@ -18,7 +19,8 @@ use crate::{
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::old_tracers::TracerDispatcher,
     vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
@@ -64,18 +66,8 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
     }
 }
 
-impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let vm_version: VmVersion = system_env.version.into();
-        let vm_sub_version = match vm_version {
-            VmVersion::M6Initial => MultiVMSubversion::V1,
-            VmVersion::M6BugWithCompressionFixed => MultiVMSubversion::V2,
-            _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
-        };
-        Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
-    }
 
     fn push_transaction(&mut self, tx: Transaction) {
         crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -135,7 +127,7 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_full_history, raw_events, l1_messages) = self.vm.state.event_sink.flatten();
+        let (raw_events, l1_messages) = self.vm.state.event_sink.flatten();
         let events = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
@@ -153,14 +145,6 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 })
             })
             .collect();
-        let total_log_queries = self.vm.state.event_sink.get_log_queries()
-            + self
-                .vm
-                .state
-                .precompiles_processor
-                .get_timestamp_history()
-                .len()
-            + self.vm.get_final_log_queries().len();
 
         let used_contract_hashes = self
             .vm
@@ -196,13 +180,10 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .map(GlueInto::glue_into)
                 .collect(),
             used_contract_hashes,
-            system_logs: vec![],
-            total_log_queries,
-            cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for `vm6`
-            deduplicated_events_logs: vec![],
-            storage_refunds: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
+            // Fields below are not produced by `vm6`
+            system_logs: vec![],
+            storage_refunds: vec![],
             pubdata_costs: vec![],
         }
     }
@@ -323,7 +304,19 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 }
 
-impl<S: Storage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::HistoryEnabled> {
+impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let vm_version: VmVersion = system_env.version.into();
+        let vm_sub_version = match vm_version {
+            VmVersion::M6Initial => MultiVMSubversion::V1,
+            VmVersion::M6BugWithCompressionFixed => MultiVMSubversion::V2,
+            _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
+        };
+        Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
+    }
+}
+
+impl<S: Storage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::HistoryEnabled> {
     fn make_snapshot(&mut self) {
         self.vm.save_current_vm_as_snapshot()
     }
@@ -333,6 +326,6 @@ impl<S: Storage> VmInterfaceHistoryEnabled<S> for Vm<S, crate::vm_latest::Histor
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.vm.pop_snapshot_no_rollback()
+        self.vm.pop_snapshot_no_rollback();
     }
 }
