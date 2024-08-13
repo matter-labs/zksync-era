@@ -71,6 +71,7 @@ pub async fn fetch_next_circuit(
         .unwrap_or_else(|err| panic!("{err:?}"));
     let input = match circuit_wrapper {
         a @ CircuitWrapper::Base(_) => a,
+        a @ CircuitWrapper::Recursive(_) => a,
         CircuitWrapper::BaseWithAuxData((circuit, aux_data)) => {
             // inject additional data
             if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
