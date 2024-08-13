@@ -8,7 +8,7 @@ use std::{
 
 use zksync_types::{StorageKey, StorageValue, H256};
 
-use crate::{ReadStorage, StoragePtr, WriteStorage};
+use super::{ReadStorage, StoragePtr, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -269,7 +269,7 @@ mod test {
     use zksync_types::{AccountTreeId, Address, H256};
 
     use super::*;
-    use crate::InMemoryStorage;
+    use crate::storage::InMemoryStorage;
 
     #[test]
     fn test_storage_access() {

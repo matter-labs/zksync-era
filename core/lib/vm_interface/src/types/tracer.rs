@@ -1,4 +1,4 @@
-use crate::interface::Halt;
+use crate::Halt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TracerExecutionStopReason {

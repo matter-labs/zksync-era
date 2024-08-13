@@ -6463,7 +6463,6 @@ dependencies = [
  "serde_json",
  "zksync_contracts",
  "zksync_multivm",
- "zksync_state",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8927,7 +8926,6 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "pretty_assertions",
- "serde",
  "thiserror",
  "tokio",
  "tracing",
@@ -8940,11 +8938,11 @@ dependencies = [
  "zk_evm 0.150.0",
  "zksync_contracts",
  "zksync_eth_signer",
- "zksync_state",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9030,7 +9028,6 @@ dependencies = [
  "zksync_node_sync",
  "zksync_node_test_utils",
  "zksync_protobuf",
- "zksync_state",
  "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_account",
@@ -9373,7 +9370,6 @@ dependencies = [
  "tokio",
  "zksync_multivm",
  "zksync_object_store",
- "zksync_state",
  "zksync_types",
 ]
 
@@ -9515,6 +9511,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9608,7 +9605,6 @@ dependencies = [
  "anyhow",
  "serde",
  "tracing",
- "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
@@ -9619,10 +9615,8 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_queued_job_processor",
- "zksync_state",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
 ]
 
 [[package]]
@@ -9757,6 +9751,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vm_interface"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "thiserror",
+ "tracing",
+ "zksync_contracts",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
@@ -9799,10 +9807,8 @@ dependencies = [
  "tracing",
  "zksync_contracts",
  "zksync_dal",
- "zksync_multivm",
- "zksync_state",
  "zksync_types",
- "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]

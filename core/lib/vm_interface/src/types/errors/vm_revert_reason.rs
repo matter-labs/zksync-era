@@ -1,8 +1,9 @@
-use std::fmt::{Debug, Display};
+use std::fmt;
 
 use zksync_types::U256;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum VmRevertReasonParsingError {
     #[error("Incorrect data offset. Data: {0:?}")]
     IncorrectDataOffset(Vec<u8>),
@@ -14,6 +15,7 @@ pub enum VmRevertReasonParsingError {
 
 /// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum VmRevertReason {
     General {
         msg: String,
@@ -29,6 +31,7 @@ pub enum VmRevertReason {
 
 impl VmRevertReason {
     const GENERAL_ERROR_SELECTOR: &'static [u8] = &[0x08, 0xc3, 0x79, 0xa0];
+
     fn parse_general_error(raw_bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
         let bytes = &raw_bytes[4..];
         if bytes.len() < 32 {
@@ -111,7 +114,6 @@ impl VmRevertReason {
                     function_selector: function_selector.to_vec(),
                     data: bytes.to_vec(),
                 };
-                tracing::debug!("Unsupported error type: {}", result);
                 Ok(result)
             }
         }
@@ -144,8 +146,8 @@ impl From<&[u8]> for VmRevertReason {
     }
 }
 
-impl Display for VmRevertReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for VmRevertReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use VmRevertReason::{General, InnerTxError, Unknown, VmError};
 
         match self {

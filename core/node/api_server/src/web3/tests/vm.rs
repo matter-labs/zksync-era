@@ -4,9 +4,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use api::state_override::{OverrideAccount, StateOverride};
 use itertools::Itertools;
-use zksync_multivm::{
-    interface::{ExecutionResult, VmRevertReason},
-    vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
+use zksync_multivm::interface::{
+    ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
     api::{ApiStorageLog, Log},
