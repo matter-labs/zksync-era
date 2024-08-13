@@ -277,7 +277,7 @@ impl SystemContractsRepo {
             }
             ContractLanguage::Yul => {
                 if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
-                    "zkout/{name}.yul/contracts/{directory}/{name}.yul.json",
+                    "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
                 ))) {
                     return contract;
                 } else {
