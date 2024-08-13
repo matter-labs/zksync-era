@@ -122,15 +122,15 @@ impl PubdataBuilder for RollupPubdataBuilder {
 pub struct ValidiumPubdataBuilder {}
 
 impl ValidiumPubdataBuilder {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {}
     }
 }
 
 impl PubdataBuilder for ValidiumPubdataBuilder {
-    fn build_pubdata(&self, _: PubdataInput, _: bool) -> Vec<u8> {
-        todo!()
+    fn build_pubdata(&self, input: PubdataInput, l2_version: bool) -> Vec<u8> {
+        // TODO: implement pubdata building for validium
+        RollupPubdataBuilder::new().build_pubdata(input, l2_version)
     }
 }
 
