@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                (logs_bloom IS NOT NULL) as \"logs_bloom_not_null!\"\n            FROM\n                miniblocks\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "logs_bloom_not_null!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "036071878e802f4c3a4e079620bc843d6be770a4b6751dd803d0e99b90e9064b"
+}

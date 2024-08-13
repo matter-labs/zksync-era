@@ -2356,11 +2356,11 @@ impl BlocksDal<'_, '_> {
         Ok(results.into_iter().map(L::from).collect())
     }
 
-    pub async fn get_last_l2_block_bloom(&mut self) -> DalResult<Option<Bloom>> {
+    pub async fn has_last_l2_block_bloom(&mut self) -> DalResult<bool> {
         let row = sqlx::query!(
             r#"
             SELECT
-                logs_bloom
+                (logs_bloom IS NOT NULL) as "logs_bloom_not_null!"
             FROM
                 miniblocks
             ORDER BY
@@ -2369,13 +2369,11 @@ impl BlocksDal<'_, '_> {
                 1
             "#,
         )
-        .instrument("get_last_l2_block_bloom")
+        .instrument("has_last_l2_block_bloom")
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row
-            .and_then(|row| row.logs_bloom)
-            .map(|b| Bloom::from_slice(&b)))
+        Ok(row.map(|row| row.logs_bloom_not_null).unwrap_or(false))
     }
 
     pub async fn get_max_l2_block_without_bloom(&mut self) -> DalResult<Option<L2BlockNumber>> {
@@ -2399,17 +2397,15 @@ impl BlocksDal<'_, '_> {
     pub async fn range_update_logs_bloom(
         &mut self,
         from_l2_block: L2BlockNumber,
-        to_l2_block: L2BlockNumber,
-        blooms: Vec<Bloom>,
+        blooms: &[Bloom],
     ) -> DalResult<()> {
+        let to_l2_block = from_l2_block + (blooms.len() - 1) as u32;
         let numbers: Vec<_> = (i64::from(from_l2_block.0)..=i64::from(to_l2_block.0)).collect();
-        assert_eq!(
-            numbers.len(),
-            blooms.len(),
-            "range_update_logs_bloom: inconsistent array lengths"
-        );
 
-        let blooms: Vec<_> = blooms.into_iter().map(|b| b.0.to_vec()).collect();
+        let blooms = blooms
+            .iter()
+            .map(|blooms| blooms.as_bytes())
+            .collect::<Vec<_>>();
         sqlx::query!(
             r#"
             UPDATE miniblocks
@@ -2425,7 +2421,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks.number = data.number
             "#,
             &numbers,
-            &blooms,
+            &blooms as &[&[u8]],
         )
         .instrument("range_update_logs_bloom")
         .execute(self.storage)

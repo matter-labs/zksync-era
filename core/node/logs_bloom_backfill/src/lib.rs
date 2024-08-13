@@ -10,6 +10,12 @@ pub struct LogsBloomBackfill {
     connection_pool: ConnectionPool<Core>,
 }
 
+#[derive(Debug, PartialEq)]
+enum BloomWaitOutcome {
+    Ok,
+    Canceled,
+}
+
 impl LogsBloomBackfill {
     pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
         Self { connection_pool }
@@ -18,18 +24,17 @@ impl LogsBloomBackfill {
     async fn wait_for_l2_block_with_bloom(
         connection: &mut Connection<'_, Core>,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<BloomWaitOutcome> {
         const INTERVAL: Duration = Duration::from_secs(1);
         tracing::debug!("waiting for at least one L2 block in DB with bloom");
 
         loop {
             if *stop_receiver.borrow() {
-                return Ok(false);
+                return Ok(BloomWaitOutcome::Canceled);
             }
 
-            let bloom = connection.blocks_dal().get_last_l2_block_bloom().await?;
-            if bloom.is_some() {
-                return Ok(true);
+            if connection.blocks_dal().has_last_l2_block_bloom().await? {
+                return Ok(BloomWaitOutcome::Ok);
             }
 
             // We don't check the result: if a stop signal is received, we'll return at the start
@@ -46,7 +51,9 @@ impl LogsBloomBackfill {
             .connection_tagged("logs_bloom_backfill")
             .await?;
 
-        if !Self::wait_for_l2_block_with_bloom(&mut connection, &mut stop_receiver).await? {
+        if Self::wait_for_l2_block_with_bloom(&mut connection, &mut stop_receiver).await?
+            == BloomWaitOutcome::Canceled
+        {
             return Ok(()); // Stop signal received
         }
 
@@ -66,7 +73,7 @@ impl LogsBloomBackfill {
                 "logs_bloom_backfill: missing l2 block in DB after waiting for at least one",
             )?;
 
-        tracing::info!("starting blooms backfill");
+        tracing::info!("starting blooms backfill from block {max_block_without_bloom}");
         let mut right_bound = max_block_without_bloom.0;
         loop {
             const WINDOW: u32 = 1000;
@@ -76,9 +83,15 @@ impl LogsBloomBackfill {
             }
 
             let left_bound = right_bound.saturating_sub(WINDOW - 1).max(first_l2_block.0);
+            tracing::info!(
+                "started calculating blooms for block range {left_bound}..={right_bound}"
+            );
+
             let mut bloom_items = connection
                 .events_dal()
-                .get_bloom_items_for_l2_block(L2BlockNumber(left_bound), L2BlockNumber(right_bound))
+                .get_bloom_items_for_l2_blocks(
+                    L2BlockNumber(left_bound)..=L2BlockNumber(right_bound),
+                )
                 .await?;
 
             let blooms: Vec<_> = (left_bound..=right_bound)
@@ -92,11 +105,7 @@ impl LogsBloomBackfill {
                 .collect();
             connection
                 .blocks_dal()
-                .range_update_logs_bloom(
-                    L2BlockNumber(left_bound),
-                    L2BlockNumber(right_bound),
-                    blooms,
-                )
+                .range_update_logs_bloom(L2BlockNumber(left_bound), &blooms)
                 .await?;
             tracing::info!("filled blooms for block range {left_bound}..={right_bound}");
 
