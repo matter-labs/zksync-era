@@ -83,7 +83,23 @@ impl BaseTokenRatioPersister {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;
-        self.send_ratio_to_l1(new_ratio).await
+        let mut result: anyhow::Result<()> = Ok(());
+        let max_attempts = self.config.l1_tx_sending_max_attempts();
+        let sleep_duration = self.config.l1_tx_sending_sleep_duration();
+        for attempt in 0..max_attempts {
+            result = self.send_ratio_to_l1(new_ratio).await;
+            if let Some(err) = result.as_ref().err() {
+                tracing::info!(
+                    "Failed to update base token multiplier on L1, attempt {}: {}",
+                    attempt + 1,
+                    err
+                );
+                tokio::time::sleep(sleep_duration).await;
+            } else {
+                return result;
+            }
+        }
+        result
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
@@ -201,8 +217,8 @@ impl BaseTokenRatioPersister {
             .await
             .context("failed sending `setTokenMultiplier` transaction")?;
 
-        let max_attempts = self.config.persister_l1_receipt_checking_max_attempts();
-        let sleep_duration = self.config.persister_l1_receipt_checking_sleep_duration();
+        let max_attempts = self.config.l1_receipt_checking_max_attempts();
+        let sleep_duration = self.config.l1_receipt_checking_sleep_duration();
         for _i in 0..max_attempts {
             let maybe_receipt = (*self.eth_client)
                 .as_ref()

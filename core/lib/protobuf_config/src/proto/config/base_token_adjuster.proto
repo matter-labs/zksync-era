@@ -5,8 +5,10 @@ package zksync.config.base_token_adjuster;
 message BaseTokenAdjuster {
   optional uint64 price_polling_interval_ms = 1;
   optional uint64 price_cache_update_interval_ms = 2;
-  optional uint64 persister_l1_receipt_checking_sleep_ms = 3;
-  optional uint32 persister_l1_receipt_checking_max_attempts = 4;
-  optional uint64 max_tx_gas = 5;
-  optional uint64 default_priority_fee_per_gas = 6;
+  optional uint64 max_tx_gas = 3;
+  optional uint64 default_priority_fee_per_gas = 4;
+  optional uint64 l1_receipt_checking_sleep_ms = 5;
+  optional uint32 l1_receipt_checking_max_attempts = 6;
+  optional uint32 l1_tx_sending_max_attempts = 7;
+  optional uint64 l1_tx_sending_sleep_ms = 8;
 }

@@ -18,10 +18,16 @@ pub const DEFAULT_MAX_TX_GAS: u64 = 80_000;
 pub const DEFAULT_PRIORITY_FEE_PER_GAS: u64 = 1_000_000_000;
 
 /// Default maximum number of attempts to get L1 transaction receipt
-const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
+const DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
 
-/// Default number of seconds to sleep between the attempts
-const DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 5_000;
+/// Default maximum number of attempts to submit L1 transaction
+const DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS: u32 = 3;
+
+/// Default number of milliseconds to sleep between receipt checking attempts
+const DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 5_000;
+
+/// Default number of milliseconds to sleep between transaction sending attempts
+const DEFAULT_L1_TX_SENDING_SLEEP_MS: u64 = 5_000;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {
@@ -42,10 +48,16 @@ pub struct BaseTokenAdjusterConfig {
     pub default_priority_fee_per_gas: u64,
 
     /// Maximum number of attempts to get L1 transaction receipt before failing over
-    pub persister_l1_receipt_checking_max_attempts: Option<u32>,
+    pub l1_receipt_checking_max_attempts: Option<u32>,
 
-    /// Number of seconds to sleep between the attempts
-    pub persister_l1_receipt_checking_sleep_ms: Option<u64>,
+    /// Number of seconds to sleep between the receipt checking attempts
+    pub l1_receipt_checking_sleep_ms: Option<u64>,
+
+    /// Maximum number of attempts to submit L1 transaction before failing over
+    pub l1_tx_sending_max_attempts: Option<u32>,
+
+    /// Number of seconds to sleep between the transaction sending attempts
+    pub l1_tx_sending_sleep_ms: Option<u64>,
 }
 
 impl Default for BaseTokenAdjusterConfig {
@@ -55,12 +67,10 @@ impl Default for BaseTokenAdjusterConfig {
             price_cache_update_interval_ms: Self::default_cache_update_interval(),
             max_tx_gas: Self::default_max_tx_gas(),
             default_priority_fee_per_gas: Self::default_priority_fee_per_gas(),
-            persister_l1_receipt_checking_max_attempts: Some(
-                DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS,
-            ),
-            persister_l1_receipt_checking_sleep_ms: Some(
-                DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS,
-            ),
+            l1_receipt_checking_max_attempts: Some(DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS),
+            l1_receipt_checking_sleep_ms: Some(DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS),
+            l1_tx_sending_max_attempts: Some(DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS),
+            l1_tx_sending_sleep_ms: Some(DEFAULT_L1_TX_SENDING_SLEEP_MS),
         }
     }
 }
@@ -86,15 +96,27 @@ impl BaseTokenAdjusterConfig {
         Duration::from_millis(self.price_cache_update_interval_ms)
     }
 
-    pub fn persister_l1_receipt_checking_max_attempts(&self) -> u32 {
-        self.persister_l1_receipt_checking_max_attempts
-            .map_or(DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS, |x| x)
+    pub fn l1_tx_sending_max_attempts(&self) -> u32 {
+        self.l1_tx_sending_max_attempts
+            .map_or(DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS, |x| x)
     }
 
-    pub fn persister_l1_receipt_checking_sleep_duration(&self) -> Duration {
+    pub fn l1_receipt_checking_max_attempts(&self) -> u32 {
+        self.l1_receipt_checking_max_attempts
+            .map_or(DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS, |x| x)
+    }
+
+    pub fn l1_receipt_checking_sleep_duration(&self) -> Duration {
         Duration::from_millis(
-            self.persister_l1_receipt_checking_sleep_ms
-                .map_or(DEFAULT_PERSISTER_L1_RECEIPT_CHECKING_SLEEP_MS, |x| x),
+            self.l1_receipt_checking_sleep_ms
+                .map_or(DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS, |x| x),
+        )
+    }
+
+    pub fn l1_tx_sending_sleep_duration(&self) -> Duration {
+        Duration::from_millis(
+            self.l1_tx_sending_sleep_ms
+                .map_or(DEFAULT_L1_TX_SENDING_SLEEP_MS, |x| x),
         )
     }
 
