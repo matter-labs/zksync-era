@@ -2,13 +2,13 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester,validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use std::sync::Arc;
 
 use crate::{
     config,
-    storage::{ConnectionPool, Store},
+    storage::{ConnectionPool, Store, InsertCertificateError},
 };
 
 /// Task running a consensus validator for the main node.
@@ -50,8 +50,9 @@ pub async fn run_main_node(
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
 
+        let genesis = block_store.genesis().clone();
         anyhow::ensure!(
-             block_store.genesis().leader_selection
+             genesis.leader_selection
                 == validator::LeaderSelectionMode::Sticky(validator_key.public()),
             "unsupported leader selection mode - main node has to be the leader"
         );
@@ -62,7 +63,7 @@ pub async fn run_main_node(
         s.spawn_bg(runner.run(ctx));
 
         let attestation = Arc::new(attestation::Controller::new(attester)); 
-        s.spawn_bg(run_attestation_updater(ctx,&pool,attestation.clone()));
+        s.spawn_bg(run_attestation_updater(ctx,&pool,genesis,attestation.clone()));
 
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
@@ -82,12 +83,52 @@ pub async fn run_main_node(
     .await
 }
 
+// Manages attestation state by configuring the
+// next batch to attest and storing the collected
+// certificates.
 async fn run_attestation_updater(
     ctx :&ctx::Ctx,
     pool: &ConnectionPool,
+    genesis: validator::Genesis,
     attestation: Arc<attestation::Controller>,
 ) -> anyhow::Result<()> {
-    const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
-    // TODO
-    Ok(())
+    const POLL_INTERVAL : time::Duration = time::Duration::seconds(5);
+    let res = async {
+        let Some(committee) = &genesis.attesters else { return Ok(()) };
+        let committee = Arc::new(committee.clone());
+        loop {
+            // After regenesis it might happen that the batch number for the first block
+            // is not immediately known (the first block was not produced yet),
+            // therefore we need to wait for it.
+            let status = loop {
+                match pool.connection(ctx).await.wrap("connection()")?
+                    .attestation_status(ctx).await.wrap("attestation_status()")?
+                {
+                    Some(status) => break status,
+                    None => ctx.sleep(POLL_INTERVAL).await?,
+                }
+            };
+            let hash = pool.wait_for_batch_hash(ctx,status.next_batch_to_attest).await?;
+            attestation.update_config(Arc::new(attestation::Config {
+                batch_to_attest: attester::Batch {
+                    hash,
+                    number: status.next_batch_to_attest,
+                    genesis: status.genesis,
+                },
+                committee: committee.clone(),
+            })).await.context("update_config()")?;
+            // Main node is the only node which can update the global AttestationStatus,
+            // therefore we can synchronously wait for the certificate.
+            let qc = attestation.wait_for_qc(ctx,status.next_batch_to_attest).await?.context("attestation config has changed unexpectedly")?;
+            pool.connection(ctx).await.wrap("connection()")?
+                .insert_batch_certificate(ctx,&qc).await.map_err(|err| match err {
+                    InsertCertificateError::Canceled(err) => ctx::Error::Canceled(err),
+                    InsertCertificateError::Inner(err) => ctx::Error::Internal(err.into()),
+                })?;
+        }
+    }.await;
+    match res {
+        Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
+        Err(ctx::Error::Internal(err)) => Err(err),
+    }
 }

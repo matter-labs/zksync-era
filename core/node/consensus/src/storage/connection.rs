@@ -343,6 +343,7 @@ impl<'a> Connection<'a> {
             .map(|nr| attester::BatchNumber(nr.0 as u64)))
     }
 
+    /*
     /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
     pub async fn get_last_batch_certificate_number(
         &mut self,
@@ -364,7 +365,7 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().batch_certificate(number))
             .await?
             .context("batch_certificate()")?)
-    }
+    }*/
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
     pub async fn get_l2_block_range_of_l1_batch(
