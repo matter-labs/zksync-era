@@ -72,7 +72,11 @@ pub(super) const MSG_DATABASE_NEW_MIGRATION_SUCCESS: &str = "Migration created s
 // Tests related messages
 pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
+pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
+pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
+pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
+    "Run recovery from a snapshot instead of genesis";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
@@ -106,6 +110,16 @@ pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
 
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 
+// Recovery tests related messages
+pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
+pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Upgrade tests related messages
+pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
+pub(super) const MSG_UPGRADE_TEST_INSTALLING_DEPENDENCIES: &str =
+    "Building and installing dependencies. This process may take a lot of time...";
+pub(super) const MSG_UPGRADE_TEST_RUN_SUCCESS: &str = "Upgrade test ran successfully";
+
 // Cleaning related messages
 pub(super) const MSG_DOCKER_COMPOSE_DOWN: &str = "docker compose down";
 pub(super) const MSG_DOCKER_COMPOSE_REMOVE_VOLUMES: &str = "docker compose remove volumes";
@@ -114,3 +128,6 @@ pub(super) const MSG_CONTRACTS_CLEANING: &str =
     "Removing contracts building and deployment artifacts";
 pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
     "Contracts building and deployment artifacts are cleaned up";
+
+/// Snapshot creator related messages
+pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";

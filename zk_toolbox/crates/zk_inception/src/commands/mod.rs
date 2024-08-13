@@ -6,3 +6,4 @@ pub mod ecosystem;
 pub mod external_node;
 pub mod prover;
 pub mod server;
+pub mod update;

@@ -37,6 +37,11 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 }
 
 fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
+    let path = shell.current_dir().join(BELLMAN_CUDA_DIR);
+    if shell.path_exists(path.clone()) {
+        return Ok(path.to_str().context(MSG_BELLMAN_CUDA_DIR_ERR)?.to_string());
+    }
+
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     let path = git::clone(
         shell,

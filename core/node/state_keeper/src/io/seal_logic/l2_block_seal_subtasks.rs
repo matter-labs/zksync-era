@@ -377,6 +377,7 @@ mod tests {
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         block::L2BlockHeader,
+        commitment::PubdataParams,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
@@ -460,6 +461,7 @@ mod tests {
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
             },
+            pubdata_params: PubdataParams::default(),
             first_tx_index: 0,
             fee_account_address: Default::default(),
             fee_input: Default::default(),
@@ -524,6 +526,7 @@ mod tests {
             l2_tx_count: 1,
             fee_account_address: l2_block_seal_command.fee_account_address,
             base_fee_per_gas: l2_block_seal_command.base_fee_per_gas,
+            pubdata_params: l2_block_seal_command.pubdata_params,
             batch_fee_input: l2_block_seal_command.fee_input,
             base_system_contracts_hashes: l2_block_seal_command.base_system_contracts_hashes,
             protocol_version: l2_block_seal_command.protocol_version,

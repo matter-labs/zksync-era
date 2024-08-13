@@ -5,7 +5,7 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        initialize_bridges::output::InitializeBridgeOutput,
+        deploy_l2_contracts::output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
@@ -83,6 +83,14 @@ impl ContractsConfig {
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         Ok(())
     }
+
+    pub fn set_default_l2_upgrade(
+        &mut self,
+        default_upgrade_output: &DefaultL2UpgradeOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -131,4 +139,5 @@ pub struct L1Contracts {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
+    pub default_l2_upgrader: Address,
 }

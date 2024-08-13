@@ -2,8 +2,10 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use circuit_definitions::circuit_definitions::recursion_layer::RECURSION_ARITY;
+use tokio::sync::Semaphore;
 use zkevm_test_harness::witness::recursive_aggregation::{
-    compute_node_vk_commitment, create_node_witnesses,
+    compute_node_vk_commitment, create_node_witness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
@@ -12,8 +14,7 @@ use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
         circuit_definitions::recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-            ZkSyncRecursionLayerVerificationKey, ZkSyncRecursiveLayerCircuit,
+            ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey,
         },
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
@@ -41,11 +42,8 @@ pub struct NodeAggregationArtifacts {
     circuit_id: u8,
     block_number: L1BatchNumber,
     depth: u16,
-    pub next_aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
+    pub recursive_circuit_ids_and_urls: Vec<(u8, String)>,
 }
 
 #[derive(Debug)]
@@ -59,12 +57,8 @@ pub struct NodeAggregationWitnessGeneratorJob {
     circuit_id: u8,
     block_number: L1BatchNumber,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
-    proofs: Vec<ZkSyncRecursionLayerProof>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
+    proofs_ids: Vec<u32>,
     leaf_vk: ZkSyncRecursionLayerVerificationKey,
     node_vk: ZkSyncRecursionLayerVerificationKey,
     all_leafs_layer_params: Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>,
@@ -93,9 +87,15 @@ impl NodeAggregationWitnessGenerator {
         }
     }
 
-    pub fn process_job_sync(
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+    )]
+    pub async fn process_job_impl(
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
+        object_store: Arc<dyn ObjectStore>,
+        max_circuits_in_flight: usize,
     ) -> NodeAggregationArtifacts {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
         tracing::info!(
@@ -109,13 +109,103 @@ impl NodeAggregationWitnessGenerator {
             0 => job.leaf_vk,
             _ => job.node_vk,
         };
-        let next_aggregations = create_node_witnesses(
-            job.aggregations,
-            job.proofs,
-            vk,
-            node_vk_commitment,
-            &job.all_leafs_layer_params,
+
+        let mut proof_ids_iter = job.proofs_ids.into_iter();
+        let mut proofs_ids = vec![];
+        for queues in job.aggregations.chunks(RECURSION_ARITY) {
+            let mut proofs_for_chunk = vec![];
+            for (_, queue) in queues {
+                let proofs_ids_for_queue: Vec<_> = (&mut proof_ids_iter)
+                    .take(queue.num_items as usize)
+                    .collect();
+                assert_eq!(queue.num_items as usize, proofs_ids_for_queue.len());
+                proofs_for_chunk.extend(proofs_ids_for_queue);
+            }
+            proofs_ids.push(proofs_for_chunk);
+        }
+
+        assert_eq!(
+            job.aggregations.chunks(RECURSION_ARITY).len(),
+            proofs_ids.len()
         );
+
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
+
+        let mut handles = vec![];
+        for (circuit_idx, (chunk, proofs_ids_for_chunk)) in job
+            .aggregations
+            .chunks(RECURSION_ARITY)
+            .zip(proofs_ids)
+            .enumerate()
+        {
+            let semaphore = semaphore.clone();
+
+            let object_store = object_store.clone();
+            let chunk = Vec::from(chunk);
+            let vk = vk.clone();
+            let all_leafs_layer_params = job.all_leafs_layer_params.clone();
+
+            let handle = tokio::task::spawn(async move {
+                let _permit = semaphore
+                    .acquire()
+                    .await
+                    .expect("failed to get permit to process queues chunk");
+
+                let proofs = load_proofs_for_job_ids(&proofs_ids_for_chunk, &*object_store).await;
+                let mut recursive_proofs = vec![];
+                for wrapper in proofs {
+                    match wrapper {
+                        FriProofWrapper::Base(_) => {
+                            panic!(
+                                "Expected only recursive proofs for node agg {} {}",
+                                job.circuit_id, job.block_number
+                            );
+                        }
+                        FriProofWrapper::Recursive(recursive_proof) => {
+                            recursive_proofs.push(recursive_proof)
+                        }
+                    }
+                }
+
+                let (result_circuit_id, recursive_circuit, input_queue) = create_node_witness(
+                    &chunk,
+                    recursive_proofs,
+                    &vk,
+                    node_vk_commitment,
+                    &all_leafs_layer_params,
+                );
+
+                assert_eq!(job.circuit_id as u64, result_circuit_id);
+
+                let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
+                    job.block_number,
+                    circuit_idx,
+                    vec![recursive_circuit],
+                    AggregationRound::NodeAggregation,
+                    job.depth,
+                    &*object_store,
+                    Some(job.circuit_id),
+                )
+                .await;
+
+                (
+                    (result_circuit_id, input_queue),
+                    recursive_circuit_id_and_url,
+                )
+            });
+
+            handles.push(handle);
+        }
+
+        let mut next_aggregations = vec![];
+        let mut recursive_circuit_ids_and_urls = vec![];
+        for handle in handles {
+            let (next_aggregation, recursive_circuit_id_and_url) = handle.await.unwrap();
+
+            next_aggregations.push(next_aggregation);
+            recursive_circuit_ids_and_urls.extend(recursive_circuit_id_and_url);
+        }
+
         WITNESS_GENERATOR_METRICS.witness_generation_time
             [&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
@@ -134,6 +224,7 @@ impl NodeAggregationWitnessGenerator {
             block_number: job.block_number,
             depth: job.depth + 1,
             next_aggregations,
+            recursive_circuit_ids_and_urls,
         }
     }
 }
@@ -182,13 +273,17 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("node_aggregation", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
+        let object_store = self.object_store.clone();
+        let max_circuits_in_flight = self.config.max_circuits_in_flight;
+        tokio::spawn(async move {
+            Ok(Self::process_job_impl(job, started_at, object_store, max_circuits_in_flight).await)
         })
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+    )]
     async fn save_result(
         &self,
         job_id: u32,
@@ -233,13 +328,16 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 pub async fn prepare_job(
     metadata: NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let artifacts = get_artifacts(&metadata, object_store).await;
-    let proofs = load_proofs_for_job_ids(&metadata.prover_job_ids_for_proofs, object_store).await;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
@@ -255,19 +353,6 @@ pub async fn prepare_job(
         )
         .context("get_recursive_layer_vk_for_circuit_type()")?;
 
-    let mut recursive_proofs = vec![];
-    for wrapper in proofs {
-        match wrapper {
-            FriProofWrapper::Base(_) => {
-                anyhow::bail!(
-                    "Expected only recursive proofs for node agg {}",
-                    metadata.id
-                );
-            }
-            FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof),
-        }
-    }
-
     WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
 
@@ -276,7 +361,7 @@ pub async fn prepare_job(
         block_number: metadata.block_number,
         depth: metadata.depth,
         aggregations: artifacts.0,
-        proofs: recursive_proofs,
+        proofs_ids: metadata.prover_job_ids_for_proofs,
         leaf_vk,
         node_vk,
         all_leafs_layer_params: get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?,
@@ -284,6 +369,10 @@ pub async fn prepare_job(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit_id)
+)]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -351,6 +440,10 @@ async fn update_database(
     transaction.commit().await.unwrap();
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+)]
 async fn get_artifacts(
     metadata: &NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
@@ -366,6 +459,10 @@ async fn get_artifacts(
         .unwrap_or_else(|_| panic!("node aggregation job artifacts missing: {:?}", key))
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+)]
 async fn save_artifacts(
     artifacts: NodeAggregationArtifacts,
     object_store: &dyn ObjectStore,
@@ -375,17 +472,8 @@ async fn save_artifacts(
         artifacts.block_number,
         artifacts.circuit_id,
         artifacts.depth,
-        artifacts.next_aggregations.clone(),
-        object_store,
-    )
-    .await;
-    let circuit_ids_and_urls = save_recursive_layer_prover_input_artifacts(
-        artifacts.block_number,
         artifacts.next_aggregations,
-        AggregationRound::NodeAggregation,
-        artifacts.depth,
         object_store,
-        Some(artifacts.circuit_id),
     )
     .await;
 
@@ -394,6 +482,6 @@ async fn save_artifacts(
 
     BlobUrls {
         node_aggregations_url: aggregations_urls,
-        circuit_ids_and_urls,
+        circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
     }
 }

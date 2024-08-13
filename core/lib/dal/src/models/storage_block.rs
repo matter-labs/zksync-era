@@ -7,7 +7,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H2048, H256,
@@ -440,6 +440,8 @@ pub(crate) struct StorageL2BlockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
     pub protocol_version: Option<i32>,
 
     pub fair_pubdata_price: Option<i64>,
@@ -493,6 +495,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
+            },
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,

@@ -62,6 +62,7 @@ impl MockMainNodeClient {
             l2_fair_gas_price: 3,
             fair_pubdata_price: Some(24),
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            pubdata_params: Default::default(),
             operator_address: Address::repeat_byte(2),
             transactions: Some(vec![]),
             virtual_blocks: Some(0),

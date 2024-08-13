@@ -49,9 +49,9 @@ impl ProtoRepr for proto::Eth {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            sender: read_optional_repr(&self.sender).context("sender")?,
-            gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
-            watcher: read_optional_repr(&self.watcher).context("watcher")?,
+            sender: read_optional_repr(&self.sender),
+            gas_adjuster: read_optional_repr(&self.gas_adjuster),
+            watcher: read_optional_repr(&self.watcher),
         })
     }
 

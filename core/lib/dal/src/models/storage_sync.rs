@@ -1,7 +1,11 @@
+use std::str::FromStr;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
-    api::en, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    api::en,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -26,6 +30,8 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
 }
 
 pub(crate) struct SyncBlock {
@@ -41,6 +47,7 @@ pub(crate) struct SyncBlock {
     pub virtual_blocks: u32,
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
+    pub pubdata_params: PubdataParams,
 }
 
 impl TryFrom<StorageSyncBlock> for SyncBlock {
@@ -76,6 +83,12 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 default_aa: parse_h256_opt(block.default_aa_code_hash.as_deref())
                     .decode_column("default_aa_code_hash")?,
             },
+            pubdata_params: PubdataParams {
+                pubdata_type: L1BatchCommitmentMode::from_str(&block.pubdata_type)
+                    .expect("Invalid pubdata type"),
+                l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
+                    .decode_column("l2_da_validator_address")?,
+            },
             fee_account_address: parse_h160(&block.fee_account_address)
                 .decode_column("fee_account_address")?,
             virtual_blocks: block
@@ -104,6 +117,7 @@ impl SyncBlock {
             virtual_blocks: Some(self.virtual_blocks),
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
+            pubdata_params: self.pubdata_params,
         }
     }
 
@@ -120,6 +134,7 @@ impl SyncBlock {
             operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
+            pubdata_params: self.pubdata_params,
         }
     }
 }

@@ -307,7 +307,7 @@ async function setInternalL1GasPrice(
     } catch (_) {}
 
     // Run server in background.
-    let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher';
+    let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher,vm_runner_protective_reads';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
 
     if (newPubdataPrice) {

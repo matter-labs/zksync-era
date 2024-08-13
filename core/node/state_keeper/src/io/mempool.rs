@@ -11,14 +11,13 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{
-    interface::{Halt, PubdataParams},
-    utils::derive_base_fee_and_gas_per_pubdata,
-};
+use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    protocol_upgrade::ProtocolUpgradeTx,
+    utils::display_timestamp,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -52,6 +51,8 @@ pub struct MempoolIO {
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
+    l2_da_validator_address: Address,
+    pubdata_type: L1BatchCommitmentMode,
     validation_computational_gas_limit: u32,
     max_allowed_tx_gas_limit: U256,
     delay_interval: Duration,
@@ -216,7 +217,10 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
-                pubdata_params: PubdataParams::extract_from_env(),
+                pubdata_params: PubdataParams {
+                    l2_da_validator_address: self.l2_da_validator_address,
+                    pubdata_type: self.pubdata_type,
+                },
             }));
         }
         Ok(None)
@@ -424,12 +428,15 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
 }
 
 impl MempoolIO {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         fee_account: Address,
+        l2_da_validator_address: Address,
+        pubdata_type: L1BatchCommitmentMode,
         delay_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
@@ -442,6 +449,8 @@ impl MempoolIO {
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider: L1BatchParamsProvider::new(),
             fee_account,
+            l2_da_validator_address,
+            pubdata_type,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,

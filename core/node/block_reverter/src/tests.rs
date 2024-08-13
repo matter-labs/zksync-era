@@ -59,6 +59,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             l1_tx_count: 0,
             l2_tx_count: 0,
             fee_account_address: Address::default(),
+            pubdata_params: Default::default(),
             base_fee_per_gas: 0,
             batch_fee_input: Default::default(),
             gas_per_pubdata_limit: 0,
@@ -146,7 +147,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     BlockReverter::new(NodeRole::External, pool.clone())
         .enable_rolling_back_postgres()
         .enable_rolling_back_merkle_tree(merkle_tree_path.to_str().unwrap().to_owned())
-        .enable_rolling_back_state_keeper_cache(sk_cache_path.to_str().unwrap().to_owned())
+        .add_rocksdb_storage_path_to_rollback(sk_cache_path.to_str().unwrap().to_owned())
         .roll_back(L1BatchNumber(5))
         .await
         .unwrap();
