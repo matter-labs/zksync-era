@@ -50,7 +50,8 @@ impl Error {
     }
 }
 
-/// Functionality [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type.
+/// Functionality [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
+/// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
 #[async_trait]
 trait ErasedBatchExecutor: fmt::Debug + Send {
     async fn init_batch(
