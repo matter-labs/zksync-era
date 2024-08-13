@@ -12,7 +12,7 @@ use crate::{
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
         MSG_DEV_ARG_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP,
+        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
     },
 };
 
@@ -90,8 +90,8 @@ pub struct EcosystemInitArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP)]
-    pub observability: bool,
+    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub observability: Option<bool>,
 }
 
 impl EcosystemInitArgs {
@@ -112,6 +112,15 @@ impl EcosystemInitArgs {
             (deploy_paymaster, deploy_erc20)
         };
         let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
+        let observability = if self.dev {
+            true
+        } else {
+            self.observability.unwrap_or_else(|| {
+                PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
+                    .default(true)
+                    .ask()
+            })
+        };
 
         EcosystemInitArgsFinal {
             deploy_paymaster,
@@ -119,7 +128,7 @@ impl EcosystemInitArgs {
             ecosystem,
             forge_args: self.forge_args.clone(),
             dev: self.dev,
-            observability: self.observability,
+            observability,
         }
     }
 }
