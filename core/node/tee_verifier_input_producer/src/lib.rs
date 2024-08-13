@@ -83,28 +83,20 @@ impl TeeVerifierInputProducer {
             .await
             .context("failed initializing L1 batch params provider")?;
 
-        let first_miniblock_in_batch = l1_batch_params_provider
-            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
-            .await
-            .with_context(|| {
-                format!("failed loading first miniblock in L1 batch #{l1_batch_number}")
-            })?
-            .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;
-
         // In the state keeper, this value is used to reject execution.
         // All batches have already been executed by State Keeper.
         // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
         let validation_computational_gas_limit = u32::MAX;
 
         let (system_env, l1_batch_env) = l1_batch_params_provider
-            .load_l1_batch_params(
+            .load_l1_batch_env(
                 &mut connection,
-                &first_miniblock_in_batch,
+                l1_batch_number,
                 validation_computational_gas_limit,
                 l2_chain_id,
             )
-            .await
-            .context("expected miniblock to be executed and sealed")?;
+            .await?
+            .with_context(|| format!("expected L1 batch #{l1_batch_number} to be sealed"))?;
 
         let used_contract_hashes = l1_batch_header
             .used_contract_hashes

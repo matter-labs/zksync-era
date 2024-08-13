@@ -398,29 +398,20 @@ pub(crate) async fn load_batch_execute_data(
     l1_batch_params_provider: &L1BatchParamsProvider,
     chain_id: L2ChainId,
 ) -> anyhow::Result<Option<BatchExecuteData>> {
-    let first_l2_block_in_batch = l1_batch_params_provider
-        .load_first_l2_block_in_batch(conn, l1_batch_number)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed loading first L2 block for L1 batch #{}",
-                l1_batch_number
-            )
-        })?;
-    let Some(first_l2_block_in_batch) = first_l2_block_in_batch else {
-        return Ok(None);
-    };
-    let (system_env, l1_batch_env) = l1_batch_params_provider
-        .load_l1_batch_params(
+    let Some((system_env, l1_batch_env)) = l1_batch_params_provider
+        .load_l1_batch_env(
             conn,
-            &first_l2_block_in_batch,
+            l1_batch_number,
             // `validation_computational_gas_limit` is only relevant when rejecting txs, but we
             // are re-executing so none of them should be rejected
             u32::MAX,
             chain_id,
         )
-        .await
-        .with_context(|| format!("Failed loading params for L1 batch #{}", l1_batch_number))?;
+        .await?
+    else {
+        return Ok(None);
+    };
+
     let l2_blocks = conn
         .transactions_dal()
         .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
