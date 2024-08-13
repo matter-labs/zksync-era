@@ -28,28 +28,6 @@ const COMPLETE_BATCH_STATUS_STDOUT: &str = "== Batch 0 Status ==
 > Proof sent to server ✅
 ";
 
-#[tokio::test]
-#[doc = "prover_cli config"]
-async fn pli_config_succeeds() {
-    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
-    let mut connection = connection_pool.connection().await.unwrap();
-
-    connection
-        .fri_protocol_versions_dal()
-        .save_prover_protocol_version(
-            ProtocolSemanticVersion::default(),
-            L1VerifierConfig::default(),
-        )
-        .await;
-
-    Command::cargo_bin("prover_cli")
-        .unwrap()
-        .arg("config")
-        .arg(connection_pool.database_url().expose_str())
-        .assert()
-        .success();
-}
-
 #[test]
 #[doc = "prover_cli status"]
 fn pli_status_empty_fails() {
@@ -94,11 +72,23 @@ fn pli_status_batch_help_succeeds() {
         .success();
 }
 
-#[test]
+#[tokio::test]
 #[doc = "prover_cli status batch -n 10000"]
-fn pli_status_of_non_existing_batch_succeeds() {
+async fn pli_status_of_non_existing_batch_succeeds() {
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
+    let mut connection = connection_pool.connection().await.unwrap();
+
+    connection
+        .fri_protocol_versions_dal()
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
+        .await;
+
     Command::cargo_bin("prover_cli")
         .unwrap()
+        .arg(connection_pool.database_url().expose_str())
         .arg("status")
         .arg("batch")
         .args(["-n", "10000"])
@@ -107,11 +97,23 @@ fn pli_status_of_non_existing_batch_succeeds() {
         .stdout(NON_EXISTING_BATCH_STATUS_STDOUT);
 }
 
-#[test]
+#[tokio::test]
 #[doc = "prover_cli status batch -n 10000 10001"]
-fn pli_status_of_multiple_non_existing_batch_succeeds() {
+async fn pli_status_of_multiple_non_existing_batch_succeeds() {
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
+    let mut connection = connection_pool.connection().await.unwrap();
+
+    connection
+        .fri_protocol_versions_dal()
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
+        .await;
+
     Command::cargo_bin("prover_cli")
         .unwrap()
+        .arg(connection_pool.database_url().expose_str())
         .arg("status")
         .arg("batch")
         .args(["-n", "10000", "10001"])
@@ -120,9 +122,10 @@ fn pli_status_of_multiple_non_existing_batch_succeeds() {
         .stdout(MULTIPLE_NON_EXISTING_BATCHES_STATUS_STDOUT);
 }
 
-fn status_batch_0_expects(expected_output: String) {
+fn status_batch_0_expects(db_url: &str, expected_output: String) {
     Command::cargo_bin("prover_cli")
         .unwrap()
+        .arg(db_url)
         .arg("status")
         .arg("batch")
         .args(["-n", "0"])
@@ -131,9 +134,10 @@ fn status_batch_0_expects(expected_output: String) {
         .stdout(expected_output);
 }
 
-fn status_verbose_batch_0_expects(expected_output: String) {
+fn status_verbose_batch_0_expects(db_url: &str, expected_output: String) {
     Command::cargo_bin("prover_cli")
         .unwrap()
+        .arg(db_url)
         .arg("status")
         .arg("batch")
         .args(["-n", "0", "--verbose"])
@@ -501,18 +505,21 @@ async fn pli_status_complete() {
 
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Queued,
-        None,
-        Status::JobsNotFound,
-        None,
-        Status::JobsNotFound,
-        None,
-        Status::JobsNotFound,
-        Status::JobsNotFound,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Queued,
+            None,
+            Status::JobsNotFound,
+            None,
+            Status::JobsNotFound,
+            None,
+            Status::JobsNotFound,
+            Status::JobsNotFound,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // The BWS start, agg_round 0 prover jobs created. All WG set in wating for proofs.
     let scenario = Scenario::new(batch_0)
@@ -538,18 +545,21 @@ async fn pli_status_complete() {
         .add_scheduler(WitnessJobStatus::WaitingForProofs);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::InProgress,
-        Some(Status::Queued),
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // The BWS done, agg_round 0 prover jobs in progress.
     let scenario = Scenario::new(batch_0)
@@ -571,18 +581,21 @@ async fn pli_status_complete() {
         );
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::InProgress),
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // Agg_round 0, prover jobs done for VM circuit, LWG set in queue.
     let scenario = Scenario::new(batch_0)
@@ -599,18 +612,21 @@ async fn pli_status_complete() {
         .add_lwg(WitnessJobStatus::Queued, BaseLayerCircuitType::VM);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::InProgress),
-        Status::Queued,
-        None,
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::Queued,
+            None,
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // Agg_round 0: all prover jobs successful, LWG in progress. Agg_round 1: prover jobs in queue.
     let scenario = Scenario::new(batch_0)
@@ -631,18 +647,21 @@ async fn pli_status_complete() {
         .add_agg_1_prover_job(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 2);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::InProgress,
-        Some(Status::Queued),
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // LWG succees. Agg_round 1: Done for VM circuit.
     let scenario = Scenario::new(batch_0)
@@ -667,18 +686,21 @@ async fn pli_status_complete() {
         );
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::InProgress),
-        Status::WaitingForProofs,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // Agg_round 1: all prover jobs successful. NWG queue.
     let scenario = Scenario::new(batch_0)
@@ -694,18 +716,21 @@ async fn pli_status_complete() {
         );
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Queued,
-        None,
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Queued,
+            None,
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // NWG successful for VM circuit, agg_round 2 prover jobs created.
     let scenario = Scenario::new(batch_0)
@@ -720,18 +745,21 @@ async fn pli_status_complete() {
         .add_agg_2_prover_job(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 1);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::InProgress,
-        Some(Status::Queued),
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Some(Status::Queued),
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // NWG successful, agg_round 2 prover jobs updated.
     let scenario = Scenario::new(batch_0)
@@ -751,18 +779,21 @@ async fn pli_status_complete() {
         );
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::InProgress),
-        Status::WaitingForProofs,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::InProgress),
+            Status::WaitingForProofs,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // Agg_round 2 prover jobs successful. RT in progress.
     let scenario = Scenario::new(batch_0)
@@ -779,18 +810,21 @@ async fn pli_status_complete() {
         .add_rt(WitnessJobStatus::InProgress);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::InProgress,
-        Status::WaitingForProofs,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::InProgress,
+            Status::WaitingForProofs,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // RT in successful, Scheduler in progress.
     let scenario = Scenario::new(batch_0)
@@ -800,18 +834,21 @@ async fn pli_status_complete() {
         .add_scheduler(WitnessJobStatus::InProgress);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Status::InProgress,
-        Status::JobsNotFound,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Status::InProgress,
+            Status::JobsNotFound,
+            batch_0,
+        ),
+    );
 
     // Scheduler in successful, Compressor in progress.
     let scenario = Scenario::new(batch_0)
@@ -821,24 +858,30 @@ async fn pli_status_complete() {
         .add_compressor(ProofCompressionJobStatus::InProgress);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(scenario_expected_stdout(
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Some(Status::Successful),
-        Status::Successful,
-        Status::Successful,
-        Status::InProgress,
-        batch_0,
-    ));
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        scenario_expected_stdout(
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Some(Status::Successful),
+            Status::Successful,
+            Status::Successful,
+            Status::InProgress,
+            batch_0,
+        ),
+    );
 
     // Compressor Done.
     let scenario = Scenario::new(batch_0).add_compressor(ProofCompressionJobStatus::SentToServer);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(COMPLETE_BATCH_STATUS_STDOUT.into());
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        COMPLETE_BATCH_STATUS_STDOUT.into(),
+    );
 }
 
 #[tokio::test]
@@ -952,6 +995,7 @@ async fn pli_status_complete_verbose() {
     load_scenario(scenario, &mut connection).await;
 
     status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
         "== Batch 0 Status ==
 
 -- Aggregation Round 0 --
@@ -1077,6 +1121,7 @@ v Prover Jobs: In Progress ⌛️
     load_scenario(scenario, &mut connection).await;
 
     status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
         "== Batch 0 Status ==
 
 -- Aggregation Round 0 --
@@ -1177,6 +1222,7 @@ v Prover Jobs: In Progress ⌛️
     load_scenario(scenario, &mut connection).await;
 
     status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
         "== Batch 0 Status ==
 
 -- Aggregation Round 0 --
@@ -1232,6 +1278,7 @@ v Prover Jobs: In Progress ⌛️
     load_scenario(scenario, &mut connection).await;
 
     status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
         "== Batch 0 Status ==
 
 -- Aggregation Round 0 --
@@ -1266,6 +1313,7 @@ v Recursion Tip: In Progress ⌛️
     load_scenario(scenario, &mut connection).await;
 
     status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
         "== Batch 0 Status ==
 
 -- Aggregation Round 0 --
@@ -1299,5 +1347,8 @@ v Scheduler: In Progress ⌛️
         .add_compressor(ProofCompressionJobStatus::SentToServer);
     load_scenario(scenario, &mut connection).await;
 
-    status_batch_0_expects(COMPLETE_BATCH_STATUS_STDOUT.into());
+    status_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        COMPLETE_BATCH_STATUS_STDOUT.into(),
+    );
 }

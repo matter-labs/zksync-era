@@ -23,7 +23,7 @@ export async function prover(options: string[]) {
         test_runner = 'cargo test';
     }
 
-    let cmd = `${test_runner} --release --locked -j 1 --${options.join(' ')}`;
+    let cmd = `${test_runner} --release --locked --${options.join(' ')}`;
     console.log(`running prover unit tests with '${cmd}'`);
     await utils.spawn(cmd);
 }
