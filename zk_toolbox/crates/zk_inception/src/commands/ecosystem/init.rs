@@ -57,7 +57,7 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    // git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -175,7 +175,7 @@ async fn init(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    // install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
@@ -379,7 +379,7 @@ async fn deploy_ecosystem_inner(
 }
 
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code);
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
 }
 
