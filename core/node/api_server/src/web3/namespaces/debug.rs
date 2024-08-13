@@ -206,12 +206,13 @@ impl DebugNamespace {
             vec![ApiTracer::CallTracer(call_tracer_result.clone())]
         };
 
+        let connection = self.state.acquire_connection().await?;
         let executor = &self.state.tx_sender.0.executor;
         let result = executor
             .execute_tx_eth_call(
                 vm_permit,
                 shared_args,
-                self.state.connection_pool.clone(),
+                connection,
                 call_overrides,
                 tx.clone(),
                 block_args,

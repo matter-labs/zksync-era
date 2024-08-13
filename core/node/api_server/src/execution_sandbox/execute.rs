@@ -1,8 +1,7 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use anyhow::Context as _;
-use tracing::{span, Level};
-use zksync_dal::{ConnectionPool, Core};
+use tracing::{span, Instrument, Level};
+use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
         TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -111,7 +110,7 @@ impl TransactionExecutor {
         // current L1 prices for gas or pubdata.
         adjust_pubdata_price: bool,
         execution_args: TxExecutionArgs,
-        connection_pool: ConnectionPool<Core>,
+        connection: Connection<'static, Core>,
         tx: Transaction,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
@@ -122,38 +121,30 @@ impl TransactionExecutor {
         }
 
         let total_factory_deps = tx.execute.factory_deps.len() as u16;
+        let missed_storage_invocation_limit = execution_args.missed_storage_invocation_limit;
 
-        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
-            let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
-            let result = apply::apply_vm_in_sandbox(
-                vm_permit,
-                shared_args,
-                adjust_pubdata_price,
-                &execution_args,
-                &connection_pool,
-                tx,
-                block_args,
-                state_override,
-                |vm, tx, _| {
-                    let storage_invocation_tracer =
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit);
-                    let custom_tracers: Vec<_> = custom_tracers
-                        .into_iter()
-                        .map(|tracer| tracer.into_boxed())
-                        .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
-                        .collect();
-                    vm.inspect_transaction_with_bytecode_compression(
-                        custom_tracers.into(),
-                        tx,
-                        true,
-                    )
-                },
-            );
-            span.exit();
-            result
-        })
-        .await
-        .context("transaction execution panicked")??;
+        let (published_bytecodes, execution_result) = apply::apply_vm_in_sandbox(
+            vm_permit,
+            shared_args,
+            adjust_pubdata_price,
+            execution_args,
+            connection,
+            tx,
+            block_args,
+            state_override,
+            move |vm, tx, _| {
+                let storage_invocation_tracer =
+                    StorageInvocations::new(missed_storage_invocation_limit);
+                let custom_tracers: Vec<_> = custom_tracers
+                    .into_iter()
+                    .map(|tracer| tracer.into_boxed())
+                    .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
+                    .collect();
+                vm.inspect_transaction_with_bytecode_compression(custom_tracers.into(), tx, true)
+            },
+        )
+        .instrument(span!(Level::DEBUG, "execute_in_sandbox"))
+        .await?;
 
         let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
@@ -169,7 +160,7 @@ impl TransactionExecutor {
         &self,
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
-        connection_pool: ConnectionPool<Core>,
+        connection: Connection<'static, Core>,
         call_overrides: CallOverrides,
         mut tx: L2Tx,
         block_args: BlockArgs,
@@ -192,7 +183,7 @@ impl TransactionExecutor {
                 shared_args,
                 false,
                 execution_args,
-                connection_pool,
+                connection,
                 tx.into(),
                 block_args,
                 state_override,

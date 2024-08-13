@@ -5,7 +5,6 @@ use std::{
 
 use anyhow::Context as _;
 use rand::{thread_rng, Rng};
-use tokio::runtime::Handle;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -40,15 +39,7 @@ mod vm_metrics;
 /// as a proof that the caller obtained a token from `VmConcurrencyLimiter`,
 #[derive(Debug, Clone)]
 pub struct VmPermit {
-    /// A handle to the runtime that is used to query the VM storage.
-    rt_handle: Handle,
     _permit: Arc<tokio::sync::OwnedSemaphorePermit>,
-}
-
-impl VmPermit {
-    fn rt_handle(&self) -> &Handle {
-        &self.rt_handle
-    }
 }
 
 /// Barrier-like synchronization primitive allowing to close a [`VmConcurrencyLimiter`] it's attached to
@@ -103,7 +94,6 @@ impl VmConcurrencyBarrier {
 pub struct VmConcurrencyLimiter {
     /// Semaphore that limits the number of concurrent VM executions.
     limiter: Arc<tokio::sync::Semaphore>,
-    rt_handle: Handle,
 }
 
 impl VmConcurrencyLimiter {
@@ -116,7 +106,6 @@ impl VmConcurrencyLimiter {
 
         let this = Self {
             limiter: Arc::clone(&limiter),
-            rt_handle: Handle::current(),
         };
         let barrier = VmConcurrencyBarrier {
             limiter,
@@ -144,7 +133,6 @@ impl VmConcurrencyLimiter {
         }
 
         Some(VmPermit {
-            rt_handle: self.rt_handle.clone(),
             _permit: Arc::new(permit),
         })
     }

@@ -346,7 +346,7 @@ impl TxSender {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
-    async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'_, Core>> {
+    async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'static, Core>> {
         self.0
             .replica_connection_pool
             .connection_tagged("api")
@@ -373,7 +373,6 @@ impl TxSender {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
-        drop(connection);
 
         let execution_output = self
             .0
@@ -383,7 +382,7 @@ impl TxSender {
                 shared_args.clone(),
                 true,
                 TxExecutionArgs::for_validation(&tx),
-                self.0.replica_connection_pool.clone(),
+                connection,
                 tx.clone().into(),
                 block_args,
                 None,
@@ -398,12 +397,13 @@ impl TxSender {
 
         let stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        let connection = self.acquire_replica_connection().await?;
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = self
             .0
             .executor
             .validate_tx_in_sandbox(
-                self.0.replica_connection_pool.clone(),
+                connection,
                 vm_permit,
                 tx.clone(),
                 shared_args,
@@ -695,6 +695,7 @@ impl TxSender {
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
+        let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
             .executor
@@ -703,7 +704,7 @@ impl TxSender {
                 shared_args,
                 true,
                 execution_args,
-                self.0.replica_connection_pool.clone(),
+                connection,
                 tx.clone(),
                 block_args,
                 state_override,
@@ -995,12 +996,13 @@ impl TxSender {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
+        let connection = self.acquire_replica_connection().await?;
         self.0
             .executor
             .execute_tx_eth_call(
                 vm_permit,
                 self.shared_args().await?,
-                self.0.replica_connection_pool.clone(),
+                connection,
                 call_overrides,
                 tx,
                 block_args,
@@ -1063,6 +1065,7 @@ impl TxSender {
         Ok(())
     }
 
+    // FIXME: rework as `BlockArgs` method with supplied connection
     pub(crate) async fn get_default_eth_call_gas(
         &self,
         block_args: BlockArgs,

@@ -10,7 +10,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use tracing::Instrument;
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
@@ -42,26 +43,26 @@ use super::{
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type VmStorageView<'a> = StorageView<StorageWithOverrides<PostgresStorage<'a>>>;
-type BoxedVm<'a> = Box<VmInstance<StorageWithOverrides<PostgresStorage<'a>>, HistoryDisabled>>;
+type VmStorageView = StorageView<StorageWithOverrides<PostgresStorage<'static>>>;
+type SandboxVm = VmInstance<StorageWithOverrides<PostgresStorage<'static>>, HistoryDisabled>;
 
 #[derive(Debug)]
-struct Sandbox<'a> {
+struct Sandbox {
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
-    execution_args: &'a TxExecutionArgs,
+    execution_args: TxExecutionArgs,
     l2_block_info_to_reset: Option<StoredL2BlockInfo>,
-    storage_view: VmStorageView<'a>,
+    storage_view: VmStorageView,
 }
 
-impl<'a> Sandbox<'a> {
+impl Sandbox {
     async fn new(
-        mut connection: Connection<'a, Core>,
+        mut connection: Connection<'static, Core>,
         shared_args: TxSharedArgs,
-        execution_args: &'a TxExecutionArgs,
+        execution_args: TxExecutionArgs,
         block_args: BlockArgs,
         state_override: &StateOverride,
-    ) -> anyhow::Result<Sandbox<'a>> {
+    ) -> anyhow::Result<Self> {
         let resolve_started_at = Instant::now();
         let resolved_block_info = block_args
             .resolve_block_info(&mut connection)
@@ -100,7 +101,7 @@ impl<'a> Sandbox<'a> {
         let storage_view = StorageView::new(storage_with_overrides);
         let (system_env, l1_batch_env) = Self::prepare_env(
             shared_args,
-            execution_args,
+            &execution_args,
             &resolved_block_info,
             next_l2_block_info,
         );
@@ -266,7 +267,7 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> (BoxedVm<'a>, StoragePtr<VmStorageView<'a>>) {
+    ) -> (Box<SandboxVm>, StoragePtr<VmStorageView>) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
@@ -291,68 +292,66 @@ impl<'a> Sandbox<'a> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn apply_vm_in_sandbox<T>(
+pub(super) async fn apply_vm_in_sandbox<T, F>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
     // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
     // current L1 prices for gas or pubdata.
     adjust_pubdata_price: bool,
-    execution_args: &TxExecutionArgs,
-    connection_pool: &ConnectionPool<Core>,
+    execution_args: TxExecutionArgs,
+    connection: Connection<'static, Core>,
     tx: Transaction,
     block_args: BlockArgs, // Block arguments for the transaction.
     state_override: Option<StateOverride>,
-    apply: impl FnOnce(
-        &mut VmInstance<StorageWithOverrides<PostgresStorage<'_>>, HistoryDisabled>,
-        Transaction,
-        ProtocolVersionId,
-    ) -> T,
-) -> anyhow::Result<T> {
-    let stage_started_at = Instant::now();
-    let span = tracing::debug_span!("initialization").entered();
+    apply: F,
+) -> anyhow::Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut SandboxVm, Transaction, ProtocolVersionId) -> T + Send + 'static,
+{
+    let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
+    let span = tracing::debug_span!("initialization");
 
-    let rt_handle = vm_permit.rt_handle();
-    let connection = rt_handle
-        .block_on(connection_pool.connection_tagged("api"))
-        .context("failed acquiring DB connection")?;
-    let connection_acquire_time = stage_started_at.elapsed();
-    // We don't want to emit too many logs.
-    if connection_acquire_time > Duration::from_millis(10) {
-        tracing::debug!("Obtained connection (took {connection_acquire_time:?})");
-    }
-
-    let sandbox = rt_handle.block_on(Sandbox::new(
+    let sandbox = Sandbox::new(
         connection,
         shared_args,
         execution_args,
         block_args,
         state_override.as_ref().unwrap_or(&StateOverride::default()),
-    ))?;
+    )
+    .instrument(span.clone())
+    .await?;
     let protocol_version = sandbox.system_env.version;
-    let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
 
-    SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
-    span.exit();
+    tokio::task::spawn_blocking(move || {
+        let span = span.entered();
+        let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
+        initialization_stage.observe();
+        span.exit();
 
-    let tx_id = format!(
-        "{:?}-{}",
-        tx.initiator_account(),
-        tx.nonce().unwrap_or(Nonce(0))
-    );
+        let tx_id = format!(
+            "{:?}-{}",
+            tx.initiator_account(),
+            tx.nonce().unwrap_or(Nonce(0))
+        );
 
-    let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
-    let result = apply(&mut vm, tx, protocol_version);
-    let vm_execution_took = execution_latency.observe();
+        let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
+        let result = apply(&mut vm, tx, protocol_version);
+        let vm_execution_took = execution_latency.observe();
 
-    let memory_metrics = vm.record_vm_memory_metrics();
-    vm_metrics::report_vm_memory_metrics(
-        &tx_id,
-        &memory_metrics,
-        vm_execution_took,
-        storage_view.as_ref().borrow_mut().metrics(),
-    );
-    Ok(result)
+        let memory_metrics = vm.record_vm_memory_metrics();
+        vm_metrics::report_vm_memory_metrics(
+            &tx_id,
+            &memory_metrics,
+            vm_execution_took,
+            storage_view.as_ref().borrow_mut().metrics(),
+        );
+        drop(vm_permit); // Ensure that the permit lives until the end of the execution
+        result
+    })
+    .await
+    .context("VM execution panicked")
 }
 
 #[derive(Debug, Clone, Copy)]
