@@ -4,13 +4,15 @@ use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
 };
 use zksync_multivm::{
-    interface::{storage::StorageViewMetrics, VmExecutionResultAndLogs, VmMemoryMetrics},
+    interface::{
+        storage::StorageViewMetrics, TransactionExecutionMetrics, VmExecutionResultAndLogs,
+        VmMemoryMetrics,
+    },
     utils::StorageWritesDeduplicator,
 };
 use zksync_shared_metrics::InteractionType;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    fee::TransactionExecutionMetrics,
     H256,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;

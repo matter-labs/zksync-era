@@ -1,5 +1,7 @@
 use circuit_sequencer_api_1_4_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-use zksync_types::circuit::{CircuitCycleStatistic, CircuitStatistic};
+use zksync_types::circuit::CircuitCycleStatistic;
+
+use crate::interface::CircuitStatistic;
 
 // "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack
 // and so take 1-2 RAM permutations more than an average opcode.

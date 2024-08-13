@@ -18,7 +18,7 @@ use zksync_config::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -28,7 +28,6 @@ use zksync_node_test_utils::{
 use zksync_types::{
     api,
     block::L2BlockHeader,
-    fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,

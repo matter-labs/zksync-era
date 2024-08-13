@@ -14,12 +14,11 @@ use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
-    interface::{DeduplicatedWritesMetrics, Halt, VmExecutionMetrics},
+    interface::{DeduplicatedWritesMetrics, Halt, TransactionExecutionMetrics, VmExecutionMetrics},
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
-    block::BlockGasCount, fee::TransactionExecutionMetrics, utils::display_timestamp,
-    ProtocolVersionId, Transaction,
+    block::BlockGasCount, utils::display_timestamp, ProtocolVersionId, Transaction,
 };
 use zksync_utils::time::millis_since;
 

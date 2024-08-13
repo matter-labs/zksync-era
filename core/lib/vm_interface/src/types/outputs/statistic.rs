@@ -1,10 +1,8 @@
 use std::ops;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use zksync_types::{
-    circuit::CircuitStatistic,
     commitment::SerializeCommitment,
-    fee::TransactionExecutionMetrics,
     l2_to_l1_log::L2ToL1Log,
     writes::{
         InitialStorageWrite, RepeatedStorageWrite, BYTES_PER_DERIVED_KEY,
@@ -12,6 +10,85 @@ use zksync_types::{
     },
     ProtocolVersionId,
 };
+
+/// Holds information about number of circuits used per circuit type.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct CircuitStatistic {
+    pub main_vm: f32,
+    pub ram_permutation: f32,
+    pub storage_application: f32,
+    pub storage_sorter: f32,
+    pub code_decommitter: f32,
+    pub code_decommitter_sorter: f32,
+    pub log_demuxer: f32,
+    pub events_sorter: f32,
+    pub keccak256: f32,
+    pub ecrecover: f32,
+    pub sha256: f32,
+    #[serde(default)]
+    pub secp256k1_verify: f32,
+    #[serde(default)]
+    pub transient_storage_checker: f32,
+}
+
+impl CircuitStatistic {
+    /// Rounds up numbers and adds them.
+    pub fn total(&self) -> usize {
+        self.main_vm.ceil() as usize
+            + self.ram_permutation.ceil() as usize
+            + self.storage_application.ceil() as usize
+            + self.storage_sorter.ceil() as usize
+            + self.code_decommitter.ceil() as usize
+            + self.code_decommitter_sorter.ceil() as usize
+            + self.log_demuxer.ceil() as usize
+            + self.events_sorter.ceil() as usize
+            + self.keccak256.ceil() as usize
+            + self.ecrecover.ceil() as usize
+            + self.sha256.ceil() as usize
+            + self.secp256k1_verify.ceil() as usize
+            + self.transient_storage_checker.ceil() as usize
+    }
+
+    /// Adds numbers.
+    pub fn total_f32(&self) -> f32 {
+        self.main_vm
+            + self.ram_permutation
+            + self.storage_application
+            + self.storage_sorter
+            + self.code_decommitter
+            + self.code_decommitter_sorter
+            + self.log_demuxer
+            + self.events_sorter
+            + self.keccak256
+            + self.ecrecover
+            + self.sha256
+            + self.secp256k1_verify
+            + self.transient_storage_checker
+    }
+}
+
+impl ops::Add for CircuitStatistic {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            main_vm: self.main_vm + other.main_vm,
+            ram_permutation: self.ram_permutation + other.ram_permutation,
+            storage_application: self.storage_application + other.storage_application,
+            storage_sorter: self.storage_sorter + other.storage_sorter,
+            code_decommitter: self.code_decommitter + other.code_decommitter,
+            code_decommitter_sorter: self.code_decommitter_sorter + other.code_decommitter_sorter,
+            log_demuxer: self.log_demuxer + other.log_demuxer,
+            events_sorter: self.events_sorter + other.events_sorter,
+            keccak256: self.keccak256 + other.keccak256,
+            ecrecover: self.ecrecover + other.ecrecover,
+            sha256: self.sha256 + other.sha256,
+            secp256k1_verify: self.secp256k1_verify + other.secp256k1_verify,
+            transient_storage_checker: self.transient_storage_checker
+                + other.transient_storage_checker,
+        }
+    }
+}
 
 /// Statistics of the tx execution.
 #[derive(Debug, Default, Clone)]
@@ -85,6 +162,54 @@ impl DeduplicatedWritesMetrics {
             self.total_updated_values_size
                 + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
                 + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TransactionExecutionMetrics {
+    pub initial_storage_writes: usize,
+    pub repeated_storage_writes: usize,
+    pub gas_used: usize,
+    pub gas_remaining: u32,
+    pub event_topics: u16,
+    pub published_bytecode_bytes: usize,
+    pub l2_l1_long_messages: usize,
+    pub l2_l1_logs: usize,
+    pub contracts_used: usize,
+    pub contracts_deployed: u16,
+    pub vm_events: usize,
+    pub storage_logs: usize,
+    /// Sum of storage logs, vm events, l2->l1 logs, and the number of precompile calls.
+    pub total_log_queries: usize,
+    pub cycles_used: u32,
+    pub computational_gas_used: u32,
+    pub total_updated_values_size: usize,
+    pub pubdata_published: u32,
+    pub circuit_statistic: CircuitStatistic,
+}
+
+impl Default for TransactionExecutionMetrics {
+    fn default() -> Self {
+        Self {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 0,
+            gas_used: 0,
+            gas_remaining: u32::MAX,
+            event_topics: 0,
+            published_bytecode_bytes: 0,
+            l2_l1_long_messages: 0,
+            l2_l1_logs: 0,
+            contracts_used: 0,
+            contracts_deployed: 0,
+            vm_events: 0,
+            storage_logs: 0,
+            total_log_queries: 0,
+            cycles_used: 0,
+            computational_gas_used: 0,
+            total_updated_values_size: 0,
+            pubdata_published: 0,
+            circuit_statistic: Default::default(),
         }
     }
 }
