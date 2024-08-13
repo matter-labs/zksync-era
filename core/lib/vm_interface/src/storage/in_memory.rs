@@ -3,11 +3,10 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 use zksync_types::{
     block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
     system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog, StorageValue,
-    H256, U256,
+    H256,
 };
-use zksync_utils::u256_to_h256;
 
-use crate::ReadStorage;
+use super::ReadStorage;
 
 /// Network ID we use by default for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
@@ -15,8 +14,8 @@ pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 /// In-memory storage.
 #[derive(Debug, Default, Clone)]
 pub struct InMemoryStorage {
-    pub(crate) state: HashMap<H256, (StorageValue, u64)>,
-    pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
+    state: HashMap<H256, (StorageValue, u64)>,
+    factory_deps: HashMap<H256, Vec<u8>>,
     last_enum_index_set: u64,
 }
 
@@ -57,9 +56,9 @@ impl InMemoryStorage {
                 let deployer_code_key = get_code_key(contract.account_id.address());
                 let is_known_code_key = get_known_code_key(&bytecode_hash);
 
-                vec![
+                [
                     StorageLog::new_write_log(deployer_code_key, bytecode_hash),
-                    StorageLog::new_write_log(is_known_code_key, u256_to_h256(U256::one())),
+                    StorageLog::new_write_log(is_known_code_key, H256::from_low_u64_be(1)),
                 ]
             })
             .chain(system_context_init_log)

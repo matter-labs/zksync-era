@@ -68,6 +68,7 @@ members = [
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",
+    "core/lib/vm_interface",
     "core/lib/vm_utils",
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
@@ -234,6 +235,7 @@ zksync_protobuf_build = "=0.1.0-rc.10"
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
 zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
+zksync_vm_interface = { version = "0.1.0", path = "core/lib/vm_interface" }
 zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
 zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
 zksync_basic_types = { version = "0.1.0", path = "core/lib/basic_types" }

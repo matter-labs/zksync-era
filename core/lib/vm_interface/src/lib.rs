@@ -1,11 +1,6 @@
-pub(crate) mod traits;
-pub mod types;
+//! ZKsync Era VM interfaces.
 
-pub use self::{
-    traits::{
-        tracers::dyn_tracers,
-        vm::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
-    },
+pub use crate::{
     types::{
         errors::{
             BytecodeCompressionError, Halt, TxRevertReason, VmRevertReason,
@@ -14,8 +9,14 @@ pub use self::{
         inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
         outputs::{
             BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-            Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+            Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+            VmMemoryMetrics,
         },
         tracer,
     },
+    vm::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
 };
+
+pub mod storage;
+mod types;
+mod vm;

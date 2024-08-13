@@ -111,7 +111,7 @@ fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
         VmRevertReason::General { .. } => "General",
         VmRevertReason::InnerTxError => "InnerTxError",
         VmRevertReason::VmError => "VmError",
-        VmRevertReason::Unknown { .. } => "Unknown",
+        _ => "Unknown",
     }
 }
 
