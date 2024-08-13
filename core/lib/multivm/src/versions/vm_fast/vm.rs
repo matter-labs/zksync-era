@@ -7,10 +7,7 @@ use vm2::{
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
-    event::{
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
-        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
-    },
+    event::{extract_long_l2_to_l1_messages, L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE},
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
@@ -40,6 +37,7 @@ use crate::{
         VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics, VmRevertReason,
     },
+    utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,

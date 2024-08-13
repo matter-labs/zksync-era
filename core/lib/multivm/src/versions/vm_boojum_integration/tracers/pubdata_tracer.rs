@@ -6,12 +6,8 @@ use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zksync_types::{
-    event::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
-    },
-    writes::StateDiffRecord,
-    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
+    event::extract_long_l2_to_l1_messages, writes::StateDiffRecord, AccountTreeId, StorageKey,
+    L1_MESSENGER_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
@@ -22,6 +18,10 @@ use crate::{
         L1BatchEnv, VmExecutionMode,
     },
     tracers::dynamic::vm_1_4_0::DynTracer,
+    utils::events::{
+        extract_bytecode_publication_requests_from_l1_messenger,
+        extract_l2tol1logs_from_l1_messenger, L1MessengerL2ToL1Log,
+    },
     vm_boojum_integration::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
