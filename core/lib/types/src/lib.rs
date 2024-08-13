@@ -36,7 +36,6 @@ pub mod block;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod debug_flat_call;
-pub mod event;
 pub mod fee;
 pub mod fee_model;
 pub mod l1;

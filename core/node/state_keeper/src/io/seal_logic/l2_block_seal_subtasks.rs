@@ -6,7 +6,6 @@ use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     ethabi,
-    event::DEPLOY_EVENT_SIGNATURE,
     tokens::{TokenInfo, TokenMetadata},
     Address, L2BlockNumber, H256,
 };
@@ -22,13 +21,15 @@ fn extract_added_tokens(
     l2_shared_bridge_addr: Address,
     all_generated_events: &[VmEvent],
 ) -> Vec<TokenInfo> {
+    let deploy_signature = VmEvent::deploy_signature();
+
     let deployed_tokens = all_generated_events
         .iter()
         .filter(|event| {
             // Filter events from the deployer contract that match the expected signature.
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
-                && event.indexed_topics[0] == *DEPLOY_EVENT_SIGNATURE
+                && event.indexed_topics[0] == deploy_signature
                 && h256_to_account_address(&event.indexed_topics[1]) == l2_shared_bridge_addr
         })
         .map(|event| h256_to_account_address(&event.indexed_topics[3]));

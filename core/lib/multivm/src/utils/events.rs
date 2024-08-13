@@ -1,7 +1,6 @@
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     ethabi::{self, Token},
-    event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::L2ToL1Log,
     Address, H256, U256,
 };
@@ -119,13 +118,15 @@ pub fn extract_l2tol1logs_from_l1_messenger(
 pub(crate) fn extract_bytecode_publication_requests_from_l1_messenger(
     all_generated_events: &[VmEvent],
 ) -> Vec<L1MessengerBytecodePublicationRequest> {
+    let event_signature = VmEvent::l1_messenger_bytecode_publication_signature();
+
     all_generated_events
         .iter()
         .filter(|event| {
             // Filter events from the l1 messenger contract that match the expected signature.
             event.address == L1_MESSENGER_ADDRESS
                 && !event.indexed_topics.is_empty()
-                && event.indexed_topics[0] == *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+                && event.indexed_topics[0] == event_signature
         })
         .map(|event| {
             let mut tokens = ethabi::decode(&[ethabi::ParamType::FixedBytes(32)], &event.value)
