@@ -3,8 +3,6 @@ use std::thread;
 use common::{cmd::Cmd, config::global_config, logger};
 use xshell::{cmd, Shell};
 
-use crate::messages::MSG_RUNNING_EXTERNAL_NODE;
-
 use super::{
     args::{
         all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
@@ -12,6 +10,7 @@ use super::{
     },
     integration, recovery, revert, upgrade,
 };
+use crate::messages::MSG_RUNNING_EXTERNAL_NODE;
 
 pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     integration::run(
