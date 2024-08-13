@@ -27,6 +27,15 @@ pub enum InsertCertificateError {
     Inner(#[from] consensus_dal::InsertCertificateError),
 }
 
+impl From<ctx::Error> for InsertCertificateError {
+    fn from(err: ctx::Error) -> Self {
+        match err {
+            ctx::Error::Canceled(err) => Self::Canceled(err),
+            ctx::Error::Internal(err) => Self::Inner(err.into()),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct PayloadQueue {
     inner: IoCursor,

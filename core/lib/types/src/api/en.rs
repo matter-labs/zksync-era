@@ -46,3 +46,8 @@ pub struct SyncBlock {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGenesis(pub serde_json::Value);
+
+/// AttestationStatus maintained by the main node.
+/// Used for testing L1 batch signing by consensus attesters.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationStatus(pub serde_json::Value);

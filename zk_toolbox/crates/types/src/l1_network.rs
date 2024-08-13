@@ -1,6 +1,6 @@
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumIter;
+use strum::EnumIter;
 
 #[derive(
     Copy,
@@ -15,7 +15,7 @@ use strum_macros::EnumIter;
     Deserialize,
     ValueEnum,
     EnumIter,
-    strum_macros::Display,
+    strum::Display,
 )]
 pub enum L1Network {
     #[default]
@@ -26,7 +26,7 @@ pub enum L1Network {
 
 impl L1Network {
     #[must_use]
-    pub fn chain_id(&self) -> u32 {
+    pub fn chain_id(&self) -> u64 {
         match self {
             L1Network::Localhost => 9,
             L1Network::Sepolia => 11_155_111,

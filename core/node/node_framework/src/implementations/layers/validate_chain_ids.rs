@@ -1,5 +1,5 @@
 use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L2ChainId, SLChainId};
 
 use crate::{
     implementations::resources::{
@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Wiring layer for chain ID validation precondition for external node.
-/// Ensures that chain IDs are consistent locally, on main node, and on L1.
+/// Ensures that chain IDs are consistent locally, on main node, and on the settlement layer.
 ///
 /// ## Requests resources
 ///
@@ -24,7 +24,7 @@ use crate::{
 /// - `ValidateChainIdsTask`
 #[derive(Debug)]
 pub struct ValidateChainIdsLayer {
-    l1_chain_id: L1ChainId,
+    sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
 }
 
@@ -43,9 +43,9 @@ pub struct Output {
 }
 
 impl ValidateChainIdsLayer {
-    pub fn new(l1_chain_id: L1ChainId, l2_chain_id: L2ChainId) -> Self {
+    pub fn new(sl_chain_id: SLChainId, l2_chain_id: L2ChainId) -> Self {
         Self {
-            l1_chain_id,
+            sl_chain_id,
             l2_chain_id,
         }
     }
@@ -65,7 +65,7 @@ impl WiringLayer for ValidateChainIdsLayer {
         let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let task = ValidateChainIdsTask::new(
-            self.l1_chain_id,
+            self.sl_chain_id,
             self.l2_chain_id,
             query_client,
             main_node_client,

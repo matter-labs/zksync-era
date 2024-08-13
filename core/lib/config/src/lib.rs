@@ -2,9 +2,12 @@
 
 pub use crate::configs::{
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig,
-    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
 pub mod configs;
 pub mod testonly;
+
+#[cfg(feature = "observability_ext")]
+mod observability_ext;

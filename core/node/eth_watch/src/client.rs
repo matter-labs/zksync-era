@@ -122,7 +122,7 @@ impl EthClient for EthHttpQueryClient {
         // New verifier returns the hash of the verification key.
         CallFunctionArgs::new("verificationKeyHash", ())
             .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call(self.client.as_ref())
+            .call(&self.client)
             .await
     }
 

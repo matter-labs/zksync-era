@@ -3,7 +3,6 @@ use std::fmt;
 use async_trait::async_trait;
 use vise::{EncodeLabelSet, EncodeLabelValue};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
     BoundEthInterface, EnrichedClientResult, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
@@ -50,9 +49,14 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
     async fn get_tx_status(
         &self,
         tx_hash: H256,
+        operator_type: OperatorType,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError>;
 
-    async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256>;
+    async fn send_raw_tx(
+        &self,
+        tx_bytes: RawTransactionBytes,
+        operator_type: OperatorType,
+    ) -> EnrichedClientResult<H256>;
 
     fn get_blobs_operator_account(&self) -> Option<Address>;
 
@@ -86,10 +90,22 @@ pub(super) struct RealL1Interface {
 }
 
 impl RealL1Interface {
-    pub(crate) fn query_client(&self) -> &DynClient<L1> {
+    pub(crate) fn query_client(&self) -> &dyn EthInterface {
         self.ethereum_gateway().as_ref()
     }
+
+    pub(crate) fn query_client_for_operator(
+        &self,
+        operator_type: OperatorType,
+    ) -> &dyn EthInterface {
+        if operator_type == OperatorType::Blob {
+            self.ethereum_gateway_blobs().unwrap().as_ref()
+        } else {
+            self.ethereum_gateway().as_ref()
+        }
+    }
 }
+
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
     async fn failure_reason(&self, tx_hash: H256) -> Option<FailureInfo> {
@@ -106,15 +122,22 @@ impl AbstractL1Interface for RealL1Interface {
     async fn get_tx_status(
         &self,
         tx_hash: H256,
+        operator_type: OperatorType,
     ) -> Result<Option<ExecutedTxStatus>, EthSenderError> {
-        self.query_client()
+        self.query_client_for_operator(operator_type)
             .get_tx_status(tx_hash)
             .await
             .map_err(Into::into)
     }
 
-    async fn send_raw_tx(&self, tx_bytes: RawTransactionBytes) -> EnrichedClientResult<H256> {
-        self.query_client().send_raw_tx(tx_bytes).await
+    async fn send_raw_tx(
+        &self,
+        tx_bytes: RawTransactionBytes,
+        operator_type: OperatorType,
+    ) -> EnrichedClientResult<H256> {
+        self.query_client_for_operator(operator_type)
+            .send_raw_tx(tx_bytes)
+            .await
     }
 
     fn get_blobs_operator_account(&self) -> Option<Address> {

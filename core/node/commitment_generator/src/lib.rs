@@ -75,6 +75,7 @@ impl CommitmentGenerator {
         self.health_updater.subscribe()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn calculate_aux_commitments(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -145,6 +146,7 @@ impl CommitmentGenerator {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn prepare_input(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -285,6 +287,7 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn process_batch(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -307,6 +310,7 @@ impl CommitmentGenerator {
         Ok(artifacts)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn step(
         &self,
         l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
@@ -384,6 +388,7 @@ impl CommitmentGenerator {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn next_batch_range(&self) -> anyhow::Result<Option<ops::RangeInclusive<L1BatchNumber>>> {
         let mut connection = self
             .connection_pool

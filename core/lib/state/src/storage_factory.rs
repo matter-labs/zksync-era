@@ -6,24 +6,37 @@ use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_vm_interface::storage::ReadStorage;
 
-use crate::{
-    PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
-};
+use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
-/// Factory that can produce a [`ReadStorage`] implementation on demand.
+/// Factory that can produce [`OwnedStorage`] instances on demand.
 #[async_trait]
 pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
-    /// Creates a [`PgOrRocksdbStorage`] entity over either a Postgres connection or RocksDB
+    /// Creates an [`OwnedStorage`] entity over either a Postgres connection or RocksDB
     /// instance. The specific criteria on which one are left up to the implementation.
     ///
-    /// The idea is that in either case this provides a valid [`ReadStorage`] implementation
-    /// that can be used by the caller.
+    /// Implementations may be cancel-aware and return `Ok(None)` iff `stop_receiver` receives
+    /// a stop signal; this is the only case in which `Ok(None)` should be returned.
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>>;
+    ) -> anyhow::Result<Option<OwnedStorage>>;
+}
+
+/// [`ReadStorageFactory`] producing Postgres-backed storage instances. Hence, it is slower than more advanced
+/// alternatives with RocksDB caches and should be used sparingly (e.g., for testing).
+#[async_trait]
+impl ReadStorageFactory for ConnectionPool<Core> {
+    async fn access_storage(
+        &self,
+        _stop_receiver: &watch::Receiver<bool>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<OwnedStorage>> {
+        let storage = OwnedPostgresStorage::new(self.clone(), l1_batch_number);
+        Ok(Some(storage.into()))
+    }
 }
 
 /// DB difference introduced by one batch.
@@ -47,29 +60,31 @@ pub struct RocksdbWithMemory {
     pub batch_diffs: Vec<BatchDiff>,
 }
 
-/// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
-/// underneath.
+/// Owned Postgres-backed VM storage for a certain L1 batch.
 #[derive(Debug)]
-pub enum PgOrRocksdbStorage<'a> {
-    /// Implementation over a Postgres connection.
-    Postgres(PostgresStorage<'a>),
-    /// Implementation over a RocksDB cache instance.
-    Rocksdb(RocksdbStorage),
-    /// Implementation over a RocksDB cache instance with in-memory DB diffs.
-    RocksdbWithMemory(RocksdbWithMemory),
+pub struct OwnedPostgresStorage {
+    connection_pool: ConnectionPool<Core>,
+    l1_batch_number: L1BatchNumber,
 }
 
-impl<'a> PgOrRocksdbStorage<'a> {
+impl OwnedPostgresStorage {
+    /// Creates a VM storage for the specified batch number.
+    pub fn new(connection_pool: ConnectionPool<Core>, l1_batch_number: L1BatchNumber) -> Self {
+        Self {
+            connection_pool,
+            l1_batch_number,
+        }
+    }
+
     /// Returns a [`ReadStorage`] implementation backed by Postgres
     ///
     /// # Errors
     ///
     /// Propagates Postgres errors.
-    pub async fn access_storage_pg(
-        pool: &'a ConnectionPool<Core>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<PgOrRocksdbStorage<'a>> {
-        let mut connection = pool.connection().await?;
+    pub async fn borrow(&self) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
+        let l1_batch_number = self.l1_batch_number;
+        let mut connection = self.connection_pool.connection().await?;
+
         let l2_block_number = if let Some((_, l2_block_number)) = connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -85,9 +100,8 @@ impl<'a> PgOrRocksdbStorage<'a> {
                 .context("Could not find snapshot, no state available")?;
             if snapshot_recovery.l1_batch_number != l1_batch_number {
                 anyhow::bail!(
-                    "Snapshot contains L1 batch #{} while #{} was expected",
-                    snapshot_recovery.l1_batch_number,
-                    l1_batch_number
+                    "Snapshot contains L1 batch #{} while #{l1_batch_number} was expected",
+                    snapshot_recovery.l1_batch_number
                 );
             }
             snapshot_recovery.l2_block_number
@@ -99,19 +113,54 @@ impl<'a> PgOrRocksdbStorage<'a> {
                 .into(),
         )
     }
+}
 
+/// Owned version of [`PgOrRocksdbStorage`]. It is thus possible to send to blocking tasks for VM execution.
+#[derive(Debug)]
+pub enum OwnedStorage {
+    /// Readily initialized storage with a static lifetime.
+    Static(PgOrRocksdbStorage<'static>),
+    /// Storage that must be `borrow()`ed from.
+    Lending(OwnedPostgresStorage),
+}
+
+impl From<OwnedPostgresStorage> for OwnedStorage {
+    fn from(storage: OwnedPostgresStorage) -> Self {
+        Self::Lending(storage)
+    }
+}
+
+impl From<PgOrRocksdbStorage<'static>> for OwnedStorage {
+    fn from(storage: PgOrRocksdbStorage<'static>) -> Self {
+        Self::Static(storage)
+    }
+}
+
+/// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
+/// underneath.
+#[derive(Debug)]
+pub enum PgOrRocksdbStorage<'a> {
+    /// Implementation over a Postgres connection.
+    Postgres(PostgresStorage<'a>),
+    /// Implementation over a RocksDB cache instance.
+    Rocksdb(RocksdbStorage),
+    /// Implementation over a RocksDB cache instance with in-memory DB diffs.
+    RocksdbWithMemory(RocksdbWithMemory),
+}
+
+impl PgOrRocksdbStorage<'static> {
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
     /// returns a [`ReadStorage`] implementation backed by caught-up RocksDB.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn access_storage_rocksdb(
+    pub async fn rocksdb(
         connection: &mut Connection<'_, Core>,
         rocksdb: RocksDB<StateKeeperColumnFamily>,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<Self>> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let rocksdb = rocksdb_builder

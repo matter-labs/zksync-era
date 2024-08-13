@@ -31,9 +31,9 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
+    vm::VmVersion,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
-    MAX_NEW_FACTORY_DEPS, U256,
+    ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -797,7 +797,7 @@ impl TxSender {
                 .and_then(|overrides| overrides.get(&tx.initiator_account()))
                 .and_then(|account| account.balance)
             {
-                Some(balance) => balance.to_owned(),
+                Some(balance) => balance,
                 None => self.get_balance(&tx.initiator_account()).await?,
             };
 
@@ -805,7 +805,7 @@ impl TxSender {
                 tracing::info!(
                     "fee estimation failed on validation step.
                     account: {} does not have enough funds for for transferring tx.value: {}.",
-                    &tx.initiator_account(),
+                    tx.initiator_account(),
                     tx.execute.value
                 );
                 return Err(SubmitTxError::InsufficientFundsForTransfer);

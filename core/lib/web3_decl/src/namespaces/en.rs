@@ -4,15 +4,15 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
-use crate::client::{ForNetwork, L2};
+use crate::client::{ForWeb3Network, L2};
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "en", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "en", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "en", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait EnNamespace {
     #[method(name = "syncL2Block")]
@@ -34,6 +34,13 @@ pub trait EnNamespace {
     /// Get genesis configuration
     #[method(name = "genesisConfig")]
     async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
+
+    /// MAIN NODE ONLY:
+    /// Gets the AttestationStatus of L1 batches.
+    /// This is a temporary RPC used for testing L1 batch signing
+    /// by consensus attesters.
+    #[method(name = "attestationStatus")]
+    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]

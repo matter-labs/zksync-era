@@ -33,11 +33,11 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_vm_interface::storage::ReadStorage;
 
 #[cfg(test)]
 use self::tests::RocksdbStorageEventListener;
 use self::{metrics::METRICS, recovery::Strategy};
-use crate::{InMemoryStorage, ReadStorage};
 
 mod metrics;
 mod recovery;
@@ -154,11 +154,17 @@ impl RocksdbStorageOptions {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct PendingPatch {
+    state: HashMap<H256, (StorageValue, u64)>,
+    factory_deps: HashMap<H256, Vec<u8>>,
+}
+
 /// [`ReadStorage`] implementation backed by RocksDB.
 #[derive(Debug, Clone)]
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
-    pending_patch: InMemoryStorage,
+    pending_patch: PendingPatch,
     /// Test-only listeners to events produced by the storage.
     #[cfg(test)]
     listener: RocksdbStorageEventListener,
@@ -174,7 +180,7 @@ impl RocksdbStorageBuilder {
     pub fn from_rocksdb(value: RocksDB<StateKeeperColumnFamily>) -> Self {
         RocksdbStorageBuilder(RocksdbStorage {
             db: value,
-            pending_patch: InMemoryStorage::default(),
+            pending_patch: PendingPatch::default(),
             #[cfg(test)]
             listener: RocksdbStorageEventListener::default(),
         })
@@ -257,6 +263,12 @@ impl RocksdbStorageBuilder {
     ) -> anyhow::Result<()> {
         self.0.revert(storage, last_l1_batch_to_keep).await
     }
+
+    /// Returns the underlying storage without any checks. Should only be used in test code.
+    #[doc(hidden)]
+    pub fn build_unchecked(self) -> RocksdbStorage {
+        self.0
+    }
 }
 
 impl RocksdbStorage {
@@ -303,7 +315,7 @@ impl RocksdbStorage {
                 .context("failed initializing state keeper RocksDB")?;
             Ok(Self {
                 db,
-                pending_patch: InMemoryStorage::default(),
+                pending_patch: PendingPatch::default(),
                 #[cfg(test)]
                 listener: RocksdbStorageEventListener::default(),
             })

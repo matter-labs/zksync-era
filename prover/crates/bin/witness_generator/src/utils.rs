@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Write as _},
+    sync::Arc,
 };
 
 use circuit_definitions::circuit_definitions::{
@@ -78,7 +79,27 @@ impl StoredObject for ClosedFormInputWrapper {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct AggregationWrapper(
+pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
+
+impl StoredObject for AggregationWrapper {
+    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
+    type Key<'a> = AggregationsKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        } = key;
+        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+/// TODO: remove after transition
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AggregationWrapperLegacy(
     pub  Vec<(
         u64,
         RecursionQueueSimulator<GoldilocksField>,
@@ -86,7 +107,7 @@ pub struct AggregationWrapper(
     )>,
 );
 
-impl StoredObject for AggregationWrapper {
+impl StoredObject for AggregationWrapperLegacy {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
     type Key<'a> = AggregationsKey;
 
@@ -122,11 +143,15 @@ impl StoredObject for SchedulerPartialInputWrapper {
     serialize_using_bincode!();
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
+)]
 pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
-    object_store: &dyn ObjectStore,
+    object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
@@ -143,24 +168,25 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number)
+)]
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    sequence_number_offset: usize,
+    recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
     depth: u16,
     object_store: &dyn ObjectStore,
     base_layer_circuit_id: Option<u8>,
 ) -> Vec<(u8, String)> {
-    let mut ids_and_urls = Vec::with_capacity(aggregations.len());
-    for (sequence_number, (_, _, circuit)) in aggregations.into_iter().enumerate() {
+    let mut ids_and_urls = Vec::with_capacity(recursive_circuits.len());
+    for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
             block_number,
-            sequence_number,
+            sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,
             depth,
@@ -174,15 +200,15 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     ids_and_urls
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number, circuit_id = %circuit_id)
+)]
 pub async fn save_node_aggregations_artifacts(
     block_number: L1BatchNumber,
     circuit_id: u8,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     object_store: &dyn ObjectStore,
 ) -> String {
     let key = AggregationsKey {
@@ -196,13 +222,14 @@ pub async fn save_node_aggregations_artifacts(
         .unwrap()
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut proofs = Vec::with_capacity(job_ids.len());
-    for &job_id in job_ids {
-        proofs.push(object_store.get(job_id).await.unwrap());
+    for job_id in job_ids {
+        proofs.push(object_store.get(*job_id).await.unwrap());
     }
     proofs
 }
@@ -211,6 +238,7 @@ pub async fn load_proofs_for_job_ids(
 /// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
 /// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
 /// For this scenario, we use an empty_proof, but any proof would suffice.
+#[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_recursion_tip(
     job_ids: Vec<(u8, u32)>,
     object_store: &dyn ObjectStore,

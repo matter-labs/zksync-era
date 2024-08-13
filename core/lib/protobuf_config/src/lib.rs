@@ -30,6 +30,7 @@ mod secrets;
 mod snapshots_creator;
 
 mod external_price_api_client;
+mod external_proof_integration_api;
 mod snapshot_recovery;
 #[cfg(test)]
 mod tests;
@@ -40,7 +41,10 @@ mod wallets;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
-use zksync_protobuf::{serde::serialize_proto, ProtoRepr};
+use zksync_protobuf::{
+    build::{prost_reflect, prost_reflect::ReflectMessage, serde},
+    ProtoRepr,
+};
 use zksync_types::{H160, H256};
 
 fn parse_h256(bytes: &str) -> anyhow::Result<H256> {
@@ -51,8 +55,18 @@ fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
     Ok(H160::from_str(bytes)?)
 }
 
-pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
-    field.as_ref().map(|x| x.read()).transpose()
+pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> Option<P::Type> {
+    field
+        .as_ref()
+        .map(|x| x.read())
+        .transpose()
+        // This error will printed, only if the config partially filled, allows to debug config issues easier
+        .map_err(|err| {
+            tracing::error!("Failed to serialize config: {err}");
+            err
+        })
+        .ok()
+        .flatten()
 }
 
 pub fn decode_yaml_repr<T: ProtoRepr>(
@@ -70,4 +84,14 @@ pub fn encode_yaml_repr<T: ProtoRepr>(value: &T::Type) -> anyhow::Result<Vec<u8>
     let mut s = serde_yaml::Serializer::new(&mut buffer);
     serialize_proto(&T::build(value), &mut s)?;
     Ok(buffer)
+}
+
+fn serialize_proto<T: ReflectMessage, S: serde::Serializer>(
+    x: &T,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    let opts = prost_reflect::SerializeOptions::new()
+        .use_proto_field_name(true)
+        .stringify_64_bit_integers(false);
+    x.transcode_to_dynamic().serialize_with_options(s, &opts)
 }

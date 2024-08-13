@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
@@ -24,6 +24,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ExternalNodeInitStrategyLayer {
     pub l2_chain_id: L2ChainId,
+    pub max_postgres_concurrency: NonZeroUsize,
     pub snapshot_recovery_config: Option<SnapshotRecoveryConfig>,
 }
 
@@ -73,14 +74,22 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             client: client.clone(),
             pool: pool.clone(),
         });
-        let snapshot_recovery = self.snapshot_recovery_config.map(|recovery_config| {
-            Arc::new(ExternalNodeSnapshotRecovery {
-                client: client.clone(),
-                pool: pool.clone(),
-                recovery_config,
-                app_health,
-            }) as Arc<dyn InitializeStorage>
-        });
+        let snapshot_recovery = match self.snapshot_recovery_config {
+            Some(recovery_config) => {
+                let recovery_pool = input
+                    .master_pool
+                    .get_custom(self.max_postgres_concurrency.get() as u32)
+                    .await?;
+                let recovery = Arc::new(ExternalNodeSnapshotRecovery {
+                    client: client.clone(),
+                    pool: recovery_pool,
+                    recovery_config,
+                    app_health,
+                }) as Arc<dyn InitializeStorage>;
+                Some(recovery)
+            }
+            None => None,
+        };
         // We always want to detect reorgs, even if we can't roll them back.
         let block_reverter = Some(Arc::new(ExternalNodeReverter {
             client,

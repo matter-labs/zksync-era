@@ -2,21 +2,27 @@ use std::fmt;
 
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
-use zksync_types::{web3, Address, L1ChainId, H256, U256, U64};
-use zksync_web3_decl::error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult};
+use zksync_types::{web3, Address, SLChainId, H256, U256, U64};
+use zksync_web3_decl::{
+    client::{DynClient, ForWeb3Network, MockClient, L1, L2},
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
+    namespaces::EthNamespaceClient,
+};
 
 use super::{decl::L1EthNamespaceClient, Method, COUNTERS, LATENCIES};
 use crate::{
     types::{ExecutedTxStatus, FailureInfo},
-    BaseFees, EthInterface, RawTransactionBytes,
+    BaseFees, EthFeeInterface, EthInterface, RawTransactionBytes,
 };
+
+const FEE_HISTORY_MAX_REQUEST_CHUNK: usize = 1024;
 
 #[async_trait]
 impl<T> EthInterface for T
 where
     T: L1EthNamespaceClient + fmt::Debug + Send + Sync,
 {
-    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<SLChainId> {
         COUNTERS.call[&(Method::ChainId, self.component())].inc();
         let latency = LATENCIES.direct[&Method::ChainId].start();
         let raw_chain_id = self.chain_id().rpc_context("chain_id").await?;
@@ -25,7 +31,7 @@ where
             let err = ClientError::Custom(format!("invalid chainId: {err}"));
             EnrichedClientError::new(err, "chain_id").with_arg("chain_id", &raw_chain_id)
         })?;
-        Ok(L1ChainId(chain_id))
+        Ok(SLChainId(chain_id))
     }
 
     async fn nonce_at_for_account(
@@ -72,73 +78,6 @@ where
             .await?;
         latency.observe();
         Ok(tx)
-    }
-
-    async fn base_fee_history(
-        &self,
-        upto_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>> {
-        // Non-panicking conversion to u64.
-        fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
-            u64::try_from(value).map_err(|_| {
-                let err = ClientError::Custom(format!("{tag} value does not fit in u64"));
-                EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
-            })
-        }
-
-        const MAX_REQUEST_CHUNK: usize = 1024;
-
-        COUNTERS.call[&(Method::BaseFeeHistory, self.component())].inc();
-        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
-        let mut history = Vec::with_capacity(block_count);
-        let from_block = upto_block.saturating_sub(block_count);
-
-        // Here we are requesting `fee_history` from blocks
-        // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
-        // starting from the oldest block.
-        for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
-            let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
-            let chunk_size = chunk_end - chunk_start;
-
-            let fee_history = self
-                .fee_history(
-                    U64::from(chunk_size),
-                    web3::BlockNumber::from(chunk_end),
-                    None,
-                )
-                .rpc_context("fee_history")
-                .with_arg("chunk_size", &chunk_size)
-                .with_arg("block", &chunk_end)
-                .await?;
-
-            // Check that the lengths are the same.
-            // Per specification, the values should always be provided, and must be 0 for blocks
-            // prior to EIP-4844.
-            // https://ethereum.github.io/execution-apis/api-documentation/
-            if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-                tracing::error!(
-                    "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
-                    fee_history.base_fee_per_gas.len(),
-                    fee_history.base_fee_per_blob_gas.len()
-                );
-            }
-
-            for (base, blob) in fee_history
-                .base_fee_per_gas
-                .into_iter()
-                .zip(fee_history.base_fee_per_blob_gas)
-            {
-                let fees = BaseFees {
-                    base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
-                    base_fee_per_blob_gas: blob,
-                };
-                history.push(fees)
-            }
-        }
-
-        latency.observe();
-        Ok(history)
     }
 
     async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256> {
@@ -352,6 +291,178 @@ where
         latency.observe();
         Ok(block)
     }
+}
+
+async fn l1_base_fee_history<T>(
+    client: &T,
+    upto_block: usize,
+    block_count: usize,
+) -> EnrichedClientResult<Vec<BaseFees>>
+where
+    T: ForWeb3Network<Net = L1> + L1EthNamespaceClient + Send + Sync,
+{
+    COUNTERS.call[&(Method::BaseFeeHistory, client.component())].inc();
+    let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+    let mut history = Vec::with_capacity(block_count);
+    let from_block = upto_block.saturating_sub(block_count);
+
+    // Here we are requesting `fee_history` from blocks
+    // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
+    // starting from the oldest block.
+    for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+        let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+        let chunk_size = chunk_end - chunk_start;
+
+        let fee_history = client
+            .fee_history(
+                U64::from(chunk_size),
+                web3::BlockNumber::from(chunk_end),
+                None,
+            )
+            .rpc_context("fee_history")
+            .with_arg("chunk_size", &chunk_size)
+            .with_arg("block", &chunk_end)
+            .await?;
+
+        // Check that the lengths are the same.
+        // Per specification, the values should always be provided, and must be 0 for blocks
+        // prior to EIP-4844.
+        // https://ethereum.github.io/execution-apis/api-documentation/
+        if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
+            tracing::error!(
+                "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
+                fee_history.base_fee_per_gas.len(),
+                fee_history.base_fee_per_blob_gas.len()
+            );
+        }
+
+        for (base, blob) in fee_history
+            .base_fee_per_gas
+            .into_iter()
+            .zip(fee_history.base_fee_per_blob_gas)
+        {
+            let fees = BaseFees {
+                base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                base_fee_per_blob_gas: blob,
+                l2_pubdata_price: 0.into(),
+            };
+            history.push(fees)
+        }
+    }
+
+    latency.observe();
+    Ok(history)
+}
+
+#[async_trait::async_trait]
+impl EthFeeInterface for Box<DynClient<L1>> {
+    async fn base_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
+        l1_base_fee_history(self, upto_block, block_count).await
+    }
+}
+
+#[async_trait::async_trait]
+impl EthFeeInterface for MockClient<L1> {
+    async fn base_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
+        l1_base_fee_history(self, upto_block, block_count).await
+    }
+}
+
+async fn l2_base_fee_history<T>(
+    client: &T,
+    upto_block: usize,
+    block_count: usize,
+) -> EnrichedClientResult<Vec<BaseFees>>
+where
+    T: ForWeb3Network<Net = L2> + EthNamespaceClient + Send + Sync,
+{
+    COUNTERS.call[&(Method::L2FeeHistory, client.component())].inc();
+    let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
+    let mut history = Vec::with_capacity(block_count);
+    let from_block = upto_block.saturating_sub(block_count);
+
+    // Here we are requesting `fee_history` from blocks
+    // `(from_block; upto_block)` in chunks of size `FEE_HISTORY_MAX_REQUEST_CHUNK`
+    // starting from the oldest block.
+    for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
+        let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
+        let chunk_size = chunk_end - chunk_start;
+
+        let fee_history = EthNamespaceClient::fee_history(
+            client,
+            U64::from(chunk_size),
+            zksync_types::api::BlockNumber::from(chunk_end),
+            vec![],
+        )
+        .rpc_context("fee_history")
+        .with_arg("chunk_size", &chunk_size)
+        .with_arg("block", &chunk_end)
+        .await?;
+
+        // Check that the lengths are the same.
+        if fee_history.inner.base_fee_per_gas.len() != fee_history.l2_pubdata_price.len() {
+            tracing::error!(
+                "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
+                fee_history.inner.base_fee_per_gas.len(),
+                fee_history.l2_pubdata_price.len()
+            );
+        }
+
+        for (base, l2_pubdata_price) in fee_history
+            .inner
+            .base_fee_per_gas
+            .into_iter()
+            .zip(fee_history.l2_pubdata_price)
+        {
+            let fees = BaseFees {
+                base_fee_per_gas: cast_to_u64(base, "base_fee_per_gas")?,
+                base_fee_per_blob_gas: 0.into(),
+                l2_pubdata_price,
+            };
+            history.push(fees)
+        }
+    }
+
+    latency.observe();
+    Ok(history)
+}
+
+#[async_trait::async_trait]
+impl EthFeeInterface for Box<DynClient<L2>> {
+    async fn base_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
+        l2_base_fee_history(self, upto_block, block_count).await
+    }
+}
+
+#[async_trait::async_trait]
+impl EthFeeInterface for MockClient<L2> {
+    async fn base_fee_history(
+        &self,
+        upto_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>> {
+        l2_base_fee_history(self, upto_block, block_count).await
+    }
+}
+
+/// Non-panicking conversion to u64.
+fn cast_to_u64(value: U256, tag: &str) -> EnrichedClientResult<u64> {
+    u64::try_from(value).map_err(|_| {
+        let err = ClientError::Custom(format!("{tag} value does not fit in u64"));
+        EnrichedClientError::new(err, "cast_to_u64").with_arg("value", &value)
+    })
 }
 
 #[cfg(test)]

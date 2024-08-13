@@ -4,6 +4,7 @@ use error::TaskError;
 use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
+use zksync_vlog::ObservabilityGuard;
 
 pub use self::{
     context::ServiceContext,
@@ -36,17 +37,46 @@ mod tests;
 const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A builder for [`ZkStackService`].
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ZkStackServiceBuilder {
     /// List of wiring layers.
     // Note: It has to be a `Vec` and not e.g. `HashMap` because the order in which we
     // iterate through it matters.
     layers: Vec<(&'static str, WireFn)>,
+    /// Tokio runtime used to spawn tasks.
+    runtime: Runtime,
 }
 
 impl ZkStackServiceBuilder {
-    pub fn new() -> Self {
-        Self { layers: Vec::new() }
+    /// Creates a new builder.
+    ///
+    /// Returns an error if called within a Tokio runtime context.
+    pub fn new() -> Result<Self, ZkStackServiceError> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return Err(ZkStackServiceError::RuntimeDetected);
+        }
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        Ok(Self::on_runtime(runtime))
+    }
+
+    /// Creates a new builder with the provided Tokio runtime.
+    /// This method can be used if asynchronous tasks must be performed before the service is built.
+    ///
+    /// However, it is not recommended to use this method to spawn any tasks that will not be managed
+    /// by the service itself, so whenever it can be avoided, using [`ZkStackServiceBuilder::new`] is preferred.
+    pub fn on_runtime(runtime: Runtime) -> Self {
+        Self {
+            layers: Vec::new(),
+            runtime,
+        }
+    }
+
+    /// Returns a handle to the Tokio runtime used by the service.
+    pub fn runtime_handle(&self) -> tokio::runtime::Handle {
+        self.runtime.handle().clone()
     }
 
     /// Adds a wiring layer.
@@ -71,28 +101,17 @@ impl ZkStackServiceBuilder {
     }
 
     /// Builds the service.
-    ///
-    /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
-    /// of their occurrence.
-    pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            return Err(ZkStackServiceError::RuntimeDetected);
-        }
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-
+    pub fn build(self) -> ZkStackService {
         let (stop_sender, _stop_receiver) = watch::channel(false);
 
-        Ok(ZkStackService {
-            layers: std::mem::take(&mut self.layers),
+        ZkStackService {
+            layers: self.layers,
             resources: Default::default(),
             runnables: Default::default(),
             stop_sender,
-            runtime,
+            runtime: self.runtime,
             errors: Vec::new(),
-        })
+        }
     }
 }
 
@@ -120,7 +139,16 @@ type TaskFuture = NamedFuture<Fuse<JoinHandle<anyhow::Result<()>>>>;
 
 impl ZkStackService {
     /// Runs the system.
-    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
+    ///
+    /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
+    /// of their occurrence.
+    ///
+    /// `observability_guard`, if provided, will be used to deinitialize the observability subsystem
+    /// as the very last step before exiting the node.
+    pub fn run(
+        mut self,
+        observability_guard: impl Into<Option<ObservabilityGuard>>,
+    ) -> Result<(), ZkStackServiceError> {
         self.wire()?;
 
         let TaskReprs {
@@ -133,6 +161,13 @@ impl ZkStackService {
         self.run_shutdown_hooks(shutdown_hooks);
 
         tracing::info!("Exiting the service");
+
+        if let Some(observability_guard) = &mut observability_guard.into() {
+            // Make sure that the shutdown happens in the `tokio` context.
+            let _guard = self.runtime.enter();
+            observability_guard.shutdown();
+        }
+
         if self.errors.is_empty() {
             Ok(())
         } else {

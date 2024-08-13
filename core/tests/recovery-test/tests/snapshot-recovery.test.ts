@@ -11,11 +11,21 @@ import {
     sleep,
     NodeComponents,
     NodeProcess,
-    dropNodeDatabase,
-    dropNodeStorage,
+    dropNodeData,
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
+import {
+    setChunkSize,
+    setDataRetentionSec,
+    setRemovalDelaySec,
+    setSnapshotRecovery,
+    setTreeRecoveryParallelPersistenceBuffer
+} from './utils';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -90,16 +100,39 @@ describe('snapshot recovery', () => {
 
     let fundedWallet: FundedWallet;
 
+    let apiWeb3JsonRpcHttpUrl: string;
+    let ethRpcUrl: string;
+    let externalNodeUrl: string;
+    let extNodeHealthUrl: string;
+
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zksync.Provider('http://127.0.0.1:3050');
-        externalNode = new zksync.Provider('http://127.0.0.1:3060');
+
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+
+            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+            externalNodeUrl = 'http://127.0.0.1:3150';
+            extNodeHealthUrl = 'http://127.0.0.1:3171/health';
+
+            setSnapshotRecovery(pathToHome, fileConfig, true);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
+        } else {
+            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
+            externalNodeUrl = 'http://127.0.0.1:3060';
+            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
+        }
+
+        mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
+        externalNode = new zksync.Provider(externalNodeUrl);
         await NodeProcess.stopAll('KILL');
     });
 
     before('create test wallet', async () => {
-        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
         console.log(`Using L1 RPC at ${ethRpcUrl}`);
         const eth = new ethers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
@@ -109,6 +142,14 @@ describe('snapshot recovery', () => {
         if (externalNodeProcess) {
             await externalNodeProcess.stopAndWait('KILL');
             await externalNodeProcess.logs.close();
+        }
+
+        if (fileConfig.loadFromFile) {
+            setSnapshotRecovery(pathToHome, fileConfig, false);
+            setChunkSize(pathToHome, fileConfig, 10);
+            setDataRetentionSec(pathToHome, fileConfig, 3600);
+            setRemovalDelaySec(pathToHome, fileConfig, 60);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 1);
         }
     });
 
@@ -128,7 +169,10 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
+        await executeCommandWithLogs(
+            fileConfig.loadFromFile ? `zk_supervisor snapshot create` : 'zk run snapshots-creator',
+            'snapshot-creator.log'
+        );
     });
 
     step('validate snapshot', async () => {
@@ -181,16 +225,17 @@ describe('snapshot recovery', () => {
         }
     });
 
-    step('drop external node database', async () => {
-        await dropNodeDatabase(externalNodeEnv);
-    });
-
-    step('drop external node storage', async () => {
-        await dropNodeStorage(externalNodeEnv);
+    step('drop external node data', async () => {
+        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
     });
 
     step('initialize external node', async () => {
-        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, 'snapshot-recovery.log');
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            'snapshot-recovery.log',
+            pathToHome,
+            fileConfig.loadFromFile
+        );
 
         let recoveryFinished = false;
         let consistencyCheckerSucceeded = false;
@@ -198,7 +243,7 @@ describe('snapshot recovery', () => {
 
         while (!recoveryFinished || !consistencyCheckerSucceeded || !reorgDetectorSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -299,15 +344,28 @@ describe('snapshot recovery', () => {
             EN_PRUNING_CHUNK_SIZE: '1'
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
+
+        if (fileConfig.loadFromFile) {
+            setChunkSize(pathToHome, fileConfig, 1);
+            setDataRetentionSec(pathToHome, fileConfig, 0);
+            setRemovalDelaySec(pathToHome, fileConfig, 1);
+        }
+
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, externalNodeProcess.logs, components);
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            externalNodeProcess.logs,
+            pathToHome,
+            fileConfig.loadFromFile,
+            components
+        );
 
         let isDbPrunerReady = false;
         let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree
         let isTreeFetcherReady = false;
         while (!isDbPrunerReady || !isTreePrunerReady || !isTreeFetcherReady) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -350,7 +408,7 @@ describe('snapshot recovery', () => {
 
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
-            const health = (await getExternalNodeHealth())!;
+            const health = (await getExternalNodeHealth(extNodeHealthUrl))!;
 
             const dbPrunerHealth = health.components.db_pruner!;
             console.log('DB pruner health', dbPrunerHealth);

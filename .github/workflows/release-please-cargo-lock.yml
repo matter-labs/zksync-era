@@ -6,7 +6,7 @@ on:
 name: release-please-update-cargo-lock
 jobs:
   update_cargo_lock:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-default-infra-runners]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -32,7 +32,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          
+
       - name: Start services
         if: steps.condition.outputs.skip_steps != 'true'
         run: docker compose up -d zk

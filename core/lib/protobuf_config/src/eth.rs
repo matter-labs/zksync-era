@@ -31,6 +31,7 @@ impl proto::PubdataSendingMode {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
             From::Custom => Self::Custom,
+            From::RelayedL2Calldata => Self::RelayedL2Calldata,
         }
     }
 
@@ -40,6 +41,7 @@ impl proto::PubdataSendingMode {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
             Self::Custom => To::Custom,
+            Self::RelayedL2Calldata => To::RelayedL2Calldata,
         }
     }
 }
@@ -49,9 +51,9 @@ impl ProtoRepr for proto::Eth {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            sender: read_optional_repr(&self.sender).context("sender")?,
-            gas_adjuster: read_optional_repr(&self.gas_adjuster).context("gas_adjuster")?,
-            watcher: read_optional_repr(&self.watcher).context("watcher")?,
+            sender: read_optional_repr(&self.sender),
+            gas_adjuster: read_optional_repr(&self.gas_adjuster),
+            watcher: read_optional_repr(&self.watcher),
         })
     }
 
@@ -174,6 +176,8 @@ impl ProtoRepr for proto::GasAdjuster {
             )
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
+            // TODO(EVM-676): support this field
+            settlement_mode: Default::default(),
         })
     }
 
