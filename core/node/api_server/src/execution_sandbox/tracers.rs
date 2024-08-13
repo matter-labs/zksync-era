@@ -8,7 +8,7 @@ use zksync_multivm::{
     MultiVMTracer, MultiVmTracerPointer,
 };
 
-use super::apply::InitializedVm;
+use super::apply::OneshotExecutor;
 
 /// Custom tracers supported by the API sandbox.
 #[derive(Debug)]
@@ -32,7 +32,7 @@ impl ApiTracer {
         (this, result)
     }
 
-    pub(super) fn into_boxed<S, H>(self, vm: &InitializedVm) -> MultiVmTracerPointer<S, H>
+    pub(super) fn into_boxed<S, H>(self, vm: &OneshotExecutor) -> MultiVmTracerPointer<S, H>
     where
         S: WriteStorage,
         H: HistoryMode + zksync_multivm::HistoryMode<Vm1_5_0 = H> + 'static,

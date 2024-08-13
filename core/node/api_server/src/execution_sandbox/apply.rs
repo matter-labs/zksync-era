@@ -45,27 +45,28 @@ use super::{
 };
 
 type VmStorageView = StorageView<StorageWithOverrides<PostgresStorage<'static>>>;
-type SandboxVm = VmInstance<StorageWithOverrides<PostgresStorage<'static>>, HistoryDisabled>;
+type SandboxVmInner = VmInstance<StorageWithOverrides<PostgresStorage<'static>>, HistoryDisabled>;
 
 #[derive(Debug)]
-pub(super) struct Sandbox {
+pub(super) struct OneshotExecutor {
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
     execution_args: TxExecutionArgs,
     l2_block_info_to_reset: Option<StoredL2BlockInfo>,
-    storage_view: VmStorageView,
+    adjust_pubdata_price: bool,
+    storage: PostgresStorage<'static>,
+    state_override: StateOverride,
     initialization_stage: vise::LatencyObserver<'static>,
     vm_permit: VmPermit,
 }
 
-impl Sandbox {
+impl OneshotExecutor {
     pub async fn new(
         vm_permit: VmPermit,
         mut connection: Connection<'static, Core>,
         shared_args: TxSharedArgs,
         execution_args: TxExecutionArgs,
         block_args: BlockArgs,
-        state_override: &StateOverride,
     ) -> anyhow::Result<Self> {
         let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
 
@@ -103,8 +104,6 @@ impl Sandbox {
         .context("cannot create `PostgresStorage`")?
         .with_caches(shared_args.caches.clone());
 
-        let storage_with_overrides = StorageWithOverrides::new(storage, state_override);
-        let storage_view = StorageView::new(storage_with_overrides);
         let (system_env, l1_batch_env) = Self::prepare_env(
             shared_args,
             &execution_args,
@@ -115,12 +114,26 @@ impl Sandbox {
         Ok(Self {
             system_env,
             l1_batch_env,
-            storage_view,
+            storage,
+            state_override: StateOverride::default(),
             execution_args,
             l2_block_info_to_reset,
             initialization_stage,
+            adjust_pubdata_price: false,
             vm_permit,
         })
+    }
+
+    pub fn set_state_override(&mut self, state_override: StateOverride) {
+        self.state_override = state_override;
+    }
+
+    pub fn adjust_pubdata_price(&mut self, adjust: bool) {
+        self.adjust_pubdata_price = adjust;
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        self.system_env.version
     }
 
     async fn load_l2_block_info(
@@ -181,26 +194,29 @@ impl Sandbox {
     }
 
     /// This method is blocking.
-    fn setup_storage_view(&mut self, tx: &Transaction) {
+    fn setup_storage_view<S: ReadStorage>(
+        storage_view: &mut StorageView<S>,
+        execution_args: &TxExecutionArgs,
+        l2_block_info_to_reset: Option<&StoredL2BlockInfo>,
+        tx: &Transaction,
+    ) {
         let storage_view_setup_started_at = Instant::now();
-        if let Some(nonce) = self.execution_args.enforced_nonce {
+        if let Some(nonce) = execution_args.enforced_nonce {
             let nonce_key = get_nonce_key(&tx.initiator_account());
-            let full_nonce = self.storage_view.read_value(&nonce_key);
+            let full_nonce = storage_view.read_value(&nonce_key);
             let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
             let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-            self.storage_view
-                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+            storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         }
 
         let payer = tx.payer();
         let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(self.storage_view.read_value(&balance_key));
-        current_balance += self.execution_args.added_balance;
-        self.storage_view
-            .set_value(balance_key, u256_to_h256(current_balance));
+        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        current_balance += execution_args.added_balance;
+        storage_view.set_value(balance_key, u256_to_h256(current_balance));
 
         // Reset L2 block info if necessary.
-        if let Some(l2_block_info_to_reset) = self.l2_block_info_to_reset {
+        if let Some(l2_block_info_to_reset) = l2_block_info_to_reset {
             let l2_block_info_key = StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -209,14 +225,13 @@ impl Sandbox {
                 l2_block_info_to_reset.l2_block_number as u64,
                 l2_block_info_to_reset.l2_block_timestamp,
             );
-            self.storage_view
-                .set_value(l2_block_info_key, u256_to_h256(l2_block_info));
+            storage_view.set_value(l2_block_info_key, u256_to_h256(l2_block_info));
 
             let l2_block_txs_rolling_hash_key = StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
             );
-            self.storage_view.set_value(
+            storage_view.set_value(
                 l2_block_txs_rolling_hash_key,
                 l2_block_info_to_reset.txs_rolling_hash,
             );
@@ -271,14 +286,18 @@ impl Sandbox {
     }
 
     /// This method is blocking.
-    pub fn build_vm(
-        mut self,
-        transaction: Transaction,
-        adjust_pubdata_price: bool,
-    ) -> InitializedVm {
-        self.setup_storage_view(&transaction);
+    pub(super) fn build_vm(mut self, transaction: Transaction) -> SandboxVm {
+        let storage_with_overrides = StorageWithOverrides::new(self.storage, &self.state_override);
+        let mut storage_view = StorageView::new(storage_with_overrides);
+        Self::setup_storage_view(
+            &mut storage_view,
+            &self.execution_args,
+            self.l2_block_info_to_reset.as_ref(),
+            &transaction,
+        );
+
         let protocol_version = self.system_env.version;
-        if adjust_pubdata_price {
+        if self.adjust_pubdata_price {
             self.l1_batch_env.fee_input = adjust_pubdata_price_for_tx(
                 self.l1_batch_env.fee_input,
                 transaction.gas_per_pubdata_byte_limit(),
@@ -287,7 +306,7 @@ impl Sandbox {
             );
         };
 
-        let storage_view = self.storage_view.to_rc_ptr();
+        let storage_view = storage_view.to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
             self.l1_batch_env,
             self.system_env,
@@ -296,51 +315,12 @@ impl Sandbox {
         ));
         self.initialization_stage.observe();
 
-        InitializedVm {
+        SandboxVm {
             vm,
             storage_view,
             transaction,
-            protocol_version,
-            missed_storage_invocation_limit: self.execution_args.missed_storage_invocation_limit,
             _vm_permit: self.vm_permit,
         }
-    }
-}
-
-#[derive(Debug)]
-pub(super) struct InitializedVm {
-    vm: Box<SandboxVm>,
-    storage_view: StoragePtr<VmStorageView>,
-    transaction: Transaction,
-    protocol_version: ProtocolVersionId,
-    missed_storage_invocation_limit: usize,
-    _vm_permit: VmPermit,
-}
-
-impl InitializedVm {
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        self.protocol_version
-    }
-
-    pub fn inspect_transaction_with_bytecode_compression(
-        self,
-        tracers: Vec<ApiTracer>,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        let tracers = self.wrap_tracers(tracers);
-        self.apply(|vm, transaction| {
-            vm.inspect_transaction_with_bytecode_compression(tracers.into(), transaction, true)
-        })
-    }
-
-    pub fn inspect_transaction(self, tracers: Vec<ApiTracer>) -> VmExecutionResultAndLogs {
-        let tracers = self.wrap_tracers(tracers);
-        self.apply(|vm, transaction| {
-            vm.push_transaction(transaction);
-            vm.inspect(tracers.into(), VmExecutionMode::OneTx)
-        })
     }
 
     fn wrap_tracers<S: WriteStorage>(
@@ -348,7 +328,7 @@ impl InitializedVm {
         tracers: Vec<ApiTracer>,
     ) -> Vec<MultiVmTracerPointer<S, HistoryDisabled>> {
         let storage_invocation_tracer =
-            StorageInvocations::new(self.missed_storage_invocation_limit);
+            StorageInvocations::new(self.execution_args.missed_storage_invocation_limit);
         tracers
             .into_iter()
             .map(|tracer| tracer.into_boxed(self))
@@ -356,10 +336,56 @@ impl InitializedVm {
             .collect()
     }
 
-    // public for testing purposes
+    pub async fn inspect_transaction(
+        self,
+        transaction: Transaction,
+        tracers: Vec<ApiTracer>,
+    ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        tokio::task::spawn_blocking(|| {
+            let tracers = self.wrap_tracers(tracers);
+            let vm = self.build_vm(transaction);
+            vm.apply(|vm, transaction| {
+                vm.push_transaction(transaction);
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            })
+        })
+        .await
+        .context("VM execution panicked")
+    }
+
+    pub async fn inspect_transaction_with_bytecode_compression(
+        self,
+        transaction: Transaction,
+        tracers: Vec<ApiTracer>,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )> {
+        tokio::task::spawn_blocking(|| {
+            let tracers = self.wrap_tracers(tracers);
+            let vm = self.build_vm(transaction);
+            vm.apply(|vm, transaction| {
+                vm.inspect_transaction_with_bytecode_compression(tracers.into(), transaction, true)
+            })
+        })
+        .await
+        .context("VM execution panicked")
+    }
+}
+
+// public for testing purposes
+#[derive(Debug)]
+pub(super) struct SandboxVm {
+    vm: Box<SandboxVmInner>,
+    storage_view: StoragePtr<VmStorageView>,
+    transaction: Transaction,
+    _vm_permit: VmPermit,
+}
+
+impl SandboxVm {
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
     where
-        F: FnOnce(&mut SandboxVm, Transaction) -> T,
+        F: FnOnce(&mut SandboxVmInner, Transaction) -> T,
     {
         let tx_id = format!(
             "{:?}-{}",

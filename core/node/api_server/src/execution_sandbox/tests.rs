@@ -4,10 +4,9 @@ use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::api::state_override::StateOverride;
 
-use super::*;
-use crate::{execution_sandbox::apply::Sandbox, tx_sender::ApiContracts};
+use super::{apply::OneshotExecutor, *};
+use crate::tx_sender::ApiContracts;
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -190,20 +189,20 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let transaction = create_l2_transaction(10, 100).into();
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
 
-    let sandbox = Sandbox::new(
+    let mut sandbox = OneshotExecutor::new(
         vm_permit,
         connection,
         TxSharedArgs::mock(estimate_gas_contracts),
         TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
         block_args,
-        &StateOverride::default(),
     )
     .await
     .unwrap();
 
+    sandbox.adjust_pubdata_price(true);
     tokio::task::spawn_blocking(move || {
         sandbox
-            .build_vm(transaction.clone(), true)
+            .build_vm(transaction.clone())
             .apply(|_, received_tx| {
                 assert_eq!(received_tx, transaction);
             });

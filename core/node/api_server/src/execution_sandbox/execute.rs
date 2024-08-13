@@ -1,18 +1,18 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use anyhow::Context as _;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::{
-    l2::L2Tx, transaction_request::CallOverrides, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
+    api::state_override::StateOverride, l2::L2Tx,
+    transaction_request::CallOverrides, ExecuteTransactionCommon, Nonce, PackedEthSignature,
+    Transaction, U256,
 };
 
 use super::{
-    api::state_override::StateOverride, apply::Sandbox, testonly::MockTransactionExecutor,
-    vm_metrics, ApiTracer, BlockArgs, TxSharedArgs, VmPermit,
+    apply::OneshotExecutor, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs,
+    TxSharedArgs, VmPermit,
 };
 
 #[derive(Debug)]
@@ -109,7 +109,7 @@ impl TransactionExecutor {
         tx: Transaction,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
-        custom_tracers: Vec<ApiTracer>,
+        tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         if let Self::Mock(mock_executor) = self {
             return mock_executor.execute_tx(&tx, &block_args);
@@ -117,22 +117,23 @@ impl TransactionExecutor {
 
         let total_factory_deps = tx.execute.factory_deps.len() as u16;
 
-        let sandbox = Sandbox::new(
+        let mut sandbox = OneshotExecutor::new(
             vm_permit,
             connection,
             shared_args,
             execution_args,
             block_args,
-            state_override.as_ref().unwrap_or(&StateOverride::default()),
         )
         .await?;
 
-        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
-            let vm = sandbox.build_vm(tx, adjust_pubdata_price);
-            vm.inspect_transaction_with_bytecode_compression(custom_tracers)
-        })
-        .await
-        .context("VM execution panicked")?;
+        sandbox.adjust_pubdata_price(adjust_pubdata_price);
+        if let Some(state_override) = state_override {
+            sandbox.set_state_override(state_override);
+        }
+
+        let (published_bytecodes, execution_result) = sandbox
+            .inspect_transaction_with_bytecode_compression(tx, tracers)
+            .await?;
 
         let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
