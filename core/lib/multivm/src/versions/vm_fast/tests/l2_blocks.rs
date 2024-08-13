@@ -3,7 +3,6 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
-use zksync_state::ReadStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -15,7 +14,10 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{
+        storage::ReadStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
+        VmInterface,
+    },
     vm_fast::{
         tests::tester::{default_l1_batch, VmTesterBuilder},
         vm::Vm,

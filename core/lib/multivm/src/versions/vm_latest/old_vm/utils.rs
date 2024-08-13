@@ -6,11 +6,11 @@ use zk_evm_1_5_0::{
         FatPointer, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
 use zksync_types::{Address, U256};
 
-use crate::vm_latest::{
-    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_latest::{old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode},
 };
 
 #[derive(Debug, Clone)]

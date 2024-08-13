@@ -6,10 +6,9 @@ use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_vm_interface::storage::ReadStorage;
 
-use crate::{
-    PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
-};
+use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
 /// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param
 /// (mostly for testing purposes); the default is [`OwnedStorage`].

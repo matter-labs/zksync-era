@@ -2,10 +2,12 @@ use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 
-use crate::vm_boojum_integration::{
-    old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_boojum_integration::{
+        old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
