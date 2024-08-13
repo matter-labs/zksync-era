@@ -292,8 +292,9 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
+    use l1_gas_price::GasAdjusterClient;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-    use zksync_eth_client::{clients::MockEthereum, BaseFees};
+    use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
     use super::*;
@@ -767,19 +768,20 @@ mod tests {
     }
 
     // Helper function to create BaseFees.
-    fn base_fees(block: u64, blob: U256) -> BaseFees {
+    fn test_base_fees(block: u64, blob: U256, pubdata: U256) -> BaseFees {
         BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: blob,
+            l2_pubdata_price: pubdata,
         }
     }
 
     // Helper function to setup the GasAdjuster.
     async fn setup_gas_adjuster(l1_gas_price: u64, l1_pubdata_price: u64) -> GasAdjuster {
-        let mock = MockEthereum::builder()
+        let mock = MockSettlementLayer::builder()
             .with_fee_history(vec![
-                base_fees(0, U256::from(4)),
-                base_fees(1, U256::from(3)),
+                test_base_fees(0, U256::from(4), U256::from(0)),
+                test_base_fees(1, U256::from(3), U256::from(0)),
             ])
             .build();
         mock.advance_block_number(2); // Ensure we have enough blocks for the fee history
@@ -793,7 +795,7 @@ mod tests {
         };
 
         GasAdjuster::new(
-            Box::new(mock.into_client()),
+            GasAdjusterClient::from_l1(Box::new(mock.into_client())),
             gas_adjuster_config,
             PubdataSendingMode::Blobs,
             L1BatchCommitmentMode::Rollup,

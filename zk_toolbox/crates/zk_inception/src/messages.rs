@@ -51,6 +51,7 @@ pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
+pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -66,6 +67,8 @@ pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
+pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
+    "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
@@ -207,6 +210,7 @@ pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
     "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
 pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
+pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observability?";
 
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";

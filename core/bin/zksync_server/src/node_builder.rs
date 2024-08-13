@@ -55,7 +55,8 @@ use zksync_node_framework::{
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
-            bwip::BasicWitnessInputProducerLayer, protective_reads::ProtectiveReadsWriterLayer,
+            bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
+            protective_reads::ProtectiveReadsWriterLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -67,7 +68,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
+use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -153,8 +154,15 @@ impl MainNodeBuilder {
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
         let eth_config = try_load_config!(self.secrets.l1);
-        let query_eth_client_layer =
-            QueryEthClientLayer::new(genesis.settlement_layer_id(), eth_config.l1_rpc_url);
+        let query_eth_client_layer = QueryEthClientLayer::new(
+            genesis.settlement_layer_id(),
+            eth_config.l1_rpc_url,
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
+        );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -241,8 +249,14 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
+        let experimental_vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
+                .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
@@ -566,6 +580,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
+        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        self.node.add_layer(VmPlaygroundLayer::new(
+            vm_config.playground,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
@@ -734,6 +758,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
+                }
+                Component::VmPlayground => {
+                    self = self.add_vm_playground_layer()?;
                 }
                 Component::ExternalProofIntegrationApi => {
                     self = self.add_external_proof_integration_api_layer()?;

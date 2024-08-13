@@ -67,6 +67,10 @@ jobs:
 
   loadtest:
     runs-on: [matterlabs-ci-runner]
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode: ["old", "new"]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -82,7 +86,8 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT="16000" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="150" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
@@ -105,7 +110,9 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
+          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE" \
+            ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
       - name: Deploy legacy era contracts
@@ -135,7 +142,7 @@ jobs:
         base_token: ["Eth", "Custom"]
         deployment_mode: ["Rollup", "Validium"]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:

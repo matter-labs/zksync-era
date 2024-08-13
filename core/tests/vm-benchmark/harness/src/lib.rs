@@ -4,12 +4,13 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_multivm::{
     interface::{
-        L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        storage::InMemoryStorage, L2BlockEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
+    vm_fast::Vm,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::{encode, Token},
@@ -61,7 +62,7 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 
-pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
+pub struct BenchmarkingVm(Vm<&'static InMemoryStorage>);
 
 impl BenchmarkingVm {
     #[allow(clippy::new_without_default)]
@@ -95,7 +96,7 @@ impl BenchmarkingVm {
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
             },
-            Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
+            &*STORAGE,
         ))
     }
 
@@ -109,18 +110,17 @@ impl BenchmarkingVm {
 
         let count = Rc::new(RefCell::new(0));
 
-        self.0.inspect(
-            TracerDispatcher::new(vec![Box::new(
-                instruction_counter::InstructionCounter::new(count.clone()),
-            )]),
-            VmExecutionMode::OneTx,
-        );
+        self.0.inspect((), VmExecutionMode::OneTx);
 
         count.take()
     }
 }
 
 pub fn get_deploy_tx(code: &[u8]) -> Transaction {
+    get_deploy_tx_with_gas_limit(code, 30_000_000)
+}
+
+pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32) -> Transaction {
     let params = [
         Token::FixedBytes(vec![0u8; 32]),
         Token::FixedBytes(hash_bytecode(code).0.to_vec()),
@@ -137,7 +137,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         calldata,
         Nonce(0),
         Fee {
-            gas_limit: U256::from(30000000u32),
+            gas_limit: U256::from(gas_limit),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(

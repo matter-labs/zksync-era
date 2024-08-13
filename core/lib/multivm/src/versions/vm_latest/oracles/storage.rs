@@ -9,7 +9,6 @@ use zk_evm_1_5_0::{
         TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
@@ -22,6 +21,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
+    interface::storage::{StoragePtr, WriteStorage},
     vm_latest::{
         old_vm::{
             history_recorder::{
@@ -620,11 +620,11 @@ fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: b
 
 #[cfg(test)]
 mod tests {
-    use zksync_state::{InMemoryStorage, StorageView};
     use zksync_types::H256;
     use zksync_utils::h256_to_u256;
 
     use super::*;
+    use crate::interface::storage::{InMemoryStorage, StorageView};
 
     #[test]
     fn test_get_pubdata_price_bytes() {

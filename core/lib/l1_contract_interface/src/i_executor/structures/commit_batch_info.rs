@@ -202,7 +202,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
         } else {
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
-                (L1BatchCommitmentMode::Validium, PubdataDA::Calldata) => {
+                (
+                    L1BatchCommitmentMode::Validium,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
                     vec![PUBDATA_SOURCE_CALLDATA]
                 }
                 (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => {
@@ -216,7 +219,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     vec![PUBDATA_SOURCE_CUSTOM]
                 }
 
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Calldata) => {
+                (
+                    L1BatchCommitmentMode::Rollup,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
                     let pubdata = self.pubdata_input();

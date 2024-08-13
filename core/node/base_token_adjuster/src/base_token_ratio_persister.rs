@@ -5,7 +5,7 @@ use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
+use zksync_eth_client::{BoundEthInterface, Options};
 use zksync_external_price_api::PriceAPIClient;
 use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
 use zksync_types::{
