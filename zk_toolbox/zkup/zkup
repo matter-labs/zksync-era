@@ -85,7 +85,7 @@ parse_args() {
       ZKUP_VERSION=$1
       ;;
     --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1 ;;
-    --alias) ZKUP_ALIAS=1 ;;
+    -a | --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
       exit 0
