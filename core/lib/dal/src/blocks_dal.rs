@@ -2360,7 +2360,7 @@ impl BlocksDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                (logs_bloom IS NOT NULL) as "logs_bloom_not_null!"
+                (logs_bloom IS NOT NULL) AS "logs_bloom_not_null!"
             FROM
                 miniblocks
             ORDER BY
