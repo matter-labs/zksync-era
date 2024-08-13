@@ -1,24 +1,21 @@
 use std::collections::HashSet;
 
 use anyhow::Context as _;
-use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::{
-    interface::{ExecutionResult, VmExecutionMode, VmInterface},
-    tracers::{
-        StorageInvocations, ValidationError as RawValidationError, ValidationTracer,
-        ValidationTracerParams,
-    },
-    vm_latest::HistoryDisabled,
-    MultiVMTracer,
+    interface::ExecutionResult,
+    tracers::{ValidationError as RawValidationError, ValidationTracerParams},
 };
-use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_types::{
+    api::state_override::StateOverride, l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS,
+    TRUSTED_TOKEN_SLOTS,
+};
 
 use super::{
-    apply,
+    apply::Sandbox,
     execute::TransactionExecutor,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+    ApiTracer, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
@@ -32,6 +29,7 @@ pub(crate) enum ValidationError {
 }
 
 impl TransactionExecutor {
+    #[tracing::instrument(level = "debug", skip_all)]
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
         mut connection: Connection<'static, Core>,
@@ -46,7 +44,7 @@ impl TransactionExecutor {
         }
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
-        let validation_params = get_validation_params(
+        let params = get_validation_params(
             &mut connection,
             &tx,
             computational_gas_limit,
@@ -56,53 +54,36 @@ impl TransactionExecutor {
         .context("failed getting validation params")?;
 
         let execution_args = TxExecutionArgs::for_validation(&tx);
-        let missed_storage_invocation_limit = execution_args.missed_storage_invocation_limit;
         let tx: Transaction = tx.into();
 
-        let validation_result = apply::apply_vm_in_sandbox(
+        let sandbox = Sandbox::new(
             vm_permit,
-            shared_args,
-            true,
-            execution_args,
             connection,
-            tx,
+            shared_args,
+            execution_args,
             block_args,
-            None,
-            move |vm, tx, protocol_version| {
-                let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
-                let span = tracing::debug_span!("validation").entered();
-                vm.push_transaction(tx);
-
-                let (tracer, validation_result) = ValidationTracer::<HistoryDisabled>::new(
-                    validation_params,
-                    protocol_version.into(),
-                );
-
-                let result = vm.inspect(
-                    vec![
-                        tracer.into_tracer_pointer(),
-                        StorageInvocations::new(missed_storage_invocation_limit)
-                            .into_tracer_pointer(),
-                    ]
-                    .into(),
-                    VmExecutionMode::OneTx,
-                );
-
-                let result = match (result.result, validation_result.get()) {
-                    (_, Some(err)) => Err(RawValidationError::ViolatedRule(err.clone())),
-                    (ExecutionResult::Halt { reason }, _) => {
-                        Err(RawValidationError::FailedTx(reason))
-                    }
-                    (_, None) => Ok(()),
-                };
-
-                stage_latency.observe();
-                span.exit();
-                result
-            },
+            &StateOverride::default(),
         )
-        .instrument(tracing::debug_span!("validate_in_sandbox"))
         .await?;
+
+        let validation_result = tokio::task::spawn_blocking(|| {
+            let vm = sandbox.build_vm(tx, true);
+            let (tracer, validation_result) = ApiTracer::validation(params);
+
+            let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
+            let span = tracing::debug_span!("validation").entered();
+            let result = vm.inspect_transaction(vec![tracer]);
+            stage_latency.observe();
+            span.exit();
+
+            match (result.result, validation_result.get()) {
+                (_, Some(rule)) => Err(RawValidationError::ViolatedRule(rule.clone())),
+                (ExecutionResult::Halt { reason }, _) => Err(RawValidationError::FailedTx(reason)),
+                (_, None) => Ok(()),
+            }
+        })
+        .await
+        .context("VM execution panicked")?;
 
         stage_latency.observe();
         validation_result.map_err(ValidationError::Vm)

@@ -1,13 +1,9 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use tracing::{span, Instrument, Level};
+use anyhow::Context as _;
 use zksync_dal::{Connection, Core};
-use zksync_multivm::{
-    interface::{
-        TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs, VmInterface,
-    },
-    tracers::StorageInvocations,
-    MultiVMTracer,
+use zksync_multivm::interface::{
+    TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::{
     l2::L2Tx, transaction_request::CallOverrides, ExecuteTransactionCommon, Nonce,
@@ -15,10 +11,9 @@ use zksync_types::{
 };
 
 use super::{
-    apply, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs,
-    VmPermit,
+    api::state_override::StateOverride, apply::Sandbox, testonly::MockTransactionExecutor,
+    vm_metrics, ApiTracer, BlockArgs, TxSharedArgs, VmPermit,
 };
-use crate::execution_sandbox::api::state_override::StateOverride;
 
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
@@ -100,7 +95,7 @@ impl TransactionExecutor {
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(level = "debug", skip_all)]
     pub async fn execute_tx_in_sandbox(
         &self,
         vm_permit: VmPermit,
@@ -121,30 +116,23 @@ impl TransactionExecutor {
         }
 
         let total_factory_deps = tx.execute.factory_deps.len() as u16;
-        let missed_storage_invocation_limit = execution_args.missed_storage_invocation_limit;
 
-        let (published_bytecodes, execution_result) = apply::apply_vm_in_sandbox(
+        let sandbox = Sandbox::new(
             vm_permit,
-            shared_args,
-            adjust_pubdata_price,
-            execution_args,
             connection,
-            tx,
+            shared_args,
+            execution_args,
             block_args,
-            state_override,
-            move |vm, tx, _| {
-                let storage_invocation_tracer =
-                    StorageInvocations::new(missed_storage_invocation_limit);
-                let custom_tracers: Vec<_> = custom_tracers
-                    .into_iter()
-                    .map(|tracer| tracer.into_boxed())
-                    .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
-                    .collect();
-                vm.inspect_transaction_with_bytecode_compression(custom_tracers.into(), tx, true)
-            },
+            state_override.as_ref().unwrap_or(&StateOverride::default()),
         )
-        .instrument(span!(Level::DEBUG, "execute_in_sandbox"))
         .await?;
+
+        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
+            let vm = sandbox.build_vm(tx, adjust_pubdata_price);
+            vm.inspect_transaction_with_bytecode_compression(custom_tracers)
+        })
+        .await
+        .context("VM execution panicked")?;
 
         let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);

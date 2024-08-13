@@ -4,9 +4,10 @@ use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
+use zksync_types::api::state_override::StateOverride;
 
 use super::*;
-use crate::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts};
+use crate::{execution_sandbox::apply::Sandbox, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -188,19 +189,25 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
     let transaction = create_l2_transaction(10, 100).into();
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
-    apply_vm_in_sandbox(
+
+    let sandbox = Sandbox::new(
         vm_permit,
-        TxSharedArgs::mock(estimate_gas_contracts),
-        true,
-        TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
         connection,
-        transaction.clone(),
+        TxSharedArgs::mock(estimate_gas_contracts),
+        TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
         block_args,
-        None,
-        move |_, received_tx, _| {
-            assert_eq!(received_tx, transaction);
-        },
+        &StateOverride::default(),
     )
     .await
-    .expect("VM instantiation panicked");
+    .unwrap();
+
+    tokio::task::spawn_blocking(move || {
+        sandbox
+            .build_vm(transaction.clone(), true)
+            .apply(|_, received_tx| {
+                assert_eq!(received_tx, transaction);
+            });
+    })
+    .await
+    .expect("VM execution panicked")
 }

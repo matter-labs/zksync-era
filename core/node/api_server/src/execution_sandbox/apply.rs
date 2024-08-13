@@ -10,16 +10,17 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface,
+        BytecodeCompressionError, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
     },
+    tracers::StorageInvocations,
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
-    VmInstance,
+    MultiVMTracer, MultiVmTracerPointer, VmInstance,
 };
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
@@ -40,29 +41,34 @@ use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 use super::{
     storage::StorageWithOverrides,
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
-    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+    ApiTracer, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
 type VmStorageView = StorageView<StorageWithOverrides<PostgresStorage<'static>>>;
 type SandboxVm = VmInstance<StorageWithOverrides<PostgresStorage<'static>>, HistoryDisabled>;
 
 #[derive(Debug)]
-struct Sandbox {
+pub(super) struct Sandbox {
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
     execution_args: TxExecutionArgs,
     l2_block_info_to_reset: Option<StoredL2BlockInfo>,
     storage_view: VmStorageView,
+    initialization_stage: vise::LatencyObserver<'static>,
+    vm_permit: VmPermit,
 }
 
 impl Sandbox {
-    async fn new(
+    pub async fn new(
+        vm_permit: VmPermit,
         mut connection: Connection<'static, Core>,
         shared_args: TxSharedArgs,
         execution_args: TxExecutionArgs,
         block_args: BlockArgs,
         state_override: &StateOverride,
     ) -> anyhow::Result<Self> {
+        let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
+
         let resolve_started_at = Instant::now();
         let resolved_block_info = block_args
             .resolve_block_info(&mut connection)
@@ -112,6 +118,8 @@ impl Sandbox {
             storage_view,
             execution_args,
             l2_block_info_to_reset,
+            initialization_stage,
+            vm_permit,
         })
     }
 
@@ -263,17 +271,17 @@ impl Sandbox {
     }
 
     /// This method is blocking.
-    fn into_vm(
+    pub fn build_vm(
         mut self,
-        tx: &Transaction,
+        transaction: Transaction,
         adjust_pubdata_price: bool,
-    ) -> (Box<SandboxVm>, StoragePtr<VmStorageView>) {
-        self.setup_storage_view(tx);
+    ) -> InitializedVm {
+        self.setup_storage_view(&transaction);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
             self.l1_batch_env.fee_input = adjust_pubdata_price_for_tx(
                 self.l1_batch_env.fee_input,
-                tx.gas_per_pubdata_byte_limit(),
+                transaction.gas_per_pubdata_byte_limit(),
                 self.l1_batch_env.enforced_base_fee.map(U256::from),
                 protocol_version.into(),
             );
@@ -286,72 +294,92 @@ impl Sandbox {
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
+        self.initialization_stage.observe();
 
-        (vm, storage_view)
+        InitializedVm {
+            vm,
+            storage_view,
+            transaction,
+            protocol_version,
+            missed_storage_invocation_limit: self.execution_args.missed_storage_invocation_limit,
+            _vm_permit: self.vm_permit,
+        }
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn apply_vm_in_sandbox<T, F>(
-    vm_permit: VmPermit,
-    shared_args: TxSharedArgs,
-    // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-    // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-    // current L1 prices for gas or pubdata.
-    adjust_pubdata_price: bool,
-    execution_args: TxExecutionArgs,
-    connection: Connection<'static, Core>,
-    tx: Transaction,
-    block_args: BlockArgs, // Block arguments for the transaction.
-    state_override: Option<StateOverride>,
-    apply: F,
-) -> anyhow::Result<T>
-where
-    T: Send + 'static,
-    F: FnOnce(&mut SandboxVm, Transaction, ProtocolVersionId) -> T + Send + 'static,
-{
-    let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
-    let span = tracing::debug_span!("initialization");
+#[derive(Debug)]
+pub(super) struct InitializedVm {
+    vm: Box<SandboxVm>,
+    storage_view: StoragePtr<VmStorageView>,
+    transaction: Transaction,
+    protocol_version: ProtocolVersionId,
+    missed_storage_invocation_limit: usize,
+    _vm_permit: VmPermit,
+}
 
-    let sandbox = Sandbox::new(
-        connection,
-        shared_args,
-        execution_args,
-        block_args,
-        state_override.as_ref().unwrap_or(&StateOverride::default()),
-    )
-    .instrument(span.clone())
-    .await?;
-    let protocol_version = sandbox.system_env.version;
+impl InitializedVm {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
+    }
 
-    tokio::task::spawn_blocking(move || {
-        let span = span.entered();
-        let (mut vm, storage_view) = sandbox.into_vm(&tx, adjust_pubdata_price);
-        initialization_stage.observe();
-        span.exit();
+    pub fn inspect_transaction_with_bytecode_compression(
+        self,
+        tracers: Vec<ApiTracer>,
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
+        let tracers = self.wrap_tracers(tracers);
+        self.apply(|vm, transaction| {
+            vm.inspect_transaction_with_bytecode_compression(tracers.into(), transaction, true)
+        })
+    }
 
+    pub fn inspect_transaction(self, tracers: Vec<ApiTracer>) -> VmExecutionResultAndLogs {
+        let tracers = self.wrap_tracers(tracers);
+        self.apply(|vm, transaction| {
+            vm.push_transaction(transaction);
+            vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+        })
+    }
+
+    fn wrap_tracers<S: WriteStorage>(
+        &self,
+        tracers: Vec<ApiTracer>,
+    ) -> Vec<MultiVmTracerPointer<S, HistoryDisabled>> {
+        let storage_invocation_tracer =
+            StorageInvocations::new(self.missed_storage_invocation_limit);
+        tracers
+            .into_iter()
+            .map(|tracer| tracer.into_boxed(self))
+            .chain([storage_invocation_tracer.into_tracer_pointer()])
+            .collect()
+    }
+
+    // public for testing purposes
+    pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
+    where
+        F: FnOnce(&mut SandboxVm, Transaction) -> T,
+    {
         let tx_id = format!(
             "{:?}-{}",
-            tx.initiator_account(),
-            tx.nonce().unwrap_or(Nonce(0))
+            self.transaction.initiator_account(),
+            self.transaction.nonce().unwrap_or(Nonce(0))
         );
 
         let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
-        let result = apply(&mut vm, tx, protocol_version);
+        let result = apply_fn(&mut self.vm, self.transaction);
         let vm_execution_took = execution_latency.observe();
 
-        let memory_metrics = vm.record_vm_memory_metrics();
+        let memory_metrics = self.vm.record_vm_memory_metrics();
         vm_metrics::report_vm_memory_metrics(
             &tx_id,
             &memory_metrics,
             vm_execution_took,
-            storage_view.as_ref().borrow_mut().metrics(),
+            self.storage_view.as_ref().borrow_mut().metrics(),
         );
-        drop(vm_permit); // Ensure that the permit lives until the end of the execution
         result
-    })
-    .await
-    .context("VM execution panicked")
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
