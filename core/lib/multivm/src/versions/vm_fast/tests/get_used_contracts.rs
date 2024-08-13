@@ -1,14 +1,13 @@
 use std::collections::HashSet;
 
 use itertools::Itertools;
-use zksync_state::ReadStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
 use zksync_types::{Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_fast::{
         tests::{
             tester::{TxType, VmTesterBuilder},

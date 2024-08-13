@@ -68,6 +68,8 @@ pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
+pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
+    "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =

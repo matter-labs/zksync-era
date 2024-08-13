@@ -92,7 +92,7 @@ impl CallTracer {
 }
 
 impl IntoOldVmTracer for CallTracer {
-    fn old_tracer(&self) -> crate::tracers::old_tracers::OldTracers {
-        crate::tracers::old_tracers::OldTracers::CallTracer(self.result.clone())
+    fn old_tracer(&self) -> crate::tracers::old::OldTracers {
+        crate::tracers::old::OldTracers::CallTracer(self.result.clone())
     }
 }

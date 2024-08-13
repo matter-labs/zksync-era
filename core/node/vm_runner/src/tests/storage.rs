@@ -9,7 +9,7 @@ use tokio::{
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state::{OwnedStorage, PostgresStorage, ReadStorage};
+use zksync_state::{interface::ReadStorage, OwnedStorage, PostgresStorage};
 use zksync_test_account::Account;
 use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
 

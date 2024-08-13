@@ -1,7 +1,7 @@
 use zksync_types::{H256, U256};
 use zksync_utils::ceil_div_u256;
 
-use crate::vm_latest::{utils::fee::get_batch_base_fee, L1BatchEnv};
+use crate::{interface::L1BatchEnv, vm_latest::utils::fee::get_batch_base_fee};
 
 pub(crate) fn compute_refund(
     l1_batch: &L1BatchEnv,

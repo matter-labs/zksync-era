@@ -4,7 +4,7 @@
 //!
 
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
+use crate::interface::storage::WriteStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, MiniblockHasher},

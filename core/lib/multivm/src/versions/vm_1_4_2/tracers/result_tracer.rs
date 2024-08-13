@@ -5,15 +5,15 @@ use zk_evm_1_4_1::{
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
 
 use crate::{
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
-        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmRevertReason,
+        storage::{StoragePtr, WriteStorage},
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_2::{
         constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
