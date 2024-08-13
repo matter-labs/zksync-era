@@ -2,12 +2,13 @@ use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::ExecutionMetrics,
     vm_trace::Call,
     StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
 
-use crate::{CompressedBytecodeInfo, Halt, VmExecutionStatistics, VmRevertReason};
+use crate::{
+    CompressedBytecodeInfo, ExecutionMetrics, Halt, VmExecutionStatistics, VmRevertReason,
+};
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32

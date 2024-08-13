@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use zksync_types::{
-    tx::tx_execution_info::DeduplicatedWritesMetrics,
     writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
     StorageLogWithPreviousValue, H256,
 };
 use zksync_utils::h256_to_u256;
+
+use crate::interface::DeduplicatedWritesMetrics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ModifiedSlot {

@@ -7,7 +7,9 @@ pub use self::{
     execution_state::{BootloaderMemory, CurrentExecutionState},
     finished_l1batch::FinishedL1Batch,
     l2_block::L2Block,
-    statistic::{VmExecutionStatistics, VmMemoryMetrics},
+    statistic::{
+        DeduplicatedWritesMetrics, ExecutionMetrics, VmExecutionStatistics, VmMemoryMetrics,
+    },
 };
 
 mod bytecode;

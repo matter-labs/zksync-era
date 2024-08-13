@@ -6,7 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::{
-    interface::{TransactionExecutionResult, TxExecutionStatus},
+    interface::{ExecutionMetrics, TransactionExecutionResult, TxExecutionStatus},
     utils::get_max_gas_per_pubdata_byte,
 };
 use zksync_node_genesis::GenesisParams;
@@ -24,7 +24,6 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
-    tx::ExecutionMetrics,
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
     ProtocolVersionId, StorageLog, H256, U256,
 };

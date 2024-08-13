@@ -69,7 +69,8 @@ impl SealCriterion for CircuitsCriterion {
 }
 #[cfg(test)]
 mod tests {
-    use zksync_types::{circuit::CircuitStatistic, tx::ExecutionMetrics};
+    use zksync_multivm::interface::ExecutionMetrics;
+    use zksync_types::circuit::CircuitStatistic;
 
     use super::*;
 

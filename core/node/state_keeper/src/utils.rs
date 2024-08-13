@@ -1,9 +1,9 @@
+use zksync_multivm::interface::{DeduplicatedWritesMetrics, ExecutionMetrics};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    block::BlockGasCount,
-    tx::{tx_execution_info::DeduplicatedWritesMetrics, ExecutionMetrics},
-    ExecuteTransactionCommon, ProtocolVersionId, Transaction,
+    aggregated_operations::AggregatedActionType, block::BlockGasCount, ExecuteTransactionCommon,
+    ProtocolVersionId, Transaction,
 };
+
 // TODO(QIT-32): Remove constants(except `L1_OPERATION_EXECUTE_COST`) and logic that use them
 const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
 const L1_BATCH_PROVE_BASE_COST: u32 = 7_000;

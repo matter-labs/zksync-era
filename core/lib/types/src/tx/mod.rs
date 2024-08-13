@@ -6,10 +6,9 @@
 
 use zksync_basic_types::{Address, H256};
 
-pub use self::{execute::Execute, tx_execution_info::ExecutionMetrics};
+pub use self::execute::Execute;
 
 pub mod execute;
-pub mod tx_execution_info;
 pub use zksync_crypto_primitives as primitives;
 
 #[derive(Debug, Clone, Copy)]

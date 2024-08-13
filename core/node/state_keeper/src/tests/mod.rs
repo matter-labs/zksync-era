@@ -10,8 +10,8 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+        ExecutionMetrics, ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
+        TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -20,7 +20,6 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    tx::tx_execution_info::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
     ZKPORTER_IS_AVAILABLE,
