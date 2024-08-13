@@ -285,6 +285,11 @@ pub fn get_witness_generator_job_status_from_vec(
 ) -> Status {
     if prover_jobs.is_empty() {
         Status::JobsNotFound
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.get_status(), WitnessJobStatus::WaitingForProofs))
+    {
+        Status::WaitingForProofs
     } else if prover_jobs.iter().any(|job| {
         matches!(
             job.get_status(),
@@ -292,10 +297,10 @@ pub fn get_witness_generator_job_status_from_vec(
         ) && job.get_attempts() as u32 >= max_attempts
     }) {
         Status::Stuck
-    } else if prover_jobs
-        .iter()
-        .all(|job| matches!(job.get_status(), WitnessJobStatus::Queued))
-    {
+    } else if prover_jobs.iter().all(|job| {
+        matches!(job.get_status(), WitnessJobStatus::Queued)
+            || matches!(job.get_status(), WitnessJobStatus::WaitingForProofs)
+    }) {
         Status::Queued
     } else if prover_jobs
         .iter()
