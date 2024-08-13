@@ -86,13 +86,15 @@ impl BaseTokenRatioPersister {
 
         let max_attempts = self.config.l1_tx_sending_max_attempts();
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
-        let start_block = self.get_latest_block_number().await?.as_u32();
+        let start_block = self.get_latest_block_number().await?.as_u64();
         let mut current_block = start_block;
         let mut result: anyhow::Result<()> = Ok(());
 
         for attempt in 0..max_attempts {
             let time_in_mempool = (current_block - start_block).max(0);
-            result = self.send_ratio_to_l1(new_ratio, time_in_mempool).await;
+            result = self
+                .send_ratio_to_l1(new_ratio, time_in_mempool as u32)
+                .await;
             if let Some(err) = result.as_ref().err() {
                 tracing::info!(
                     "Failed to update base token multiplier on L1, attempt {}, time_in_mempool {}: {}",
@@ -101,7 +103,7 @@ impl BaseTokenRatioPersister {
                     err
                 );
                 tokio::time::sleep(sleep_duration).await;
-                current_block = self.get_latest_block_number().await?.as_u32();
+                current_block = self.get_latest_block_number().await?.as_u64();
             } else {
                 return result;
             }
