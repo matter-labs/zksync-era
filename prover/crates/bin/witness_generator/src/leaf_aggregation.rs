@@ -267,6 +267,8 @@ pub async fn process_leaf_aggregation_job(
     let circuit_id = job.circuit_id;
     let queues = split_recursion_queue(job.closed_form_inputs.1);
 
+    assert_eq!(circuit_id, job.base_vk.numeric_circuit_type());
+
     let aggregations = queues
         .iter()
         .cloned()

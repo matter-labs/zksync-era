@@ -1,5 +1,17 @@
 # Changelog
 
+## [16.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.2.0...prover-v16.3.0) (2024-08-07)
+
+
+### Features
+
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+
+
+### Bug Fixes
+
+* **prover:** Fix NWG ([#2590](https://github.com/matter-labs/zksync-era/issues/2590)) ([9b58ae9](https://github.com/matter-labs/zksync-era/commit/9b58ae97875455d58d42fe203cfb1f51cb270f62))
+
 ## [16.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.1.0...prover-v16.2.0) (2024-08-02)
 
 
