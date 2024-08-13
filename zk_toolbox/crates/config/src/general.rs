@@ -54,6 +54,10 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
         .contract_verifier
         .as_mut()
         .context("Contract Verifier config is not presented")?;
+    let prometheus = config
+        .prometheus_config
+        .as_mut()
+        .context("Contract Verifier config is not presented")?;
 
     api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
     update_port_in_url(
@@ -73,6 +77,9 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
     api.healthcheck.port = ports_config.healthcheck_port;
     api.merkle_tree.port = ports_config.merkle_tree_port;
     api.prometheus.listener_port = ports_config.prometheus_listener_port;
+
+    prometheus.listener_port = ports_config.prometheus_listener_port;
+
     Ok(())
 }
 
