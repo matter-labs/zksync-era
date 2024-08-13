@@ -2399,6 +2399,10 @@ impl BlocksDal<'_, '_> {
         from_l2_block: L2BlockNumber,
         blooms: &[Bloom],
     ) -> DalResult<()> {
+        if blooms.is_empty() {
+            return Ok(());
+        }
+
         let to_l2_block = from_l2_block + (blooms.len() - 1) as u32;
         let numbers: Vec<_> = (i64::from(from_l2_block.0)..=i64::from(to_l2_block.0)).collect();
 

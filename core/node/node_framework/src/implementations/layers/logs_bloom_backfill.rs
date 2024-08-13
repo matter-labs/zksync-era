@@ -37,8 +37,8 @@ impl WiringLayer for LogsBloomBackfillLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let main_pool = input.master_pool.get_singleton().await.unwrap();
-        let logs_bloom_backfill = LogsBloomBackfill::new(main_pool);
+        let pool = input.master_pool.get_singleton().await?;
+        let logs_bloom_backfill = LogsBloomBackfill::new(pool);
         Ok(Output {
             logs_bloom_backfill,
         })

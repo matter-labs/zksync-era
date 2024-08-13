@@ -46,10 +46,10 @@ describe('web3 API compatibility tests', () => {
         expect(blockWithTxsByNumber.gasLimit).toBeGreaterThan(0n);
 
         // `ethers.Block` doesn't include `logsBloom` for some reason.
-        const blockWithTxsByNumberFull = await alice.provider.send('eth_getBlockByNumber', [blockNumberHex, true]);
-        expect(blockWithTxsByNumberFull.logsBloom).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
-        expect(blockWithTxsByNumberFull.logsBloom.length).toEqual(514);
-        expect(blockWithTxsByNumberFull.logsBloom != ethers.zeroPadValue('0x00', 256)).toBeTruthy();
+        const blockByNumberFull = await alice.provider.send('eth_getBlockByNumber', [blockNumberHex, false]);
+        expect(blockByNumberFull.logsBloom).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        expect(blockByNumberFull.logsBloom.length).toEqual(514);
+        expect(blockByNumberFull.logsBloom != ethers.zeroPadValue('0x00', 256)).toBeTruthy();
 
         let sumTxGasUsed = 0n;
         for (const tx of blockWithTxsByNumber.prefetchedTransactions) {
@@ -59,7 +59,7 @@ describe('web3 API compatibility tests', () => {
         expect(blockWithTxsByNumber.gasUsed).toBeGreaterThanOrEqual(sumTxGasUsed);
 
         let expectedReceipts = [];
-        let expectedBloom = blockWithTxsByNumberFull.logsBloom.toLowerCase();
+        let expectedBloom = blockByNumberFull.logsBloom.toLowerCase();
 
         let blockBloomFromReceipts = new Uint8Array(256);
         for (const tx of blockWithTxsByNumber.prefetchedTransactions) {

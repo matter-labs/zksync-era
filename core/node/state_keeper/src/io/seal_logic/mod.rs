@@ -367,7 +367,7 @@ impl L2BlockSealCommand {
                 .indexed_topics
                 .iter()
                 .map(|topic| BloomInput::Raw(topic.as_bytes()))
-                .chain(std::iter::once(BloomInput::Raw(event.address.as_bytes())))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
         });
         let logs_bloom = build_bloom(iter);
         progress.observe(Some(self.l2_block.events.len()));

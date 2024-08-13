@@ -179,6 +179,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.timestamp AS "block_timestamp",
                 miniblocks.base_fee_per_gas AS "base_fee_per_gas",
                 miniblocks.gas_limit AS "block_gas_limit?",
+                miniblocks.logs_bloom AS "block_logs_bloom?",
                 transactions.gas_limit AS "transaction_gas_limit?",
                 transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
@@ -223,7 +224,11 @@ impl BlocksWeb3Dal<'_, '_> {
                         .into(),
                     base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas.clone())),
                     extra_data: Bytes::default(),
-                    logs_bloom: Bloom::default(),
+                    logs_bloom: row
+                        .block_logs_bloom
+                        .as_ref()
+                        .map(|b| Bloom::from_slice(b))
+                        .unwrap_or_default(),
                     timestamp: U256::from(row.block_timestamp),
                     difficulty: U256::zero(),
                     mix_hash: None,
