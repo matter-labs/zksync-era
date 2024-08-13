@@ -179,10 +179,9 @@ fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Result<V
         let path = line.to_string();
         if !IGNORED_DIRS.iter().any(|dir| path.contains(dir))
             && !IGNORED_FILES.contains(&path.as_str())
+            && path.ends_with(&format!(".{}", extension))
         {
-            if path.ends_with(&format!(".{}", extension)) {
-                files.push(path);
-            }
+            files.push(path);
         }
     }
 
