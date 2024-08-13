@@ -57,7 +57,7 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    // git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
