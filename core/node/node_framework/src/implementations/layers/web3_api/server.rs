@@ -33,6 +33,7 @@ pub struct Web3ServerOptionalConfig {
     pub replication_lag_limit: Option<Duration>,
     // Used by the external node.
     pub pruning_info_refresh_interval: Option<Duration>,
+    pub polling_interval: Option<Duration>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -56,6 +57,9 @@ impl Web3ServerOptionalConfig {
         {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        }
+        if let Some(polling_interval) = self.polling_interval {
+            api_builder = api_builder.with_polling_interval(polling_interval);
         }
         api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
