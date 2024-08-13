@@ -34,7 +34,6 @@ pub mod abi;
 pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
-pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod debug_flat_call;
