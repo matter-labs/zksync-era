@@ -5,17 +5,14 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{
-    event::extract_long_l2_to_l1_messages, writes::StateDiffRecord, AccountTreeId, StorageKey,
-    L1_MESSENGER_ADDRESS,
-};
+use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        L1BatchEnv, VmExecutionMode,
+        L1BatchEnv, VmEvent, VmExecutionMode,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     utils::events::{
@@ -107,8 +104,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             &self.l1_batch_env,
             Timestamp(0),
         );
-
-        extract_long_l2_to_l1_messages(&all_generated_events)
+        VmEvent::extract_long_l2_to_l1_messages(&all_generated_events)
     }
 
     // Packs part of L1 Messenger total pubdata that corresponds to

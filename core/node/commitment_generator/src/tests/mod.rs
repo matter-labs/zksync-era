@@ -3,11 +3,13 @@
 use std::thread;
 
 use rand::{thread_rng, Rng};
+use serde::Deserialize;
 use zksync_dal::Connection;
+use zksync_multivm::interface::VmEvent;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
-    block::L1BatchTreeData, zk_evm_types::LogQuery, AccountTreeId, Address, StorageLog, VmEvent,
+    block::L1BatchTreeData, zk_evm_types::LogQuery, AccountTreeId, Address, StorageLog,
 };
 
 use super::*;
@@ -300,6 +302,25 @@ async fn commitment_generator_with_tree_emulation() {
     generator_handle.await.unwrap().unwrap();
 }
 
+#[derive(Debug, Deserialize)]
+struct SerdeVmEvent {
+    location: (L1BatchNumber, u32),
+    address: Address,
+    indexed_topics: Vec<H256>,
+    value: Vec<u8>,
+}
+
+impl From<SerdeVmEvent> for VmEvent {
+    fn from(event: SerdeVmEvent) -> VmEvent {
+        VmEvent {
+            location: event.location,
+            address: event.address,
+            indexed_topics: event.indexed_topics,
+            value: event.value,
+        }
+    }
+}
+
 #[test]
 fn test_convert_vm_events_to_log_queries() {
     let cases: Vec<serde_json::Value> = vec![
@@ -314,10 +335,10 @@ fn test_convert_vm_events_to_log_queries() {
     ];
 
     for case in cases {
-        let event: VmEvent = serde_json::from_value(case["event"].clone()).unwrap();
+        let event: SerdeVmEvent = serde_json::from_value(case["event"].clone()).unwrap();
         let expected_list: Vec<LogQuery> = serde_json::from_value(case["list"].clone()).unwrap();
 
-        let actual_list = convert_vm_events_to_log_queries(&[event]);
+        let actual_list = convert_vm_events_to_log_queries(&[event.into()]);
         assert_eq!(actual_list, expected_list);
     }
 }

@@ -27,7 +27,7 @@ pub use crate::{
         outputs::{
             BootloaderMemory, CircuitStatistic, CompressedBytecodeInfo, CurrentExecutionState,
             DeduplicatedWritesMetrics, ExecutionResult, FinishedL1Batch, L2Block, Refunds,
-            TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+            TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
             VmExecutionLogs, VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics,
             VmMemoryMetrics,
         },

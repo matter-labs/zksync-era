@@ -15,11 +15,11 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp as Timestamp_1_5_0,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
 };
-use zksync_multivm::utils::get_used_bootloader_memory_bytes;
+use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
 use zksync_types::{
     vm::VmVersion,
     zk_evm_types::{LogQuery, Timestamp},
-    ProtocolVersionId, VmEvent, EVENT_WRITER_ADDRESS, H256, U256,
+    ProtocolVersionId, EVENT_WRITER_ADDRESS, H256, U256,
 };
 use zksync_utils::{address_to_u256, expand_memory_contents, h256_to_u256};
 

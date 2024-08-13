@@ -8134,6 +8134,7 @@ dependencies = [
  "itertools 0.10.5",
  "num_cpus",
  "rand 0.8.5",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -9759,6 +9760,7 @@ name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
  "hex",
+ "once_cell",
  "serde",
  "thiserror",
  "tracing",

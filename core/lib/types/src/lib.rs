@@ -8,7 +8,6 @@
 use std::{fmt, fmt::Debug};
 
 use anyhow::Context as _;
-pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;

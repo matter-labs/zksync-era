@@ -5,16 +5,13 @@ use vise::{
 };
 use zksync_multivm::{
     interface::{
-        storage::StorageViewMetrics, TransactionExecutionMetrics, VmExecutionResultAndLogs,
-        VmMemoryMetrics,
+        storage::StorageViewMetrics, TransactionExecutionMetrics, VmEvent,
+        VmExecutionResultAndLogs, VmMemoryMetrics,
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_shared_metrics::InteractionType;
-use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    H256,
-};
+use zksync_types::H256;
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 use crate::utils::ReportFilter;
@@ -277,11 +274,11 @@ pub(super) fn collect_tx_execution_metrics(
         .iter()
         .map(|event| event.indexed_topics.len() as u16)
         .sum();
-    let l2_l1_long_messages = extract_long_l2_to_l1_messages(&result.logs.events)
+    let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&result.logs.events)
         .iter()
         .map(|event| event.len())
         .sum();
-    let published_bytecode_bytes = extract_published_bytecodes(&result.logs.events)
+    let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&result.logs.events)
         .iter()
         .map(|bytecode_hash| bytecode_len_in_bytes(*bytecode_hash))
         .sum();

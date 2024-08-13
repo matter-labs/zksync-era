@@ -13,8 +13,9 @@ use zksync_types::{
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    Address, L1BatchNumber, L2BlockNumber, VmEvent, H256,
+    Address, L1BatchNumber, L2BlockNumber, H256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},

@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use zksync_multivm::{
     interface::{
         CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
-        TxExecutionStatus, VmExecutionMetrics, VmExecutionResultAndLogs,
+        TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     vm_latest::TransactionVmExt,
 };
@@ -14,7 +14,7 @@ use zksync_types::{
     ethabi,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm_trace::Call,
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
+    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 

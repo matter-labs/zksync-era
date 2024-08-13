@@ -2,13 +2,13 @@ use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H256};
+use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     ethabi,
     event::DEPLOY_EVENT_SIGNATURE,
     tokens::{TokenInfo, TokenMetadata},
-    L2BlockNumber, VmEvent,
+    Address, L2BlockNumber, H256,
 };
 use zksync_utils::h256_to_account_address;
 
@@ -467,7 +467,7 @@ mod tests {
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
-        StorageLogKind, StorageLogWithPreviousValue, VmEvent,
+        StorageLogKind, StorageLogWithPreviousValue,
     };
     use zksync_utils::h256_to_u256;
 

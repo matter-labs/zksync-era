@@ -1,9 +1,12 @@
-use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
+use once_cell::sync::Lazy;
+use zksync_system_constants::{
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, PUBLISH_BYTECODE_OVERHEAD,
+};
 use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
+    ethabi,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm_trace::Call,
-    StorageLogWithPreviousValue, Transaction, VmEvent, H256,
+    Address, L1BatchNumber, StorageLogWithPreviousValue, Transaction, H256,
 };
 
 use crate::{
@@ -12,6 +15,69 @@ use crate::{
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct VmEvent {
+    pub location: (L1BatchNumber, u32),
+    pub address: Address,
+    pub indexed_topics: Vec<H256>,
+    pub value: Vec<u8>,
+}
+
+impl VmEvent {
+    /// Extracts all the "long" L2->L1 messages that were submitted by the L1Messenger contract.
+    pub fn extract_long_l2_to_l1_messages(events: &[Self]) -> Vec<Vec<u8>> {
+        static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+            ethabi::long_signature(
+                "L1MessageSent",
+                &[
+                    ethabi::ParamType::Address,
+                    ethabi::ParamType::FixedBytes(32),
+                    ethabi::ParamType::Bytes,
+                ],
+            )
+        });
+
+        events
+            .iter()
+            .filter(|event| {
+                // Filter events from the l1 messenger contract that match the expected signature.
+                event.address == L1_MESSENGER_ADDRESS
+                    && event.indexed_topics.len() == 3
+                    && event.indexed_topics[0] == *L1_MESSAGE_EVENT_SIGNATURE
+            })
+            .map(|event| {
+                let decoded_tokens = ethabi::decode(&[ethabi::ParamType::Bytes], &event.value)
+                    .expect("Failed to decode L1MessageSent message");
+                // The `Token` does not implement `Copy` trait, so I had to do it like that:
+                let bytes_token = decoded_tokens.into_iter().next().unwrap();
+                bytes_token.into_bytes().unwrap()
+            })
+            .collect()
+    }
+
+    /// Extracts bytecodes that were marked as known on the system contracts and should be published onchain.
+    pub fn extract_published_bytecodes(events: &[Self]) -> Vec<H256> {
+        static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+            ethabi::long_signature(
+                "MarkedAsKnown",
+                &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
+            )
+        });
+
+        events
+            .iter()
+            .filter(|event| {
+                // Filter events from the deployer contract that match the expected signature.
+                event.address == KNOWN_CODES_STORAGE_ADDRESS
+                    && event.indexed_topics.len() == 3
+                    && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
+                    && event.indexed_topics[2] != H256::zero()
+            })
+            .map(|event| event.indexed_topics[1])
+            .collect()
+    }
 }
 
 /// Refunds produced for the user.
@@ -76,12 +142,12 @@ impl VmExecutionResultAndLogs {
         // - message length in bytes, rounded up to a multiple of 32
         // - 32 bytes of encoded offset
         // - 32 bytes of encoded length
-        let l2_l1_long_messages = extract_long_l2_to_l1_messages(&self.logs.events)
+        let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&self.logs.events)
             .iter()
             .map(|event| (event.len() + 31) / 32 * 32 + 64)
             .sum();
 
-        let published_bytecode_bytes = extract_published_bytecodes(&self.logs.events)
+        let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&self.logs.events)
             .iter()
             .map(|bytecodehash| {
                 bytecode_len_in_bytes(*bytecodehash) + PUBLISH_BYTECODE_OVERHEAD as usize

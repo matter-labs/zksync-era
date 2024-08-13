@@ -3,9 +3,11 @@ use zksync_types::{
     ethabi::{self, Token},
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::L2ToL1Log,
-    Address, VmEvent, H256, U256,
+    Address, H256, U256,
 };
 use zksync_utils::{u256_to_bytes_be, u256_to_h256};
+
+use crate::interface::VmEvent;
 
 /// Corresponds to the following solidity event:
 /// ```solidity

@@ -7,7 +7,7 @@ use vm2::{
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE},
+    event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
@@ -33,7 +33,7 @@ use crate::{
     interface::{
         storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        Refunds, SystemEnv, TxRevertReason, VmExecutionLogs, VmExecutionMode,
+        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
         VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics, VmRevertReason,
     },
@@ -217,7 +217,7 @@ impl<S: ReadStorage> Vm<S> {
 
                     let pubdata_input = PubdataInput {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
-                        l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
+                        l2_to_l1_messages: VmEvent::extract_long_l2_to_l1_messages(&events),
                         published_bytecodes,
                         state_diffs: self
                             .compute_state_diffs()
