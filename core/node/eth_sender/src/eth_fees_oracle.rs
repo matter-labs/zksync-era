@@ -30,7 +30,7 @@ pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct GasAdjusterFeesOracle {
-    pub l1_gas_adjuster: Arc<dyn TxParamsProvider>,
+    pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
 }
 
@@ -39,9 +39,9 @@ impl GasAdjusterFeesOracle {
         &self,
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.l1_gas_adjuster.get_blob_tx_base_fee();
-        let priority_fee_per_gas = self.l1_gas_adjuster.get_blob_tx_priority_fee();
-        let blob_base_fee_per_gas = Some(self.l1_gas_adjuster.get_blob_tx_blob_base_fee());
+        let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
+        let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
+        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_tx_blob_base_fee());
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // for blob transactions on re-sending need to double all gas prices
@@ -71,7 +71,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
-        let mut base_fee_per_gas = self.l1_gas_adjuster.get_base_fee(time_in_mempool);
+        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
@@ -80,7 +80,7 @@ impl GasAdjusterFeesOracle {
             )?;
         }
 
-        let mut priority_fee_per_gas = self.l1_gas_adjuster.get_priority_fee();
+        let mut priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
@@ -119,7 +119,7 @@ impl GasAdjusterFeesOracle {
         previous_base_fee: u64,
         base_fee_to_use: u64,
     ) -> Result<(), EthSenderError> {
-        let next_block_minimal_base_fee = self.l1_gas_adjuster.get_next_block_minimal_base_fee();
+        let next_block_minimal_base_fee = self.gas_adjuster.get_next_block_minimal_base_fee();
         if base_fee_to_use < min(next_block_minimal_base_fee, previous_base_fee) {
             // If the base fee is lower than the previous used one
             // or is lower than the minimal possible value for the next block, sending is skipped.

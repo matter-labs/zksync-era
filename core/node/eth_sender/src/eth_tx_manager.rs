@@ -46,7 +46,7 @@ impl EthTxManager {
         let ethereum_gateway_blobs =
             ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
         let fees_oracle = GasAdjusterFeesOracle {
-            l1_gas_adjuster: gas_adjuster,
+            gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
         };
         Self {
