@@ -385,6 +385,10 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
-    Cmd::new(cmd!(shell, "yarn build:bootloader")).run()?;
-    Ok(Cmd::new(cmd!(shell, "forge build --zksync")).run()?)
+    Cmd::new(cmd!(
+        shell,
+        "forge build --zksync --zk-enable-eravm-extensions"
+    ))
+    .run()?;
+    Ok(Cmd::new(cmd!(shell, "yarn build:bootloader")).run()?)
 }
