@@ -236,7 +236,7 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 }
 
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
-    Lazy::new(SystemContractsRepo::from_env);
+    Lazy::new(SystemContractsRepo::new);
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
@@ -248,7 +248,7 @@ pub struct SystemContractsRepo {
 
 impl SystemContractsRepo {
     /// Returns the default system contracts repository with directory based on the Cargo workspace location.
-    pub fn from_env() -> Self {
+    pub fn new() -> Self {
         SystemContractsRepo {
             root: home_path().join("contracts/system-contracts"),
         }
@@ -262,16 +262,16 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => {
-                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
-                    "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
-                    directory, name
-                ))) {
-                    return contract;
+                if let Some(contracts) = read_bytecode_from_path(
+                    self.root
+                        .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
+                ) {
+                    return contracts;
                 } else {
-                    read_bytecode_from_path(
-                        self.root
-                            .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
-                    )
+                    read_bytecode_from_path(self.root.join(format!(
+                        "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
+                        directory, name
+                    )))
                     .expect("One of the outputs should exists")
                 }
             }
