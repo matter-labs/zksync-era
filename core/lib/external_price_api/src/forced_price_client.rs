@@ -11,17 +11,24 @@ use crate::PriceAPIClient;
 #[derive(Debug, Clone)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
-    forced_fluctuation: Option<u32>,
+    fluctuation: Option<u32>,
 }
 
 impl ForcedPriceClient {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
-        let numerator = config
-            .forced_numerator
+        let forced_price_client_config = config
+            .forced
+            .expect("forced price client started with no config");
+
+        let numerator = forced_price_client_config
+            .numerator
             .expect("forced price client started with no forced numerator");
-        let denominator = config
-            .forced_denominator
+        let denominator = forced_price_client_config
+            .denominator
             .expect("forced price client started with no forced denominator");
+        let fluctuation = forced_price_client_config
+            .fluctuation
+            .map(|x| x.clamp(0, 100));
 
         Self {
             ratio: BaseTokenAPIRatio {
@@ -29,7 +36,7 @@ impl ForcedPriceClient {
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             },
-            forced_fluctuation: config.forced_fluctuation.map(|x| x.clamp(0, 100)),
+            fluctuation,
         }
     }
 }
@@ -38,7 +45,7 @@ impl ForcedPriceClient {
 impl PriceAPIClient for ForcedPriceClient {
     // Returns a ratio which is 10% higher or lower than the configured forced ratio.
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
-        if let Some(x) = self.forced_fluctuation {
+        if let Some(x) = self.fluctuation {
             if x != 0 {
                 let mut rng = rand::thread_rng();
 

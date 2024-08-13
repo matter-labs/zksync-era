@@ -11,7 +11,9 @@ use zksync_basic_types::{
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{
+    self, eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
+};
 
 trait Sample {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
@@ -1031,9 +1033,11 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
             base_url: self.sample(rng),
             api_key: self.sample(rng),
             client_timeout_ms: self.sample(rng),
-            forced_numerator: self.sample(rng),
-            forced_denominator: self.sample(rng),
-            forced_fluctuation: self.sample(rng),
+            forced: Some(ForcedPriceClientConfig {
+                numerator: self.sample(rng),
+                denominator: self.sample(rng),
+                fluctuation: self.sample(rng),
+            }),
         }
     }
 }

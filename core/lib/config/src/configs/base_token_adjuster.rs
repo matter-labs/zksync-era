@@ -102,7 +102,6 @@ impl BaseTokenAdjusterConfig {
         DEFAULT_MAX_TX_GAS
     }
 
-    #[deprecated]
     pub fn private_key(&self) -> anyhow::Result<Option<K256PrivateKey>> {
         std::env::var("TOKEN_MULTIPLIER_SETTER_PRIVATE_KEY")
             .ok()

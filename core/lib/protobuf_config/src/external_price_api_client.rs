@@ -1,4 +1,4 @@
-use zksync_config::configs::{self};
+use zksync_config::configs::{self, external_price_api_client::ForcedPriceClientConfig};
 use zksync_protobuf::ProtoRepr;
 
 use crate::proto::external_price_api_client as proto;
@@ -13,9 +13,11 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
                 client_timeout_ms: self.client_timeout_ms.expect("client_timeout_ms"),
                 base_url: self.base_url.clone(),
                 api_key: self.api_key.clone(),
-                forced_numerator: self.forced_numerator,
-                forced_denominator: self.forced_denominator,
-                forced_fluctuation: self.forced_fluctuation,
+                forced: self.forced.clone().map(|forced| ForcedPriceClientConfig {
+                    numerator: forced.numerator,
+                    denominator: forced.denominator,
+                    fluctuation: forced.fluctuation,
+                }),
             },
         )
     }
@@ -26,9 +28,14 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
             base_url: this.base_url.clone(),
             api_key: this.api_key.clone(),
             client_timeout_ms: Some(this.client_timeout_ms),
-            forced_numerator: this.forced_numerator,
-            forced_denominator: this.forced_denominator,
-            forced_fluctuation: this.forced_fluctuation,
+            forced: this
+                .forced
+                .clone()
+                .map(|forced| proto::ForcedPriceClientConfig {
+                    numerator: forced.numerator,
+                    denominator: forced.denominator,
+                    fluctuation: forced.fluctuation,
+                }),
         }
     }
 }

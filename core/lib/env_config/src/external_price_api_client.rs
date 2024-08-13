@@ -1,17 +1,31 @@
-use zksync_config::configs::ExternalPriceApiClientConfig;
+use zksync_config::configs::{
+    external_price_api_client::ForcedPriceClientConfig, ExternalPriceApiClientConfig,
+};
 
 use crate::{envy_load, FromEnv};
 
 impl FromEnv for ExternalPriceApiClientConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("external_price_api_client", "EXTERNAL_PRICE_API_CLIENT_")
+        let mut config: ExternalPriceApiClientConfig =
+            envy_load("external_price_api_client", "EXTERNAL_PRICE_API_CLIENT_")?;
+        config.forced = ForcedPriceClientConfig::from_env().ok();
+        Ok(config)
+    }
+}
+
+impl FromEnv for ForcedPriceClientConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load(
+            "external_price_api_client_forced",
+            "EXTERNAL_PRICE_API_CLIENT_FORCED_",
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::external_price_api_client::{
-        ExternalPriceApiClientConfig, DEFAULT_TIMEOUT_MS,
+        ExternalPriceApiClientConfig, ForcedPriceClientConfig, DEFAULT_TIMEOUT_MS,
     };
 
     use super::*;
@@ -25,9 +39,11 @@ mod tests {
             base_url: Some("https://pro-api.coingecko.com".to_string()),
             api_key: Some("qwerty12345".to_string()),
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
-            forced_numerator: Some(100),
-            forced_denominator: Some(1),
-            forced_fluctuation: None,
+            forced: Some(ForcedPriceClientConfig {
+                numerator: Some(100),
+                denominator: Some(1),
+                fluctuation: Some(10),
+            }),
         }
     }
 
@@ -40,6 +56,7 @@ mod tests {
             EXTERNAL_PRICE_API_CLIENT_API_KEY=qwerty12345
             EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=100
             EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=1
+            EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=10
         "#;
         lock.set_env(config);
 
