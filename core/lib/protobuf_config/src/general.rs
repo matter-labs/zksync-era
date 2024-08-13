@@ -43,6 +43,7 @@ impl ProtoRepr for proto::GeneralConfig {
             external_proof_integration_api_config: read_optional_repr(
                 &self.external_proof_integration_api,
             ),
+            experimental_vm_config: read_optional_repr(&self.experimental_vm),
         })
     }
 
@@ -97,6 +98,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .external_proof_integration_api_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
         }
     }
 }

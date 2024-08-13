@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    CallFunctionArgs, ClientError, ContractCallError,
+    CallFunctionArgs, ClientError, ContractCallError, EthInterface,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
@@ -46,9 +46,9 @@ impl L1BatchCommitmentModeValidationTask {
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
         let expected_mode = self.expected_mode;
         let diamond_proxy_address = self.diamond_proxy_address;
-        let eth_client = self.eth_client.as_ref();
         loop {
-            let result = Self::get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await;
+            let result =
+                Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
             match result {
                 Ok(mode) => {
                     anyhow::ensure!(
@@ -91,7 +91,7 @@ impl L1BatchCommitmentModeValidationTask {
 
     async fn get_pubdata_pricing_mode(
         diamond_proxy_address: Address,
-        eth_client: &DynClient<L1>,
+        eth_client: &dyn EthInterface,
     ) -> Result<L1BatchCommitmentMode, ContractCallError> {
         CallFunctionArgs::new("getPubdataPricingMode", ())
             .for_contract(
@@ -124,7 +124,7 @@ impl L1BatchCommitmentModeValidationTask {
 mod tests {
     use std::{mem, sync::Mutex};
 
-    use zksync_eth_client::clients::MockEthereum;
+    use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
     use zksync_web3_decl::{client::MockClient, jsonrpsee::types::ErrorObject};
 
@@ -132,7 +132,7 @@ mod tests {
 
     fn mock_ethereum(token: ethabi::Token, err: Option<ClientError>) -> MockClient<L1> {
         let err_mutex = Mutex::new(err);
-        MockEthereum::builder()
+        MockSettlementLayer::builder()
             .with_fallible_call_handler(move |_, _| {
                 let err = mem::take(&mut *err_mutex.lock().unwrap());
                 if let Some(err) = err {

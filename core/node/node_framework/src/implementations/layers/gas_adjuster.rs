@@ -6,7 +6,8 @@ use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, gas_adjuster::GasAdjusterResource,
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -26,7 +27,8 @@ pub struct GasAdjusterLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    pub eth_interface_client: EthInterfaceResource,
+    pub l2_inteface_client: Option<L2InterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -62,7 +64,12 @@ impl WiringLayer for GasAdjusterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = input.eth_client.0;
+        let client = if self.gas_adjuster_config.settlement_mode.is_gateway() {
+            input.l2_inteface_client.unwrap().0.into()
+        } else {
+            input.eth_interface_client.0.into()
+        };
+
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
