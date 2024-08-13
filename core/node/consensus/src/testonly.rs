@@ -14,7 +14,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{validator};
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -113,10 +113,7 @@ pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config:
                 .validator_key
                 .as_ref()
                 .map(|k| config::ValidatorSecretKey(k.encode().into())),
-            attester_key: cfg
-                .attester_key
-                .as_ref()
-                .map(|k| config::AttesterSecretKey(k.encode().into())),
+            attester_key: None, // attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
         },
     )
 }

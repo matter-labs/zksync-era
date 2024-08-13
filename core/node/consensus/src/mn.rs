@@ -1,9 +1,10 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_executor::{self as executor, attestation::AttestationStatusRunner, Attester};
+use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use std::sync::Arc;
 
 use crate::{
     config,
@@ -24,8 +25,7 @@ pub async fn run_main_node(
         .context("missing validator_key")?;
 
     let attester = config::attester_key(&secrets)
-        .context("attester_key")?
-        .map(|key| Attester { key });
+        .context("attester_key")?;
 
     tracing::debug!(is_attester = attester.is_some(), "main node attester mode");
 
@@ -42,7 +42,7 @@ pub async fn run_main_node(
         }
 
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
-        let (store, runner) = Store::new(ctx, pool, None).await.wrap("Store::new()")?;
+        let (store, runner) = Store::new(ctx, pool.clone(), None).await.wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
 
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
@@ -51,7 +51,7 @@ pub async fn run_main_node(
         s.spawn_bg(runner.run(ctx));
 
         anyhow::ensure!(
-            block_store.genesis().leader_selection
+             block_store.genesis().leader_selection
                 == validator::LeaderSelectionMode::Sticky(validator_key.public()),
             "unsupported leader selection mode - main node has to be the leader"
         );
@@ -61,17 +61,8 @@ pub async fn run_main_node(
             .wrap("BatchStore::new()")?;
         s.spawn_bg(runner.run(ctx));
 
-        let (attestation_status, runner) = {
-            AttestationStatusRunner::init_from_store(
-                ctx,
-                batch_store.clone(),
-                time::Duration::seconds(1),
-                block_store.genesis().hash(),
-            )
-            .await
-            .wrap("AttestationStatusRunner::init_from_store()")?
-        };
-        s.spawn_bg(runner.run(ctx));
+        let attestation = Arc::new(attestation::Controller::new(attester)); 
+        s.spawn_bg(run_attestation_updater(ctx,&pool,attestation.clone()));
 
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets)?,
@@ -82,12 +73,21 @@ pub async fn run_main_node(
                 replica_store: Box::new(store.clone()),
                 payload_manager: Box::new(store.clone()),
             }),
-            attester,
-            attestation_status,
+            attestation,
         };
 
         tracing::info!("running the main node executor");
         executor.run(ctx).await
     })
     .await
+}
+
+async fn run_attestation_updater(
+    ctx :&ctx::Ctx,
+    pool: &ConnectionPool,
+    attestation: Arc<attestation::Controller>,
+) -> anyhow::Result<()> {
+    const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+    // TODO
+    Ok(())
 }
