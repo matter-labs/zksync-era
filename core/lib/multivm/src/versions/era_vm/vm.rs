@@ -252,12 +252,12 @@ impl<S: ReadStorage + 'static> Vm<S> {
                         data.to_string()
                     };
 
-                    println!("BOOTLOADER: {} {}", msg, data_str)
+                    //println!("BOOTLOADER: {} {}", msg, data_str)
                 }
                 Hook::TxHasEnded => {
                     // println!("TX HAS ENDED");
-                    if let VmExecutionMode::OneTx = execution_mode {
-                        return self.last_tx_result.take().unwrap();
+                    if let (VmExecutionMode::OneTx, Some(result)) = (execution_mode, self.last_tx_result.take()) {
+                        return result;
                     }
                 }
             }
