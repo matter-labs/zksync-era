@@ -3,14 +3,14 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::vm_latest::{
-    tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
+use crate::{
+    interface::storage::{StoragePtr, WriteStorage},
+    vm_latest::{tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode},
 };
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =

@@ -2,7 +2,8 @@ use zk_evm_1_4_0::{
     abstractions::Memory,
     tracing::{AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData},
 };
-use zksync_state::StoragePtr;
+
+use crate::interface::storage::StoragePtr;
 
 /// Version of `zk_evm_1_4_0::Tracer` suitable for dynamic dispatch.
 pub trait DynTracer<S, M: Memory> {

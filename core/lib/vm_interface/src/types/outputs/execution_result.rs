@@ -3,11 +3,14 @@ use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     tx::ExecutionMetrics,
-    StorageLogWithPreviousValue, Transaction, VmEvent,
+    StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
-use zksync_utils::bytecode::bytecode_len_in_bytes;
 
-use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
+use crate::{Halt, VmExecutionStatistics, VmRevertReason};
+
+pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
+    usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
+}
 
 /// Refunds produced for the user.
 #[derive(Debug, Clone, Default, PartialEq)]

@@ -5,8 +5,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
     tracers::{
-        validator::{self, ValidationTracer, ValidationTracerParams},
-        StorageInvocations,
+        StorageInvocations, ValidationError as RawValidationError, ValidationTracer,
+        ValidationTracerParams,
     },
     vm_latest::HistoryDisabled,
     MultiVMTracer,
@@ -25,7 +25,7 @@ use super::{
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ValidationError {
     #[error("VM validation error: {0}")]
-    Vm(validator::ValidationError),
+    Vm(RawValidationError),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -94,11 +94,9 @@ impl TransactionExecutor {
                     );
 
                     let result = match (result.result, validation_result.get()) {
-                        (_, Some(err)) => {
-                            Err(validator::ValidationError::ViolatedRule(err.clone()))
-                        }
+                        (_, Some(err)) => Err(RawValidationError::ViolatedRule(err.clone())),
                         (ExecutionResult::Halt { reason }, _) => {
-                            Err(validator::ValidationError::FailedTx(reason))
+                            Err(RawValidationError::FailedTx(reason))
                         }
                         (_, None) => Ok(()),
                     };

@@ -1,11 +1,11 @@
-use zksync_state::ReadStorage;
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
 use crate::{
     interface::{
-        CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+        storage::ReadStorage, CurrentExecutionState, ExecutionResult, Halt, TxRevertReason,
+        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+        VmRevertReason,
     },
     vm_fast::Vm,
 };

@@ -1,13 +1,12 @@
-use std::fmt::Display;
+use std::fmt;
 
 use super::{halt::Halt, BootloaderErrorCode, VmRevertReason};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TxRevertReason {
-    // Returned when the execution of an L2 transaction has failed
-    // Or EthCall has failed
+    /// Returned when the execution of an L2 transaction or a call has failed.
     TxReverted(VmRevertReason),
-    // Returned when some validation has failed or some internal errors
+    /// Returned when some validation has failed or some internal errors.
     Halt(Halt),
 }
 
@@ -135,8 +134,8 @@ impl TxRevertReason {
     }
 }
 
-impl Display for TxRevertReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for TxRevertReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             TxRevertReason::TxReverted(reason) => write!(f, "{}", reason),
             TxRevertReason::Halt(reason) => write!(f, "{}", reason),

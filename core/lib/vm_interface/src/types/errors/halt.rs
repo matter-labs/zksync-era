@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt;
 
 use super::VmRevertReason;
 
@@ -44,8 +44,8 @@ pub enum Halt {
     FailedToPublishCompressedBytecodes,
 }
 
-impl Display for Halt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Halt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Halt::ValidationFailed(reason) => {
                 write!(f, "Account validation error: {}", reason)

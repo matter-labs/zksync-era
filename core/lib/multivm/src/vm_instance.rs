@@ -1,10 +1,10 @@
-use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
 use zksync_types::vm::{FastVmMode, VmVersion};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
         VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
