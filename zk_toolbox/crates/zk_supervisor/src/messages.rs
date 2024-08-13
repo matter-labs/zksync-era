@@ -138,3 +138,6 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 
 /// Snapshot creator related messages
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
+
+/// External node related messages
+pub(super) const MSG_RUNNING_EXTERNAL_NODE: &str = "Running external node";

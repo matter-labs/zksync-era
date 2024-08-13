@@ -3,6 +3,8 @@ use std::thread;
 use common::{cmd::Cmd, config::global_config, logger};
 use xshell::{cmd, Shell};
 
+use crate::messages::MSG_RUNNING_EXTERNAL_NODE;
+
 use super::{
     args::{
         all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
@@ -12,7 +14,6 @@ use super::{
 };
 
 pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
-    logger::info("Run integration tests");
     integration::run(
         shell,
         IntegrationArgs {
@@ -21,7 +22,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run recovery tests (from snapshot)");
     recovery::run(
         shell,
         RecoveryArgs {
@@ -30,7 +30,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run recovery tests (from genesis)");
     recovery::run(
         shell,
         RecoveryArgs {
@@ -39,7 +38,7 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run external-node");
+    logger::info(MSG_RUNNING_EXTERNAL_NODE);
     let en_shell = shell.clone();
     let _handle = thread::spawn(move || {
         let chain = global_config().chain_name.clone();
@@ -54,7 +53,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         let _out = Cmd::new(cmd).run_with_output().unwrap();
     });
 
-    logger::info("Run integration tests (external node)");
     integration::run(
         shell,
         IntegrationArgs {
@@ -63,7 +61,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run revert tests (external node)");
     revert::run(
         shell,
         RevertArgs {
@@ -73,7 +70,6 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
         },
     )?;
 
-    logger::info("Run upgrade test");
     upgrade::run(
         shell,
         UpgradeArgs {
