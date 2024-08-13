@@ -24,10 +24,10 @@ const DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS: u32 = 3;
 const DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS: u32 = 3;
 
 /// Default number of milliseconds to sleep between receipt checking attempts
-const DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 5_000;
+const DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 30_000;
 
 /// Default number of milliseconds to sleep between transaction sending attempts
-const DEFAULT_L1_TX_SENDING_SLEEP_MS: u64 = 5_000;
+const DEFAULT_L1_TX_SENDING_SLEEP_MS: u64 = 30_000;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {

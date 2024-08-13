@@ -12,7 +12,7 @@ use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
     ethabi::{Contract, Token},
     web3::{contract::Tokenize, BlockNumber},
-    Address, U256,
+    Address, U256, U64,
 };
 
 #[derive(Debug, Clone)]
@@ -83,23 +83,38 @@ impl BaseTokenRatioPersister {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;
-        let mut result: anyhow::Result<()> = Ok(());
+
         let max_attempts = self.config.l1_tx_sending_max_attempts();
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
+        let start_block = self.get_latest_block_number().await?.as_u32();
+        let mut current_block = start_block;
+        let mut result: anyhow::Result<()> = Ok(());
+
         for attempt in 0..max_attempts {
-            result = self.send_ratio_to_l1(new_ratio).await;
+            let time_in_mempool = (current_block - start_block).max(0);
+            result = self.send_ratio_to_l1(new_ratio, time_in_mempool).await;
             if let Some(err) = result.as_ref().err() {
                 tracing::info!(
-                    "Failed to update base token multiplier on L1, attempt {}: {}",
+                    "Failed to update base token multiplier on L1, attempt {}, time_in_mempool {}: {}",
                     attempt + 1,
+                    time_in_mempool,
                     err
                 );
                 tokio::time::sleep(sleep_duration).await;
+                current_block = self.get_latest_block_number().await?.as_u32();
             } else {
                 return result;
             }
         }
         result
+    }
+
+    async fn get_latest_block_number(&self) -> Result<U64, anyhow::Error> {
+        (*self.eth_client)
+            .as_ref()
+            .block_number()
+            .await
+            .with_context(|| "failed getting the latest block number")
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
@@ -154,7 +169,11 @@ impl BaseTokenRatioPersister {
         Ok(id)
     }
 
-    async fn send_ratio_to_l1(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
+    async fn send_ratio_to_l1(
+        &self,
+        api_ratio: BaseTokenAPIRatio,
+        time_in_mempool: u32,
+    ) -> anyhow::Result<()> {
         let fn_set_token_multiplier = self
             .chain_admin_contract
             .function("setTokenMultiplier")
@@ -189,7 +208,7 @@ impl BaseTokenRatioPersister {
             .as_u64()
             * 2;
 
-        let base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(0);
+        let base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(time_in_mempool);
         let priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
 
         let options = Options {
