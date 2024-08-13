@@ -5,6 +5,7 @@ pub use zksync_contracts::test_contracts::LoadnextContractExecutionParams as Loa
 use zksync_contracts::{deployer_contract, BaseSystemContracts, TestContract};
 use zksync_multivm::{
     interface::{
+        storage::{InMemoryStorage, StorageView},
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
@@ -12,7 +13,6 @@ use zksync_multivm::{
     vm_fast, vm_latest,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
 };
-use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::{encode, Token},

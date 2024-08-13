@@ -1,10 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use zksync_multivm::{
-    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
+    interface::{storage::WriteStorage, tracer::TracerExecutionStatus},
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
-use zksync_state::WriteStorage;
 
 pub struct InstructionCounter {
     count: usize,

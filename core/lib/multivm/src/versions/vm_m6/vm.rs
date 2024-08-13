@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery;
-use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
@@ -17,12 +16,12 @@ use zksync_utils::{
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    tracers::old_tracers::TracerDispatcher,
+    tracers::old::TracerDispatcher,
     vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
 };
 

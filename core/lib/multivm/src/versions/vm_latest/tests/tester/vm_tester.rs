@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher,
     fee_model::BatchFeeInput,
@@ -14,6 +13,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
+        storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
         VmInterface,
     },

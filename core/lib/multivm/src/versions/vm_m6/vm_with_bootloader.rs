@@ -25,7 +25,7 @@ use zksync_utils::{
 };
 
 use crate::{
-    vm_latest::L1BatchEnv,
+    interface::L1BatchEnv,
     vm_m6::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,

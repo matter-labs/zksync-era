@@ -1,67 +1,9 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-    fmt::Display,
-};
+use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_utils::u256_to_h256;
 
 use crate::{zk_evm_types::FarCallOpcode, Address, U256};
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum VmTrace {
-    ExecutionTrace(VmExecutionTrace),
-    CallTrace(Vec<Call>),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-pub struct VmExecutionTrace {
-    pub steps: Vec<VmExecutionStep>,
-    pub contracts: HashSet<Address>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct VmExecutionStep {
-    pub contract_address: Address,
-    pub memory_page_index: usize,
-    pub child_memory_index: usize,
-    pub pc: u16,
-    pub set_flags: Vec<String>,
-    pub registers: Vec<U256>,
-    pub register_interactions: HashMap<u8, MemoryDirection>,
-    pub sp: Option<u16>,
-    pub memory_interactions: Vec<MemoryInteraction>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MemoryInteraction {
-    pub memory_type: String,
-    pub page: usize,
-    pub address: u16,
-    pub value: U256,
-    pub direction: MemoryDirection,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
-pub enum MemoryDirection {
-    Read,
-    Write,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContractSourceDebugInfo {
-    pub assembly_code: String,
-    pub pc_line_mapping: HashMap<usize, usize>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VmDebugTrace {
-    pub steps: Vec<VmExecutionStep>,
-    pub sources: HashMap<Address, Option<ContractSourceDebugInfo>>,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub enum CallType {
@@ -380,40 +322,6 @@ impl fmt::Debug for LegacyCall {
             .field("revert_reason", &format_args!("{:?}", self.revert_reason))
             .field("call_traces", &self.calls)
             .finish()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ViolatedValidationRule {
-    TouchedUnallowedStorageSlots(Address, U256),
-    CalledContractWithNoCode(Address),
-    TouchedUnallowedContext,
-    TookTooManyComputationalGas(u32),
-}
-
-impl Display for ViolatedValidationRule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
-                f,
-                "Touched unallowed storage slots: address {}, key: {}",
-                hex::encode(contract),
-                hex::encode(u256_to_h256(*key))
-            ),
-            ViolatedValidationRule::CalledContractWithNoCode(contract) => {
-                write!(f, "Called contract with no code: {}", hex::encode(contract))
-            }
-            ViolatedValidationRule::TouchedUnallowedContext => {
-                write!(f, "Touched unallowed context")
-            }
-            ViolatedValidationRule::TookTooManyComputationalGas(gas_limit) => {
-                write!(
-                    f,
-                    "Took too many computational gas, allowed limit: {}",
-                    gas_limit
-                )
-            }
-        }
     }
 }
 
