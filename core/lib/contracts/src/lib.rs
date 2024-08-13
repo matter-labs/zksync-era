@@ -275,10 +275,18 @@ impl SystemContractsRepo {
                     .expect("One of the outputs should exists")
                 }
             }
-            ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                directory, name
-            ))),
+            ContractLanguage::Yul => {
+                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
+                    "zkout/{name}.yul/contracts/{directory}/{name}.yul.json",
+                ))) {
+                    return contract;
+                } else {
+                    read_zbin_bytecode_from_path(self.root.join(format!(
+                        "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
+                        directory, name
+                    )))
+                }
+            }
         }
     }
 }
