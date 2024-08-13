@@ -60,7 +60,7 @@ impl From<ProverJobStatus> for Status {
     fn from(status: ProverJobStatus) -> Self {
         match status {
             ProverJobStatus::Queued => Status::Queued,
-            ProverJobStatus::InProgress(_) => Status::InProgress, 
+            ProverJobStatus::InProgress(_) => Status::InProgress,
             ProverJobStatus::Successful(_) => Status::Successful,
             ProverJobStatus::Failed(_) => Status::Custom("Failed".to_owned()),
             ProverJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
