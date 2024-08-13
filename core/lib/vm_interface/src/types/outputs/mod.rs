@@ -1,5 +1,5 @@
 pub use self::{
-    bytecode::{compress_bytecode, CompressedBytecodeInfo, FailedToCompressBytecodeError},
+    bytecode::CompressedBytecodeInfo,
     execution_result::{
         ExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus, VmExecutionLogs,
         VmExecutionResultAndLogs,

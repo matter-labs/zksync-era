@@ -3,7 +3,10 @@ use zksync_types::H256;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use super::Vm;
-use crate::interface::{compress_bytecode, storage::ReadStorage, CompressedBytecodeInfo};
+use crate::{
+    interface::{storage::ReadStorage, CompressedBytecodeInfo},
+    utils::bytecode,
+};
 
 impl<S: ReadStorage> Vm<S> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
@@ -35,15 +38,6 @@ pub(crate) fn compress_bytecodes(
         .dedup_by(|x, y| x.1 == y.1)
         .filter(|(_idx, dep)| !is_bytecode_known(hash_bytecode(dep)))
         .sorted_by_key(|(idx, _dep)| *idx)
-        .filter_map(|(_idx, dep)| {
-            let compressed_bytecode = compress_bytecode(dep);
-
-            compressed_bytecode
-                .ok()
-                .map(|compressed| CompressedBytecodeInfo {
-                    original: dep.clone(),
-                    compressed,
-                })
-        })
+        .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
         .collect()
 }

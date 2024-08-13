@@ -22,7 +22,8 @@ use zksync_utils::{
 };
 
 use crate::{
-    interface::{compress_bytecode, CompressedBytecodeInfo, L1BatchEnv},
+    interface::{CompressedBytecodeInfo, L1BatchEnv},
+    utils::bytecode,
     vm_m6::{
         bootloader_state::BootloaderState,
         history_recorder::HistoryMode,
@@ -479,7 +480,7 @@ fn get_bootloader_memory_v1(
 
         let mut total_compressed_len = 0;
         for i in compressed_bytecodes.iter() {
-            total_compressed_len += i.encode_call().len()
+            total_compressed_len += bytecode::encode_call(i).len()
         }
 
         let memory_for_current_tx = get_bootloader_memory_for_tx(
@@ -524,7 +525,7 @@ fn get_bootloader_memory_v2(
 
         let mut total_compressed_len_words = 0;
         for i in compressed_bytecodes.iter() {
-            total_compressed_len_words += i.encode_call().len() / 32;
+            total_compressed_len_words += bytecode::encode_call(i).len() / 32;
         }
 
         let memory_for_current_tx = get_bootloader_memory_for_tx(
@@ -621,13 +622,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
                 if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
-
-                compress_bytecode(bytecode)
-                    .ok()
-                    .map(|compressed| CompressedBytecodeInfo {
-                        original: bytecode.clone(),
-                        compressed,
-                    })
+                bytecode::compress(bytecode.clone()).ok()
             })
             .collect()
     });
@@ -698,20 +693,14 @@ fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
                 if vm.is_bytecode_exists(&hash_bytecode(bytecode)) {
                     return None;
                 }
-
-                compress_bytecode(bytecode)
-                    .ok()
-                    .map(|compressed| CompressedBytecodeInfo {
-                        original: bytecode.clone(),
-                        compressed,
-                    })
+                bytecode::compress(bytecode.clone()).ok()
             })
             .collect()
     });
     let compressed_bytecodes_encoding_len_words = compressed_bytecodes
         .iter()
         .map(|bytecode| {
-            let encoding_length_bytes = bytecode.encode_call().len();
+            let encoding_length_bytes = bytecode::encode_call(bytecode).len();
             assert!(
                 encoding_length_bytes % 32 == 0,
                 "ABI encoding of bytecode is not 32-byte aligned"
@@ -827,7 +816,7 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
 
     let memory_addition: Vec<_> = compressed_bytecodes
         .into_iter()
-        .flat_map(|x| x.encode_call())
+        .flat_map(|x| bytecode::encode_call(&x))
         .collect();
 
     let memory_addition = bytes_to_be_words(memory_addition);

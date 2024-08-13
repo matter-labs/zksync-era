@@ -6,6 +6,8 @@ use zksync_types::{
 
 use crate::interface::L1BatchEnv;
 
+pub(crate) mod bytecode;
+
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
     batch_fee_input: BatchFeeInput,

@@ -4,10 +4,10 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 use crate::{
     interface::{
-        compress_bytecode,
         storage::{StoragePtr, WriteStorage},
         CompressedBytecodeInfo, VmInterface,
     },
+    utils::bytecode,
     vm_1_4_1::Vm,
     HistoryMode,
 };
@@ -48,15 +48,6 @@ pub(crate) fn compress_bytecodes<S: WriteStorage>(
         .dedup_by(|x, y| x.1 == y.1)
         .filter(|(_idx, dep)| !storage.borrow_mut().is_bytecode_known(&hash_bytecode(dep)))
         .sorted_by_key(|(idx, _dep)| *idx)
-        .filter_map(|(_idx, dep)| {
-            let compressed_bytecode = compress_bytecode(dep);
-
-            compressed_bytecode
-                .ok()
-                .map(|compressed| CompressedBytecodeInfo {
-                    original: dep.clone(),
-                    compressed,
-                })
-        })
+        .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
         .collect()
 }

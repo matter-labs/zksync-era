@@ -17,6 +17,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
+    utils::bytecode,
     vm_1_3_2::{events::merge_events, VmInstance},
 };
 
@@ -170,7 +171,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                     None
                 } else {
                     bytecode_hashes.push(bytecode_hash);
-                    CompressedBytecodeInfo::from_original(bytecode.clone()).ok()
+                    bytecode::compress(bytecode.clone()).ok()
                 }
             });
             let compressed_bytecodes: Vec<_> = filtered_deps.collect();

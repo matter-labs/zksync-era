@@ -4,6 +4,7 @@ use zksync_utils::{bytes_to_be_words, h256_to_u256};
 use super::{l2_block::BootloaderL2Block, tx::BootloaderTx};
 use crate::{
     interface::{BootloaderMemory, CompressedBytecodeInfo, TxExecutionMode},
+    utils::bytecode,
     versions::vm_fast::pubdata::PubdataInput,
     vm_latest::constants::{
         BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE,
@@ -19,7 +20,7 @@ pub(super) fn get_memory_for_compressed_bytecodes(
 ) -> Vec<U256> {
     let memory_addition: Vec<_> = compressed_bytecodes
         .iter()
-        .flat_map(|x| x.encode_call())
+        .flat_map(bytecode::encode_call)
         .collect();
 
     bytes_to_be_words(memory_addition)
