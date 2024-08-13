@@ -8,7 +8,7 @@ pub use self::{
     finished_l1batch::FinishedL1Batch,
     l2_block::L2Block,
     statistic::{
-        DeduplicatedWritesMetrics, ExecutionMetrics, VmExecutionStatistics, VmMemoryMetrics,
+        DeduplicatedWritesMetrics, VmExecutionMetrics, VmExecutionStatistics, VmMemoryMetrics,
     },
 };
 

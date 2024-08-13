@@ -5,7 +5,7 @@ use std::{
 
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_multivm::interface::{ExecutionMetrics, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{VmExecutionMetrics, VmExecutionResultAndLogs};
 use zksync_types::{block::BlockGasCount, Address, Nonce, PriorityOpId, Transaction};
 
 use super::{
@@ -81,7 +81,7 @@ impl MempoolGuard {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExecutionMetricsForCriteria {
     pub l1_gas: BlockGasCount,
-    pub execution_metrics: ExecutionMetrics,
+    pub execution_metrics: VmExecutionMetrics,
 }
 
 impl ExecutionMetricsForCriteria {

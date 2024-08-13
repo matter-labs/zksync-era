@@ -15,7 +15,7 @@ use zksync_types::{
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
     L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
 };
-use zksync_vm_interface::{ExecutionMetrics, TransactionExecutionResult, TxExecutionStatus};
+use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics};
 
 use crate::{
     blocks_dal::BlocksDal,
@@ -151,7 +151,7 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

@@ -14,7 +14,7 @@ use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
-    interface::{DeduplicatedWritesMetrics, ExecutionMetrics, Halt},
+    interface::{DeduplicatedWritesMetrics, Halt, VmExecutionMetrics},
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
@@ -159,7 +159,7 @@ impl SealResolution {
 /// to the entire L2 block / L1 batch.
 #[derive(Debug, Default)]
 pub struct SealData {
-    pub(super) execution_metrics: ExecutionMetrics,
+    pub(super) execution_metrics: VmExecutionMetrics,
     pub(super) gas_count: BlockGasCount,
     pub(super) cumulative_size: usize,
     pub(super) writes_metrics: DeduplicatedWritesMetrics,
@@ -174,7 +174,7 @@ impl SealData {
         tx_metrics: &TransactionExecutionMetrics,
         protocol_version: ProtocolVersionId,
     ) -> Self {
-        let execution_metrics = ExecutionMetrics::from_tx_metrics(tx_metrics);
+        let execution_metrics = VmExecutionMetrics::from_tx_metrics(tx_metrics);
         let writes_metrics = DeduplicatedWritesMetrics::from_tx_metrics(tx_metrics);
         let gas_count = gas_count_from_tx_and_metrics(transaction, &execution_metrics)
             + gas_count_from_writes(&writes_metrics, protocol_version);
@@ -289,7 +289,7 @@ mod tests {
             create_execution_result([]),
             vec![],
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
     }

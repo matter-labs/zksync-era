@@ -17,7 +17,9 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
-use zksync_multivm::interface::{ExecutionMetrics, TransactionExecutionResult, TxExecutionStatus};
+use zksync_multivm::interface::{
+    TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -270,7 +272,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

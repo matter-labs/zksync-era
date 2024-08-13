@@ -1,4 +1,4 @@
-use zksync_multivm::interface::{DeduplicatedWritesMetrics, ExecutionMetrics};
+use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmExecutionMetrics};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::BlockGasCount, ExecuteTransactionCommon,
     ProtocolVersionId, Transaction,
@@ -36,7 +36,7 @@ fn base_tx_cost(tx: &Transaction, op: AggregatedActionType) -> u32 {
     }
 }
 
-fn additional_pubdata_commit_cost(execution_metrics: &ExecutionMetrics) -> u32 {
+fn additional_pubdata_commit_cost(execution_metrics: &VmExecutionMetrics) -> u32 {
     (execution_metrics.size() as u32) * GAS_PER_BYTE
 }
 
@@ -57,7 +57,7 @@ pub(super) fn new_block_gas_count() -> BlockGasCount {
 
 pub(super) fn gas_count_from_tx_and_metrics(
     tx: &Transaction,
-    execution_metrics: &ExecutionMetrics,
+    execution_metrics: &VmExecutionMetrics,
 ) -> BlockGasCount {
     let commit = base_tx_cost(tx, AggregatedActionType::Commit)
         + additional_pubdata_commit_cost(execution_metrics);
@@ -68,7 +68,7 @@ pub(super) fn gas_count_from_tx_and_metrics(
     }
 }
 
-pub(super) fn gas_count_from_metrics(execution_metrics: &ExecutionMetrics) -> BlockGasCount {
+pub(super) fn gas_count_from_metrics(execution_metrics: &VmExecutionMetrics) -> BlockGasCount {
     BlockGasCount {
         commit: additional_pubdata_commit_cost(execution_metrics),
         prove: 0,

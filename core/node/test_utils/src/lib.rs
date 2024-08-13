@@ -6,7 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::{
-    interface::{ExecutionMetrics, TransactionExecutionResult, TxExecutionStatus},
+    interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics},
     utils::get_max_gas_per_pubdata_byte,
 };
 use zksync_node_genesis::GenesisParams;
@@ -159,7 +159,7 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

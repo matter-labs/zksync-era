@@ -1,5 +1,6 @@
 use std::ops;
 
+use serde::Serialize;
 use zksync_types::{
     circuit::CircuitStatistic,
     commitment::SerializeCommitment,
@@ -88,9 +89,8 @@ impl DeduplicatedWritesMetrics {
     }
 }
 
-// FIXME: use less vague name
-#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
-pub struct ExecutionMetrics {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+pub struct VmExecutionMetrics {
     pub gas_used: usize,
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
@@ -106,7 +106,7 @@ pub struct ExecutionMetrics {
     pub circuit_statistic: CircuitStatistic,
 }
 
-impl ExecutionMetrics {
+impl VmExecutionMetrics {
     pub fn from_tx_metrics(tx_metrics: &TransactionExecutionMetrics) -> Self {
         Self {
             published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
@@ -137,11 +137,11 @@ impl ExecutionMetrics {
     }
 }
 
-impl ops::Add for ExecutionMetrics {
-    type Output = ExecutionMetrics;
+impl ops::Add for VmExecutionMetrics {
+    type Output = Self;
 
-    fn add(self, other: ExecutionMetrics) -> ExecutionMetrics {
-        ExecutionMetrics {
+    fn add(self, other: Self) -> Self {
+        Self {
             published_bytecode_bytes: self.published_bytecode_bytes
                 + other.published_bytecode_bytes,
             contracts_deployed: self.contracts_deployed + other.contracts_deployed,
@@ -160,7 +160,7 @@ impl ops::Add for ExecutionMetrics {
     }
 }
 
-impl ops::AddAssign for ExecutionMetrics {
+impl ops::AddAssign for VmExecutionMetrics {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
     }

@@ -352,7 +352,7 @@ mod tests {
     use assert_matches::assert_matches;
     use futures::FutureExt;
     use zksync_dal::CoreDal;
-    use zksync_multivm::interface::ExecutionMetrics;
+    use zksync_multivm::interface::VmExecutionMetrics;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
         api::TransactionStatus, block::BlockGasCount, writes::StateDiffRecord, L1BatchNumber,
@@ -464,7 +464,7 @@ mod tests {
             tx_result,
             vec![],
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();

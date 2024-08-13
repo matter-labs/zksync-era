@@ -4,7 +4,7 @@ use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::ExecutionMetrics, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{interface::VmExecutionMetrics, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
@@ -245,7 +245,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -263,7 +263,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -352,7 +352,7 @@ async fn processing_events_when_sealing_l2_block() {
             tx,
             execution_result,
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
             vec![],
         );
@@ -456,7 +456,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         create_execution_result([]),
         vec![],
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
     );
 

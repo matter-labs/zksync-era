@@ -7,7 +7,7 @@ use zksync_types::{
 };
 
 use crate::{
-    CompressedBytecodeInfo, ExecutionMetrics, Halt, VmExecutionStatistics, VmRevertReason,
+    CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
 };
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
@@ -67,7 +67,7 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
-    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> ExecutionMetrics {
+    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)
             .unwrap_or(0);
@@ -88,7 +88,7 @@ impl VmExecutionResultAndLogs {
             })
             .sum();
 
-        ExecutionMetrics {
+        VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
             published_bytecode_bytes,
             l2_l1_long_messages,
@@ -126,7 +126,7 @@ impl TxExecutionStatus {
 pub struct TransactionExecutionResult {
     pub transaction: Transaction,
     pub hash: H256,
-    pub execution_info: ExecutionMetrics,
+    pub execution_info: VmExecutionMetrics,
     pub execution_status: TxExecutionStatus,
     pub refunded_gas: u64,
     pub operator_suggested_refund: u64,
