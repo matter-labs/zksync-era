@@ -1,6 +1,6 @@
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_state::WriteStorage;
+use crate::interface::storage::WriteStorage;
 use zksync_types::{get_nonce_key, Execute, U256};
 
 use crate::{

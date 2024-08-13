@@ -1,11 +1,15 @@
-pub mod call_tracer;
-mod multivm_dispatcher;
-pub mod old_tracers;
-pub mod prestate_tracer;
-pub mod storage_invocation;
-pub mod validator;
+pub use self::{
+    call_tracer::CallTracer,
+    multivm_dispatcher::TracerDispatcher,
+    prestate_tracer::PrestateTracer,
+    storage_invocation::StorageInvocations,
+    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+};
 
-pub use call_tracer::CallTracer;
-pub use multivm_dispatcher::TracerDispatcher;
-pub use prestate_tracer::PrestateTracer;
-pub use storage_invocation::StorageInvocations;
+mod call_tracer;
+pub mod dynamic;
+mod multivm_dispatcher;
+pub mod old;
+mod prestate_tracer;
+mod storage_invocation;
+mod validator;

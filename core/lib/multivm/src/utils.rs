@@ -1,9 +1,10 @@
 use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
-    VmVersion, U256,
+    vm::VmVersion,
+    U256,
 };
 
-use crate::vm_latest::L1BatchEnv;
+use crate::interface::L1BatchEnv;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(

@@ -1,11 +1,12 @@
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_test_account::Account;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     storage_writes_deduplicator::StorageWritesDeduplicator,
-    Execute, ExecuteTransactionCommon, U256,
+    Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -154,7 +155,9 @@ fn test_l1_tx_execution_high_gas_limit() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(vec![Account::new(
+            K256PrivateKey::from_bytes([0xad; 32].into()).unwrap(),
+        )])
         .build();
 
     let account = &mut vm.rich_accounts[0];

@@ -104,7 +104,8 @@ pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub diamond_proxy_addr: Address,
+    /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
+    diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -1310,6 +1311,19 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
+        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
+        if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
+            anyhow::ensure!(
+                local_diamond_proxy_addr == remote_diamond_proxy_addr,
+                "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
+                by main node ({remote_diamond_proxy_addr:?})"
+            );
+        } else {
+            tracing::info!(
+                "Diamond proxy address is not specified in config; will use address \
+                returned by main node: {remote_diamond_proxy_addr:?}"
+            );
+        }
         Ok(ExternalNodeConfig {
             required: self.required,
             postgres: self.postgres,
@@ -1340,6 +1354,16 @@ impl ExternalNodeConfig {
             },
             tree_component: TreeComponentConfig { api_port: None },
         }
+    }
+
+    /// Returns a verified diamond proxy address.
+    /// If local configuration contains the address, it will be checked against the one returned by the main node.
+    /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
+    /// node so relying on it solely is not recommended.
+    pub fn diamond_proxy_address(&self) -> Address {
+        self.optional
+            .contracts_diamond_proxy_addr
+            .unwrap_or(self.remote.diamond_proxy_addr)
     }
 }
 

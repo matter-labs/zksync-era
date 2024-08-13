@@ -1,8 +1,6 @@
-use zksync_state::WriteStorage;
-
 use crate::{
-    interface::dyn_tracers::vm_1_3_3::DynTracer,
-    tracers::storage_invocation::StorageInvocations,
+    interface::storage::WriteStorage,
+    tracers::{dynamic::vm_1_3_3::DynTracer, StorageInvocations},
     vm_virtual_blocks::{
         BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory,
         VmTracer, ZkSyncVmState,

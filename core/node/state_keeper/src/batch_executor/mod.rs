@@ -6,9 +6,10 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+    storage::StorageViewCache, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
-use zksync_state::{OwnedStorage, StorageViewCache};
+use zksync_state::OwnedStorage;
 use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
