@@ -11,9 +11,10 @@ use zksync_types::{
 };
 
 use super::{
-    apply::OneshotExecutor, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs,
-    TxSharedArgs, VmPermit,
+    apply, storage::StorageWithOverrides, testonly::MockTransactionExecutor, vm_metrics, ApiTracer,
+    BlockArgs, OneshotExecutor, TxSharedArgs, VmPermit,
 };
+use crate::execution_sandbox::apply::MainOneshotExecutor;
 
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
@@ -22,23 +23,35 @@ pub(crate) struct TxExecutionArgs {
     pub added_balance: U256,
     pub enforced_base_fee: Option<u64>,
     pub missed_storage_invocation_limit: usize,
+    /// If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    /// current L1 prices for gas or pubdata.
+    pub adjust_pubdata_price: bool,
+    pub transaction: Transaction,
 }
 
 impl TxExecutionArgs {
-    pub fn for_validation(tx: &L2Tx) -> Self {
+    pub fn for_validation(tx: L2Tx) -> Self {
         Self {
             execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
             enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
             missed_storage_invocation_limit: usize::MAX,
+            adjust_pubdata_price: true,
+            transaction: tx.into(),
         }
     }
 
     fn for_eth_call(
         enforced_base_fee: Option<u64>,
         vm_execution_cache_misses_limit: Option<usize>,
+        mut call: L2Tx,
     ) -> Self {
+        if call.common_data.signature.is_empty() {
+            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
+
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
         Self {
             execution_mode: TxExecutionMode::EthCall,
@@ -46,18 +59,20 @@ impl TxExecutionArgs {
             added_balance: U256::zero(),
             enforced_base_fee,
             missed_storage_invocation_limit,
+            adjust_pubdata_price: false,
+            transaction: call.into(),
         }
     }
 
     pub fn for_gas_estimate(
         vm_execution_cache_misses_limit: Option<usize>,
-        tx: &Transaction,
+        transaction: Transaction,
         base_fee: u64,
     ) -> Self {
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
         // For L2 transactions we need to explicitly put enough balance into the account of the users
         // while for L1->L2 transactions the `to_mint` field plays this role
-        let added_balance = match &tx.common_data {
+        let added_balance = match &transaction.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
             ExecuteTransactionCommon::L1(_) => U256::zero(),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
@@ -66,9 +81,11 @@ impl TxExecutionArgs {
         Self {
             execution_mode: TxExecutionMode::EstimateFee,
             missed_storage_invocation_limit,
-            enforced_nonce: tx.nonce(),
+            enforced_nonce: transaction.nonce(),
             added_balance,
             enforced_base_fee: Some(base_fee),
+            adjust_pubdata_price: true,
+            transaction,
         }
     }
 }
@@ -100,40 +117,27 @@ impl TransactionExecutor {
         &self,
         vm_permit: VmPermit,
         shared_args: TxSharedArgs,
-        // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-        // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-        // current L1 prices for gas or pubdata.
-        adjust_pubdata_price: bool,
         execution_args: TxExecutionArgs,
         connection: Connection<'static, Core>,
-        tx: Transaction,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
         tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx, &block_args);
+            return mock_executor.execute_tx(&execution_args.transaction, &block_args);
         }
 
-        let total_factory_deps = tx.execute.factory_deps.len() as u16;
+        let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
+        let (env, storage) =
+            apply::prepare_env_and_storage(connection, shared_args, &execution_args, &block_args)
+                .await?;
+        let state_override = state_override.unwrap_or_default();
+        let storage = StorageWithOverrides::new(storage, &state_override);
 
-        let mut sandbox = OneshotExecutor::new(
-            vm_permit,
-            connection,
-            shared_args,
-            execution_args,
-            block_args,
-        )
-        .await?;
-
-        sandbox.adjust_pubdata_price(adjust_pubdata_price);
-        if let Some(state_override) = state_override {
-            sandbox.set_state_override(state_override);
-        }
-
-        let (published_bytecodes, execution_result) = sandbox
-            .inspect_transaction_with_bytecode_compression(tx, tracers)
+        let (published_bytecodes, execution_result) = MainOneshotExecutor
+            .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracers)
             .await?;
+        drop(vm_permit);
 
         let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
@@ -151,7 +155,7 @@ impl TransactionExecutor {
         shared_args: TxSharedArgs,
         connection: Connection<'static, Core>,
         call_overrides: CallOverrides,
-        mut tx: L2Tx,
+        tx: L2Tx,
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
@@ -160,20 +164,15 @@ impl TransactionExecutor {
         let execution_args = TxExecutionArgs::for_eth_call(
             call_overrides.enforced_base_fee,
             vm_execution_cache_misses_limit,
+            tx,
         );
-
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
-        }
 
         let output = self
             .execute_tx_in_sandbox(
                 vm_permit,
                 shared_args,
-                false,
                 execution_args,
                 connection,
-                tx.into(),
                 block_args,
                 state_override,
                 custom_tracers,

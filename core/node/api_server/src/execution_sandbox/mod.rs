@@ -4,8 +4,12 @@ use std::{
 };
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
+use zksync_multivm::interface::{
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, VmExecutionResultAndLogs,
+};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
@@ -404,4 +408,28 @@ impl BlockArgs {
             )
         )
     }
+}
+
+#[async_trait]
+trait OneshotExecutor<S: ReadStorage> {
+    type Tracers: Default;
+
+    async fn inspect_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<VmExecutionResultAndLogs>;
+
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )>;
 }

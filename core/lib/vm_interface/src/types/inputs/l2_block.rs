@@ -19,3 +19,11 @@ impl L2BlockEnv {
         }
     }
 }
+
+/// Pending block information used in oneshot transaction / call execution.
+#[derive(Debug, Clone, Copy)]
+pub struct PendingL2BlockEnv {
+    pub number: u32,
+    pub timestamp: u64,
+    pub txs_rolling_hash: H256,
+}

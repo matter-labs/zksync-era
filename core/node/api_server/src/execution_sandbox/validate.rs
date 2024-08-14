@@ -7,14 +7,18 @@ use zksync_multivm::{
     interface::ExecutionResult,
     tracers::{ValidationError as RawValidationError, ValidationTracerParams},
 };
-use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_types::{
+    api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
+    TRUSTED_TOKEN_SLOTS,
+};
 
 use super::{
-    apply::OneshotExecutor,
+    apply,
     execute::TransactionExecutor,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
+use crate::execution_sandbox::{apply::MainOneshotExecutor, storage::StorageWithOverrides};
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
 /// variant (e.g., for DB-related errors).
@@ -51,25 +55,20 @@ impl TransactionExecutor {
         .await
         .context("failed getting validation params")?;
 
-        let execution_args = TxExecutionArgs::for_validation(&tx);
-        let tx: Transaction = tx.into();
+        let execution_args = TxExecutionArgs::for_validation(tx);
 
-        let mut sandbox = OneshotExecutor::new(
-            vm_permit,
-            connection,
-            shared_args,
-            execution_args,
-            block_args,
-        )
-        .await?;
-        sandbox.adjust_pubdata_price(true);
+        let (env, storage) =
+            apply::prepare_env_and_storage(connection, shared_args, &execution_args, &block_args)
+                .await?;
+        let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
         let (tracer, validation_result) = ApiTracer::validation(params);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
-        let result = sandbox
-            .inspect_transaction(tx, vec![tracer])
+        let result = MainOneshotExecutor
+            .inspect_transaction(storage, env, execution_args, vec![tracer])
             .instrument(tracing::debug_span!("validation"))
             .await?;
+        drop(vm_permit);
         stage_latency.observe();
 
         let validation_result = match (result.result, validation_result.get()) {

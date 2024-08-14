@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{storage::WriteStorage, Call},
     tracers::{CallTracer, ValidationTracer, ValidationTracerParams, ViolatedValidationRule},
-    vm_latest::HistoryMode,
+    vm_latest::HistoryDisabled,
     MultiVMTracer, MultiVmTracerPointer,
 };
 
@@ -32,16 +32,18 @@ impl ApiTracer {
         (this, result)
     }
 
-    pub(super) fn into_boxed<S, H>(self, vm: &OneshotExecutor) -> MultiVmTracerPointer<S, H>
+    pub(super) fn into_boxed<S>(
+        self,
+        protocol_version: ProtocolVersionId,
+    ) -> MultiVmTracerPointer<S, HistoryDisabled>
     where
         S: WriteStorage,
-        H: HistoryMode + zksync_multivm::HistoryMode<Vm1_5_0 = H> + 'static,
     {
         match self {
             Self::CallTracer(traces) => CallTracer::new(traces).into_tracer_pointer(),
             Self::Validation { params, result } => {
                 let (mut tracer, _) =
-                    ValidationTracer::<H>::new(params, vm.protocol_version().into());
+                    ValidationTracer::<HistoryDisabled>::new(params, protocol_version.into());
                 tracer.result = result;
                 tracer.into_tracer_pointer()
             }

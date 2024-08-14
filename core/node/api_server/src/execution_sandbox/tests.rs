@@ -4,9 +4,13 @@ use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
+use zksync_types::{api::state_override::StateOverride, Transaction};
 
-use super::{apply::OneshotExecutor, *};
-use crate::tx_sender::ApiContracts;
+use super::*;
+use crate::{
+    execution_sandbox::{apply::VmSandbox, storage::StorageWithOverrides},
+    tx_sender::ApiContracts,
+};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -184,28 +188,24 @@ async fn instantiating_vm() {
 }
 
 async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args: BlockArgs) {
-    let (vm_concurrency_limiter, _) = VmConcurrencyLimiter::new(1);
-    let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
-    let transaction = create_l2_transaction(10, 100).into();
+    let transaction = Transaction::from(create_l2_transaction(10, 100));
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
 
-    let mut sandbox = OneshotExecutor::new(
-        vm_permit,
+    let execution_args = TxExecutionArgs::for_gas_estimate(None, transaction.clone(), 123);
+    let (env, storage) = apply::prepare_env_and_storage(
         connection,
         TxSharedArgs::mock(estimate_gas_contracts),
-        TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
-        block_args,
+        &execution_args,
+        &block_args,
     )
     .await
     .unwrap();
+    let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
-    sandbox.adjust_pubdata_price(true);
     tokio::task::spawn_blocking(move || {
-        sandbox
-            .build_vm(transaction.clone())
-            .apply(|_, received_tx| {
-                assert_eq!(received_tx, transaction);
-            });
+        VmSandbox::new(storage, env, execution_args).apply(|_, received_tx| {
+            assert_eq!(received_tx, transaction);
+        });
     })
     .await
     .expect("VM execution panicked")

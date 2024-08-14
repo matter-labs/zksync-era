@@ -380,10 +380,8 @@ impl TxSender {
             .execute_tx_in_sandbox(
                 vm_permit.clone(),
                 shared_args.clone(),
-                true,
-                TxExecutionArgs::for_validation(&tx),
+                TxExecutionArgs::for_validation(tx.clone()),
                 connection,
-                tx.clone().into(),
                 block_args,
                 None,
                 vec![],
@@ -694,7 +692,7 @@ impl TxSender {
         let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
-            TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
+            TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, tx, base_fee);
         let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
@@ -702,10 +700,8 @@ impl TxSender {
             .execute_tx_in_sandbox(
                 vm_permit,
                 shared_args,
-                true,
                 execution_args,
                 connection,
-                tx.clone(),
                 block_args,
                 state_override,
                 vec![],
