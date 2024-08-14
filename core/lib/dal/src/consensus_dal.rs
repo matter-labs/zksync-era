@@ -669,7 +669,7 @@ mod tests {
         // Retrieve the latest certificate.
         let number = conn
             .consensus_dal()
-            .get_last_batch_certificate_number()
+            .last_batch_certificate_number()
             .await
             .unwrap()
             .unwrap();
