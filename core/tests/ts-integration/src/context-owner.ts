@@ -553,7 +553,6 @@ export class TestContextOwner {
                 break;
             }
             const lastNodeBatch = await this.l2Provider.getL1BatchNumber();
-
             this.reporter.debug(`VM playground progress: L1 batch #${lastProcessedBatch} / ${lastNodeBatch}`);
             if (lastProcessedBatch >= lastNodeBatch) {
                 break;
@@ -581,7 +580,7 @@ export class TestContextOwner {
             };
         }
 
-        const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+        const healthcheckPort = this.env.healthcheckPort;
         const nodeHealth = (await (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).json()) as NodeHealth;
         const playgroundHealth = nodeHealth.components.vm_playground;
         if (playgroundHealth === undefined) {
@@ -606,7 +605,7 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
-            if (this.env.nodeMode == NodeMode.Main && this.env.network === 'localhost') {
+            if (this.env.nodeMode == NodeMode.Main && this.env.network.toLowerCase() === 'localhost') {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
                 // processes all batches on the node.
