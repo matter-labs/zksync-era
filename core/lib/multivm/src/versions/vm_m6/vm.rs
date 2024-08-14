@@ -8,20 +8,18 @@ use zksync_types::{
     vm::VmVersion,
     Transaction,
 };
-use zksync_utils::{
-    bytecode::{hash_bytecode, CompressedBytecodeInfo},
-    h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
-        storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
+    utils::bytecode,
     vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
 };
 
@@ -216,7 +214,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
                     None
                 } else {
                     bytecode_hashes.push(bytecode_hash);
-                    CompressedBytecodeInfo::from_original(bytecode.clone()).ok()
+                    bytecode::compress(bytecode.clone()).ok()
                 }
             });
             let compressed_bytecodes: Vec<_> = filtered_deps.collect();

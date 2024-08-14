@@ -7281,8 +7281,10 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
+ "rand 0.8.5",
  "tokio",
  "vise",
+ "zksync_types",
  "zksync_vlog",
  "zksync_vm_benchmark_harness",
 ]
@@ -8545,6 +8547,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9743,6 +9746,7 @@ dependencies = [
 name = "zksync_vm_benchmark_harness"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "once_cell",
  "zk_evm 0.133.0",
  "zksync_contracts",
@@ -9764,7 +9768,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

@@ -10,7 +10,7 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::VmExecutionResultAndLogs,
+    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_eth_call_gas_limit, get_max_batch_gas_limit,
@@ -25,7 +25,7 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     api::state_override::StateOverride,
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},

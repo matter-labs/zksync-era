@@ -1,14 +1,13 @@
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_latest::HistoryEnabled,
     vm_refunds_enhancement::{

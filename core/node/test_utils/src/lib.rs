@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_multivm::{
+    interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics},
+    utils::get_max_gas_per_pubdata_byte,
+};
 use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
@@ -21,7 +24,6 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
     ProtocolVersionId, StorageLog, H256, U256,
 };
@@ -157,7 +159,7 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

@@ -5,6 +5,7 @@ use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
@@ -14,7 +15,7 @@ use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
