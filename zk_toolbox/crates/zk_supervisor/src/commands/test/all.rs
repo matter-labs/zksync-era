@@ -1,6 +1,8 @@
-use std::thread;
+use std::{thread, vec};
 
+use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger};
+use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::{
@@ -10,9 +12,15 @@ use super::{
     },
     integration, recovery, revert, upgrade,
 };
-use crate::messages::MSG_RUNNING_EXTERNAL_NODE;
+use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_RUNNING_EXTERNAL_NODE};
 
 pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
+    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let chain = ecosystem
+        .load_chain(global_config().chain_name.clone())
+        .context(MSG_CHAIN_NOT_FOUND_ERR)
+        .unwrap();
+
     integration::run(
         shell,
         IntegrationArgs {
@@ -40,16 +48,19 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_EXTERNAL_NODE);
     let en_shell = shell.clone();
     let _handle = thread::spawn(move || {
-        let chain = global_config().chain_name.clone();
+        let config_path = chain.path_to_general_config();
+        let secrets_path = chain.path_to_secrets_config();
+        let en_config_path = chain.path_to_external_node_config();
 
-        let mut cmd =
-            cmd!(en_shell, "zk_inception external-node run").arg("--ignore-prerequisites");
-
-        if let Some(chain) = chain {
-            cmd = cmd.arg("--chain").arg(chain);
-        }
-
-        let _out = Cmd::new(cmd).run_with_output().unwrap();
+        common::external_node::run(
+            &en_shell,
+            config_path.to_str().unwrap(),
+            secrets_path.to_str().unwrap(),
+            en_config_path.to_str().unwrap(),
+            vec![],
+        )
+        .context("Failed to run external node")
+        .unwrap();
     });
 
     integration::run(
