@@ -40,7 +40,7 @@ impl RunExternalNode {
     }
 
     pub fn run(&self, shell: &Shell, mut additional_args: Vec<String>) -> anyhow::Result<()> {
-        shell.change_dir(&self.code_path);
+        let code_path = self.code_path.to_str().unwrap();
         let config_general_config = &self.general_config.to_str().unwrap();
         let en_config = &self.en_config.to_str().unwrap();
         let secrets = &self.secrets.to_str().unwrap();
@@ -50,6 +50,7 @@ impl RunExternalNode {
 
         common::external_node::run(
             shell,
+            code_path,
             config_general_config,
             secrets,
             en_config,

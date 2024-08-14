@@ -5,11 +5,14 @@ use crate::cmd::Cmd;
 
 pub fn run(
     shell: &Shell,
+    code_path: &str,
     config_path: &str,
     secrets_path: &str,
     en_config_path: &str,
     additional_args: Vec<String>,
 ) -> anyhow::Result<()> {
+    let _dir = shell.push_dir(code_path);
+
     let cmd = Cmd::new(
         cmd!(
             shell,

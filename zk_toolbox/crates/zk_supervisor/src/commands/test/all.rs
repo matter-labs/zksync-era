@@ -48,12 +48,14 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     logger::info(MSG_RUNNING_EXTERNAL_NODE);
     let en_shell = shell.clone();
     let _handle = thread::spawn(move || {
+        let code_path = chain.link_to_code.clone();
         let config_path = chain.path_to_general_config();
         let secrets_path = chain.path_to_secrets_config();
         let en_config_path = chain.path_to_external_node_config();
 
         common::external_node::run(
             &en_shell,
+            code_path.to_str().unwrap(),
             config_path.to_str().unwrap(),
             secrets_path.to_str().unwrap(),
             en_config_path.to_str().unwrap(),
