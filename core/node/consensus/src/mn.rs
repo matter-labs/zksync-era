@@ -134,7 +134,7 @@ async fn run_attestation_updater(
                 status.next_batch_to_attest
             );
             attestation
-                .update_config(Arc::new(attestation::Config {
+                .start_attestation(Arc::new(attestation::Info {
                     batch_to_attest: attester::Batch {
                         hash,
                         number: status.next_batch_to_attest,
@@ -143,11 +143,11 @@ async fn run_attestation_updater(
                     committee: committee.clone(),
                 }))
                 .await
-                .context("update_config()")?;
+                .context("start_attestation()")?;
             // Main node is the only node which can update the global AttestationStatus,
             // therefore we can synchronously wait for the certificate.
             let qc = attestation
-                .wait_for_qc(ctx, status.next_batch_to_attest)
+                .wait_for_cert(ctx, status.next_batch_to_attest)
                 .await?
                 .context("attestation config has changed unexpectedly")?;
             tracing::info!(

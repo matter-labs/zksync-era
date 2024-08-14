@@ -204,7 +204,7 @@ impl EN {
                 status.next_batch_to_attest
             );
             attestation
-                .update_config(Arc::new(attestation::Config {
+                .start_attestation(Arc::new(attestation::Info {
                     batch_to_attest: attester::Batch {
                         genesis: status.genesis,
                         hash,
@@ -213,7 +213,7 @@ impl EN {
                     committee: committee.clone(),
                 }))
                 .await
-                .context("update_config()")?;
+                .context("start_attestation()")?;
             next = status.next_batch_to_attest.next();
         }
     }
