@@ -154,7 +154,7 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::BaseWithAuxData(_) => panic!("Invalid CircuitWrapper received"),
+                CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
             };
 
             let started_at = Instant::now();
@@ -197,7 +197,7 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
-                CircuitWrapper::BaseWithAuxData(_) => panic!("Invalid CircuitWrapper received"),
+                CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }

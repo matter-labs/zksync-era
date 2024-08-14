@@ -72,7 +72,7 @@ pub async fn fetch_next_circuit(
     let input = match circuit_wrapper {
         a @ CircuitWrapper::Base(_) => a,
         a @ CircuitWrapper::Recursive(_) => a,
-        CircuitWrapper::BaseWithAuxData((circuit, aux_data)) => {
+        CircuitWrapper::BasePartial((circuit, aux_data)) => {
             // inject additional data
             if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
                 let sorted_witness_key = RamPermutationQueueWitnessKey {
@@ -107,10 +107,9 @@ pub async fn fetch_next_circuit(
 
                 CircuitWrapper::Base(ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance))
             } else {
-                panic!("Unexpected circuit received with aux data");
+                panic!("Unexpected circuit received with partial witness");
             }
         }
-        _ => panic!("Invalid circuit wrapper received"),
     };
 
     let label = CircuitLabels {
@@ -144,7 +143,7 @@ pub fn get_base_layer_circuit_id_for_recursive_layer(recursive_layer_circuit_id:
 
 pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
-        CircuitWrapper::Base(circuit) | CircuitWrapper::BaseWithAuxData((circuit, _)) => {
+        CircuitWrapper::Base(circuit) | CircuitWrapper::BasePartial((circuit, _)) => {
             circuit.numeric_circuit_type()
         }
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),

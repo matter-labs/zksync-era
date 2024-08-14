@@ -109,7 +109,7 @@ impl Prover {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 Self::prove_recursive_layer(job.job_id, recursive_circuit, config, setup_data)
             }
-            CircuitWrapper::BaseWithAuxData(_) => panic!("Invalid CircuitWrapper received"),
+            CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
         };
         ProverArtifacts::new(job.block_number, proof)
     }

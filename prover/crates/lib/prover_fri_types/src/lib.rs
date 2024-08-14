@@ -45,7 +45,7 @@ pub struct CircuitAuxData {
 pub enum CircuitWrapper {
     Base(ZkSyncBaseLayerCircuit),
     Recursive(ZkSyncRecursiveLayerCircuit),
-    BaseWithAuxData((ZkSyncBaseLayerCircuit, CircuitAuxData)),
+    BasePartial((ZkSyncBaseLayerCircuit, CircuitAuxData)),
 }
 
 impl StoredObject for CircuitWrapper {
@@ -225,7 +225,6 @@ pub fn get_current_pod_name() -> String {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct RamPermutationQueueWitness {
-    pub is_sorted: bool,
     pub witness: MemoryQueueStateWitnesses<GoldilocksField>,
 }
 

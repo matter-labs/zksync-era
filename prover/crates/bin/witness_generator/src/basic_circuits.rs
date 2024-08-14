@@ -472,8 +472,7 @@ async fn generate_witness(
             WitnessGenerationArtifact::RecursionQueue((a, b, c)) => queue_sender
                 .blocking_send((a as u8, b, c))
                 .expect("failed to send recursion queue from harness"),
-            a @ WitnessGenerationArtifact::SortedMemoryQueueWitness(_)
-            | a @ WitnessGenerationArtifact::UnsortedMemoryQueueWitness(_) => {
+            a @ WitnessGenerationArtifact::MemoryQueueWitness(_) => {
                 let parent_span = span.clone();
                 tracing::info_span!(parent: parent_span, "send_ram_permutation_queue_witness")
                     .in_scope(|| {
@@ -566,6 +565,7 @@ async fn generate_witness(
     let save_ram_queue_witness_span = tracing::info_span!("save_circuits");
 
     // Future which receives part of RAM permutation circuits witnesses and saves them async.
+    // Uses semaphore because these artifacts are of significant size
     let ram_queue_witness_receiver_handle = async {
         let mut sorted_sequence = 0;
         let mut unsorted_sequence = 0;
@@ -582,15 +582,17 @@ async fn generate_witness(
                 .await
                 .expect("failed to get permit for running save ram permutation queue witness task");
             let (is_sorted, witness, sequence) = match witness_artifact {
-                WitnessGenerationArtifact::SortedMemoryQueueWitness(witness) => {
-                    let sequence = sorted_sequence;
-                    sorted_sequence += 1;
-                    (true, witness, sequence)
-                }
-                WitnessGenerationArtifact::UnsortedMemoryQueueWitness(witness) => {
-                    let sequence = unsorted_sequence;
-                    unsorted_sequence += 1;
-                    (false, witness, sequence)
+                WitnessGenerationArtifact::MemoryQueueWitness((witness, sorted)) => {
+                    let sequence = if sorted {
+                        let sequence = sorted_sequence;
+                        sorted_sequence += 1;
+                        sequence
+                    } else {
+                        let sequence = unsorted_sequence;
+                        unsorted_sequence += 1;
+                        sequence
+                    };
+                    (sorted, witness, sequence)
                 }
                 _ => panic!("Invalid artifact received"),
             };

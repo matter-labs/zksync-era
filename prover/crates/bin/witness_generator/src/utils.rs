@@ -173,7 +173,7 @@ pub async fn save_circuit(
         object_store
             .put(
                 circuit_key,
-                &CircuitWrapper::BaseWithAuxData((circuit, aux_data)),
+                &CircuitWrapper::BasePartial((circuit, aux_data)),
             )
             .await
             .unwrap()
@@ -203,10 +203,7 @@ pub async fn save_ram_premutation_queue_witness(
         is_sorted,
     };
     let blob_url = object_store
-        .put(
-            witness_key,
-            &RamPermutationQueueWitness { is_sorted, witness },
-        )
+        .put(witness_key, &RamPermutationQueueWitness { witness })
         .await
         .unwrap();
     blob_url

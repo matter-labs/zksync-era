@@ -79,7 +79,7 @@ impl WitnessVectorGenerator {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
-            CircuitWrapper::BaseWithAuxData(_) => {
+            CircuitWrapper::BasePartial(_) => {
                 panic!("Invalid circuit wrapper received for witness vector generation");
             }
         };
