@@ -6,7 +6,8 @@ use crate::get_loadnext_contract;
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoadnextContractExecutionParams {
     pub reads: usize,
-    pub writes: usize,
+    pub new_writes: usize,
+    pub over_writes: usize,
     pub events: usize,
     pub hashes: usize,
     pub recursive_calls: usize,
@@ -21,7 +22,8 @@ impl LoadnextContractExecutionParams {
     pub fn empty() -> Self {
         Self {
             reads: 0,
-            writes: 0,
+            new_writes: 0,
+            over_writes: 0,
             events: 0,
             hashes: 0,
             recursive_calls: 0,
@@ -34,7 +36,8 @@ impl Default for LoadnextContractExecutionParams {
     fn default() -> Self {
         Self {
             reads: 10,
-            writes: 10,
+            new_writes: 10,
+            over_writes: 10,
             events: 10,
             hashes: 10,
             recursive_calls: 1,
@@ -50,7 +53,8 @@ impl LoadnextContractExecutionParams {
 
         let params = vec![
             Token::Uint(U256::from(self.reads)),
-            Token::Uint(U256::from(self.writes)),
+            Token::Uint(U256::from(self.new_writes)),
+            Token::Uint(U256::from(self.over_writes)),
             Token::Uint(U256::from(self.hashes)),
             Token::Uint(U256::from(self.events)),
             Token::Uint(U256::from(self.recursive_calls)),

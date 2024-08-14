@@ -314,7 +314,7 @@ pub trait AccountLoadNextExecutable {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction;
-    fn loadnext_custom_writes_call(
+    fn loadnext_custom_new_writes_call(
         &mut self,
         address: Address,
         writes: u32,
@@ -356,17 +356,17 @@ impl AccountLoadNextExecutable for Account {
 
     /// Returns a transaction to the loadnext contract with custom amount of write requests.
     /// Increments the account nonce.
-    fn loadnext_custom_writes_call(
+    fn loadnext_custom_new_writes_call(
         &mut self,
         address: Address,
-        writes: u32,
+        new_writes: u32,
         gas_limit: u32,
     ) -> Transaction {
         // For each iteration of the expensive contract, there are two slots that are updated:
         // the length of the vector and the new slot with the element itself.
         let minimal_fee = 2
             * testonly::DEFAULT_GAS_PER_PUBDATA
-            * writes
+            * new_writes
             * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
 
         let fee = testonly::fee(minimal_fee + gas_limit);
@@ -376,7 +376,8 @@ impl AccountLoadNextExecutable for Account {
                 contract_address: address,
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
-                    writes: writes as usize,
+                    new_writes: new_writes as usize,
+                    over_writes: 100,
                     events: 100,
                     hashes: 100,
                     recursive_calls: 0,
