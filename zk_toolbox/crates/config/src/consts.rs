@@ -1,5 +1,6 @@
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";
+pub(crate) const PROVER_CONFIG_NAME: &str = "ProverSubsystem.yaml";
 /// Name of the wallets file
 pub const WALLETS_FILE: &str = "wallets.yaml";
 /// Name of the secrets config file
@@ -8,6 +9,7 @@ pub const SECRETS_FILE: &str = "secrets.yaml";
 pub const GENERAL_FILE: &str = "general.yaml";
 /// Name of the genesis config file
 pub const GENESIS_FILE: &str = "genesis.yaml";
+pub const PROVER_FILE: &str = "prover.yaml";
 
 // Name of external node specific config
 pub const EN_CONFIG_FILE: &str = "external_node.yaml";

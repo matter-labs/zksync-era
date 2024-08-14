@@ -3,23 +3,21 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::{bail, Context};
 use common::{git, logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    create_local_configs_dir, traits::SaveConfigWithBasePath, EcosystemConfigFromFileError,
     GeneralProverConfig, ProverConfig, ZKSYNC_ERA_GIT_REPO,
 };
 use xshell::Shell;
 
 use crate::{
     commands::{
-        chain::create_chain_inner,
         containers::{initialize_docker, start_containers},
         prover::args::create::ProverCreateArgs,
     },
     messages::{
-        msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CLONING_ERA_REPO_SPINNER,
-        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
-        MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
-        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
+        msg_created_prover_subsystem, MSG_ARGS_VALIDATOR_ERR, MSG_CLONING_ERA_REPO_SPINNER,
+        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
+        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -43,9 +41,9 @@ fn create(args: ProverCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_ECOSYSTEM);
 
-    let ecosystem_name = &args.ecosystem_name;
-    shell.create_dir(ecosystem_name)?;
-    shell.change_dir(ecosystem_name);
+    let subsystem_name = &args.subsystem_name;
+    shell.create_dir(subsystem_name)?;
+    shell.change_dir(subsystem_name);
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
@@ -66,31 +64,25 @@ fn create(args: ProverCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     };
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
-    let chain_config = args.chain_config();
-    let chains_path = shell.create_dir("chains")?;
 
     let prover_config = GeneralProverConfig {
-        name: ecosystem_name.clone(),
+        name: subsystem_name.clone(),
         link_to_code: link_to_code.clone(),
         bellman_cuda_dir: None,
         config: configs_path,
         shell: shell.clone().into(),
     };
 
-    ecosystem_config.save_with_base_path(shell, ".")?;
-    spinner.finish();
-
-    let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    prover_config.save_with_base_path(shell, ".")?;
     spinner.finish();
 
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
-        initialize_docker(shell, &ecosystem_config)?;
+        initialize_docker(shell, prover_config.link_to_code.clone())?;
         start_containers(shell, false)?;
         spinner.finish();
     }
 
-    logger::outro(msg_created_ecosystem(ecosystem_name));
+    logger::outro(msg_created_prover_subsystem(subsystem_name));
     Ok(())
 }

@@ -1,4 +1,9 @@
-database_prover_url: postgres://postgres:notsecurepassword@localhost:5433/prover_local_test
+postgres:
+  max_connections: 100
+  statement_timeout_sec: 300
+  test:
+    server_url: postgres://postgres:notsecurepassword@localhost:5433/zksync_local_test
+    prover_url: postgres://postgres:notsecurepassword@localhost:5433/prover_local_test
 prover:
   prover_object_store:
     file_backed:

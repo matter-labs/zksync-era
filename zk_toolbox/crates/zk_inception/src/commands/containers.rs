@@ -27,13 +27,13 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+pub fn initialize_docker(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     if !shell.path_exists("volumes") {
         create_docker_folders(shell)?;
     };
 
     if !shell.path_exists(DOCKER_COMPOSE_FILE) {
-        copy_dockerfile(shell, ecosystem.link_to_code.clone())?;
+        copy_dockerfile(shell, link_to_code)?;
     };
 
     Ok(())

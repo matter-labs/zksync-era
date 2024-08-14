@@ -255,7 +255,7 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 }
 
 // Find file in all parents repository and return necessary path or an empty error if nothing has been found
-fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
+pub fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
     let _dir = shell.push_dir(path_buf);
     if shell.path_exists(file_name) {
         Ok(shell.current_dir())

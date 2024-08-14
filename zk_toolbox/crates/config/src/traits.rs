@@ -10,6 +10,8 @@ use xshell::Shell;
 // Configs that we use only inside zk toolbox, we don't have protobuf implementation for them.
 pub trait ZkToolboxConfig {}
 
+pub trait InfraConfig {}
+
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
 
