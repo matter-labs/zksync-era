@@ -35,7 +35,7 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name,
     keys::ClosedFormInputKey,
-    AuxOutputWitnessWrapper,
+    AuxOutputWitnessWrapper, CircuitAuxData,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::WitnessInputData;
@@ -535,11 +535,13 @@ async fn generate_witness(
                 .await
                 .expect("failed to get permit for running save circuit task");
 
-            let circuit_sub_sequence = match &circuit {
+            let partial_circuit_aux_data = match &circuit {
                 ZkSyncBaseLayerCircuit::RAMPermutation(_) => {
-                    let sub_sequence = ram_circuit_sequence;
+                    let circuit_subsequence_number = ram_circuit_sequence;
                     ram_circuit_sequence += 1;
-                    Some(sub_sequence)
+                    Some(CircuitAuxData {
+                        circuit_subsequence_number,
+                    })
                 }
                 _ => None,
             };
@@ -549,7 +551,7 @@ async fn generate_witness(
                     block_number,
                     circuit,
                     sequence,
-                    circuit_sub_sequence,
+                    partial_circuit_aux_data,
                     object_store,
                 )
                 .await;

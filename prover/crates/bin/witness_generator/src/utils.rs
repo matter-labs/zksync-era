@@ -154,7 +154,7 @@ pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
-    circuit_subsequence_number: Option<u32>,
+    aux_data_for_partial_circuit: Option<CircuitAuxData>,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
@@ -166,14 +166,11 @@ pub async fn save_circuit(
         depth: 0,
     };
 
-    let blob_url = if let Some(circuit_subsequence_number) = circuit_subsequence_number {
-        let aux_data = CircuitAuxData {
-            circuit_subsequence_number,
-        };
+    let blob_url = if let Some(aux_data_for_partial_circuit) = aux_data_for_partial_circuit {
         object_store
             .put(
                 circuit_key,
-                &CircuitWrapper::BasePartial((circuit, aux_data)),
+                &CircuitWrapper::BasePartial((circuit, aux_data_for_partial_circuit)),
             )
             .await
             .unwrap()
