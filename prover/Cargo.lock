@@ -921,6 +921,19 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
+dependencies = [
+ "circuit_encodings 0.150.2-rc.3",
+ "crossbeam 0.8.4",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+]
+
+[[package]]
+name = "circuit_definitions"
 version = "0.150.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "382960e9ff16705f95157bac88d2b0b556181229019eb57db6c990e3a0fff35f"
@@ -967,6 +980,17 @@ dependencies = [
  "serde",
  "zk_evm 0.141.0",
  "zkevm_circuits 0.141.1",
+]
+
+[[package]]
+name = "circuit_encodings"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 0.150.0",
+ "zkevm_circuits 0.150.3",
 ]
 
 [[package]]
@@ -1034,6 +1058,18 @@ dependencies = [
  "rayon",
  "serde",
  "zk_evm 0.141.0",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
+dependencies = [
+ "bellman_ce 0.7.0",
+ "circuit_encodings 0.150.2-rc.3",
+ "derivative",
+ "rayon",
+ "serde",
 ]
 
 [[package]]
@@ -4509,7 +4545,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "chrono",
- "circuit_definitions",
+ "circuit_definitions 0.150.2-rc.3",
  "clap 4.5.4",
  "colored",
  "dialoguer",
@@ -4520,7 +4556,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zkevm_test_harness",
+ "zkevm_test_harness 0.150.2-rc.3",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -5615,7 +5651,7 @@ dependencies = [
  "blake2 0.10.6",
  "boojum",
  "boojum-cuda",
- "circuit_definitions",
+ "circuit_definitions 0.150.2",
  "derivative",
  "era_cudart",
  "era_cudart_sys",
@@ -6875,7 +6911,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 0.150.2-rc.3",
  "clap 4.5.4",
  "hex",
  "indicatif",
@@ -6892,7 +6928,7 @@ dependencies = [
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",
- "zkevm_test_harness",
+ "zkevm_test_harness 0.150.2-rc.3",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
@@ -7610,12 +7646,38 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
+dependencies = [
+ "bincode",
+ "circuit_definitions 0.150.2-rc.3",
+ "circuit_sequencer_api 0.150.2-rc.3",
+ "codegen",
+ "crossbeam 0.8.4",
+ "derivative",
+ "env_logger 0.9.3",
+ "hex",
+ "rand 0.4.6",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "structopt",
+ "test-log",
+ "tracing",
+ "zkevm-assembly",
+ "zksync_kzg 0.150.2-rc.3",
+]
+
+[[package]]
+name = "zkevm_test_harness"
 version = "0.150.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be67d84d0ac41145a4daed8333feac0936ade29feda6448f46d80ae80285911d"
 dependencies = [
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 0.150.2",
  "circuit_sequencer_api 0.150.2",
  "codegen",
  "crossbeam 0.8.4",
@@ -7632,7 +7694,7 @@ dependencies = [
  "test-log",
  "tracing",
  "zkevm-assembly",
- "zksync_kzg",
+ "zksync_kzg 0.150.2",
 ]
 
 [[package]]
@@ -7672,8 +7734,8 @@ version = "0.150.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdf646f359c7275451c218dcf3cd99c06afb0d21da9cc518a1aa5222ee44ee8c"
 dependencies = [
- "circuit_definitions",
- "zkevm_test_harness",
+ "circuit_definitions 0.150.2",
+ "zkevm_test_harness 0.150.2",
  "zksync-gpu-prover",
 ]
 
@@ -7957,6 +8019,22 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
+dependencies = [
+ "boojum",
+ "derivative",
+ "hex",
+ "once_cell",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "zkevm_circuits 0.150.3",
+]
+
+[[package]]
+name = "zksync_kzg"
 version = "0.150.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b76d0e08b3e0970565f7a9a611278547f4f1dbd6184a250c8c5e743aed61c525"
@@ -8009,7 +8087,7 @@ dependencies = [
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
  "circuit_sequencer_api 0.142.0",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -8082,7 +8160,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "clap 4.5.4",
  "ctrlc",
  "futures 0.3.30",
@@ -8094,7 +8172,7 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "zkevm_test_harness",
+ "zkevm_test_harness 0.150.2-rc.3",
  "zksync-wrapper-prover",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8182,7 +8260,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions",
+ "circuit_definitions 0.150.2-rc.3",
  "clap 4.5.4",
  "ctrlc",
  "futures 0.3.30",
@@ -8195,7 +8273,7 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "zkevm_test_harness",
+ "zkevm_test_harness 0.150.2-rc.3",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -8239,7 +8317,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions",
+ "circuit_definitions 0.150.2-rc.3",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -8268,7 +8346,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "serde",
  "serde_with",
  "strum",
@@ -8451,7 +8529,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 0.150.2-rc.3",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
@@ -8465,7 +8543,7 @@ dependencies = [
  "tracing",
  "vise",
  "vk_setup_data_generator_server_fri",
- "zkevm_test_harness",
+ "zkevm_test_harness 0.150.2-rc.3",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",

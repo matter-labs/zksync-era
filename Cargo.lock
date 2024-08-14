@@ -1045,9 +1045,8 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.150.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ba840a74f8d0b8b1334e93e4c87514a27c9be83d42d9f78d0c577572bb5f435"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
 dependencies = [
  "derivative",
  "serde",
@@ -1112,12 +1111,11 @@ dependencies = [
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.150.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79f3177b2bcd4ef5da9d2ca6916f6de31fb1973dfece27907a8dc7c69233494d"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
 dependencies = [
  "bellman_ce",
- "circuit_encodings 0.150.2",
+ "circuit_encodings 0.150.2-rc.3",
  "derivative",
  "rayon",
  "serde",
@@ -8128,7 +8126,7 @@ dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "futures 0.3.28",
  "itertools 0.10.5",
  "num_cpus",
@@ -8797,9 +8795,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.150.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b76d0e08b3e0970565f7a9a611278547f4f1dbd6184a250c8c5e743aed61c525"
+version = "0.150.2-rc.3"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=vv-oracle-parallelization2#ba9ce6252771d3c015e683b7d229043878d3bdb3"
 dependencies = [
  "boojum",
  "derivative",
@@ -8921,7 +8918,7 @@ dependencies = [
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
  "circuit_sequencer_api 0.142.0",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -9365,7 +9362,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.150.2",
+ "circuit_sequencer_api 0.150.2-rc.3",
  "serde",
  "serde_json",
  "serde_with",
