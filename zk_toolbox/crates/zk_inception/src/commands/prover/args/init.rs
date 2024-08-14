@@ -56,9 +56,6 @@ pub struct ProverInitArgs {
 
     #[clap(long)]
     cloud_type: Option<InternalCloudConnectionMode>,
-
-    #[clap(long)]
-    pub prover_only_mode: Option<bool>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
@@ -442,10 +439,5 @@ impl ProverInitArgs {
         });
 
         cloud_type.into()
-    }
-
-    pub(crate) fn get_mode_value_with_prompt(&self) -> bool {
-        self.prover_only_mode
-            .unwrap_or_else(|| Prompt::new(MSG_PROVER_ONLY_MODE_PROMPT).ask())
     }
 }

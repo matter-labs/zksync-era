@@ -26,7 +26,15 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     //todo: uncomment check_prover_prequisites(shell);
 
-    let prover_only_mode = args.get_mode_value_with_prompt();
+    let prover_only_mode = match EcosystemConfig::from_file(shell) {
+        Ok(_) => false,
+        Err(_) => match GeneralProverConfig::from_file(shell) {
+            Ok(_) => true,
+            Err(_) => {
+                return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
+            }
+        },
+    };
 
     let (link_to_code, configs) = if prover_only_mode {
         let general_prover_config = GeneralProverConfig::from_file(shell)?;
