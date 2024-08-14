@@ -167,7 +167,7 @@ jobs:
         run: |
           ci_run zk_supervisor test build
 
-          sudo netstat -ltnp
+          sudo ss -ltnp
 
           ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
           PID1=$!
