@@ -140,7 +140,7 @@ jobs:
           ci_run cat /tmp/sccache_log.txt || true
 
   integration:
-    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, sync_layer = ${{ matrix.sync_layer }})
+    name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, gateway = ${{ matrix.gateway }})
     strategy:
       # In matrix jobs, fail-fast is true by default.
       # To be consistent with the rest of the workflow we disable it explicitly.
@@ -151,7 +151,7 @@ jobs:
         # FIXME: support custom tokens
         base_token: ["Eth"]
         # FIXME: run tests even when not using synclayer
-        sync_layer: [true]
+        gateway: [true]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
