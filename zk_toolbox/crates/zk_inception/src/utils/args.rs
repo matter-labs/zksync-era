@@ -7,6 +7,7 @@ use xshell::{cmd, Shell};
 
 use crate::messages::{
     msg_path_to_zksync_does_not_exist_err, MSG_CONFIRM_STILL_USE_FOLDER, MSG_LINK_TO_CODE_PROMPT,
+    MSG_LINK_TO_CODE_SELECTION_CLONE, MSG_LINK_TO_CODE_SELECTION_PATH,
     MSG_NOT_MAIN_REPO_OR_FORK_ERR,
 };
 

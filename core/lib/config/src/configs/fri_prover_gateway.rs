@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FriProverGatewayConfig {
     pub api_url: String,
     pub api_poll_duration_secs: u16,

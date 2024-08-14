@@ -27,10 +27,7 @@ pub struct ProverCreateArgs {
 }
 
 impl ProverCreateArgs {
-    pub fn fill_values_with_prompt(
-        mut self,
-        shell: &Shell,
-    ) -> anyhow::Result<ProverCreateArgsFinal> {
+    pub fn fill_values_with_prompt(self, shell: &Shell) -> anyhow::Result<ProverCreateArgsFinal> {
         let mut subsystem_name = self
             .subsystem_name
             .unwrap_or_else(|| Prompt::new(MSG_PROVER_SUBSYSTEM_NAME_PROMPT).ask());

@@ -2,6 +2,8 @@ use args::{init::ProverInitArgs, init_bellman_cuda::InitBellmanCudaArgs, run::Pr
 use clap::Subcommand;
 use xshell::Shell;
 
+use crate::commands::prover::args::create::ProverCreateArgs;
+
 mod args;
 mod create;
 mod gcs;
@@ -23,6 +25,7 @@ pub enum ProverCommands {
     /// Initialize bellman-cuda
     #[command(alias = "cuda")]
     InitBellmanCuda(Box<InitBellmanCudaArgs>),
+    Create(Box<ProverCreateArgs>),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -31,5 +34,6 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::GenerateSK => generate_sk::run(shell).await,
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
+        ProverCommands::Create(args) => create::run(*args, shell),
     }
 }

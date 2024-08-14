@@ -1,5 +1,9 @@
-use std::{cell::OnceCell, path::PathBuf};
+use std::{
+    cell::OnceCell,
+    path::{Path, PathBuf},
+};
 
+use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
 use zksync_config::{
@@ -13,10 +17,11 @@ use zksync_config::{
 use crate::{
     consts::{CONFIG_NAME, PROVER_CONFIG_NAME},
     find_file,
-    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
-    ChainConfigInternal, EcosystemConfig, EcosystemConfigFromFileError, PROVER_FILE,
+    traits::{FileConfigWithDefaultName, ReadConfig, ZkToolboxConfig},
+    PROVER_FILE,
 };
 
+#[derive(Debug, Clone)]
 pub struct GeneralProverConfig {
     pub name: String,
     pub link_to_code: PathBuf,
@@ -25,6 +30,15 @@ pub struct GeneralProverConfig {
     pub shell: OnceCell<Shell>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneralProverConfigInternal {
+    pub name: String,
+    pub link_to_code: PathBuf,
+    pub bellman_cuda_dir: Option<PathBuf>,
+    pub config: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
     pub postgres_config: PostgresConfig,
     pub fri_prover_config: FriProverConfig,
@@ -35,10 +49,42 @@ pub struct ProverConfig {
     pub fri_prover_group_config: FriProverGroupConfig,
 }
 
+impl Serialize for GeneralProverConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.get_internal().serialize(serializer)
+    }
+}
+
+impl ReadConfig for GeneralProverConfig {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let config: GeneralProverConfigInternal = GeneralProverConfigInternal::read(shell, path)?;
+
+        let bellman_cuda_dir = config
+            .bellman_cuda_dir
+            .map(|dir| shell.current_dir().join(dir));
+
+        Ok(GeneralProverConfig {
+            name: config.name.clone(),
+            link_to_code: shell.current_dir().join(config.link_to_code),
+            bellman_cuda_dir,
+            config: config.config.clone(),
+            shell: Default::default(),
+        })
+    }
+}
+
 impl FileConfigWithDefaultName for ProverConfig {
     const FILE_NAME: &'static str = PROVER_FILE;
 }
 
+impl FileConfigWithDefaultName for GeneralProverConfig {
+    const FILE_NAME: &'static str = PROVER_CONFIG_NAME;
+}
+
+impl ZkToolboxConfig for GeneralProverConfigInternal {}
 impl ZkToolboxConfig for GeneralProverConfig {}
 impl ZkToolboxConfig for ProverConfig {}
 
@@ -78,10 +124,27 @@ impl GeneralProverConfig {
                 };
                 // Try to find subsystem somewhere in parent directories
                 shell.change_dir(parent);
-                let mut prover_config = GeneralProverConfig::from_file(shell)?;
-                prover_config
+                GeneralProverConfig::from_file(shell)?
             }
         };
         Ok(prover)
+    }
+
+    pub fn load_prover_config(&self) -> anyhow::Result<ProverConfig> {
+        ProverConfig::read(self.get_shell(), &self.config.join(PROVER_FILE))
+    }
+
+    pub fn get_internal(&self) -> GeneralProverConfigInternal {
+        let bellman_cuda_dir = self
+            .bellman_cuda_dir
+            .clone()
+            .map(|dir| self.get_shell().current_dir().join(dir));
+
+        GeneralProverConfigInternal {
+            name: self.name.clone(),
+            link_to_code: self.link_to_code.clone(),
+            bellman_cuda_dir,
+            config: self.config.clone(),
+        }
     }
 }

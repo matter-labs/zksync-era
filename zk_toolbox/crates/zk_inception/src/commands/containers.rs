@@ -15,7 +15,7 @@ pub fn run(shell: &Shell, args: ContainersArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let ecosystem = EcosystemConfig::from_file(shell).context(MSG_FAILED_TO_FIND_ECOSYSTEM_ERR)?;
 
-    initialize_docker(shell, &ecosystem)?;
+    initialize_docker(shell, ecosystem.link_to_code.clone())?;
 
     logger::info(MSG_STARTING_CONTAINERS);
 

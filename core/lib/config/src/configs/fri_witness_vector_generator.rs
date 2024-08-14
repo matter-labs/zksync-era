@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration for the witness vector generator
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FriWitnessVectorGeneratorConfig {
     /// Max time before an `reserved` prover instance in considered as `available`
     pub max_prover_reservation_duration_in_secs: u16,

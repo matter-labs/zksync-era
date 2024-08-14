@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 
 /// Configuration for the grouping of specialized provers.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FriProverGroupConfig {
     pub group_0: HashSet<CircuitIdRoundTuple>,
     pub group_1: HashSet<CircuitIdRoundTuple>,

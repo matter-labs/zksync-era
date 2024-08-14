@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration for the fri proof compressor
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FriProofCompressorConfig {
     /// The compression mode to use
     pub compression_mode: u8,

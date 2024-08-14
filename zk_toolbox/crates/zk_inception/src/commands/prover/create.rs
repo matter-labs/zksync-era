@@ -3,8 +3,8 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::{bail, Context};
 use common::{git, logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, traits::SaveConfigWithBasePath, EcosystemConfigFromFileError,
-    GeneralProverConfig, ProverConfig, ZKSYNC_ERA_GIT_REPO,
+    create_local_configs_dir, traits::SaveConfigWithBasePath, GeneralProverConfig,
+    GeneralProverConfigFromFileError, ZKSYNC_ERA_GIT_REPO,
 };
 use xshell::Shell;
 
@@ -22,12 +22,12 @@ use crate::{
 };
 
 pub fn run(args: ProverCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    match ProverConfig::from_file(shell) {
+    match GeneralProverConfig::from_file(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
-        Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
+        Err(GeneralProverConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
+        Err(GeneralProverConfigFromFileError::NotExists { .. }) => create(args, shell)?,
     };
 
     Ok(())

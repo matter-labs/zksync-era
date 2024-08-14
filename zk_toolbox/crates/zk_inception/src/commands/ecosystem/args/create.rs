@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
 use common::{logger, Prompt, PromptConfirm, PromptSelect};

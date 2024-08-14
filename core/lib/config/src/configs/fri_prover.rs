@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ObjectStoreConfig;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum SetupLoadMode {
     FromDisk,
     FromMemory,
@@ -13,7 +13,7 @@ pub enum SetupLoadMode {
 /// Kind of cloud environment prover subsystem runs in.
 ///
 /// Currently will only affect how the prover zone is chosen.
-#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum CloudConnectionMode {
     /// Assumes that the prover runs in GCP.
     /// Will use zone information to make sure that the direct network communication
@@ -25,7 +25,7 @@ pub enum CloudConnectionMode {
 }
 
 /// Configuration for the fri prover application
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FriProverConfig {
     pub setup_data_path: String,
     pub prometheus_port: u16,

@@ -128,7 +128,7 @@ impl DBConfig {
 /// Collection of different database URLs and general PostgreSQL options.
 /// All the entries are optional, since some components may only require a subset of them,
 /// and any component may have overrides.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PostgresConfig {
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
