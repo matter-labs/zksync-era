@@ -31,7 +31,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         Err(_) => match GeneralProverConfig::from_file(shell) {
             Ok(_) => true,
             Err(_) => {
-                return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
+                let current_dir = shell.current_dir();
+                return Err(anyhow::anyhow!("No ecosystem or prover config found in the current directory {current_dir}"));
             }
         },
     };
