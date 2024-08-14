@@ -48,22 +48,15 @@ impl RunExternalNode {
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }
-        let cmd = Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --release --bin zksync_external_node --
-                --config-path {config_general_config}
-                --secrets-path {secrets}
-                --external-node-config-path {en_config}
-                "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
-        )
-        .with_force_run();
 
-        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
-        Ok(())
+        common::external_node::run(
+            shell,
+            config_general_config,
+            secrets,
+            en_config,
+            additional_args,
+        )
+        .context(MSG_FAILED_TO_RUN_SERVER_ERR)
     }
 
     fn components(&self) -> Option<String> {
