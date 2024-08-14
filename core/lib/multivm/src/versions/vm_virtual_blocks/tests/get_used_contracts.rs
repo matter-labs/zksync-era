@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use itertools::Itertools;
 
 use crate::HistoryMode;
-use zksync_state::WriteStorage;
+use crate::interface::storage::WriteStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
 use zksync_types::{Execute, U256};

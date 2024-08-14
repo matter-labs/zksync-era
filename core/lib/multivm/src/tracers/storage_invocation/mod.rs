@@ -1,4 +1,4 @@
-use crate::{glue::tracers::IntoOldVmTracer, tracers::old_tracers::OldTracers};
+use crate::{glue::tracers::IntoOldVmTracer, tracers::old::OldTracers};
 
 pub mod vm_1_4_1;
 pub mod vm_1_4_2;

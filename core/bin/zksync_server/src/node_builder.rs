@@ -55,7 +55,8 @@ use zksync_node_framework::{
         },
         tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
-            bwip::BasicWitnessInputProducerLayer, protective_reads::ProtectiveReadsWriterLayer,
+            bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
+            protective_reads::ProtectiveReadsWriterLayer,
         },
         web3_api::{
             caches::MempoolCacheLayer,
@@ -248,8 +249,14 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
+        let experimental_vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
+            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
+                .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
@@ -573,6 +580,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_vm_playground_layer(mut self) -> anyhow::Result<Self> {
+        let vm_config = try_load_config!(self.configs.experimental_vm_config);
+        self.node.add_layer(VmPlaygroundLayer::new(
+            vm_config.playground,
+            self.genesis_config.l2_chain_id,
+        ));
+
+        Ok(self)
+    }
+
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
@@ -735,6 +752,9 @@ impl MainNodeBuilder {
                 }
                 Component::VmRunnerBwip => {
                     self = self.add_vm_runner_bwip_layer()?;
+                }
+                Component::VmPlayground => {
+                    self = self.add_vm_playground_layer()?;
                 }
                 Component::ExternalProofIntegrationApi => {
                     self = self.add_external_proof_integration_api_layer()?;

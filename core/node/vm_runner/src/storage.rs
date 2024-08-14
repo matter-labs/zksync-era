@@ -9,7 +9,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
+use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage,
     RocksdbCell, RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,

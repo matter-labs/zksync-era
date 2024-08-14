@@ -1,11 +1,10 @@
 use zk_evm_1_3_3::aux_structures::LogQuery;
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogKind, VmEvent};
 
 use crate::{
     glue::GlueInto,
-    interface::L1BatchEnv,
+    interface::{storage::WriteStorage, L1BatchEnv},
     vm_boojum_integration::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
         types::internals::ZkSyncVmState,

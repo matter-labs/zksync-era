@@ -22,7 +22,7 @@ use zksync_utils::{
 };
 
 use crate::{
-    vm_latest::L1BatchEnv,
+    interface::L1BatchEnv,
     vm_m5::{
         bootloader_state::BootloaderState,
         oracles::OracleWithHistory,

@@ -8,3 +8,7 @@ gossip_static_outbound:
     addr: 'external-node-consensus-sepolia.zksync.dev:3054'
   - key: 'node:public:ed25519:cfbbebc74127099680584f07a051a2573e2dd7463abdd000d31aaa44a7985045'
     addr: 'external-node-moby-consensus-sepolia.zksync.dev:3054'
+  - key: 'node:public:ed25519:f48616db5965ada49dcbd51b1de11068a27c9886c900d3522607f16dff2e66fc'
+    addr: 'consensus-sepolia-1.zksync-nodes.com:3054'
+  - key: 'node:public:ed25519:3789d49293792755a9c1c2a7ed9b0e210e92994606dcf76388b5635d7ed676cb'
+    addr: 'consensus-sepolia-2.zksync-nodes.com:3054'

@@ -10,13 +10,15 @@ use zk_evm_1_5_0::{
         STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{block::L2BlockHasher, Address, L2BlockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{L1BatchEnv, L2Block, SystemEnv},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        L1BatchEnv, L2Block, SystemEnv,
+    },
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
@@ -63,7 +65,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
-    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
     } else {
         // This is the scenario of either the first L2 block ever or
