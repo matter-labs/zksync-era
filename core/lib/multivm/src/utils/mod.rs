@@ -4,7 +4,11 @@ use zksync_types::{
     U256,
 };
 
+pub use self::deduplicator::{ModifiedSlot, StorageWritesDeduplicator};
 use crate::interface::L1BatchEnv;
+
+pub(crate) mod bytecode;
+mod deduplicator;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
@@ -495,4 +499,22 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
             crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS
         }
     }
+}
+
+/// Holds information about number of cycles used per circuit type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct CircuitCycleStatistic {
+    pub main_vm_cycles: u32,
+    pub ram_permutation_cycles: u32,
+    pub storage_application_cycles: u32,
+    pub storage_sorter_cycles: u32,
+    pub code_decommitter_cycles: u32,
+    pub code_decommitter_sorter_cycles: u32,
+    pub log_demuxer_cycles: u32,
+    pub events_sorter_cycles: u32,
+    pub keccak256_cycles: u32,
+    pub ecrecover_cycles: u32,
+    pub sha256_cycles: u32,
+    pub secp256k1_verify_cycles: u32,
+    pub transient_storage_checker_cycles: u32,
 }

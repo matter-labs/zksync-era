@@ -10,9 +10,11 @@ use vise::{
     Metrics,
 };
 use zksync_mempool::MempoolStore;
-use zksync_multivm::interface::{VmExecutionResultAndLogs, VmRevertReason};
+use zksync_multivm::interface::{
+    DeduplicatedWritesMetrics, VmExecutionResultAndLogs, VmRevertReason,
+};
 use zksync_shared_metrics::InteractionType;
-use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 
 use super::seal_criteria::SealResolution;
 

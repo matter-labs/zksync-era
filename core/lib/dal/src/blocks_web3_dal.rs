@@ -757,9 +757,9 @@ mod tests {
     use zksync_types::{
         aggregated_operations::AggregatedActionType,
         block::{L2BlockHasher, L2BlockHeader},
-        fee::TransactionExecutionMetrics,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{

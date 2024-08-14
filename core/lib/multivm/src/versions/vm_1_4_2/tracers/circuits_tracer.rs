@@ -5,7 +5,6 @@ use zk_evm_1_4_1::{
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
-use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
@@ -14,6 +13,7 @@ use crate::{
         tracer::TracerExecutionStatus,
     },
     tracers::dynamic::vm_1_4_1::DynTracer,
+    utils::CircuitCycleStatistic,
     vm_1_4_2::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
@@ -138,7 +138,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
 impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
     pub(crate) fn new() -> Self {
         Self {
-            statistics: CircuitCycleStatistic::new(),
+            statistics: CircuitCycleStatistic::default(),
             last_decommitment_history_entry_checked: None,
             last_written_keys_history_entry_checked: None,
             last_read_keys_history_entry_checked: None,
