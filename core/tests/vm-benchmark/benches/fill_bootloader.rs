@@ -23,7 +23,7 @@ use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
     cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_heavy_load_test_tx,
     get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
-    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams,
+    BenchmarkingVm, BenchmarkingVmFactory, Fast, Lambda, Legacy, LoadTestParams,
 };
 
 /// Gas limit for deployment transactions.
@@ -190,6 +190,8 @@ criterion_group!(
     benches,
     bench_fill_bootloader::<Fast, false>,
     bench_fill_bootloader::<Fast, true>,
+    bench_fill_bootloader::<Lambda, false>,
+    bench_fill_bootloader::<Lambda, true>,
     bench_fill_bootloader::<Legacy, false>
 );
 criterion_main!(benches);
