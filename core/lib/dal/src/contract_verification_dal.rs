@@ -291,7 +291,6 @@ impl ContractVerificationDal<'_, '_> {
         address: Address,
     ) -> anyhow::Result<Option<(Vec<u8>, DeployContractCalldata)>> {
         let address_h256 = address_to_h256(&address);
-        let deploy_signature = VmEvent::deploy_signature();
 
         let Some(row) = sqlx::query!(
             r#"
@@ -325,7 +324,7 @@ impl ContractVerificationDal<'_, '_> {
                 )
             "#,
             CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            deploy_signature.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             address_h256.as_bytes(),
         )
         .fetch_optional(self.storage.conn())

@@ -93,12 +93,12 @@ pub fn extract_l2tol1logs_from_l1_messenger(
                 panic!("Tuple was expected, got: {}", tuple);
             };
             let [
-            Token::Uint(shard_id),
-            Token::Bool(is_service),
-            Token::Uint(tx_number_in_block),
-            Token::Address(sender),
-            Token::FixedBytes(key_bytes),
-            Token::FixedBytes(value_bytes),
+                Token::Uint(shard_id),
+                Token::Bool(is_service),
+                Token::Uint(tx_number_in_block),
+                Token::Address(sender),
+                Token::FixedBytes(key_bytes),
+                Token::FixedBytes(value_bytes),
             ] = tokens.as_slice() else {
                 panic!("Invalid tuple types");
             };
@@ -118,15 +118,14 @@ pub fn extract_l2tol1logs_from_l1_messenger(
 pub(crate) fn extract_bytecode_publication_requests_from_l1_messenger(
     all_generated_events: &[VmEvent],
 ) -> Vec<L1MessengerBytecodePublicationRequest> {
-    let event_signature = VmEvent::l1_messenger_bytecode_publication_signature();
-
     all_generated_events
         .iter()
         .filter(|event| {
             // Filter events from the l1 messenger contract that match the expected signature.
             event.address == L1_MESSENGER_ADDRESS
                 && !event.indexed_topics.is_empty()
-                && event.indexed_topics[0] == event_signature
+                && event.indexed_topics[0]
+                    == VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
         })
         .map(|event| {
             let mut tokens = ethabi::decode(&[ethabi::ParamType::FixedBytes(32)], &event.value)

@@ -261,7 +261,6 @@ impl EventsDal<'_, '_> {
             return Ok(Vec::new());
         };
 
-        let publish_signature = VmEvent::l1_messenger_bytecode_publication_signature();
         let result: Vec<_> = sqlx::query!(
             r#"
             SELECT
@@ -279,7 +278,7 @@ impl EventsDal<'_, '_> {
             i64::from(from_l2_block.0),
             i64::from(to_l2_block.0),
             L1_MESSENGER_ADDRESS.as_bytes(),
-            publish_signature.as_bytes()
+            VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
         .instrument("get_l1_batch_raw_published_bytecode_hashes")
         .with_arg("from_l2_block", &from_l2_block)

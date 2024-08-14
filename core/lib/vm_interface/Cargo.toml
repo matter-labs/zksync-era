@@ -16,7 +16,6 @@ zksync_system_constants.workspace = true
 zksync_types.workspace = true
 
 hex.workspace = true
-once_cell.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

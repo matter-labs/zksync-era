@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, PUBLISH_BYTECODE_OVERHEAD,
 };
@@ -12,6 +11,15 @@ use zksync_types::{
 use crate::{
     CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
 };
+
+const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
+    58, 54, 228, 114, 145, 244, 32, 31, 175, 19, 127, 171, 8, 29, 146, 41, 91, 206, 45, 83, 190,
+    44, 108, 166, 139, 168, 44, 127, 170, 156, 226, 65,
+]);
+const PUBLISHED_BYTECODE_SIGNATURE: H256 = H256([
+    201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56, 255,
+    205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
+]);
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -27,52 +35,26 @@ pub struct VmEvent {
 }
 
 impl VmEvent {
-    /// Returns the long signature of the contract deployment event (`ContractDeployed`).
-    pub fn deploy_signature() -> H256 {
-        static DEPLOY_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-            ethabi::long_signature(
-                "ContractDeployed",
-                &[
-                    ethabi::ParamType::Address,
-                    ethabi::ParamType::FixedBytes(32),
-                    ethabi::ParamType::Address,
-                ],
-            )
-        });
-        *DEPLOY_EVENT_SIGNATURE
-    }
-
-    /// Returns the long signature of the L1 messenger bytecode publication event (`BytecodeL1PublicationRequested`).
-    pub fn l1_messenger_bytecode_publication_signature() -> H256 {
-        static L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-            ethabi::long_signature(
-                "BytecodeL1PublicationRequested",
-                &[ethabi::ParamType::FixedBytes(32)],
-            )
-        });
-        *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
-    }
+    /// Long signature of the contract deployment event (`ContractDeployed`).
+    pub const DEPLOY_EVENT_SIGNATURE: H256 = H256([
+        41, 10, 253, 174, 35, 26, 63, 192, 187, 174, 139, 26, 246, 54, 152, 176, 161, 215, 155, 33,
+        173, 23, 223, 3, 66, 223, 185, 82, 254, 116, 248, 229,
+    ]);
+    /// Long signature of the L1 messenger bytecode publication event (`BytecodeL1PublicationRequested`).
+    pub const L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: H256 = H256([
+        72, 13, 60, 159, 114, 123, 94, 92, 18, 3, 212, 198, 31, 177, 133, 211, 127, 8, 230, 178,
+        220, 94, 155, 191, 152, 89, 27, 26, 122, 221, 245, 124,
+    ]);
 
     /// Extracts all the "long" L2->L1 messages that were submitted by the L1Messenger contract.
     pub fn extract_long_l2_to_l1_messages(events: &[Self]) -> Vec<Vec<u8>> {
-        static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-            ethabi::long_signature(
-                "L1MessageSent",
-                &[
-                    ethabi::ParamType::Address,
-                    ethabi::ParamType::FixedBytes(32),
-                    ethabi::ParamType::Bytes,
-                ],
-            )
-        });
-
         events
             .iter()
             .filter(|event| {
                 // Filter events from the l1 messenger contract that match the expected signature.
                 event.address == L1_MESSENGER_ADDRESS
                     && event.indexed_topics.len() == 3
-                    && event.indexed_topics[0] == *L1_MESSAGE_EVENT_SIGNATURE
+                    && event.indexed_topics[0] == L1_MESSAGE_EVENT_SIGNATURE
             })
             .map(|event| {
                 let decoded_tokens = ethabi::decode(&[ethabi::ParamType::Bytes], &event.value)
@@ -86,20 +68,13 @@ impl VmEvent {
 
     /// Extracts bytecodes that were marked as known on the system contracts and should be published onchain.
     pub fn extract_published_bytecodes(events: &[Self]) -> Vec<H256> {
-        static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-            ethabi::long_signature(
-                "MarkedAsKnown",
-                &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
-            )
-        });
-
         events
             .iter()
             .filter(|event| {
                 // Filter events from the deployer contract that match the expected signature.
                 event.address == KNOWN_CODES_STORAGE_ADDRESS
                     && event.indexed_topics.len() == 3
-                    && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
+                    && event.indexed_topics[0] == PUBLISHED_BYTECODE_SIGNATURE
                     && event.indexed_topics[2] != H256::zero()
             })
             .map(|event| event.indexed_topics[1])
@@ -243,5 +218,59 @@ impl TransactionExecutionResult {
                 self.call_traces.clone(),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::ethabi;
+
+    use super::*;
+
+    #[test]
+    fn deploy_event_signature_matches() {
+        let expected_signature = ethabi::long_signature(
+            "ContractDeployed",
+            &[
+                ethabi::ParamType::Address,
+                ethabi::ParamType::FixedBytes(32),
+                ethabi::ParamType::Address,
+            ],
+        );
+        assert_eq!(VmEvent::DEPLOY_EVENT_SIGNATURE, expected_signature);
+    }
+
+    #[test]
+    fn bytecode_publication_request_event_signature_matches() {
+        let expected_signature = ethabi::long_signature(
+            "BytecodeL1PublicationRequested",
+            &[ethabi::ParamType::FixedBytes(32)],
+        );
+        assert_eq!(
+            VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
+            expected_signature
+        );
+    }
+
+    #[test]
+    fn l1_message_event_signature_matches() {
+        let expected_signature = ethabi::long_signature(
+            "L1MessageSent",
+            &[
+                ethabi::ParamType::Address,
+                ethabi::ParamType::FixedBytes(32),
+                ethabi::ParamType::Bytes,
+            ],
+        );
+        assert_eq!(L1_MESSAGE_EVENT_SIGNATURE, expected_signature);
+    }
+
+    #[test]
+    fn published_bytecode_event_signature_matches() {
+        let expected_signature = ethabi::long_signature(
+            "MarkedAsKnown",
+            &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
+        );
+        assert_eq!(PUBLISHED_BYTECODE_SIGNATURE, expected_signature);
     }
 }

@@ -40,7 +40,6 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
     ) -> DalResult<Vec<TransactionReceipt>> {
-        let deploy_signature = VmEvent::deploy_signature();
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
         // Clarification for first part of the query(`WITH` clause):
@@ -91,7 +90,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
             CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            deploy_signature.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")

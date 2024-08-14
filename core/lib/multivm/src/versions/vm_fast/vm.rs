@@ -194,7 +194,6 @@ impl<S: ReadStorage> Vm<S> {
 
                     let events =
                         merge_events(self.inner.world_diff.events(), self.batch_env.number);
-                    let publish_signature = VmEvent::l1_messenger_bytecode_publication_signature();
 
                     let published_bytecodes = events
                         .iter()
@@ -202,7 +201,8 @@ impl<S: ReadStorage> Vm<S> {
                             // Filter events from the l1 messenger contract that match the expected signature.
                             event.address == L1_MESSENGER_ADDRESS
                                 && !event.indexed_topics.is_empty()
-                                && event.indexed_topics[0] == publish_signature
+                                && event.indexed_topics[0]
+                                    == VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
                         })
                         .map(|event| {
                             let hash = U256::from_big_endian(&event.value[..32]);
