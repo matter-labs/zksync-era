@@ -8,6 +8,7 @@ pub use genesis::*;
 pub use manipulations::*;
 pub use secrets::*;
 pub use wallet_creation::*;
+pub use prover::*;
 pub use wallets::*;
 pub use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
@@ -25,4 +26,5 @@ mod wallets;
 
 pub mod external_node;
 pub mod forge_interface;
+mod prover;
 pub mod traits;

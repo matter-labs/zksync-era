@@ -56,6 +56,9 @@ pub struct ProverInitArgs {
 
     #[clap(long)]
     cloud_type: Option<InternalCloudConnectionMode>,
+
+    #[clap(long)]
+    prover_only: Option<bool>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]

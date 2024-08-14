@@ -3,6 +3,7 @@ use clap::Subcommand;
 use xshell::Shell;
 
 mod args;
+mod create;
 mod gcs;
 mod generate_sk;
 mod init;
