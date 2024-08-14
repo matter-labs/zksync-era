@@ -66,7 +66,17 @@ mod tests {
     #[test]
     fn from_env_base_token_adjuster_defaults() {
         let mut lock = MUTEX.lock();
-        lock.set_env("");
+        lock.remove_env(&[
+            "BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS",
+            "BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS",
+            "BASE_TOKEN_ADJUSTER_MAX_TX_GAS",
+            "BASE_TOKEN_ADJUSTER_DEFAULT_PRIORITY_FEE_PER_GAS",
+            "BASE_TOKEN_ADJUSTER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI",
+            "BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_MAX_ATTEMPTS",
+            "BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS",
+            "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_MAX_ATTEMPTS",
+            "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS",
+        ]);
 
         let actual = BaseTokenAdjusterConfig::from_env().unwrap();
         assert_eq!(actual, expected_config_with_defaults());
