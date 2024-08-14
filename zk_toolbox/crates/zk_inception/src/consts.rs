@@ -7,3 +7,7 @@ pub const PROVER_STORE_MAX_RETRIES: u16 = 10;
 pub const DEFAULT_CREDENTIALS_FILE: &str = "~/.config/gcloud/application_default_credentials.json";
 pub const DEFAULT_PROOF_STORE_DIR: &str = "artifacts";
 pub const BELLMAN_CUDA_DIR: &str = "era-bellman-cuda";
+pub const L2_BASE_TOKEN_ADDRESS: &str = "0x000000000000000000000000000000000000800A";
+pub const PORTAL_CONFIG_FILE: &str = "portal.config.js";
+pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
+pub const PORTAL_DOCKER_PORT: u16 = 3000;
