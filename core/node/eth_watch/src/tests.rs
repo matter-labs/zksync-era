@@ -147,7 +147,7 @@ impl EthClient for MockEthClient {
 fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     let tx = L1Tx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: vec![],
             value: U256::zero(),
@@ -178,7 +178,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
     let tx = ProtocolUpgradeTx {
         execute: Execute {
-            contract_address: Address::repeat_byte(0x11),
+            contract_address: Some(Address::repeat_byte(0x11)),
             calldata: vec![1, 2, 3],
             factory_deps: vec![],
             value: U256::zero(),
@@ -582,6 +582,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
+        evm_simulator_hash: upgrade.evm_simulator_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),
         verifier_params: upgrade.verifier_params.unwrap_or_default().into(),
         l1_contracts_upgrade_calldata: vec![],

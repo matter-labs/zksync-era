@@ -133,7 +133,7 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32) -> Transaction 
         .collect();
 
     let mut signed = L2Tx::new_signed(
-        CONTRACT_DEPLOYER_ADDRESS,
+        Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         Nonce(0),
         Fee {

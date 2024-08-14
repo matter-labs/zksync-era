@@ -371,9 +371,11 @@ impl ProtoRepr for proto::Transaction {
                 }
             },
             execute: Execute {
-                contract_address: required(&execute.contract_address)
-                    .and_then(|x| parse_h160(x))
-                    .context("execute.contract_address")?,
+                contract_address: Some(
+                    required(&execute.contract_address)
+                        .and_then(|x| parse_h160(x))
+                        .context("execute.contract_address")?,
+                ),
                 calldata: required(&execute.calldata).context("calldata")?.clone(),
                 value: required(&execute.value)
                     .and_then(|x| parse_h256(x))
@@ -457,7 +459,13 @@ impl ProtoRepr for proto::Transaction {
             }
         };
         let execute = proto::Execute {
-            contract_address: Some(this.execute.contract_address.as_bytes().into()),
+            contract_address: Some(
+                this.execute
+                    .contract_address
+                    .unwrap_or_default()
+                    .as_bytes()
+                    .into(),
+            ),
             calldata: Some(this.execute.calldata.clone()),
             value: Some(u256_to_h256(this.execute.value).as_bytes().into()),
             factory_deps: this.execute.factory_deps.clone(),

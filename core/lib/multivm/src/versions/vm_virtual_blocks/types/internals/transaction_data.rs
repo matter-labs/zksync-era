@@ -22,7 +22,7 @@ use crate::vm_virtual_blocks::{
 pub(crate) struct TransactionData {
     pub(crate) tx_type: u8,
     pub(crate) from: Address,
-    pub(crate) to: Address,
+    pub(crate) to: Option<Address>,
     pub(crate) gas_limit: U256,
     pub(crate) pubdata_price_limit: U256,
     pub(crate) max_fee_per_gas: U256,
@@ -169,7 +169,7 @@ impl TransactionData {
         encode(&[Token::Tuple(vec![
             Token::Uint(U256::from_big_endian(&self.tx_type.to_be_bytes())),
             Token::Address(self.from),
-            Token::Address(self.to),
+            Token::Address(self.to.unwrap_or_default()),
             Token::Uint(self.gas_limit),
             Token::Uint(self.pubdata_price_limit),
             Token::Uint(self.max_fee_per_gas),
@@ -325,7 +325,7 @@ mod tests {
         let transaction = TransactionData {
             tx_type: 113,
             from: Address::random(),
-            to: Address::random(),
+            to: Address::random().into(),
             gas_limit: U256::from(1u32),
             pubdata_price_limit: U256::from(1u32),
             max_fee_per_gas: U256::from(1u32),

@@ -277,6 +277,10 @@ mod tests {
                         code: vec![U256([1; 4])],
                         hash: H256([1; 32]),
                     },
+                    evm_simulator: SystemContractCode {
+                        code: vec![U256([1; 4])],
+                        hash: H256([1; 32]),
+                    },
                 },
                 bootloader_gas_limit: 0,
                 execution_mode: TxExecutionMode::VerifyExecute,

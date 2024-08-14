@@ -59,7 +59,7 @@ fn test_nonce_holder() {
         vm.reset_state(true);
         let mut transaction = account.get_l2_tx_for_execute_with_nonce(
             Execute {
-                contract_address: account.address,
+                contract_address: Some(account.address),
                 calldata: vec![12],
                 value: Default::default(),
                 factory_deps: vec![],

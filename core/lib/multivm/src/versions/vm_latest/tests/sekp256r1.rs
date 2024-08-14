@@ -48,7 +48,7 @@ fn test_sekp256r1() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: P256VERIFY_PRECOMPILE_ADDRESS,
+            contract_address: Some(P256VERIFY_PRECOMPILE_ADDRESS),
             calldata: [digest, encoded_r, encoded_s, x, y].concat(),
             value: U256::zero(),
             factory_deps: vec![],

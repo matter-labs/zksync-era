@@ -51,7 +51,7 @@ impl<S: EthereumSigner> Signer<S> {
         // Sign Ether transfer
         if token.is_zero() || token == L2_BASE_TOKEN_ADDRESS {
             let mut transfer = L2Tx::new(
-                to,
+                Some(to),
                 Default::default(),
                 nonce,
                 fee,
@@ -73,7 +73,7 @@ impl<S: EthereumSigner> Signer<S> {
         // Sign ERC-20 transfer
         let data = create_transfer_calldata(to, amount);
         let mut transfer = L2Tx::new(
-            token,
+            Some(token),
             data,
             nonce,
             fee,
@@ -94,7 +94,7 @@ impl<S: EthereumSigner> Signer<S> {
 
     pub async fn sign_execute_contract(
         &self,
-        contract: Address,
+        contract: Option<Address>,
         calldata: Vec<u8>,
         fee: Fee,
         nonce: Nonce,
@@ -114,7 +114,7 @@ impl<S: EthereumSigner> Signer<S> {
 
     pub async fn sign_execute_contract_for_deploy(
         &self,
-        contract: Address,
+        contract: Option<Address>,
         calldata: Vec<u8>,
         fee: Fee,
         nonce: Nonce,

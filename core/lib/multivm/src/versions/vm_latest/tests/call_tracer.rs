@@ -34,7 +34,7 @@ fn test_max_depth() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: vec![],
             value: Default::default(),
             factory_deps: vec![],
@@ -69,7 +69,7 @@ fn test_basic_behavior() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: hex::decode(increment_by_6_calldata).unwrap(),
             value: Default::default(),
             factory_deps: vec![],

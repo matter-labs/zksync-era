@@ -137,7 +137,7 @@ pub fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
         gas_per_pubdata_limit: gas_per_pubdata.into(),
     };
     let mut tx = L2Tx::new_signed(
-        Address::random(),
+        Some(Address::random()),
         vec![],
         Nonce(0),
         fee,

@@ -63,7 +63,7 @@ where
         self.wallet
             .signer
             .sign_execute_contract(
-                contract_address,
+                Some(contract_address),
                 calldata,
                 fee,
                 nonce,
@@ -144,7 +144,7 @@ where
             .unwrap_or_default();
 
         let execute = L2Tx::new(
-            contract_address,
+            Some(contract_address),
             calldata,
             Nonce(0),
             Default::default(),

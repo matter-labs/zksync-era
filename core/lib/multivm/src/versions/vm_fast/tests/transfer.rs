@@ -70,7 +70,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: test_contract_address,
+            contract_address: Some(test_contract_address),
             calldata,
             value: U256::zero(),
             factory_deps: vec![],
@@ -167,7 +167,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let account = &mut vm.rich_accounts[0];
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: reentrant_recipeint_address,
+            contract_address: Some(reentrant_recipeint_address),
             calldata: reentrant_recipient_abi
                 .function("setX")
                 .unwrap()
@@ -188,7 +188,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
 
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: test_contract_address,
+            contract_address: Some(test_contract_address),
             calldata,
             value,
             factory_deps: vec![],

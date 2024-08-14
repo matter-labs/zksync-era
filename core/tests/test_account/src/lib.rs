@@ -129,7 +129,7 @@ impl Account {
             .expect("failed to encode parameters");
 
         let execute = Execute {
-            contract_address: CONTRACT_DEPLOYER_ADDRESS,
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
             calldata,
             factory_deps,
             value: U256::zero(),
@@ -158,7 +158,7 @@ impl Account {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&self.address),
-                to: address_to_u256(&execute.contract_address),
+                to: address_to_u256(&execute.contract_address.unwrap_or_default()),
                 gas_limit,
                 gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
                 max_fee_per_gas,
@@ -216,7 +216,7 @@ impl Account {
             .expect("failed to encode parameters");
 
         let execute = Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata,
             value: value.unwrap_or_default(),
             factory_deps: vec![],
@@ -235,7 +235,7 @@ impl Account {
     ) -> Transaction {
         let calldata = params.to_bytes();
         let execute = Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata,
             value: U256::zero(),
             factory_deps: vec![],

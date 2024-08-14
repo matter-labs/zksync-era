@@ -24,7 +24,7 @@ fn test_tracing_of_execution_errors() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address,
+            contract_address: Some(contract_address),
             calldata: get_execute_error_calldata(),
             value: Default::default(),
             factory_deps: vec![],

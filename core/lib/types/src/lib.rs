@@ -109,7 +109,7 @@ impl Eq for Transaction {}
 
 impl Transaction {
     /// Returns recipient account of the transaction.
-    pub fn recipient_account(&self) -> Address {
+    pub fn recipient_account(&self) -> Option<Address> {
         self.execute.contract_address
     }
 
@@ -258,7 +258,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                     from: address_to_u256(&data.sender),
-                    to: address_to_u256(&tx.execute.contract_address),
+                    to: address_to_u256(&tx.execute.contract_address.unwrap_or_default()),
                     gas_limit: data.gas_limit,
                     gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
                     max_fee_per_gas: data.max_fee_per_gas,
@@ -289,7 +289,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PROTOCOL_UPGRADE_TX_TYPE.into(),
                     from: address_to_u256(&data.sender),
-                    to: address_to_u256(&tx.execute.contract_address),
+                    to: address_to_u256(&tx.execute.contract_address.unwrap_or_default()),
                     gas_limit: data.gas_limit,
                     gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
                     max_fee_per_gas: data.max_fee_per_gas,
@@ -382,7 +382,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                         unknown_type => anyhow::bail!("unknown tx type {unknown_type}"),
                     },
                     execute: Execute {
-                        contract_address: u256_to_account_address(&tx.to),
+                        contract_address: Some(u256_to_account_address(&tx.to)),
                         calldata: tx.data,
                         factory_deps,
                         value: tx.value,

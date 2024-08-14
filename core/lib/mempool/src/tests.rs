@@ -371,7 +371,7 @@ fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {
 
 fn gen_l2_tx_with_timestamp(address: Address, nonce: Nonce, received_at_ms: u64) -> Transaction {
     let mut txn = L2Tx::new(
-        Address::default(),
+        Address::default().into(),
         Vec::new(),
         nonce,
         Fee::default(),
@@ -386,7 +386,7 @@ fn gen_l2_tx_with_timestamp(address: Address, nonce: Nonce, received_at_ms: u64)
 
 fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
     let execute = Execute {
-        contract_address: Address::repeat_byte(0x11),
+        contract_address: Address::repeat_byte(0x11).into(),
         calldata: vec![1, 2, 3],
         factory_deps: vec![],
         value: U256::zero(),

@@ -70,7 +70,7 @@ where
         self.wallet
             .signer
             .sign_execute_contract_for_deploy(
-                CONTRACT_DEPLOYER_ADDRESS,
+                Some(CONTRACT_DEPLOYER_ADDRESS),
                 execute_calldata,
                 fee,
                 nonce,
@@ -145,7 +145,7 @@ where
         let mut factory_deps = self.factory_deps.clone().unwrap_or_default();
         factory_deps.push(bytecode);
         let l2_tx = L2Tx::new(
-            CONTRACT_DEPLOYER_ADDRESS,
+            Some(CONTRACT_DEPLOYER_ADDRESS),
             Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata),
             Nonce(0),
             Default::default(),

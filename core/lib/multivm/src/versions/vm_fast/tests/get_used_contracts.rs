@@ -60,7 +60,7 @@ fn test_get_used_contracts() {
     let account2 = Account::random();
     let tx2 = account2.get_l1_tx(
         Execute {
-            contract_address: CONTRACT_DEPLOYER_ADDRESS,
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
             calldata: big_calldata,
             value: Default::default(),
             factory_deps: vec![vec![1; 32]],

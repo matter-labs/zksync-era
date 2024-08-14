@@ -67,7 +67,7 @@ async fn test_require_eip712() {
 
     let tx = private_account.get_l2_tx_for_execute(
         Execute {
-            contract_address: account_abstraction.address,
+            contract_address: Some(account_abstraction.address),
             calldata: encoded_input,
             value: Default::default(),
             factory_deps: vec![],
@@ -124,7 +124,7 @@ async fn test_require_eip712() {
 
     // // Now send the 'classic' EIP712 transaction
     let tx_712 = L2Tx::new(
-        beneficiary.address,
+        Some(beneficiary.address),
         vec![],
         Nonce(1),
         Fee {
