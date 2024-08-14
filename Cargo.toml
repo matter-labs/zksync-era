@@ -298,3 +298,6 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
+
+[patch.crates-io]
+iai = { git = "https://github.com/lambdaclass/iai", branch = "fix/valgrind-forward-compatibility" }
