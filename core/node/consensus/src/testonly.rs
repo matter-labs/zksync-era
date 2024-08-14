@@ -12,9 +12,10 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
+use zksync_consensus_roles::validator::testonly::Setup;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{validator};
+use zksync_consensus_roles::{attester,validator};
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -70,52 +71,86 @@ pub(super) struct StateKeeper {
     tree_reader: LazyAsyncTreeReader,
 }
 
-pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config::ConsensusSecrets) {
-    (
-        config::ConsensusConfig {
-            server_addr: *cfg.server_addr,
-            public_addr: config::Host(cfg.public_addr.0.clone()),
-            max_payload_size: usize::MAX,
-            max_batch_size: usize::MAX,
-            gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
-            gossip_static_inbound: cfg
-                .gossip
-                .static_inbound
-                .iter()
-                .map(|k| config::NodePublicKey(k.encode()))
-                .collect(),
-            gossip_static_outbound: cfg
-                .gossip
-                .static_outbound
-                .iter()
-                .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
-                .collect(),
-            genesis_spec: cfg.validator_key.as_ref().map(|key| config::GenesisSpec {
-                chain_id: L2ChainId::default(),
-                protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
-                validators: vec![config::WeightedValidator {
-                    key: config::ValidatorPublicKey(key.public().encode()),
-                    weight: 1,
-                }],
-                // We only have access to the main node attester key in the `cfg`, which is fine
-                // for validators because at the moment there is only one leader. It doesn't
-                // allow us to form a full attester committee. However in the current tests
-                // the `new_configs` used to produce the array of `network::Config` doesn't
-                // assign an attester key, so it doesn't matter.
-                attesters: Vec::new(),
-                leader: config::ValidatorPublicKey(key.public().encode()),
-            }),
-            rpc: None,
-        },
-        config::ConsensusSecrets {
-            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
-            validator_key: cfg
-                .validator_key
-                .as_ref()
-                .map(|k| config::ValidatorSecretKey(k.encode().into())),
-            attester_key: None, // attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
-        },
-    )
+#[derive(Clone)]
+pub(super) struct ConfigSet {
+    net: network::Config,
+    pub(super) config: config::ConsensusConfig,
+    pub(super) secrets: config::ConsensusSecrets,
+}
+
+impl ConfigSet {
+    pub(super) fn new_fullnode(&self, rng: &mut impl Rng) -> ConfigSet {
+        let net = network::testonly::new_fullnode(rng, &self.net);
+        ConfigSet {
+            config: make_config(&net, None),
+            secrets: make_secrets(&net, None),
+            net,
+        }
+    }
+}
+
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, gossip_peers: usize) -> Vec<ConfigSet> {
+    network::testonly::new_configs(rng, setup, gossip_peers)
+        .into_iter()
+        .enumerate()
+        .map(|(i,net)| ConfigSet {
+            config: make_config(&net, Some(&setup.genesis)),
+            secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
+            net,
+        })
+        .collect()
+}
+
+fn make_secrets(cfg: &network::Config, attester_key: Option<attester::SecretKey>) -> config::ConsensusSecrets {
+    config::ConsensusSecrets {        
+        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
+        validator_key: cfg
+            .validator_key
+            .as_ref()
+            .map(|k| config::ValidatorSecretKey(k.encode().into())),
+        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
+    }
+}
+
+fn make_config(cfg: &network::Config, genesis: Option<&validator::Genesis>) -> config::ConsensusConfig {
+    config::ConsensusConfig {
+        server_addr: *cfg.server_addr,
+        public_addr: config::Host(cfg.public_addr.0.clone()),
+        max_payload_size: usize::MAX,
+        max_batch_size: usize::MAX,
+        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+        gossip_static_inbound: cfg
+            .gossip
+            .static_inbound
+            .iter()
+            .map(|k| config::NodePublicKey(k.encode()))
+            .collect(),
+        gossip_static_outbound: cfg
+            .gossip
+            .static_outbound
+            .iter()
+            .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
+            .collect(),
+        // This is only relevant for the main node, which populates the genesis on the first run.
+        // Note that the spec doesn't match 100% the genesis provided.
+        // That's because not all genesis setups are currently supported in zksync-era.
+        // TODO: this might be misleading, so it would be better to write some more custom
+        // genesis generator for zksync-era tests.
+        genesis_spec: genesis.map(|genesis| config::GenesisSpec {
+            chain_id: genesis.chain_id.0.try_into().unwrap(),
+            protocol_version: config::ProtocolVersion(genesis.protocol_version.0),
+            validators: genesis.validators.iter().map(|v| config::WeightedValidator {
+                key: config::ValidatorPublicKey(v.key.encode()),
+                weight: v.weight,
+            }).collect(),
+            attesters: genesis.attesters.as_ref().map_or(vec![], |x| x.iter().map(|a| config::WeightedAttester {
+                key: config::AttesterPublicKey(a.key.encode()),
+                weight: a.weight,
+            }).collect()),
+            leader: config::ValidatorPublicKey(genesis.validators[0].key.encode()),
+        }),
+        rpc: None,
+    }
 }
 
 /// Fake StateKeeper task to be executed in the background.
@@ -388,15 +423,14 @@ impl StateKeeper {
         self,
         ctx: &ctx::Ctx,
         client: Box<DynClient<L2>>,
-        cfg: &network::Config,
+        cfgs: ConfigSet,
     ) -> anyhow::Result<()> {
-        let (cfg, secrets) = config(cfg);
         en::EN {
             pool: self.pool,
             client,
             sync_state: self.sync_state.clone(),
         }
-        .run(ctx, self.actions_sender, cfg, secrets)
+        .run(ctx, self.actions_sender, cfgs.config, cfgs.secrets)
         .await
     }
 }
