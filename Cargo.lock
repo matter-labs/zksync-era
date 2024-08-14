@@ -1982,6 +1982,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "eravm-stable-interface"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=f888f761525a2275e6871440595ac3e65a6c96ae#f888f761525a2275e6871440595ac3e65a6c96ae"
 dependencies = [
  "primitive-types",
 ]
@@ -7298,6 +7299,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=f888f761525a2275e6871440595ac3e65a6c96ae#f888f761525a2275e6871440595ac3e65a6c96ae"
 dependencies = [
  "enum_dispatch",
  "eravm-stable-interface",

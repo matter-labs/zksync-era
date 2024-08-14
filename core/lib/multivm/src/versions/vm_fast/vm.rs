@@ -3,14 +3,12 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    CircuitCycleStatistic as VM2CircuitCycleStatistic, ExecutionEnd, Program, Settings, Tracer,
-    VirtualMachine,
+    ExecutionEnd, Program, Settings, Tracer, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::ReadStorage;
 use zksync_types::{
-    circuit::CircuitStatistic,
     event::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
         L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
@@ -59,36 +57,8 @@ use crate::{
 };
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
+#[allow(unused)]
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
-
-fn circuit_statistic_from_cycles(cycles: &VM2CircuitCycleStatistic) -> CircuitStatistic {
-    CircuitStatistic {
-        main_vm: cycles.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
-        ram_permutation: cycles.ram_permutation_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
-        storage_application: cycles.storage_application_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
-        storage_sorter: cycles.storage_sorter_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
-        code_decommitter: cycles.code_decommitter_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
-        code_decommitter_sorter: cycles.code_decommitter_sorter_cycles as f32
-            / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
-        log_demuxer: cycles.log_demuxer_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
-        events_sorter: cycles.events_sorter_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
-        keccak256: cycles.keccak256_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
-        ecrecover: cycles.ecrecover_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
-        sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
-        secp256k1_verify: cycles.secp256k1_verify_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
-        transient_storage_checker: cycles.transient_storage_checker_cycles as f32
-            / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
-    }
-}
 
 pub struct Vm<S, T> {
     pub(crate) world: World<S, T>,
@@ -467,7 +437,6 @@ impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
-        self.inner.statistics = Default::default();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
@@ -522,8 +491,6 @@ impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
 
         let pubdata_after = self.inner.world_diff.pubdata();
 
-        let circuit_statistic = circuit_statistic_from_cycles(&self.inner.statistics);
-
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -536,7 +503,7 @@ impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic,
+                circuit_statistic: Default::default(),
             },
             refunds,
         }
