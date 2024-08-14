@@ -98,7 +98,7 @@ impl ProofGenerationDal<'_, '_> {
             WHERE
                 proof_blob_url IS NOT NULL
             ORDER BY
-                l1_batch_number ASC
+                l1_batch_number DESC
             LIMIT
                 1
             "#,

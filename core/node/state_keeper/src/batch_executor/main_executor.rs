@@ -5,17 +5,17 @@ use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::mpsc};
 use zksync_multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+        storage::{ReadStorage, StorageView},
+        CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{OwnedStorage, ReadStorage, StorageView, WriteStorage};
-use zksync_types::{vm_trace::Call, Transaction};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
+use zksync_state::OwnedStorage;
+use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
@@ -35,6 +35,7 @@ pub struct MainBatchExecutor {
     /// that in cases where the node is expected to process any transactions processed by the sequencer
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
+    fast_vm_mode: FastVmMode,
 }
 
 impl MainBatchExecutor {
@@ -42,11 +43,21 @@ impl MainBatchExecutor {
         Self {
             save_call_traces,
             optional_bytecode_compression,
+            fast_vm_mode: FastVmMode::Old,
         }
+    }
+
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        if !matches!(fast_vm_mode, FastVmMode::Old) {
+            tracing::warn!(
+                "Running new VM with mode {fast_vm_mode:?}; this can lead to incorrect node behavior"
+            );
+        }
+        self.fast_vm_mode = fast_vm_mode;
     }
 }
 
-impl BatchExecutor for MainBatchExecutor {
+impl BatchExecutor<OwnedStorage> for MainBatchExecutor {
     fn init_batch(
         &mut self,
         storage: OwnedStorage,
@@ -59,6 +70,7 @@ impl BatchExecutor for MainBatchExecutor {
         let executor = CommandReceiver {
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
+            fast_vm_mode: self.fast_vm_mode,
             commands: commands_receiver,
         };
 
@@ -86,6 +98,7 @@ impl BatchExecutor for MainBatchExecutor {
 struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
+    fast_vm_mode: FastVmMode,
     commands: mpsc::Receiver<Command>,
 }
 
@@ -99,8 +112,12 @@ impl CommandReceiver {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
-
-        let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
+        let mut vm = VmInstance::maybe_fast(
+            l1_batch_params,
+            system_env,
+            storage_view.clone(),
+            self.fast_vm_mode,
+        );
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
@@ -152,12 +169,15 @@ impl CommandReceiver {
         tracing::info!("State keeper exited with an unfinished L1 batch");
     }
 
-    fn execute_tx<S: WriteStorage>(
+    fn execute_tx<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> TxExecutionResult {
-        // Save pre-`execute_next_tx` VM snapshot.
+        // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
+        // was already removed), or that we build on top of it (in which case, it can be removed now).
+        vm.pop_snapshot_no_rollback();
+        // Save pre-execution VM snapshot.
         vm.make_snapshot();
 
         // Execute the transaction.
@@ -191,13 +211,13 @@ impl CommandReceiver {
         }
     }
 
-    fn rollback_last_tx<S: WriteStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
+    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
         latency.observe();
     }
 
-    fn start_next_l2_block<S: WriteStorage>(
+    fn start_next_l2_block<S: ReadStorage>(
         &self,
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -205,7 +225,7 @@ impl CommandReceiver {
         vm.start_new_l2_block(l2_block_env);
     }
 
-    fn finish_batch<S: WriteStorage>(
+    fn finish_batch<S: ReadStorage>(
         &self,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> FinishedL1Batch {
@@ -225,7 +245,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with or without bytecode compression.
     /// If compression fails, the transaction will be re-executed without compression.
-    fn execute_tx_in_vm_with_optional_compression<S: WriteStorage>(
+    fn execute_tx_in_vm_with_optional_compression<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -243,9 +263,6 @@ impl CommandReceiver {
         // it means that there is no sense in polluting the space of compressed bytecodes,
         // and so we re-execute the transaction, but without compression.
 
-        // Saving the snapshot before executing
-        vm.make_snapshot();
-
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
@@ -257,7 +274,6 @@ impl CommandReceiver {
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-            vm.pop_snapshot_no_rollback();
 
             let trace = Arc::try_unwrap(call_tracer_result)
                 .unwrap()
@@ -265,7 +281,11 @@ impl CommandReceiver {
                 .unwrap_or_default();
             return (result, compressed_bytecodes, trace);
         }
+
+        // Roll back to the snapshot just before the transaction execution taken in `Self::execute_tx()`
+        // and create a snapshot at the same VM state again.
         vm.rollback_to_the_latest_snapshot();
+        vm.make_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
@@ -292,7 +312,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
-    fn execute_tx_in_vm<S: WriteStorage>(
+    fn execute_tx_in_vm<S: ReadStorage>(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,

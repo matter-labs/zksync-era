@@ -19,12 +19,12 @@ use zksync_types::{
         BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo,
     },
-    circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     l2_to_l1_log::UserL2ToL1Log,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
+use zksync_vm_interface::CircuitStatistic;
 
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
