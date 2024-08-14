@@ -1,7 +1,4 @@
-use common::{
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
-    spinner::Spinner,
-};
+use common::forge::{Forge, ForgeScript, ForgeScriptArgs};
 use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
 use ethers::{
     abi::parse_abi,
@@ -11,10 +8,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 
-use crate::{
-    messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
-    utils::forge::{check_the_balance, fill_forge_private_key},
-};
+use crate::utils::forge::{check_the_balance, fill_forge_private_key};
 
 lazy_static! {
     static ref ACCEPT_ADMIN: BaseContract = BaseContract::from(
