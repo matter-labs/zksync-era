@@ -21,7 +21,7 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
+    //todo: uncomment check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
 
     let prover_only_mode = args.get_mode_value_with_prompt();
