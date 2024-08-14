@@ -1,11 +1,13 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
-use xshell::{cmd, Shell};
-use zksync_config::{
-    configs::{object_store::ObjectStoreMode, GeneralConfig},
-    ObjectStoreConfig,
+use config::{
+    copy_prover_configs, traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig,
+    ProverConfig,
 };
+use xshell::{cmd, Shell};
+use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProverInitArgs},
@@ -17,22 +19,45 @@ use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
-        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
-        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let mut general_config = chain_config
-        .get_general_config()
-        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
 
-    let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
+    let prover_only_mode = args.get_mode_value_with_prompt();
+
+    let (link_to_code, configs) = if prover_only_mode {
+        let general_prover_config = GeneralProverConfig::from_file(shell)?;
+        (
+            general_prover_config.link_to_code,
+            general_prover_config.config,
+        )
+    } else {
+        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        (ecosystem_config.link_to_code, ecosystem_config.config)
+    };
+
+    if prover_only_mode {
+        copy_prover_configs(shell, &link_to_code, &configs)?;
+    }
+
+    let mut prover_config = if prover_only_mode {
+        let prover_config = GeneralProverConfig::from_file(shell)?;
+        prover_config.load_prover_config()?
+    } else {
+        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let chain_config = ecosystem_config
+            .load_chain(Some(ecosystem_config.default_chain.clone()))
+            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+        let general_config = chain_config
+            .get_general_config()
+            .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
+        ProverConfig::from(general_config)
+    };
+
+    let setup_key_path = get_default_setup_key_path(link_to_code.clone())?;
 
     let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
@@ -40,35 +65,41 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if args.setup_key_config.download_key {
-        download_setup_key(
-            shell,
-            &general_config,
-            &args.setup_key_config.setup_key_path,
-        )?;
+        download_setup_key(shell, &prover_config, &args.setup_key_config.setup_key_path)?;
     }
 
-    let mut prover_config = general_config
-        .prover_config
-        .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
     prover_config
+        .fri_prover_config
         .prover_object_store
         .clone_from(&proof_object_store_config);
     if let Some(public_object_store_config) = public_object_store_config {
-        prover_config.shall_save_to_public_bucket = true;
-        prover_config.public_object_store = Some(public_object_store_config);
+        prover_config.fri_prover_config.shall_save_to_public_bucket = true;
+        prover_config.fri_prover_config.public_object_store = Some(public_object_store_config);
     } else {
-        prover_config.shall_save_to_public_bucket = false;
+        prover_config.fri_prover_config.shall_save_to_public_bucket = false;
     }
-    prover_config.cloud_type = args.cloud_type;
-    general_config.prover_config = Some(prover_config);
+    prover_config.fri_prover_config.cloud_type = args.cloud_type;
 
-    let mut proof_compressor_config = general_config
-        .proof_compressor_config
-        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR);
-    proof_compressor_config.universal_setup_path = args.setup_key_config.setup_key_path;
-    general_config.proof_compressor_config = Some(proof_compressor_config);
+    prover_config
+        .fri_proof_compressor_config
+        .universal_setup_path = args.setup_key_config.setup_key_path;
 
-    chain_config.save_general_config(&general_config)?;
+    if prover_only_mode {
+        prover_config.save_with_base_path(shell, &configs)?;
+    } else {
+        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let chain_config = ecosystem_config
+            .load_chain(Some(ecosystem_config.default_chain.clone()))
+            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+        let mut general_config = chain_config
+            .get_general_config()
+            .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
+
+        general_config.prover_config = Some(prover_config.fri_prover_config);
+        general_config.proof_compressor_config = Some(prover_config.fri_proof_compressor_config);
+
+        chain_config.save_general_config(&general_config)?;
+    }
 
     init_bellman_cuda(shell, args.bellman_cuda_config).await?;
 
@@ -78,16 +109,14 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
 fn download_setup_key(
     shell: &Shell,
-    general_config: &GeneralConfig,
+    prover_config: &ProverConfig,
     path: &str,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
-    let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
-        .proof_compressor_config
-        .as_ref()
-        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
+    let url = prover_config
+        .fri_proof_compressor_config
+        .universal_setup_download_url
         .clone();
-    let url = compressor_config.universal_setup_download_url;
     let path = std::path::Path::new(path);
     let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
     let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
@@ -102,8 +131,8 @@ fn download_setup_key(
     Ok(())
 }
 
-fn get_default_setup_key_path(ecosystem_config: &EcosystemConfig) -> anyhow::Result<String> {
-    let link_to_prover = get_link_to_prover(ecosystem_config);
+fn get_default_setup_key_path(link_to_code: PathBuf) -> anyhow::Result<String> {
+    let link_to_prover = get_link_to_prover(link_to_code);
     let path = link_to_prover.join("keys/setup/setup_2^24.key");
     let string = path.to_str().unwrap();
 

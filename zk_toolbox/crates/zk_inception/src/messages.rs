@@ -304,6 +304,8 @@ pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recomme
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
 pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
+pub(super) const MSG_PROVER_ONLY_MODE_PROMPT: &str =
+    "Are you working with whole ecosystem or only prover subsystem?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

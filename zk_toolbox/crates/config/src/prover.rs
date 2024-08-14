@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
@@ -10,6 +11,7 @@ use zksync_config::{
     configs::{
         fri_prover_group::FriProverGroupConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, Secrets,
     },
     PostgresConfig,
 };
@@ -18,7 +20,7 @@ use crate::{
     consts::{CONFIG_NAME, PROVER_CONFIG_NAME},
     find_file,
     traits::{FileConfigWithDefaultName, ReadConfig, ZkToolboxConfig},
-    PROVER_FILE,
+    PROVER_FILE, SECRETS_FILE,
 };
 
 #[derive(Debug, Clone)]
@@ -130,8 +132,20 @@ impl GeneralProverConfig {
         Ok(prover)
     }
 
+    pub fn path_to_prover_config(&self) -> PathBuf {
+        self.config.join(PROVER_FILE)
+    }
+
+    pub fn path_to_secrets(&self) -> PathBuf {
+        self.config.join(SECRETS_FILE)
+    }
+
     pub fn load_prover_config(&self) -> anyhow::Result<ProverConfig> {
         ProverConfig::read(self.get_shell(), &self.config.join(PROVER_FILE))
+    }
+
+    pub fn load_secrets_config(&self) -> anyhow::Result<Secrets> {
+        Secrets::read(self.get_shell(), &self.config.join(SECRETS_FILE))
     }
 
     pub fn get_internal(&self) -> GeneralProverConfigInternal {
@@ -145,6 +159,30 @@ impl GeneralProverConfig {
             link_to_code: self.link_to_code.clone(),
             bellman_cuda_dir,
             config: self.config.clone(),
+        }
+    }
+}
+
+impl From<GeneralConfig> for ProverConfig {
+    fn from(config: GeneralConfig) -> Self {
+        Self {
+            postgres_config: config.postgres_config.expect("Postgres config not found"),
+            fri_prover_config: config.prover_config.expect("FRI prover config not found"),
+            fri_witness_generator_config: config
+                .witness_generator
+                .expect("FRI witness generator config not found"),
+            fri_witness_vector_generator_config: config
+                .witness_vector_generator
+                .expect("FRI witness vector generator config not found"),
+            fri_prover_gateway_config: config
+                .prover_gateway
+                .expect("FRI prover gateway config not found"),
+            fri_proof_compressor_config: config
+                .proof_compressor_config
+                .expect("FRI proof compressor config not found"),
+            fri_prover_group_config: config
+                .prover_group_config
+                .expect("FRI prover group config not found"),
         }
     }
 }

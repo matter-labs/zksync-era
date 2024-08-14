@@ -16,8 +16,8 @@ use crate::{
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
-        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
-        MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_ONLY_MODE_PROMPT,
+        MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
     },
 };
 
@@ -58,7 +58,7 @@ pub struct ProverInitArgs {
     cloud_type: Option<InternalCloudConnectionMode>,
 
     #[clap(long)]
-    prover_only: Option<bool>,
+    pub prover_only_mode: Option<bool>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
@@ -442,5 +442,10 @@ impl ProverInitArgs {
         });
 
         cloud_type.into()
+    }
+
+    pub(crate) fn get_mode_value_with_prompt(&self) -> bool {
+        self.prover_only_mode
+            .unwrap_or_else(|| Prompt::new(MSG_PROVER_ONLY_MODE_PROMPT).ask())
     }
 }

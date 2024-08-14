@@ -2,7 +2,10 @@ use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::{MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT};
+use crate::messages::{
+    MSG_PROVER_ONLY_MODE_PROMPT, MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT,
+    MSG_THREADS_PROMPT,
+};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverRunArgs {
@@ -12,6 +15,8 @@ pub struct ProverRunArgs {
     pub witness_generator_args: WitnessGeneratorArgs,
     #[clap(flatten)]
     pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
+    #[clap(long)]
+    pub prover_only_mode: Option<bool>,
 }
 
 #[derive(
@@ -92,7 +97,13 @@ impl ProverRunArgs {
             component: Some(component),
             witness_generator_args,
             witness_vector_generator_args,
+            prover_only_mode: Default::default(),
         })
+    }
+
+    pub fn get_mode_value_with_prompt(&self) -> bool {
+        self.prover_only_mode
+            .unwrap_or_else(|| Prompt::new(MSG_PROVER_ONLY_MODE_PROMPT).ask())
     }
 }
 
