@@ -11,11 +11,12 @@ export TRANSACTION_WEIGHTS_WITHDRAWAL=${weights[3]}
 
 read -ra execution_params <<<"$CONTRACT_EXECUTION_PARAMS" #reading $CONTRACT_EXECUTION_PARAMS as an array as tokens separated by IFS
 export CONTRACT_EXECUTION_PARAMS_READS=${execution_params[0]}
-export CONTRACT_EXECUTION_PARAMS_WRITES=${execution_params[1]}
-export CONTRACT_EXECUTION_PARAMS_EVENTS=${execution_params[2]}
-export CONTRACT_EXECUTION_PARAMS_HASHES=${execution_params[3]}
-export CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=${execution_params[4]}
-export CONTRACT_EXECUTION_PARAMS_DEPLOYS=${execution_params[5]}
+export CONTRACT_EXECUTION_PARAMS_NEW_WRITES=${execution_params[1]}
+export CONTRACT_EXECUTION_PARAMS_OVER_WRITES=${execution_params[2]}
+export CONTRACT_EXECUTION_PARAMS_EVENTS=${execution_params[3]}
+export CONTRACT_EXECUTION_PARAMS_HASHES=${execution_params[4]}
+export CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=${execution_params[5]}
+export CONTRACT_EXECUTION_PARAMS_DEPLOYS=${execution_params[6]}
 
 # Run the test
 cargo run --bin loadnext
