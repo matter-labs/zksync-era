@@ -667,7 +667,7 @@ async fn generate_witness(
         .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
         .collect();
 
-    let _ = futures::future::join_all(save_ram_queue_witness_handles);
+    futures::future::join_all(save_ram_queue_witness_handles).await;
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;

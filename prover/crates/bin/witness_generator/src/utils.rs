@@ -199,11 +199,10 @@ pub async fn save_ram_premutation_queue_witness(
         circuit_subsequence_number,
         is_sorted,
     };
-    let blob_url = object_store
+    object_store
         .put(witness_key, &RamPermutationQueueWitness { witness })
         .await
-        .unwrap();
-    blob_url
+        .unwrap()
 }
 
 #[tracing::instrument(
