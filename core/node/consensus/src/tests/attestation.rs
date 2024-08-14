@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use test_casing::{test_casing,Product};
+use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
@@ -9,12 +9,9 @@ use zksync_consensus_roles::{
 use zksync_dal::consensus_dal::AttestationStatus;
 use zksync_node_sync::MainNodeClient;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
-use super::{FROM_SNAPSHOT,VERSIONS};
-use crate::{
-    mn::run_main_node,
-    storage::{ConnectionPool},
-    testonly,
-};
+
+use super::{FROM_SNAPSHOT, VERSIONS};
+use crate::{mn::run_main_node, storage::ConnectionPool, testonly};
 
 #[test_casing(2, VERSIONS)]
 #[tokio::test]
@@ -124,10 +121,17 @@ async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId
         });
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
-        validator_pool.wait_for_payload(ctx, validator.last_block()).await?;
+        validator_pool
+            .wait_for_payload(ctx, validator.last_block())
+            .await?;
 
         tracing::info!("Run validator.");
-        s.spawn_bg(run_main_node(ctx, cfgs[0].config.clone(), cfgs[0].secrets.clone(), validator_pool.clone()));
+        s.spawn_bg(run_main_node(
+            ctx,
+            cfgs[0].config.clone(),
+            cfgs[0].secrets.clone(),
+            validator_pool.clone(),
+        ));
 
         tracing::info!("Run nodes.");
         let mut node_pools = vec![];
@@ -152,7 +156,9 @@ async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId
         validator.seal_batch().await;
         tracing::info!("Wait for the batches to be attested");
         let want_last = attester::BatchNumber(validator.last_sealed_batch().0.into());
-        validator_pool.wait_for_batch_certificates_and_verify(ctx, want_last).await?;
+        validator_pool
+            .wait_for_batch_certificates_and_verify(ctx, want_last)
+            .await?;
         Ok(())
     })
     .await

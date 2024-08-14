@@ -1,10 +1,8 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_executor::{
-    self as executor,
-    attestation,
-};
-use std::sync::Arc;
+use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_dal::consensus_dal;
@@ -107,11 +105,7 @@ impl EN {
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_updater(
-                ctx,
-                genesis.clone(),
-                attestation.clone(),
-            ));
+            s.spawn_bg(self.run_attestation_updater(ctx, genesis.clone(), attestation.clone()));
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
@@ -176,8 +170,10 @@ impl EN {
         genesis: validator::Genesis,
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
-        const POLL_INTERVAL : time::Duration = time::Duration::seconds(5);
-        let Some(committee) = &genesis.attesters else { return Ok(()) };
+        const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+        let Some(committee) = &genesis.attesters else {
+            return Ok(());
+        };
         let committee = Arc::new(committee.clone());
         let mut next = attester::BatchNumber(0);
         loop {
@@ -195,17 +191,29 @@ impl EN {
                 }
                 ctx.sleep(POLL_INTERVAL).await?;
             };
-            tracing::info!("waiting for hash of batch {:?}",status.next_batch_to_attest);
-            let hash = self.pool.wait_for_batch_hash(ctx,status.next_batch_to_attest).await?;
-            tracing::info!("attesting batch {:?} with hash {hash:?}",status.next_batch_to_attest);
-            attestation.update_config(Arc::new(attestation::Config {
-                batch_to_attest: attester::Batch {
-                    genesis: status.genesis,
-                    hash,
-                    number: status.next_batch_to_attest,
-                },
-                committee: committee.clone(), 
-            })).await.context("update_config()")?;
+            tracing::info!(
+                "waiting for hash of batch {:?}",
+                status.next_batch_to_attest
+            );
+            let hash = self
+                .pool
+                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+                .await?;
+            tracing::info!(
+                "attesting batch {:?} with hash {hash:?}",
+                status.next_batch_to_attest
+            );
+            attestation
+                .update_config(Arc::new(attestation::Config {
+                    batch_to_attest: attester::Batch {
+                        genesis: status.genesis,
+                        hash,
+                        number: status.next_batch_to_attest,
+                    },
+                    committee: committee.clone(),
+                }))
+                .await
+                .context("update_config()")?;
             next = status.next_batch_to_attest.next();
         }
     }
@@ -250,11 +258,18 @@ impl EN {
     }
 
     #[tracing::instrument(skip_all)]
-    async fn fetch_attestation_status(&self, ctx: &ctx::Ctx) -> ctx::Result<consensus_dal::AttestationStatus> {
+    async fn fetch_attestation_status(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<consensus_dal::AttestationStatus> {
         match ctx.wait(self.client.fetch_attestation_status()).await? {
-            Ok(Some(status)) => Ok(zksync_protobuf::serde::deserialize(&status.0).context("deserialize(AttestationStatus")?),
+            Ok(Some(status)) => Ok(zksync_protobuf::serde::deserialize(&status.0)
+                .context("deserialize(AttestationStatus")?),
             Ok(None) => Err(anyhow::format_err!("empty response").into()),
-            Err(err) => Err(anyhow::format_err!("AttestationStatus call to main node HTTP RPC failed: {err:#}").into()),
+            Err(err) => Err(anyhow::format_err!(
+                "AttestationStatus call to main node HTTP RPC failed: {err:#}"
+            )
+            .into()),
         }
     }
 

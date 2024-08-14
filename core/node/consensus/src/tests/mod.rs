@@ -7,7 +7,7 @@ use zksync_consensus_roles::{
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
-use zksync_types::{ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 
 use crate::{
     mn::run_main_node,
@@ -165,7 +165,12 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
-        s.spawn_bg(run_main_node(ctx, validator_cfg.config.clone(), validator_cfg.secrets.clone(), validator_pool.clone()));
+        s.spawn_bg(run_main_node(
+            ctx,
+            validator_cfg.config.clone(),
+            validator_cfg.secrets.clone(),
+            validator_pool.clone(),
+        ));
 
         tracing::info!("produce some batches");
         validator.push_random_blocks(rng, 5).await;
@@ -267,7 +272,12 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
             .await?;
 
         tracing::info!("Run validator.");
-        s.spawn_bg(run_main_node(ctx, validator_cfg.config.clone(), validator_cfg.secrets.clone(), validator_pool.clone()));
+        s.spawn_bg(run_main_node(
+            ctx,
+            validator_cfg.config.clone(),
+            validator_cfg.secrets.clone(),
+            validator_pool.clone(),
+        ));
 
         tracing::info!("Run nodes.");
         let mut node_pools = vec![];
@@ -345,7 +355,12 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
         main_node.connect(ctx).await?;
 
         tracing::info!("Run main node with all nodes being validators.");
-        s.spawn_bg(run_main_node(ctx, cfgs[0].config.clone(), cfgs[0].secrets.clone(), main_node_pool.clone()));
+        s.spawn_bg(run_main_node(
+            ctx,
+            cfgs[0].config.clone(),
+            cfgs[0].secrets.clone(),
+            main_node_pool.clone(),
+        ));
 
         tracing::info!("Run external nodes.");
         let mut ext_node_pools = vec![];
@@ -401,7 +416,12 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(run_main_node(ctx, validator_cfg.config.clone(), validator_cfg.secrets.clone(), validator_pool.clone()));
+        s.spawn_bg(run_main_node(
+            ctx,
+            validator_cfg.config.clone(),
+            validator_cfg.secrets.clone(),
+            validator_pool.clone(),
+        ));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
@@ -484,9 +504,14 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         s.spawn_bg({
             let validator_pool = validator_pool.clone();
             async {
-                run_main_node(ctx, validator_cfg.config.clone(), validator_cfg.secrets.clone(), validator_pool)
-                    .await
-                    .context("run_main_node()")
+                run_main_node(
+                    ctx,
+                    validator_cfg.config.clone(),
+                    validator_cfg.secrets.clone(),
+                    validator_pool,
+                )
+                .await
+                .context("run_main_node()")
             }
         });
         // TODO: ensure at least 1 L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
@@ -589,5 +614,3 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
     .await
     .unwrap();
 }
-
-

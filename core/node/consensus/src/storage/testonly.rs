@@ -2,7 +2,7 @@
 
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::{attester,validator};
+use zksync_consensus_roles::{attester, validator};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
@@ -12,12 +12,18 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
-use super::{Connection,ConnectionPool};
+use super::{Connection, ConnectionPool};
 
 impl Connection<'_> {
     /// Wrapper for `consensus_dal().batch_of_block()`.
-    pub async fn batch_of_block(&mut self, ctx: &ctx::Ctx, block: validator::BlockNumber) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx.wait(self.0.consensus_dal().batch_of_block(block)).await??)
+    pub async fn batch_of_block(
+        &mut self,
+        ctx: &ctx::Ctx,
+        block: validator::BlockNumber,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_of_block(block))
+            .await??)
     }
 
     /// Wrapper for `consensus_dal().last_batch_certificate_number()`.
@@ -187,7 +193,7 @@ impl ConnectionPool {
             block.verify(&genesis).context(block.number())?;
         }
         Ok(blocks)
-    } 
+    }
 
     pub async fn wait_for_batch_certificates_and_verify(
         &self,
@@ -208,17 +214,34 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let genesis = conn.genesis(ctx).await.wrap("genesis()")?.context("genesis is missing")?;
-        let first = conn.batch_of_block(ctx, genesis.first_block).await.wrap("batch_of_block()")?.context("batch of first_block is missing")?;
+        let genesis = conn
+            .genesis(ctx)
+            .await
+            .wrap("genesis()")?
+            .context("genesis is missing")?;
+        let first = conn
+            .batch_of_block(ctx, genesis.first_block)
+            .await
+            .wrap("batch_of_block()")?
+            .context("batch of first_block is missing")?;
         let committee = genesis.attesters.as_ref().unwrap();
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
-            let hash = conn.batch_hash(ctx, i).await.wrap("batch_hash()")?.context("hash missing")?;
-            let cert = conn.batch_certificate(ctx, i).await.wrap("batch_certificate")?.context("cert missing")?;
+            let hash = conn
+                .batch_hash(ctx, i)
+                .await
+                .wrap("batch_hash()")?
+                .context("hash missing")?;
+            let cert = conn
+                .batch_certificate(ctx, i)
+                .await
+                .wrap("batch_certificate")?
+                .context("cert missing")?;
             if cert.message.hash != hash {
-                return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());    
+                return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());
             }
-            cert.verify(genesis.hash(),committee).context("cert[{i:?}].verify()")?;
+            cert.verify(genesis.hash(), committee)
+                .context("cert[{i:?}].verify()")?;
         }
         Ok(())
     }

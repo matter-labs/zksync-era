@@ -1,14 +1,10 @@
 use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_roles::{
-    validator,
-};
+use zksync_consensus_roles::validator;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
+
 use super::{FROM_SNAPSHOT, VERSIONS};
-use crate::{
-    storage::{ConnectionPool},
-    testonly,
-};
+use crate::{storage::ConnectionPool, testonly};
 
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]

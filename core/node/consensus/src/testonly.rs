@@ -12,10 +12,9 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
-use zksync_consensus_roles::validator::testonly::Setup;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{attester,validator};
+use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -89,24 +88,36 @@ impl ConfigSet {
     }
 }
 
-pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, gossip_peers: usize) -> Vec<ConfigSet> {
+pub(super) fn new_configs(
+    rng: &mut impl Rng,
+    setup: &Setup,
+    gossip_peers: usize,
+) -> Vec<ConfigSet> {
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
         protocol_version: config::ProtocolVersion(setup.genesis.protocol_version.0),
-        validators: setup.validator_keys.iter().map(|k| config::WeightedValidator {
-            key: config::ValidatorPublicKey(k.public().encode()),
-            weight: 1,
-        }).collect(),
-        attesters: setup.attester_keys.iter().map(|k| config::WeightedAttester {
-            key: config::AttesterPublicKey(k.public().encode()),
-            weight: 1,
-        }).collect(),
+        validators: setup
+            .validator_keys
+            .iter()
+            .map(|k| config::WeightedValidator {
+                key: config::ValidatorPublicKey(k.public().encode()),
+                weight: 1,
+            })
+            .collect(),
+        attesters: setup
+            .attester_keys
+            .iter()
+            .map(|k| config::WeightedAttester {
+                key: config::AttesterPublicKey(k.public().encode()),
+                weight: 1,
+            })
+            .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
     };
     network::testonly::new_configs(rng, setup, gossip_peers)
         .into_iter()
         .enumerate()
-        .map(|(i,net)| ConfigSet {
+        .map(|(i, net)| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
@@ -114,8 +125,11 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, gossip_peers: usize
         .collect()
 }
 
-fn make_secrets(cfg: &network::Config, attester_key: Option<attester::SecretKey>) -> config::ConsensusSecrets {
-    config::ConsensusSecrets {        
+fn make_secrets(
+    cfg: &network::Config,
+    attester_key: Option<attester::SecretKey>,
+) -> config::ConsensusSecrets {
+    config::ConsensusSecrets {
         node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
         validator_key: cfg
             .validator_key
@@ -125,7 +139,10 @@ fn make_secrets(cfg: &network::Config, attester_key: Option<attester::SecretKey>
     }
 }
 
-fn make_config(cfg: &network::Config, genesis_spec: Option<config::GenesisSpec>) -> config::ConsensusConfig {
+fn make_config(
+    cfg: &network::Config,
+    genesis_spec: Option<config::GenesisSpec>,
+) -> config::ConsensusConfig {
     config::ConsensusConfig {
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
