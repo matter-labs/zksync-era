@@ -59,10 +59,10 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
     /// Creates a new VM instance.
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let bootloader_code = system_env
-            .clone()
             .base_system_smart_contracts
             .bootloader
-            .code;
+            .code
+            .clone();
         let vm_hook_position =
             get_vm_hook_position(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
                 * 32;
@@ -89,16 +89,15 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
         pre_contract_storage.borrow_mut().insert(
             h256_to_u256(
                 system_env
-                    .clone()
                     .base_system_smart_contracts
                     .default_aa
                     .hash,
             ),
             system_env
-                .clone()
                 .base_system_smart_contracts
                 .default_aa
-                .code,
+                .code
+                .clone(),
         );
         let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
         let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
@@ -127,7 +126,6 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
             inner: vm,
             suspended_at: 0,
             gas_for_account_validation: system_env
-                .clone()
                 .default_validation_computational_gas_limit,
             last_tx_result: None,
             bootloader_state: BootloaderState::new(
