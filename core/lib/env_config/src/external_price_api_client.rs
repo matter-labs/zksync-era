@@ -27,6 +27,9 @@ mod tests {
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
             forced_numerator: Some(100),
             forced_denominator: Some(1),
+            forced_ethereum_erc20_address: Some(
+                "0xdac17f958d2ee523a2206206994597c13d831ec7".to_string(),
+            ),
         }
     }
 
@@ -39,6 +42,7 @@ mod tests {
             EXTERNAL_PRICE_API_CLIENT_API_KEY=qwerty12345
             EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=100
             EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=1
+            EXTERNAL_PRICE_API_CLIENT_FORCED_ETHEREUM_ERC20_ADDRESS=0xdac17f958d2ee523a2206206994597c13d831ec7
         "#;
         lock.set_env(config);
 
