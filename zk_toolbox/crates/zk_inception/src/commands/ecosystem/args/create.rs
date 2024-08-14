@@ -4,9 +4,9 @@ use clap::Parser;
 use common::{logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
-use strum::{IntoEnumIterator};
+use strum::IntoEnumIterator;
 use types::{L1Network, WalletCreation};
-use xshell::{Shell};
+use xshell::Shell;
 
 use crate::{
     commands::chain::{args::create::ChainCreateArgs, ChainCreateArgsFinal},

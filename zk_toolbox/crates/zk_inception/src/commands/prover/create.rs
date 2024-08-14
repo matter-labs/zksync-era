@@ -2,7 +2,11 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
 use common::{git, logger, spinner::Spinner};
-use config::{create_local_configs_dir, create_wallets, get_default_era_chain_id, traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError, ZKSYNC_ERA_GIT_REPO, ProverConfig, GeneralProverConfig};
+use config::{
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
+    GeneralProverConfig, ProverConfig, ZKSYNC_ERA_GIT_REPO,
+};
 use xshell::Shell;
 
 use crate::{
