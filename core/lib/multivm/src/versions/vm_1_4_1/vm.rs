@@ -4,15 +4,15 @@ use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     vm_1_4_1::{
         bootloader_state::BootloaderState,

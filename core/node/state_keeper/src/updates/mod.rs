@@ -1,17 +1,15 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs,
+        storage::StorageViewCache, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, SystemEnv,
+        VmExecutionMetrics, VmExecutionResultAndLogs,
     },
-    utils::get_batch_base_fee,
+    utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    block::BlockGasCount, fee_model::BatchFeeInput, vm_trace::Call, Address, L1BatchNumber,
+    L2BlockNumber, ProtocolVersionId, Transaction,
 };
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
@@ -112,7 +110,7 @@ impl UpdatesManager {
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         tx_l1_gas_this_tx: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
+        execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
         let latency = UPDATES_MANAGER_METRICS
@@ -188,7 +186,7 @@ impl UpdatesManager {
         self.l1_batch.l1_gas_count + self.l2_block.l1_gas_count
     }
 
-    pub(crate) fn pending_execution_metrics(&self) -> ExecutionMetrics {
+    pub(crate) fn pending_execution_metrics(&self) -> VmExecutionMetrics {
         self.l1_batch.block_execution_metrics + self.l2_block.block_execution_metrics
     }
 
@@ -236,7 +234,7 @@ mod tests {
             create_execution_result([]),
             vec![],
             new_block_gas_count(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
 

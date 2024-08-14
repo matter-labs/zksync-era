@@ -7757,6 +7757,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -8273,7 +8274,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

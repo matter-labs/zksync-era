@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use zksync_basic_types::H256;
+use zksync_types::{
+    writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
+    StorageLogWithPreviousValue, H256,
+};
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    tx::tx_execution_info::DeduplicatedWritesMetrics,
-    writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
-    StorageLogWithPreviousValue,
-};
+use crate::interface::DeduplicatedWritesMetrics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ModifiedSlot {
@@ -212,11 +211,10 @@ impl StorageWritesDeduplicator {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{AccountTreeId, U256};
+    use zksync_types::{AccountTreeId, StorageLog, H160, U256};
     use zksync_utils::u256_to_h256;
 
     use super::*;
-    use crate::{StorageLog, H160};
 
     fn storage_log(
         key: U256,
