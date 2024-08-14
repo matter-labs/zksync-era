@@ -106,26 +106,23 @@ async fn load_l2_block_info(
     connection: &mut Connection<'_, Core>,
     is_pending_block: bool,
     resolved_block_info: &ResolvedBlockInfo,
-) -> anyhow::Result<(L2BlockEnv, Option<StoredL2BlockInfo>)> {
+) -> anyhow::Result<(L2BlockEnv, Option<PendingL2BlockEnv>)> {
     let mut l2_block_info_to_reset = None;
-    let current_l2_block_info = StoredL2BlockInfo::new(
-        connection,
-        resolved_block_info.state_l2_block_number,
-        Some(resolved_block_info.state_l2_block_hash),
-    )
-    .await
-    .context("failed reading L2 block info")?;
+    let current_l2_block_info =
+        read_stored_l2_block_info(connection, resolved_block_info.state_l2_block_number)
+            .await
+            .context("failed reading L2 block info")?;
 
     let next_l2_block_info = if is_pending_block {
         L2BlockEnv {
-            number: current_l2_block_info.l2_block_number + 1,
+            number: current_l2_block_info.number + 1,
             timestamp: resolved_block_info.l1_batch_timestamp,
-            prev_block_hash: current_l2_block_info.l2_block_hash,
+            prev_block_hash: resolved_block_info.state_l2_block_hash,
             // For simplicity, we assume each L2 block create one virtual block.
             // This may be wrong only during transition period.
             max_virtual_blocks_to_create: 1,
         }
-    } else if current_l2_block_info.l2_block_number == 0 {
+    } else if current_l2_block_info.number == 0 {
         // Special case:
         // - For environments, where genesis block was created before virtual block upgrade it doesn't matter what we put here.
         // - Otherwise, we need to put actual values here. We cannot create next L2 block with block_number=0 and `max_virtual_blocks_to_create=0`
@@ -139,19 +136,35 @@ async fn load_l2_block_info(
     } else {
         // We need to reset L2 block info in storage to process transaction in the current block context.
         // Actual resetting will be done after `storage_view` is created.
-        let prev_l2_block_info = StoredL2BlockInfo::new(
-            connection,
-            resolved_block_info.state_l2_block_number - 1,
-            None,
-        )
-        .await
-        .context("failed reading previous L2 block info")?;
+        let prev_block_number = resolved_block_info.state_l2_block_number - 1;
+        let prev_l2_block_info = read_stored_l2_block_info(connection, prev_block_number)
+            .await
+            .context("failed reading previous L2 block info")?;
+
+        let mut prev_block_hash = connection
+            .blocks_web3_dal()
+            .get_l2_block_hash(prev_block_number)
+            .await
+            .map_err(DalError::generalize)?;
+        if prev_block_hash.is_none() {
+            // We might need to load the previous block hash from the snapshot recovery metadata
+            let snapshot_recovery = connection
+                .snapshot_recovery_dal()
+                .get_applied_snapshot_status()
+                .await
+                .map_err(DalError::generalize)?;
+            prev_block_hash = snapshot_recovery.and_then(|recovery| {
+                (recovery.l2_block_number == prev_block_number).then_some(recovery.l2_block_hash)
+            });
+        }
 
         l2_block_info_to_reset = Some(prev_l2_block_info);
         L2BlockEnv {
-            number: current_l2_block_info.l2_block_number,
-            timestamp: current_l2_block_info.l2_block_timestamp,
-            prev_block_hash: prev_l2_block_info.l2_block_hash,
+            number: current_l2_block_info.number,
+            timestamp: current_l2_block_info.timestamp,
+            prev_block_hash: prev_block_hash.with_context(|| {
+                format!("missing hash for previous L2 block #{prev_block_number}")
+            })?,
             max_virtual_blocks_to_create: 1,
         }
     };
@@ -381,74 +394,34 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct StoredL2BlockInfo {
-    l2_block_number: u32,
-    l2_block_timestamp: u64,
-    l2_block_hash: H256,
-    txs_rolling_hash: H256,
-}
+async fn read_stored_l2_block_info(
+    connection: &mut Connection<'_, Core>,
+    l2_block_number: L2BlockNumber,
+) -> anyhow::Result<PendingL2BlockEnv> {
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let l2_block_info = connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(l2_block_info_key.hashed_key(), l2_block_number)
+        .await?;
+    let (l2_block_number_from_state, timestamp) = unpack_block_info(h256_to_u256(l2_block_info));
 
-impl From<StoredL2BlockInfo> for PendingL2BlockEnv {
-    fn from(info: StoredL2BlockInfo) -> Self {
-        Self {
-            number: info.l2_block_number,
-            timestamp: info.l2_block_timestamp,
-            txs_rolling_hash: info.txs_rolling_hash,
-        }
-    }
-}
+    let l2_block_txs_rolling_hash_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    );
+    let txs_rolling_hash = connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(l2_block_txs_rolling_hash_key.hashed_key(), l2_block_number)
+        .await?;
 
-impl StoredL2BlockInfo {
-    /// If `l2_block_hash` is `None`, it needs to be fetched from the storage.
-    async fn new(
-        connection: &mut Connection<'_, Core>,
-        l2_block_number: L2BlockNumber,
-        l2_block_hash: Option<H256>,
-    ) -> anyhow::Result<Self> {
-        let l2_block_info_key = StorageKey::new(
-            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-            SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-        );
-        let l2_block_info = connection
-            .storage_web3_dal()
-            .get_historical_value_unchecked(l2_block_info_key.hashed_key(), l2_block_number)
-            .await
-            .context("failed reading L2 block info from VM state")?;
-        let (l2_block_number_from_state, l2_block_timestamp) =
-            unpack_block_info(h256_to_u256(l2_block_info));
-
-        let l2_block_txs_rolling_hash_key = StorageKey::new(
-            AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-            SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-        );
-        let txs_rolling_hash = connection
-            .storage_web3_dal()
-            .get_historical_value_unchecked(
-                l2_block_txs_rolling_hash_key.hashed_key(),
-                l2_block_number,
-            )
-            .await
-            .context("failed reading transaction rolling hash from VM state")?;
-
-        let l2_block_hash = if let Some(hash) = l2_block_hash {
-            hash
-        } else {
-            connection
-                .blocks_web3_dal()
-                .get_l2_block_hash(l2_block_number)
-                .await
-                .map_err(DalError::generalize)?
-                .with_context(|| format!("L2 block #{l2_block_number} not present in storage"))?
-        };
-
-        Ok(Self {
-            l2_block_number: l2_block_number_from_state as u32,
-            l2_block_timestamp,
-            l2_block_hash,
-            txs_rolling_hash,
-        })
-    }
+    Ok(PendingL2BlockEnv {
+        number: l2_block_number_from_state as u32,
+        timestamp,
+        txs_rolling_hash,
+    })
 }
 
 #[derive(Debug)]

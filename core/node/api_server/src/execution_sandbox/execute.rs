@@ -1,8 +1,10 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
+use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs,
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
+    VmExecutionResultAndLogs, TransactionExecutionMetrics,
 };
 use zksync_types::{
     api::state_override::StateOverride, l2::L2Tx,
@@ -103,12 +105,16 @@ pub(crate) struct TransactionExecutionOutput {
 /// Executor of transactions.
 #[derive(Debug)]
 pub(crate) enum TransactionExecutor {
-    Real,
+    Real(MainOneshotExecutor),
     #[doc(hidden)] // Intended for tests only
     Mock(MockTransactionExecutor),
 }
 
 impl TransactionExecutor {
+    pub fn real() -> Self {
+        Self::Real(MainOneshotExecutor)
+    }
+
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
     #[allow(clippy::too_many_arguments)]
@@ -123,10 +129,6 @@ impl TransactionExecutor {
         state_override: Option<StateOverride>,
         tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
-        if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&execution_args.transaction, &block_args);
-        }
-
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
         let (env, storage) =
             apply::prepare_env_and_storage(connection, shared_args, &execution_args, &block_args)
@@ -134,7 +136,7 @@ impl TransactionExecutor {
         let state_override = state_override.unwrap_or_default();
         let storage = StorageWithOverrides::new(storage, &state_override);
 
-        let (published_bytecodes, execution_result) = MainOneshotExecutor
+        let (published_bytecodes, execution_result) = self
             .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracers)
             .await?;
         drop(vm_permit);
@@ -179,5 +181,54 @@ impl TransactionExecutor {
             )
             .await?;
         Ok(output.vm)
+    }
+}
+
+#[async_trait]
+impl<S> OneshotExecutor<S> for TransactionExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    type Tracers = Vec<ApiTracer>;
+
+    async fn inspect_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .inspect_transaction(storage, env, args, tracers)
+                    .await
+            }
+            Self::Mock(executor) => executor.inspect_transaction(storage, env, args, ()).await,
+        }
+    }
+
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )> {
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
+                    .await
+            }
+            Self::Mock(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(storage, env, args, ())
+                    .await
+            }
+        }
     }
 }

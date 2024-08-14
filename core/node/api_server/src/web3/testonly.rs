@@ -8,6 +8,7 @@ use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_state::PostgresStorageCaches;
+use zksync_state_keeper::seal_criteria::NoopSealer;
 use zksync_types::L2ChainId;
 
 use super::{metrics::ApiTransportLabel, *};
@@ -48,7 +49,9 @@ pub(crate) async fn create_test_tx_sender(
     .await
     .expect("failed building transaction sender");
 
-    Arc::get_mut(&mut tx_sender.0).unwrap().executor = tx_executor;
+    let tx_sender_inner = Arc::get_mut(&mut tx_sender.0).unwrap();
+    tx_sender_inner.executor = tx_executor;
+    tx_sender_inner.sealer = Arc::new(NoopSealer); // prevents "unexecutable transaction" errors
     (tx_sender, vm_barrier)
 }
 

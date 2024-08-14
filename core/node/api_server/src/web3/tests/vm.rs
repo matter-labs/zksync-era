@@ -34,15 +34,15 @@ impl CallTest {
         }
     }
 
-    fn create_executor(only_block: L2BlockNumber) -> MockTransactionExecutor {
+    fn create_executor(latest_block: L2BlockNumber) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
-        tx_executor.set_call_responses(move |tx, block_args| {
+        tx_executor.set_call_responses(move |tx, env| {
             let expected_block_number = match tx.execute.calldata() {
-                b"pending" => only_block + 1,
-                b"first" => only_block,
+                b"pending" => latest_block + 1,
+                b"latest" => latest_block,
                 data => panic!("Unexpected calldata: {data:?}"),
             };
-            assert_eq!(block_args.resolved_block_number(), expected_block_number);
+            assert_eq!(env.l1_batch.first_l2_block.number, expected_block_number.0);
 
             ExecutionResult::Success {
                 output: b"output".to_vec(),
@@ -55,14 +55,19 @@ impl CallTest {
 #[async_trait]
 impl HttpTest for CallTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
-        Self::create_executor(L2BlockNumber(0))
+        Self::create_executor(L2BlockNumber(1))
     }
 
     async fn test(
         &self,
         client: &DynClient<L2>,
-        _pool: &ConnectionPool<Core>,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        drop(connection);
+
         let call_result = client
             .call(Self::call_request(b"pending"), None, None)
             .await?;
@@ -70,8 +75,8 @@ impl HttpTest for CallTest {
 
         let valid_block_numbers_and_calldata = [
             (api::BlockNumber::Pending, b"pending" as &[_]),
-            (api::BlockNumber::Latest, b"first"),
-            (0.into(), b"first"),
+            (api::BlockNumber::Latest, b"latest"),
+            (0.into(), b"latest"),
         ];
         for (number, calldata) in valid_block_numbers_and_calldata {
             let number = api::BlockIdVariant::BlockNumber(number);
@@ -150,7 +155,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         for number in first_l2_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
-                .call(CallTest::call_request(b"first"), Some(number), None)
+                .call(CallTest::call_request(b"latest"), Some(number), None)
                 .await?;
             assert_eq!(call_result.0, b"output");
         }
@@ -224,9 +229,9 @@ impl HttpTest for SendRawTransactionTest {
         } else {
             L2BlockNumber(1)
         };
-        tx_executor.set_tx_responses(move |tx, block_args| {
+        tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.hash(), Self::transaction_bytes_and_hash().1);
-            assert_eq!(block_args.resolved_block_number(), pending_block);
+            assert_eq!(env.l1_batch.first_l2_block.number, pending_block.0);
             ExecutionResult::Success { output: vec![] }
         });
         tx_executor
@@ -326,9 +331,9 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             total_log_queries_count: 0,
         };
 
-        tx_executor.set_tx_responses_with_logs(move |tx, block_args| {
+        tx_executor.set_tx_responses_with_logs(move |tx, env| {
             assert_eq!(tx.hash(), tx_bytes_and_hash.1);
-            assert_eq!(block_args.resolved_block_number(), L2BlockNumber(1));
+            assert_eq!(env.l1_batch.first_l2_block.number, 1);
 
             VmExecutionResultAndLogs {
                 result: ExecutionResult::Success { output: vec![] },
@@ -411,14 +416,19 @@ impl TraceCallTest {
 #[async_trait]
 impl HttpTest for TraceCallTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
-        CallTest::create_executor(L2BlockNumber(0))
+        CallTest::create_executor(L2BlockNumber(1))
     }
 
     async fn test(
         &self,
         client: &DynClient<L2>,
-        _pool: &ConnectionPool<Core>,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        drop(connection);
+
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result);
@@ -428,13 +438,9 @@ impl HttpTest for TraceCallTest {
             .await?;
         Self::assert_debug_call(&call_request, &call_result);
 
-        let genesis_block_numbers = [
-            api::BlockNumber::Earliest,
-            api::BlockNumber::Latest,
-            0.into(),
-        ];
-        let call_request = CallTest::call_request(b"first");
-        for number in genesis_block_numbers {
+        let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
+        let call_request = CallTest::call_request(b"latest");
+        for number in latest_block_numbers {
             let call_result = client
                 .trace_call(
                     call_request.clone(),
@@ -508,7 +514,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             assert_pruned_block_error(&error, first_local_l2_block);
         }
 
-        let call_request = CallTest::call_request(b"first");
+        let call_request = CallTest::call_request(b"latest");
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
@@ -556,10 +562,10 @@ impl HttpTest for EstimateGasTest {
             L2BlockNumber(1)
         };
         let gas_limit_threshold = self.gas_limit_threshold.clone();
-        tx_executor.set_call_responses(move |tx, block_args| {
+        tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
             assert_eq!(tx.nonce(), Some(Nonce(0)));
-            assert_eq!(block_args.resolved_block_number(), pending_block_number);
+            assert_eq!(env.l1_batch.first_l2_block.number, pending_block_number.0);
 
             let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
             if tx.gas_limit() >= U256::from(gas_limit_threshold) {
@@ -641,49 +647,17 @@ async fn estimate_gas_after_snapshot_recovery() {
 
 #[derive(Debug)]
 struct EstimateGasWithStateOverrideTest {
-    gas_limit_threshold: Arc<AtomicU32>,
-    snapshot_recovery: bool,
-}
-
-impl EstimateGasWithStateOverrideTest {
-    fn new(snapshot_recovery: bool) -> Self {
-        Self {
-            gas_limit_threshold: Arc::default(),
-            snapshot_recovery,
-        }
-    }
+    inner: EstimateGasTest,
 }
 
 #[async_trait]
 impl HttpTest for EstimateGasWithStateOverrideTest {
     fn storage_initialization(&self) -> StorageInitialization {
-        let snapshot_recovery = self.snapshot_recovery;
-        SendRawTransactionTest { snapshot_recovery }.storage_initialization()
+        self.inner.storage_initialization()
     }
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
-        let pending_block_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
-        } else {
-            L2BlockNumber(1)
-        };
-        let gas_limit_threshold = self.gas_limit_threshold.clone();
-        tx_executor.set_call_responses(move |tx, block_args| {
-            assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
-            assert_eq!(tx.nonce(), Some(Nonce(0)));
-            assert_eq!(block_args.resolved_block_number(), pending_block_number);
-
-            let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
-            if tx.gas_limit() >= U256::from(gas_limit_threshold) {
-                ExecutionResult::Success { output: vec![] }
-            } else {
-                ExecutionResult::Revert {
-                    output: VmRevertReason::VmError,
-                }
-            }
-        });
-        tx_executor
+        self.inner.transaction_executor()
     }
 
     async fn test(
@@ -739,5 +713,6 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
 
 #[tokio::test]
 async fn estimate_gas_with_state_override() {
-    test_http_server(EstimateGasWithStateOverrideTest::new(false)).await;
+    let inner = EstimateGasTest::new(false);
+    test_http_server(EstimateGasWithStateOverrideTest { inner }).await;
 }

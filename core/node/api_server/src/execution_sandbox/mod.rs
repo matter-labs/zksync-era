@@ -410,6 +410,7 @@ impl BlockArgs {
     }
 }
 
+/// VM executor capable of executing isolated transactions / calls (as opposed to batch execution).
 #[async_trait]
 trait OneshotExecutor<S: ReadStorage> {
     type Tracers: Default;

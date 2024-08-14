@@ -21,6 +21,7 @@ impl L2BlockEnv {
 }
 
 /// Pending block information used in oneshot transaction / call execution.
+// FIXME: come up with a better name
 #[derive(Debug, Clone, Copy)]
 pub struct PendingL2BlockEnv {
     pub number: u32,

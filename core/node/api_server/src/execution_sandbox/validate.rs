@@ -15,10 +15,10 @@ use zksync_types::{
 use super::{
     apply,
     execute::TransactionExecutor,
+    storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::execution_sandbox::{apply::MainOneshotExecutor, storage::StorageWithOverrides};
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
 /// variant (e.g., for DB-related errors).
@@ -41,10 +41,6 @@ impl TransactionExecutor {
         block_args: BlockArgs,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
-        if let Self::Mock(mock) = self {
-            return mock.validate_tx(tx, &block_args);
-        }
-
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let params = get_validation_params(
             &mut connection,
@@ -64,7 +60,7 @@ impl TransactionExecutor {
 
         let (tracer, validation_result) = ApiTracer::validation(params);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
-        let result = MainOneshotExecutor
+        let result = self
             .inspect_transaction(storage, env, execution_args, vec![tracer])
             .instrument(tracing::debug_span!("validation"))
             .await?;

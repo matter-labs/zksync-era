@@ -263,7 +263,7 @@ impl TxSenderBuilder {
             storage_caches,
             whitelisted_tokens_for_aa_cache,
             sealer,
-            executor: TransactionExecutor::Real,
+            executor: TransactionExecutor::real(),
         }))
     }
 }
@@ -320,7 +320,7 @@ pub struct TxSenderInner {
     // Cache for white-listed tokens.
     pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
-    sealer: Arc<dyn ConditionalSealer>,
+    pub(super) sealer: Arc<dyn ConditionalSealer>,
     pub(super) executor: TransactionExecutor,
 }
 

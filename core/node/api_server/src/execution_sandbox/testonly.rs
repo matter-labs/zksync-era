@@ -1,17 +1,17 @@
 use std::fmt;
 
+use async_trait::async_trait;
+#[cfg(test)]
+use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::interface::{
-    ExecutionResult, TransactionExecutionMetrics, VmExecutionResultAndLogs,
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
+    VmExecutionResultAndLogs,
 };
-use zksync_types::{l2::L2Tx, ExecuteTransactionCommon, Transaction};
+use zksync_types::Transaction;
 
-use super::{
-    execute::{TransactionExecutionOutput, TransactionExecutor},
-    validate::ValidationError,
-    BlockArgs,
-};
+use super::{execute::TransactionExecutor, OneshotExecutor, TxExecutionArgs};
 
-type TxResponseFn = dyn Fn(&Transaction, &BlockArgs) -> VmExecutionResultAndLogs + Send + Sync;
+type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
 pub struct MockTransactionExecutor {
     call_responses: Box<TxResponseFn>,
@@ -46,7 +46,7 @@ impl MockTransactionExecutor {
     #[cfg(test)]
     pub(crate) fn set_call_responses<F>(&mut self, responses: F)
     where
-        F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
+        F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         self.call_responses = self.wrap_responses(responses);
     }
@@ -54,7 +54,7 @@ impl MockTransactionExecutor {
     #[cfg(test)]
     pub(crate) fn set_tx_responses<F>(&mut self, responses: F)
     where
-        F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
+        F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         self.tx_responses = self.wrap_responses(responses);
     }
@@ -62,12 +62,12 @@ impl MockTransactionExecutor {
     #[cfg(test)]
     fn wrap_responses<F>(&mut self, responses: F) -> Box<TxResponseFn>
     where
-        F: Fn(&Transaction, &BlockArgs) -> ExecutionResult + 'static + Send + Sync,
+        F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         Box::new(
-            move |tx: &Transaction, ba: &BlockArgs| -> VmExecutionResultAndLogs {
+            move |tx: &Transaction, env: &OneshotEnv| -> VmExecutionResultAndLogs {
                 VmExecutionResultAndLogs {
-                    result: responses(tx, ba),
+                    result: responses(tx, env),
                     logs: Default::default(),
                     statistics: Default::default(),
                     refunds: Default::default(),
@@ -79,51 +79,49 @@ impl MockTransactionExecutor {
     #[cfg(test)]
     pub(crate) fn set_tx_responses_with_logs<F>(&mut self, responses: F)
     where
-        F: Fn(&Transaction, &BlockArgs) -> VmExecutionResultAndLogs + 'static + Send + Sync,
+        F: Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + 'static + Send + Sync,
     {
         self.tx_responses = Box::new(responses);
     }
 
-    pub(crate) fn validate_tx(
-        &self,
-        tx: L2Tx,
-        block_args: &BlockArgs,
-    ) -> Result<(), ValidationError> {
-        let result = (self.tx_responses)(&tx.into(), block_args);
-        match result.result {
-            ExecutionResult::Success { .. } => Ok(()),
-            other => Err(ValidationError::Internal(anyhow::anyhow!(
-                "transaction validation failed: {other:?}"
-            ))),
-        }
-    }
-
-    pub(crate) fn execute_tx(
-        &self,
-        tx: &Transaction,
-        block_args: &BlockArgs,
-    ) -> anyhow::Result<TransactionExecutionOutput> {
-        let result = self.get_execution_result(tx, block_args);
-        let output = TransactionExecutionOutput {
-            vm: result,
-            metrics: TransactionExecutionMetrics::default(),
-            are_published_bytecodes_ok: true,
-        };
-
-        Ok(output)
-    }
-
-    fn get_execution_result(
-        &self,
-        tx: &Transaction,
-        block_args: &BlockArgs,
-    ) -> VmExecutionResultAndLogs {
-        if let ExecuteTransactionCommon::L2(data) = &tx.common_data {
-            if data.input.is_none() {
-                return (self.call_responses)(tx, block_args);
+    fn mock_inspect(&self, env: OneshotEnv, args: TxExecutionArgs) -> VmExecutionResultAndLogs {
+        match args.execution_mode {
+            TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, &env),
+            TxExecutionMode::VerifyExecute | TxExecutionMode::EstimateFee => {
+                (self.tx_responses)(&args.transaction, &env)
             }
         }
-        (self.tx_responses)(tx, block_args)
+    }
+}
+
+#[async_trait]
+impl<S> OneshotExecutor<S> for MockTransactionExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    type Tracers = ();
+
+    async fn inspect_transaction(
+        &self,
+        _storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        (): Self::Tracers,
+    ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        Ok(self.mock_inspect(env, args))
+    }
+
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        _storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        (): Self::Tracers,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )> {
+        Ok((Ok(()), self.mock_inspect(env, args)))
     }
 }
 
