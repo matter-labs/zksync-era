@@ -2,64 +2,89 @@ use xshell::{cmd, Shell};
 
 use crate::{cmd::Cmd, logger};
 
-const PREREQUISITES: [Prerequisite; 5] = [
-    Prerequisite {
-        name: "git",
-        download_link: "https://git-scm.com/book/en/v2/Getting-Started-Installing-Git",
-    },
-    Prerequisite {
-        name: "docker",
-        download_link: "https://docs.docker.com/get-docker/",
-    },
-    Prerequisite {
-        name: "forge",
-        download_link: "https://book.getfoundry.sh/getting-started/installation",
-    },
-    Prerequisite {
-        name: "cargo",
-        download_link: "https://doc.rust-lang.org/cargo/getting-started/installation.html",
-    },
-    Prerequisite {
-        name: "yarn",
-        download_link: "https://yarnpkg.com/getting-started/install",
-    },
-];
+fn prerequisites() -> [Prerequisite; 5] {
+    [
+        Prerequisite {
+            name: "git",
+            download_link: "https://git-scm.com/book/en/v2/Getting-Started-Installing-Git",
+            custom_validator: None,
+        },
+        Prerequisite {
+            name: "docker",
+            download_link: "https://docs.docker.com/get-docker/",
+            custom_validator: None,
+        },
+        Prerequisite {
+            name: "forge",
+            download_link:
+                "https://github.com/matter-labs/foundry-zksync?tab=readme-ov-file#quick-install",
+            custom_validator: Some(Box::new(|| {
+                let shell = Shell::new().unwrap();
+                let Ok(result) = Cmd::new(cmd!(shell, "forge build --help")).run_with_output()
+                else {
+                    return false;
+                };
+                let Ok(stdout) = String::from_utf8(result.stdout) else {
+                    return false;
+                };
+                stdout.contains("ZKSync configuration")
+            })),
+        },
+        Prerequisite {
+            name: "cargo",
+            download_link: "https://doc.rust-lang.org/cargo/getting-started/installation.html",
+            custom_validator: None,
+        },
+        Prerequisite {
+            name: "yarn",
+            download_link: "https://yarnpkg.com/getting-started/install",
+            custom_validator: None,
+        },
+    ]
+}
 
 const DOCKER_COMPOSE_PREREQUISITE: Prerequisite = Prerequisite {
     name: "docker compose",
     download_link: "https://docs.docker.com/compose/install/",
+    custom_validator: None,
 };
 
 const PROVER_PREREQUISITES: [Prerequisite; 5] = [
     Prerequisite {
         name: "gcloud",
         download_link: "https://cloud.google.com/sdk/docs/install",
+        custom_validator: None,
     },
     Prerequisite {
         name: "wget",
         download_link: "https://www.gnu.org/software/wget/",
+        custom_validator: None,
     },
     Prerequisite {
         name: "cmake",
         download_link: "https://cmake.org/download/",
+        custom_validator: None,
     },
     Prerequisite {
         name: "nvcc",
         download_link: "https://developer.nvidia.com/cuda-downloads",
+        custom_validator: None,
     }, // CUDA toolkit
     Prerequisite {
         name: "nvidia-smi",
         download_link: "https://developer.nvidia.com/cuda-downloads",
+        custom_validator: None,
     }, // CUDA GPU driver
 ];
 
 struct Prerequisite {
     name: &'static str,
     download_link: &'static str,
+    custom_validator: Option<Box<dyn Fn() -> bool>>,
 }
 
 pub fn check_general_prerequisites(shell: &Shell) {
-    check_prerequisites(shell, &PREREQUISITES, true);
+    check_prerequisites(shell, &prerequisites(), true);
 }
 
 pub fn check_prover_prequisites(shell: &Shell) {
@@ -70,7 +95,7 @@ fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_comp
     let mut missing_prerequisites = vec![];
 
     for prerequisite in prerequisites {
-        if !check_prerequisite(shell, prerequisite.name) {
+        if !check_prerequisite(shell, prerequisite) {
             missing_prerequisites.push(prerequisite);
         }
     }
@@ -96,8 +121,15 @@ fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_comp
     }
 }
 
-fn check_prerequisite(shell: &Shell, name: &str) -> bool {
-    Cmd::new(cmd!(shell, "which {name}")).run().is_ok()
+fn check_prerequisite(shell: &Shell, prerequisite: &Prerequisite) -> bool {
+    let name = prerequisite.name;
+    if !Cmd::new(cmd!(shell, "which {name}")).run().is_ok() {
+        return false;
+    }
+    let Some(custom) = &prerequisite.custom_validator else {
+        return true;
+    };
+    custom()
 }
 
 fn check_docker_compose_prerequisite(shell: &Shell) -> bool {
