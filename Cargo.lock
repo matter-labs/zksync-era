@@ -9745,10 +9745,8 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "once_cell",
- "zk_evm 0.133.0",
  "zksync_contracts",
  "zksync_multivm",
- "zksync_state",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
