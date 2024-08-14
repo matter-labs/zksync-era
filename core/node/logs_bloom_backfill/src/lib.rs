@@ -120,3 +120,114 @@ impl LogsBloomBackfill {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::{
+        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, VmEvent, H256,
+    };
+
+    use super::*;
+
+    async fn create_l2_block(
+        conn: &mut Connection<'_, Core>,
+        l2_block_number: L2BlockNumber,
+        block_events: &[VmEvent],
+    ) {
+        let l2_block_header = L2BlockHeader {
+            number: l2_block_number,
+            timestamp: 0,
+            hash: H256::from_low_u64_be(u64::from(l2_block_number.0)),
+            l1_tx_count: 0,
+            l2_tx_count: 0,
+            fee_account_address: Address::repeat_byte(1),
+            base_fee_per_gas: 0,
+            gas_per_pubdata_limit: 0,
+            batch_fee_input: Default::default(),
+            base_system_contracts_hashes: Default::default(),
+            protocol_version: Some(Default::default()),
+            virtual_blocks: 0,
+            gas_limit: 0,
+            logs_bloom: Default::default(),
+        };
+
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let events_vec: Vec<_> = block_events.iter().collect();
+        conn.events_dal()
+            .save_events(
+                l2_block_number,
+                &[(
+                    IncludedTxLocation {
+                        tx_hash: Default::default(),
+                        tx_index_in_l2_block: 0,
+                        tx_initiator_address: Default::default(),
+                    },
+                    events_vec,
+                )],
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_logs_bloom_backfill() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut connection = connection_pool.connection().await.unwrap();
+        connection
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&Default::default())
+            .await
+            .unwrap();
+
+        let blocks_count = 5u32;
+        for block_number in 0..blocks_count {
+            let event = VmEvent {
+                location: (L1BatchNumber(0), 0),
+                address: Address::from_low_u64_be(block_number as u64 + 1),
+                indexed_topics: Vec::new(),
+                value: Vec::new(),
+            };
+            create_l2_block(&mut connection, L2BlockNumber(block_number), &[event]).await;
+
+            if block_number + 1 < blocks_count {
+                // Drop bloom if block is not last.
+                connection
+                    .blocks_dal()
+                    .drop_l2_block_bloom(L2BlockNumber(block_number))
+                    .await
+                    .unwrap();
+            }
+        }
+        let max_block_without_bloom = connection
+            .blocks_dal()
+            .get_max_l2_block_without_bloom()
+            .await
+            .unwrap();
+        assert_eq!(
+            max_block_without_bloom,
+            Some(L2BlockNumber(blocks_count) - 2)
+        );
+
+        let migration = LogsBloomBackfill::new(connection_pool.clone());
+        let (_sender, receiver) = watch::channel(false);
+        migration.run(receiver).await.unwrap();
+
+        for block_number in 0..(blocks_count - 1) {
+            let header = connection
+                .blocks_dal()
+                .get_l2_block_header(L2BlockNumber(block_number))
+                .await
+                .unwrap()
+                .unwrap();
+            let address = Address::from_low_u64_be(block_number as u64 + 1);
+            let contains_address = header
+                .logs_bloom
+                .contains_input(BloomInput::Raw(address.as_bytes()));
+            assert!(contains_address);
+        }
+    }
+}

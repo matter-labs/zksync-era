@@ -2515,6 +2515,24 @@ impl BlocksDal<'_, '_> {
             .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
         Ok(snapshot_recovery.protocol_version)
     }
+
+    pub async fn drop_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                logs_bloom = NULL
+            WHERE
+                number = $1
+            "#,
+            i64::from(l2_block_number.0)
+        )
+        .instrument("drop_l2_block_bloom")
+        .with_arg("l2_block_number", &l2_block_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
