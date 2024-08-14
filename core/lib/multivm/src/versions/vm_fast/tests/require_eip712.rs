@@ -1,6 +1,5 @@
 use ethabi::Token;
 use zksync_eth_signer::{EthereumSigner, TransactionParameters};
-use zksync_state::ReadStorage;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
@@ -10,7 +9,7 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_fast::tests::{
         tester::{Account, VmTester, VmTesterBuilder},
         utils::read_many_owners_custom_account_contract,

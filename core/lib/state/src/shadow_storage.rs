@@ -1,7 +1,6 @@
 use vise::{Counter, Metrics};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
-
-use crate::ReadStorage;
+use zksync_vm_interface::storage::ReadStorage;
 
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Metrics)]

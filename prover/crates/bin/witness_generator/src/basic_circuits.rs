@@ -16,8 +16,9 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_multivm::vm_latest::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
+use zksync_multivm::{
+    interface::storage::StorageView,
+    vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
 };
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
@@ -38,7 +39,6 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{StorageView, WitnessStorage};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, Address,
     L1BatchNumber, BOOTLOADER_ADDRESS,
@@ -52,6 +52,7 @@ use crate::{
         expand_bootloader_contents, save_circuit, ClosedFormInputWrapper,
         SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
+    witness::WitnessStorage,
 };
 
 pub struct BasicCircuitArtifacts {
