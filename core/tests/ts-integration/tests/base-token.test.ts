@@ -31,11 +31,8 @@ describe('base ERC20 contract checks', () => {
             return;
         }
 
-        let govMnemonic = ethers.Mnemonic.fromPhrase(require('../../../../etc/test_config/constant/eth.json').mnemonic);
-        let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
-        const adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
         const zksyncAddress = await alice._providerL2().getMainContractAddress();
-        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, adminGovWallet);
+        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, alice.ethWallet());
         const numerator = Number(await zksyncContract.baseTokenGasPriceMultiplierNominator());
         const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
 
