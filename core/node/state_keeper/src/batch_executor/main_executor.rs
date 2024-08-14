@@ -6,8 +6,8 @@ use tokio::{runtime::Handle, sync::mpsc};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StorageView},
-        CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+        Call, CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
@@ -15,7 +15,7 @@ use zksync_multivm::{
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::OwnedStorage;
-use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
+use zksync_types::{vm::FastVmMode, Transaction};
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{

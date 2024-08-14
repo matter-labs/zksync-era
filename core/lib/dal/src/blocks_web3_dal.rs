@@ -7,11 +7,11 @@ use zksync_types::{
     api,
     fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
-    vm_trace::Call,
     web3::{BlockHeader, Bytes},
     Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
 use zksync_utils::bigdecimal_to_u256;
+use zksync_vm_interface::Call;
 
 use crate::{
     models::{
