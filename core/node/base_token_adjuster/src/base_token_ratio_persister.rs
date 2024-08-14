@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{cmp::max, fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
@@ -12,7 +12,7 @@ use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
     ethabi::{Contract, Token},
     web3::{contract::Tokenize, BlockNumber},
-    Address, U256, U64,
+    Address, U256,
 };
 
 #[derive(Debug, Clone)]
@@ -86,37 +86,82 @@ impl BaseTokenRatioPersister {
 
         let max_attempts = self.config.l1_tx_sending_max_attempts();
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
-        let start_block = self.get_latest_block_number().await?.as_u64();
-        let mut current_block = start_block;
         let mut result: anyhow::Result<()> = Ok(());
+        let mut prev_base_fee_per_gas: Option<u64> = None;
+        let mut prev_priority_fee_per_gas: Option<u64> = None;
 
         for attempt in 0..max_attempts {
-            let time_in_mempool = (current_block - start_block).max(0);
+            let (gas_price, base_fee_per_gas, priority_fee_per_gas) = self
+                .get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas)
+                .await?;
+
             result = self
-                .send_ratio_to_l1(new_ratio, time_in_mempool as u32)
+                .send_ratio_to_l1(new_ratio, gas_price, base_fee_per_gas, priority_fee_per_gas)
                 .await;
             if let Some(err) = result.as_ref().err() {
                 tracing::info!(
-                    "Failed to update base token multiplier on L1, attempt {}, time_in_mempool {}: {}",
+                    "Failed to update base token multiplier on L1, attempt {}, gas_price {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
                     attempt + 1,
-                    time_in_mempool,
+                    gas_price,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
                     err
                 );
                 tokio::time::sleep(sleep_duration).await;
-                current_block = self.get_latest_block_number().await?.as_u64();
+                prev_base_fee_per_gas = Some(base_fee_per_gas);
+                prev_priority_fee_per_gas = Some(priority_fee_per_gas);
             } else {
+                tracing::info!(
+                    "Updated base token multiplier on L1: numerator {}, denominator {}, gas_price {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                    new_ratio.numerator.get(),
+                    new_ratio.denominator.get(),
+                    gas_price,
+                    base_fee_per_gas,
+                    priority_fee_per_gas
+                );
                 return result;
             }
         }
         result
     }
 
-    async fn get_latest_block_number(&self) -> Result<U64, anyhow::Error> {
-        (*self.eth_client)
+    async fn get_eth_fees(
+        &self,
+        prev_base_fee_per_gas: Option<u64>,
+        prev_priority_fee_per_gas: Option<u64>,
+    ) -> anyhow::Result<(u64, u64, u64)> {
+        // Use get_blob_tx_base_fee here instead of get_base_fee to optimise for fast inclusion.
+        // get_base_fee will cause the transaction to be stuck in the mempool for 10+ minutes.
+        let mut base_fee_per_gas = self.gas_adjuster.as_ref().get_blob_tx_base_fee();
+        let mut priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
+        if let Some(x) = prev_priority_fee_per_gas {
+            // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
+            priority_fee_per_gas = max(priority_fee_per_gas, (x * 6) / 5 + 1);
+        }
+
+        if let Some(x) = prev_base_fee_per_gas {
+            // same for base_fee_per_gas but 10%
+            base_fee_per_gas = max(base_fee_per_gas, x + (x / 10) + 1);
+        }
+
+        // Extra check to prevent sending transaction will extremely high priority fee.
+        if priority_fee_per_gas > self.config.max_acceptable_priority_fee_in_gwei {
+            panic!(
+                "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
+                priority_fee_per_gas,
+                self.config.max_acceptable_priority_fee_in_gwei
+            );
+        }
+
+        let gas_price = (*self.eth_client)
             .as_ref()
-            .block_number()
+            .get_gas_price()
             .await
-            .with_context(|| "failed getting the latest block number")
+            .with_context(|| "failed getting gas price")?
+            .as_u64()
+            * 2;
+
+        Ok((gas_price, base_fee_per_gas, priority_fee_per_gas))
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
@@ -174,7 +219,9 @@ impl BaseTokenRatioPersister {
     async fn send_ratio_to_l1(
         &self,
         api_ratio: BaseTokenAPIRatio,
-        time_in_mempool: u32,
+        gas_price: u64,
+        base_fee_per_gas: u64,
+        priority_fee_per_gas: u64,
     ) -> anyhow::Result<()> {
         let fn_set_token_multiplier = self
             .chain_admin_contract
@@ -201,17 +248,6 @@ impl BaseTokenRatioPersister {
             .await
             .with_context(|| "failed getting transaction count")?
             .as_u64();
-
-        let gas_price = (*self.eth_client)
-            .as_ref()
-            .get_gas_price()
-            .await
-            .with_context(|| "failed getting gas price")?
-            .as_u64()
-            * 2;
-
-        let base_fee_per_gas = self.gas_adjuster.as_ref().get_base_fee(time_in_mempool);
-        let priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
 
         let options = Options {
             gas: Some(U256::from(self.config.max_tx_gas)),

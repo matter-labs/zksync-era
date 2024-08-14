@@ -29,6 +29,9 @@ const DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 30_000;
 /// Default number of milliseconds to sleep between transaction sending attempts
 const DEFAULT_L1_TX_SENDING_SLEEP_MS: u64 = 30_000;
 
+/// Default maximum acceptable priority fee in gwei to prevent sending transaction with extremely high priority fee.
+const DEFAULT_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI: u64 = 100_000_000_000;
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BaseTokenAdjusterConfig {
     /// How often to spark a new cycle of the ratio persister to fetch external prices and persis ratios.
@@ -46,6 +49,10 @@ pub struct BaseTokenAdjusterConfig {
     /// Default priority fee per gas used to instantiate the signing client
     #[serde(default = "BaseTokenAdjusterConfig::default_priority_fee_per_gas")]
     pub default_priority_fee_per_gas: u64,
+
+    /// Maximum acceptable priority fee in gwei to prevent sending transaction with extremely high priority fee.
+    #[serde(default = "BaseTokenAdjusterConfig::default_max_acceptable_priority_fee_in_gwei")]
+    pub max_acceptable_priority_fee_in_gwei: u64,
 
     /// Maximum number of attempts to get L1 transaction receipt before failing over
     pub l1_receipt_checking_max_attempts: Option<u32>,
@@ -67,6 +74,8 @@ impl Default for BaseTokenAdjusterConfig {
             price_cache_update_interval_ms: Self::default_cache_update_interval(),
             max_tx_gas: Self::default_max_tx_gas(),
             default_priority_fee_per_gas: Self::default_priority_fee_per_gas(),
+            max_acceptable_priority_fee_in_gwei: Self::default_max_acceptable_priority_fee_in_gwei(
+            ),
             l1_receipt_checking_max_attempts: Some(DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS),
             l1_receipt_checking_sleep_ms: Some(DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS),
             l1_tx_sending_max_attempts: Some(DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS),
@@ -90,6 +99,10 @@ impl BaseTokenAdjusterConfig {
 
     fn default_priority_fee_per_gas() -> u64 {
         DEFAULT_PRIORITY_FEE_PER_GAS
+    }
+
+    fn default_max_acceptable_priority_fee_in_gwei() -> u64 {
+        DEFAULT_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI
     }
 
     pub fn price_cache_update_interval(&self) -> Duration {

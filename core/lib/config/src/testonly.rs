@@ -1035,6 +1035,7 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
             price_cache_update_interval_ms: self.sample(rng),
             max_tx_gas: self.sample(rng),
             default_priority_fee_per_gas: self.sample(rng),
+            max_acceptable_priority_fee_in_gwei: self.sample(rng),
             l1_receipt_checking_max_attempts: self.sample(rng),
             l1_receipt_checking_sleep_ms: self.sample(rng),
             l1_tx_sending_max_attempts: self.sample(rng),
