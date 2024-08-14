@@ -168,6 +168,8 @@ impl EN {
         }
     }
 
+    /// Monitors the `AttestationStatus` on the main node,
+    /// and updates the attestation config accordingly.
     async fn run_attestation_updater(
         &self,
         ctx: &ctx::Ctx,
@@ -193,7 +195,9 @@ impl EN {
                 }
                 ctx.sleep(POLL_INTERVAL).await?;
             };
+            tracing::info!("waiting for hash of batch {:?}",status.next_batch_to_attest);
             let hash = self.pool.wait_for_batch_hash(ctx,status.next_batch_to_attest).await?;
+            tracing::info!("attesting batch {:?} with hash {hash:?}",status.next_batch_to_attest);
             attestation.update_config(Arc::new(attestation::Config {
                 batch_to_attest: attester::Batch {
                     genesis: status.genesis,

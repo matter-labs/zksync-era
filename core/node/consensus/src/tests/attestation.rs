@@ -93,9 +93,13 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
     .unwrap();
 }
 
-// Test running a couple of attesters.
+// Test running a couple of attesters (which are also validators).
 // Main node is expected to collect all certificates.
 // External nodes are expected to just vote for the batch.
+//
+// TODO: it would be nice to use `StateKeeperRunner::run_real()` in this test,
+// however as of now it doesn't work with ENs and it doesn't work with
+// `ConnectionPool::from_snapshot`.
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
 async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId) {
@@ -143,7 +147,7 @@ async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId
             s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, cfg.clone()));
         }
 
-        tracing::info!("Create a lot of blocks");
+        tracing::info!("Create some batches");
         validator.push_random_blocks(rng, 20).await;
         validator.seal_batch().await;
         tracing::info!("Wait for the batches to be attested");

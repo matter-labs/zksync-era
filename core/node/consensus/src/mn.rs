@@ -83,9 +83,9 @@ pub async fn run_main_node(
     .await
 }
 
-// Manages attestation state by configuring the
-// next batch to attest and storing the collected
-// certificates.
+/// Manages attestation state by configuring the
+/// next batch to attest and storing the collected
+/// certificates.
 async fn run_attestation_updater(
     ctx :&ctx::Ctx,
     pool: &ConnectionPool,
@@ -108,7 +108,9 @@ async fn run_attestation_updater(
                     None => ctx.sleep(POLL_INTERVAL).await?,
                 }
             };
+            tracing::info!("waiting for hash of batch {:?}",status.next_batch_to_attest);
             let hash = pool.wait_for_batch_hash(ctx,status.next_batch_to_attest).await?;
+            tracing::info!("attesting batch {:?} with hash {hash:?}",status.next_batch_to_attest);
             attestation.update_config(Arc::new(attestation::Config {
                 batch_to_attest: attester::Batch {
                     hash,
@@ -120,6 +122,7 @@ async fn run_attestation_updater(
             // Main node is the only node which can update the global AttestationStatus,
             // therefore we can synchronously wait for the certificate.
             let qc = attestation.wait_for_qc(ctx,status.next_batch_to_attest).await?.context("attestation config has changed unexpectedly")?;
+            tracing::info!("collected certificate for batch {:?}",status.next_batch_to_attest);
             pool.connection(ctx).await.wrap("connection()")?
                 .insert_batch_certificate(ctx,&qc).await.map_err(|err| match err {
                     InsertCertificateError::Canceled(err) => ctx::Error::Canceled(err),

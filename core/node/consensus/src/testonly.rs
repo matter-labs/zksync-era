@@ -90,11 +90,24 @@ impl ConfigSet {
 }
 
 pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, gossip_peers: usize) -> Vec<ConfigSet> {
+    let genesis_spec = config::GenesisSpec {
+        chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
+        protocol_version: config::ProtocolVersion(setup.genesis.protocol_version.0),
+        validators: setup.validator_keys.iter().map(|k| config::WeightedValidator {
+            key: config::ValidatorPublicKey(k.public().encode()),
+            weight: 1,
+        }).collect(),
+        attesters: setup.attester_keys.iter().map(|k| config::WeightedAttester {
+            key: config::AttesterPublicKey(k.public().encode()),
+            weight: 1,
+        }).collect(),
+        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+    };
     network::testonly::new_configs(rng, setup, gossip_peers)
         .into_iter()
         .enumerate()
         .map(|(i,net)| ConfigSet {
-            config: make_config(&net, Some(&setup.genesis)),
+            config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
         })
@@ -112,7 +125,7 @@ fn make_secrets(cfg: &network::Config, attester_key: Option<attester::SecretKey>
     }
 }
 
-fn make_config(cfg: &network::Config, genesis: Option<&validator::Genesis>) -> config::ConsensusConfig {
+fn make_config(cfg: &network::Config, genesis_spec: Option<config::GenesisSpec>) -> config::ConsensusConfig {
     config::ConsensusConfig {
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
@@ -136,19 +149,7 @@ fn make_config(cfg: &network::Config, genesis: Option<&validator::Genesis>) -> c
         // That's because not all genesis setups are currently supported in zksync-era.
         // TODO: this might be misleading, so it would be better to write some more custom
         // genesis generator for zksync-era tests.
-        genesis_spec: genesis.map(|genesis| config::GenesisSpec {
-            chain_id: genesis.chain_id.0.try_into().unwrap(),
-            protocol_version: config::ProtocolVersion(genesis.protocol_version.0),
-            validators: genesis.validators.iter().map(|v| config::WeightedValidator {
-                key: config::ValidatorPublicKey(v.key.encode()),
-                weight: v.weight,
-            }).collect(),
-            attesters: genesis.attesters.as_ref().map_or(vec![], |x| x.iter().map(|a| config::WeightedAttester {
-                key: config::AttesterPublicKey(a.key.encode()),
-                weight: a.weight,
-            }).collect()),
-            leader: config::ValidatorPublicKey(genesis.validators[0].key.encode()),
-        }),
+        genesis_spec: genesis_spec,
         rpc: None,
     }
 }
