@@ -27,21 +27,22 @@ It:
 
 ## Transactions Parameters
 
-The smart contract that is used for every l2 transaction can be found here:
-`etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol`.
+The smart contract that is used for every L2 transaction can be found here:
+[`etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol`](../../../etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol).
 
 The `execute` function of the contract has the following parameters:
 
-```
-    function execute(uint reads, uint writes, uint hashes, uint events, uint max_recursion, uint deploys) external returns(uint) {
+```solidity
+function execute(uint reads, uint newWrites, uint overWrites, uint hashes, uint events, uint maxRecursion, uint deploys) external returns(uint) {
 ```
 
 which correspond to the following configuration options:
 
-```
+```rust
 pub struct LoadnextContractExecutionParams {
     pub reads: usize,
-    pub writes: usize,
+    pub new_writes: usize,
+    pub over_writes: usize,
     pub events: usize,
     pub hashes: usize,
     pub recursive_calls: usize,
@@ -51,8 +52,9 @@ pub struct LoadnextContractExecutionParams {
 
 For example, to simulate an average transaction on mainnet, one could do:
 
-```
-CONTRACT_EXECUTION_PARAMS_WRITES=2
+```env
+CONTRACT_EXECUTION_PARAMS_NEW_WRITES=2
+CONTRACT_EXECUTION_PARAMS_OVER_WRITES=2
 CONTRACT_EXECUTION_PARAMS_READS=6
 CONTRACT_EXECUTION_PARAMS_EVENTS=2
 CONTRACT_EXECUTION_PARAMS_HASHES=10
@@ -62,8 +64,9 @@ CONTRACT_EXECUTION_PARAMS_DEPLOYS=0
 
 Similarly, to simulate a lightweight transaction:
 
-```
-CONTRACT_EXECUTION_PARAMS_WRITES=0
+```env
+CONTRACT_EXECUTION_PARAMS_NEW_WRITES=0
+CONTRACT_EXECUTION_PARAMS_OVER_WRITES=0
 CONTRACT_EXECUTION_PARAMS_READS=0
 CONTRACT_EXECUTION_PARAMS_EVENTS=0
 CONTRACT_EXECUTION_PARAMS_HASHES=0
@@ -86,10 +89,11 @@ Example invocation:
 - `MASTER_WALLET_PK` needs to be set to the private key of the master account.
 - `MAIN_TOKEN` needs to be set to the address of the token to be used for the loadtest.
 
-```
+```sh
 cargo build
 
-CONTRACT_EXECUTION_PARAMS_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_NEW_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_OVER_WRITES=2 \
 CONTRACT_EXECUTION_PARAMS_READS=6 \
 CONTRACT_EXECUTION_PARAMS_EVENTS=2 \
 CONTRACT_EXECUTION_PARAMS_HASHES=10 \
