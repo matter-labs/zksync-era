@@ -78,6 +78,10 @@ pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability 
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
 
+pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
+    format!("Not found preexisting ecosystem Contracts with chains {chains}")
+}
+
 pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
     format!("Initializing chain {chain_name}")
 }

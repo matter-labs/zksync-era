@@ -45,7 +45,8 @@ use crate::{
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
-        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
+        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
@@ -276,17 +277,30 @@ async fn deploy_ecosystem(
         }
     };
 
+    let ecosystem_preexisting_configs_path =
+        ecosystem_config
+            .get_preexisting_configs_path()
+            .join(format!(
+                "{}.yaml",
+                ecosystem_config.l1_network.to_string().to_lowercase()
+            ));
+
+    // currently there are not some preexisting ecosystem contracts in
+    // chains, so we need check if this file exists.
+    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
+        anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
+            &ecosystem_config.l1_network.to_string()
+        ))
+    }
+
     let ecosystem_contracts_path =
         ecosystem_contracts_path.unwrap_or_else(|| match ecosystem_config.l1_network {
             L1Network::Localhost => {
                 ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
             }
-            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => ecosystem_config
-                .get_preexisting_configs_path()
-                .join(format!(
-                    "{}.yaml",
-                    ecosystem_config.l1_network.to_string().to_lowercase()
-                )),
+            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => {
+                ecosystem_preexisting_configs_path
+            }
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
