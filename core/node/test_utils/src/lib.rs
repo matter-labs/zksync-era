@@ -44,6 +44,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     }
 }
 
@@ -209,6 +210,7 @@ impl Snapshot {
             protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,
             gas_limit: 0,
+            logs_bloom: Default::default(),
         };
         Snapshot {
             l1_batch,
