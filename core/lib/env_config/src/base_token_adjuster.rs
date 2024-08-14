@@ -22,10 +22,11 @@ mod tests {
             max_tx_gas: 1_000_000,
             default_priority_fee_per_gas: 50_000,
             max_acceptable_priority_fee_in_gwei: 10_000_000_000,
-            l1_receipt_checking_max_attempts: Some(5),
-            l1_receipt_checking_sleep_ms: Some(20_000),
-            l1_tx_sending_max_attempts: Some(10),
-            l1_tx_sending_sleep_ms: Some(30_000),
+            l1_receipt_checking_max_attempts: 5,
+            l1_receipt_checking_sleep_ms: 20_000,
+            l1_tx_sending_max_attempts: 10,
+            l1_tx_sending_sleep_ms: 30_000,
+            halt_on_error: true,
         }
     }
 
@@ -36,10 +37,11 @@ mod tests {
             max_tx_gas: 80_000,
             default_priority_fee_per_gas: 1_000_000_000,
             max_acceptable_priority_fee_in_gwei: 100_000_000_000,
-            l1_receipt_checking_max_attempts: None,
-            l1_receipt_checking_sleep_ms: None,
-            l1_tx_sending_max_attempts: None,
-            l1_tx_sending_sleep_ms: None,
+            l1_receipt_checking_max_attempts: 3,
+            l1_receipt_checking_sleep_ms: 30_000,
+            l1_tx_sending_max_attempts: 3,
+            l1_tx_sending_sleep_ms: 30_000,
+            halt_on_error: false,
         }
     }
 
@@ -56,6 +58,7 @@ mod tests {
             BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=20000
             BASE_TOKEN_ADJUSTER_L1_TX_SENDING_MAX_ATTEMPTS=10
             BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=30000
+            BASE_TOKEN_ADJUSTER_HALT_ON_ERROR=true
         "#;
         lock.set_env(config);
 
@@ -76,6 +79,7 @@ mod tests {
             "BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS",
             "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_MAX_ATTEMPTS",
             "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS",
+            "BASE_TOKEN_ADJUSTER_HALT_ON_ERROR",
         ]);
 
         let actual = BaseTokenAdjusterConfig::from_env().unwrap();

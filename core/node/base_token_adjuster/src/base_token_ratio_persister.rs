@@ -70,8 +70,14 @@ impl BaseTokenRatioPersister {
             }
 
             if let Err(err) = self.loop_iteration().await {
-                return Err(err)
-                    .context("Failed to execute a base_token_ratio_persister loop iteration");
+                tracing::warn!(
+                    "Error in the base_token_ratio_persister loop interaction {}",
+                    err
+                );
+                if self.config.halt_on_error {
+                    return Err(err)
+                        .context("Failed to execute a base_token_ratio_persister loop iteration");
+                }
             }
         }
 
@@ -84,25 +90,23 @@ impl BaseTokenRatioPersister {
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;
 
-        let max_attempts = self.config.l1_tx_sending_max_attempts();
+        let max_attempts = self.config.l1_tx_sending_max_attempts;
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
         let mut result: anyhow::Result<()> = Ok(());
         let mut prev_base_fee_per_gas: Option<u64> = None;
         let mut prev_priority_fee_per_gas: Option<u64> = None;
 
         for attempt in 0..max_attempts {
-            let (gas_price, base_fee_per_gas, priority_fee_per_gas) = self
-                .get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas)
-                .await?;
+            let (base_fee_per_gas, priority_fee_per_gas) =
+                self.get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas);
 
             result = self
-                .send_ratio_to_l1(new_ratio, gas_price, base_fee_per_gas, priority_fee_per_gas)
+                .send_ratio_to_l1(new_ratio, base_fee_per_gas, priority_fee_per_gas)
                 .await;
             if let Some(err) = result.as_ref().err() {
                 tracing::info!(
-                    "Failed to update base token multiplier on L1, attempt {}, gas_price {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                    "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
                     attempt + 1,
-                    gas_price,
                     base_fee_per_gas,
                     priority_fee_per_gas,
                     err
@@ -112,10 +116,9 @@ impl BaseTokenRatioPersister {
                 prev_priority_fee_per_gas = Some(priority_fee_per_gas);
             } else {
                 tracing::info!(
-                    "Updated base token multiplier on L1: numerator {}, denominator {}, gas_price {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                    "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
                     new_ratio.numerator.get(),
                     new_ratio.denominator.get(),
-                    gas_price,
                     base_fee_per_gas,
                     priority_fee_per_gas
                 );
@@ -125,11 +128,11 @@ impl BaseTokenRatioPersister {
         result
     }
 
-    async fn get_eth_fees(
+    fn get_eth_fees(
         &self,
         prev_base_fee_per_gas: Option<u64>,
         prev_priority_fee_per_gas: Option<u64>,
-    ) -> anyhow::Result<(u64, u64, u64)> {
+    ) -> (u64, u64) {
         // Use get_blob_tx_base_fee here instead of get_base_fee to optimise for fast inclusion.
         // get_base_fee will cause the transaction to be stuck in the mempool for 10+ minutes.
         let mut base_fee_per_gas = self.gas_adjuster.as_ref().get_blob_tx_base_fee();
@@ -153,15 +156,7 @@ impl BaseTokenRatioPersister {
             );
         }
 
-        let gas_price = (*self.eth_client)
-            .as_ref()
-            .get_gas_price()
-            .await
-            .with_context(|| "failed getting gas price")?
-            .as_u64()
-            * 2;
-
-        Ok((gas_price, base_fee_per_gas, priority_fee_per_gas))
+        (base_fee_per_gas, priority_fee_per_gas)
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
@@ -219,7 +214,6 @@ impl BaseTokenRatioPersister {
     async fn send_ratio_to_l1(
         &self,
         api_ratio: BaseTokenAPIRatio,
-        gas_price: u64,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> anyhow::Result<()> {
@@ -252,7 +246,6 @@ impl BaseTokenRatioPersister {
         let options = Options {
             gas: Some(U256::from(self.config.max_tx_gas)),
             nonce: Some(U256::from(nonce)),
-            gas_price: Some(gas_price.into()),
             max_fee_per_gas: Some(U256::from(base_fee_per_gas + priority_fee_per_gas)),
             max_priority_fee_per_gas: Some(U256::from(priority_fee_per_gas)),
             ..Default::default()
@@ -274,7 +267,7 @@ impl BaseTokenRatioPersister {
             .await
             .context("failed sending `setTokenMultiplier` transaction")?;
 
-        let max_attempts = self.config.l1_receipt_checking_max_attempts();
+        let max_attempts = self.config.l1_receipt_checking_max_attempts;
         let sleep_duration = self.config.l1_receipt_checking_sleep_duration();
         for _i in 0..max_attempts {
             let maybe_receipt = (*self.eth_client)
