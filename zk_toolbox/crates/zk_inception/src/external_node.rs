@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::cmd::Cmd;
 use config::{
     external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
     SecretsConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 

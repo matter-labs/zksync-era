@@ -1,9 +1,9 @@
 use std::{thread, vec};
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger};
+use common::{config::global_config, logger};
 use config::EcosystemConfig;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use super::{
     args::{
