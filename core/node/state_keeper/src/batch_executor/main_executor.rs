@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use once_cell::sync::OnceCell;
-use tokio::{runtime::Handle, sync::mpsc};
+use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StorageView},
@@ -76,12 +75,6 @@ impl BatchExecutor<OwnedStorage> for MainBatchExecutor {
         };
 
         let handle = tokio::task::spawn_blocking(move || {
-            let storage = match storage {
-                OwnedStorage::Static(storage) => storage,
-                OwnedStorage::Lending(ref storage) => Handle::current()
-                    .block_on(storage.borrow())
-                    .context("failed accessing state keeper storage")?,
-            };
             executor.run(storage, l1_batch_params, system_env);
             anyhow::Ok(())
         });
