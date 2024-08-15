@@ -9,7 +9,7 @@ use ethers::{
     types::{Address, TransactionRequest, H256},
 };
 
-use crate::wallets::Wallet;
+use crate::{logger, wallets::Wallet};
 
 pub fn create_ethers_client(
     private_key: H256,
@@ -79,15 +79,26 @@ pub async fn mint_token(
     let contract = TokenContract::new(token_address, client);
     // contract
     for address in addresses {
-        contract
-            .mint(address, amount.into())
-            .send()
-            .await?
-            // It's safe to set such low number of confirmations and low interval for localhost
-            .confirmations(1)
-            .interval(Duration::from_millis(30))
-            .await?;
+        if let Err(err) = mint(&contract, address, amount).await {
+            logger::warn(format!("Failed to mint {err}"))
+        }
     }
 
+    Ok(())
+}
+
+async fn mint<T: Middleware + 'static>(
+    contract: &TokenContract<T>,
+    address: Address,
+    amount: u128,
+) -> anyhow::Result<()> {
+    contract
+        .mint(address, amount.into())
+        .send()
+        .await?
+        // It's safe to set such low number of confirmations and low interval for localhost
+        .confirmations(1)
+        .interval(Duration::from_millis(30))
+        .await?;
     Ok(())
 }

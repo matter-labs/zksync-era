@@ -615,6 +615,7 @@ mod tests {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(VmVersion::latest()),
             virtual_blocks: l2_block_seal_command.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
+            logs_bloom: Default::default(),
         };
         connection
             .protocol_versions_dal()

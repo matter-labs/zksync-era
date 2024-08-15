@@ -18,13 +18,13 @@ use zksync_multivm::{
 };
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{build_bloom, L1BatchHeader, L2BlockHeader},
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
     utils::display_timestamp,
-    Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog, Transaction,
-    H256,
+    Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
+    Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -359,6 +359,17 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
+        let iter = self.l2_block.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(iter);
+        progress.observe(Some(self.l2_block.events.len()));
+
         // Seal block header at the last step.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
         let definite_vm_version = self
@@ -380,6 +391,7 @@ impl L2BlockSealCommand {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
             virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
+            logs_bloom,
         };
 
         let mut connection = strategy.connection().await?;

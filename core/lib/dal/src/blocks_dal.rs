@@ -22,7 +22,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     l2_to_l1_log::UserL2ToL1Log,
     writes::TreeWrite,
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 use zksync_vm_interface::CircuitStatistic;
 
@@ -148,6 +148,22 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
+    pub async fn get_earliest_l2_block_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                miniblocks
+            "#
+        )
+        .instrument("get_earliest_l2_block_number")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L2BlockNumber(num as u32)))
     }
 
     pub async fn get_last_l1_batch_number_with_tree_data(
@@ -691,6 +707,7 @@ impl BlocksDal<'_, '_> {
                     virtual_blocks,
                     fair_pubdata_price,
                     gas_limit,
+                    logs_bloom,
                     created_at,
                     updated_at
                 )
@@ -712,6 +729,7 @@ impl BlocksDal<'_, '_> {
                     $14,
                     $15,
                     $16,
+                    $17,
                     NOW(),
                     NOW()
                 )
@@ -738,6 +756,7 @@ impl BlocksDal<'_, '_> {
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
             l2_block_header.gas_limit as i64,
+            l2_block_header.logs_bloom.as_bytes(),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -764,7 +783,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
-                gas_limit
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
             ORDER BY
@@ -803,7 +823,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
-                gas_limit
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
             WHERE
@@ -2334,6 +2355,84 @@ impl BlocksDal<'_, '_> {
 
         Ok(results.into_iter().map(L::from).collect())
     }
+
+    pub async fn has_last_l2_block_bloom(&mut self) -> DalResult<bool> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                (logs_bloom IS NOT NULL) AS "logs_bloom_not_null!"
+            FROM
+                miniblocks
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("has_last_l2_block_bloom")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| row.logs_bloom_not_null).unwrap_or(false))
+    }
+
+    pub async fn get_max_l2_block_without_bloom(&mut self) -> DalResult<Option<L2BlockNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(number) AS "max?"
+            FROM
+                miniblocks
+            WHERE
+                logs_bloom IS NULL
+            "#,
+        )
+        .instrument("get_max_l2_block_without_bloom")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.max.map(|n| L2BlockNumber(n as u32)))
+    }
+
+    pub async fn range_update_logs_bloom(
+        &mut self,
+        from_l2_block: L2BlockNumber,
+        blooms: &[Bloom],
+    ) -> DalResult<()> {
+        if blooms.is_empty() {
+            return Ok(());
+        }
+
+        let to_l2_block = from_l2_block + (blooms.len() - 1) as u32;
+        let numbers: Vec<_> = (i64::from(from_l2_block.0)..=i64::from(to_l2_block.0)).collect();
+
+        let blooms = blooms
+            .iter()
+            .map(|blooms| blooms.as_bytes())
+            .collect::<Vec<_>>();
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                logs_bloom = data.logs_bloom
+            FROM
+                (
+                    SELECT
+                        UNNEST($1::BIGINT[]) AS number,
+                        UNNEST($2::BYTEA[]) AS logs_bloom
+                ) AS data
+            WHERE
+                miniblocks.number = data.number
+            "#,
+            &numbers,
+            &blooms as &[&[u8]],
+        )
+        .instrument("range_update_logs_bloom")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
 }
 
 /// These methods should only be used for tests.
@@ -2415,6 +2514,24 @@ impl BlocksDal<'_, '_> {
             .await?
             .context("storage contains neither L2 blocks, nor snapshot recovery info")?;
         Ok(snapshot_recovery.protocol_version)
+    }
+
+    pub async fn drop_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                logs_bloom = NULL
+            WHERE
+                number = $1
+            "#,
+            i64::from(l2_block_number.0)
+        )
+        .instrument("drop_l2_block_bloom")
+        .with_arg("l2_block_number", &l2_block_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 }
 
