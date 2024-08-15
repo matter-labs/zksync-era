@@ -205,7 +205,7 @@ impl TryFrom<i32> for AggregationRound {
     }
 }
 
-/// TODO
+/// Wrapper for mapping from protocol version to prover circuits job stats
 pub struct ProtocolVersionedCircuitProverStats {
     protocol_versioned_circuit_stats: HashMap<ProtocolSemanticVersion, CircuitProverStats>,
 }
@@ -234,7 +234,7 @@ impl IntoIterator for ProtocolVersionedCircuitProverStats {
     }
 }
 
-/// TODO
+/// Wrapper for mapping between circuit/aggregation round to number of such jobs (queued and in progress)
 pub struct CircuitProverStats {
     circuits_prover_stats: HashMap<CircuitIdRoundTuple, JobCountStatistics>,
 }
@@ -296,7 +296,8 @@ impl Default for CircuitProverStats {
     }
 }
 
-/// TODO
+/// DTO for communication between DAL and prover_job_monitor.
+/// Represents an entry -- count (queued & in progress) of jobs (circuit_id, aggregation_round) for a given protocol version.
 pub struct CircuitProverStatsEntry {
     circuit_id_round_tuple: CircuitIdRoundTuple,
     protocol_semantic_version: ProtocolSemanticVersion,
