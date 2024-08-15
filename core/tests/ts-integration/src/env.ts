@@ -52,8 +52,11 @@ function getMainWalletPk(pathToHome: string, chain?: string): string {
 
         let id = loadChainConfig(pathToHome, chain!).id;
         let wallet_name = `test_mnemonic${id + 1}`;
+        let pk = ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
 
-        return ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
+        process.env.MASTER_WALLET_PK = pk;
+
+        return pk;
     }
 }
 
