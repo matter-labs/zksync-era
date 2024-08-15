@@ -1377,7 +1377,8 @@ impl ExternalNodeConfig {
     /// If local configuration contains the address, it will be checked against the one returned by the main node.
     /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
     /// node so relying on it solely is not recommended.
-    pub fn diamond_proxy_address(&self) -> Address {
+    /// FIXME: This method is not used as of now, it should be used just like in the main branch
+    pub fn _diamond_proxy_address(&self) -> Address {
         self.optional
             .contracts_diamond_proxy_addr
             .unwrap_or(self.remote.user_facing_diamond_proxy)

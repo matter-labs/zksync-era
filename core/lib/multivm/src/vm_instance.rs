@@ -262,10 +262,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        mut mode: FastVmMode,
+        _mode: FastVmMode,
     ) -> Self {
         // TODO(EVM-711): Remove this line after the fast VM is fully integrated.
-        mode = FastVmMode::Old;
+        let mode = FastVmMode::Old;
 
         let vm_version = system_env.version.into();
         match vm_version {
