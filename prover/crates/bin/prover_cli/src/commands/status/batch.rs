@@ -4,6 +4,8 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
+use zksync_config::configs::FriProverConfig;
+use zksync_env_config::FromEnv;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
@@ -208,7 +210,9 @@ fn display_batch_status(batch_data: BatchData) {
 }
 
 fn display_status_for_stage(stage_info: StageInfo) {
-    let max_attempts: u32 = 10;
+    let max_attempts = FriProverConfig::from_env()
+        .expect("Fail to read prover config.")
+        .max_attempts;
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {
@@ -237,7 +241,9 @@ fn display_batch_info(batch_data: BatchData) {
 }
 
 fn display_info_for_stage(stage_info: StageInfo) {
-    let max_attempts: u32 = 10;
+    let max_attempts = FriProverConfig::from_env()
+        .expect("Fail to read prover config.")
+        .max_attempts;
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {

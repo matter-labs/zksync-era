@@ -8,8 +8,9 @@ use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     prover_dal::{
-        ProofCompressionJobStatus, ProverJobStatus, ProverJobStatusInProgress,
-        ProverJobStatusSuccessful, WitnessJobStatus, WitnessJobStatusSuccessful,
+        ProofCompressionJobStatus, ProverJobStatus, ProverJobStatusFailed,
+        ProverJobStatusInProgress, ProverJobStatusSuccessful, WitnessJobStatus,
+        WitnessJobStatusSuccessful,
     },
     L1BatchNumber,
 };
@@ -176,6 +177,41 @@ async fn insert_prover_job(
             batch_number,
             sequence_number,
         )
+        .await;
+}
+
+async fn update_attempts_prover_job(
+    status: ProverJobStatus,
+    attempts: u8,
+    circuit_id: BaseLayerCircuitType,
+    aggregation_round: AggregationRound,
+    batch_number: L1BatchNumber,
+    sequence_number: usize,
+    connection: &mut Connection<'_, Prover>,
+) {
+    connection
+        .cli_test_dal()
+        .update_attempts_prover_job(
+            status,
+            attempts,
+            circuit_id as u8,
+            aggregation_round as i64,
+            batch_number,
+            sequence_number,
+        )
+        .await;
+}
+
+async fn update_attempts_lwg(
+    status: ProverJobStatus,
+    attempts: u8,
+    circuit_id: BaseLayerCircuitType,
+    batch_number: L1BatchNumber,
+    connection: &mut Connection<'_, Prover>,
+) {
+    connection
+        .cli_test_dal()
+        .update_attempts_lwg(status, attempts, circuit_id as u8, batch_number)
         .await;
 }
 
@@ -1336,5 +1372,123 @@ v Scheduler: In Progress ⌛️
     status_batch_0_expects(
         connection_pool.database_url().expose_str(),
         COMPLETE_BATCH_STATUS_STDOUT.into(),
+    );
+}
+
+#[tokio::test]
+async fn pli_status_stuck_job() {
+    let connection_pool = ConnectionPool::<Prover>::prover_test_pool().await;
+    let mut connection = connection_pool.connection().await.unwrap();
+
+    connection
+        .fri_protocol_versions_dal()
+        .save_prover_protocol_version(
+            ProtocolSemanticVersion::default(),
+            L1VerifierConfig::default(),
+        )
+        .await;
+
+    let batch_0 = L1BatchNumber(0);
+
+    let scenario = Scenario::new(batch_0)
+        .add_bwg(FriWitnessJobStatus::Successful)
+        .add_agg_0_prover_job(
+            ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+            BaseLayerCircuitType::VM,
+            1,
+        )
+        .add_agg_0_prover_job(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 2)
+        .add_lwg(WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM)
+        .add_nwg(WitnessJobStatus::WaitingForProofs, BaseLayerCircuitType::VM)
+        .add_rt(WitnessJobStatus::WaitingForProofs)
+        .add_scheduler(WitnessJobStatus::WaitingForProofs);
+    load_scenario(scenario, &mut connection).await;
+
+    update_attempts_prover_job(
+        ProverJobStatus::Failed(ProverJobStatusFailed::default()),
+        10,
+        BaseLayerCircuitType::VM,
+        AggregationRound::BasicCircuits,
+        batch_0,
+        2,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+v Prover Jobs: Stuck ⛔️
+   > VM: Stuck ⛔️
+     - Prover Job: 2 stuck after 10 attempts
+
+-- Aggregation Round 1 --
+ > Leaf Witness Generator: Waiting for Proof ⏱️
+
+-- Aggregation Round 2 --
+ > Node Witness Generator: Waiting for Proof ⏱️
+
+-- Aggregation Round 3 --
+ > Recursion Tip: Waiting for Proof ⏱️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
+    );
+
+    let scenario = Scenario::new(batch_0)
+        .add_agg_0_prover_job(
+            ProverJobStatus::Successful(ProverJobStatusSuccessful::default()),
+            BaseLayerCircuitType::VM,
+            2,
+        )
+        .add_lwg(WitnessJobStatus::InProgress, BaseLayerCircuitType::VM)
+        .add_agg_1_prover_job(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 1)
+        .add_agg_1_prover_job(ProverJobStatus::Queued, BaseLayerCircuitType::VM, 2);
+    load_scenario(scenario, &mut connection).await;
+
+    update_attempts_lwg(
+        ProverJobStatus::Failed(ProverJobStatusFailed::default()),
+        10,
+        BaseLayerCircuitType::VM,
+        batch_0,
+        &mut connection,
+    )
+    .await;
+
+    status_verbose_batch_0_expects(
+        connection_pool.database_url().expose_str(),
+        "== Batch 0 Status ==
+
+-- Aggregation Round 0 --
+> Basic Witness Generator: Successful ✅
+> Prover Jobs: Successful ✅
+
+-- Aggregation Round 1 --
+v Leaf Witness Generator: Stuck ⛔️
+   > VM: Stuck ⛔️
+v Prover Jobs: Queued 📥
+   > VM: Queued 📥
+
+-- Aggregation Round 2 --
+ > Node Witness Generator: Waiting for Proof ⏱️
+
+-- Aggregation Round 3 --
+ > Recursion Tip: Waiting for Proof ⏱️
+
+-- Aggregation Round 4 --
+ > Scheduler: Waiting for Proof ⏱️
+
+-- Proof Compression --
+ > Compressor: Jobs not found 🚫
+"
+        .into(),
     );
 }
