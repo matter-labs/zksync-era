@@ -25,7 +25,7 @@ pub(crate) struct L2BlockSnapshot {
 }
 
 pub struct VmSnapshot {
-    state: era_vm::VMState,
+    execution: era_vm::execution::Execution,
 
     // TODO: Implement snapshots in era vm
     // world_snapshot: vm2::ExternalSnapshot,
