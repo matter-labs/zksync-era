@@ -1,22 +1,12 @@
-use std::io::BufReader;
+use std::{io::BufReader, time::Duration};
 
+use tokio::sync::watch;
 use vise::{Gauge, LabeledFamily, Metrics};
-use vm_benchmark::parse_iai::IaiResult;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-fn main() {
-    let results: Vec<IaiResult> =
-        vm_benchmark::parse_iai::parse_iai(BufReader::new(std::io::stdin())).collect();
+use crate::common::{parse_iai, IaiResult};
 
-    vm_benchmark::with_prometheus::with_prometheus(|| {
-        for r in results {
-            VM_CACHEGRIND_METRICS.instructions[&r.name.clone()].set(r.instructions);
-            VM_CACHEGRIND_METRICS.l1_accesses[&r.name.clone()].set(r.l1_accesses);
-            VM_CACHEGRIND_METRICS.l2_accesses[&r.name.clone()].set(r.l2_accesses);
-            VM_CACHEGRIND_METRICS.ram_accesses[&r.name.clone()].set(r.ram_accesses);
-            VM_CACHEGRIND_METRICS.cycles[&r.name.clone()].set(r.cycles);
-        }
-    })
-}
+mod common;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "vm_cachegrind")]
@@ -35,3 +25,29 @@ pub(crate) struct VmCachegrindMetrics {
 
 #[vise::register]
 pub(crate) static VM_CACHEGRIND_METRICS: vise::Global<VmCachegrindMetrics> = vise::Global::new();
+
+#[tokio::main]
+async fn main() {
+    let results: Vec<IaiResult> = parse_iai(BufReader::new(std::io::stdin())).collect();
+
+    // FIXME: read from env var
+    let endpoint =
+        "http://vmagent.stage.matterlabs.corp/api/v1/import/prometheus/metrics/job/vm-benchmark";
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let prometheus_config =
+        PrometheusExporterConfig::push(endpoint.to_owned(), Duration::from_millis(100));
+    tokio::spawn(prometheus_config.run(stop_receiver));
+
+    for result in results {
+        let name = result.name;
+        VM_CACHEGRIND_METRICS.instructions[&name.clone()].set(result.instructions);
+        VM_CACHEGRIND_METRICS.l1_accesses[&name.clone()].set(result.l1_accesses);
+        VM_CACHEGRIND_METRICS.l2_accesses[&name.clone()].set(result.l2_accesses);
+        VM_CACHEGRIND_METRICS.ram_accesses[&name.clone()].set(result.ram_accesses);
+        VM_CACHEGRIND_METRICS.cycles[&name].set(result.cycles);
+    }
+
+    println!("Waiting for push to happen...");
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    stop_sender.send_replace(true);
+}
