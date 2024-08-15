@@ -130,7 +130,7 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
 # Install foundry
-RUN cargo install --git https://github.com/foundry-rs/foundry \
+RUN cargo install --git https://github.com/matter-labs/foundry-zksync \
     --profile release --locked forge cast
 
 # Setup the environment
