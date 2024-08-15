@@ -77,7 +77,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 
     for extension in extensions {
         match extension {
-            Extension::Rs => lint_rs(shell, &ecosystem)?,
+            Extension::Rs => lint_rs(shell, &ecosystem, args.check)?,
             Extension::Sol => lint_contracts(shell, &ecosystem, args.check)?,
             ext => lint(shell, &ecosystem, &ext, args.check)?,
         }
@@ -86,7 +86,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
+fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(&Extension::Rs));
 
     let link_to_code = &ecosystem.link_to_code;
@@ -94,16 +94,17 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
     let link_to_toolbox = &ecosystem.link_to_code.join("zk_toolbox");
     let paths = vec![link_to_code, lint_to_prover, link_to_toolbox];
 
+    spinner.freeze();
     for path in paths {
         let _dir_guard = shell.push_dir(path);
-        Cmd::new(cmd!(
-            shell,
-            "cargo clippy --locked -- -D warnings -D unstable_features"
-        ))
-        .run()?;
+        let mut cmd = cmd!(shell, "cargo clippy");
+        let common_args = &["--locked", "--", "-D warnings", "-D unstable_features"];
+        if !check {
+            cmd = cmd.args(&["--fix", "--allow-dirty"]);
+        }
+        cmd = cmd.args(common_args);
+        Cmd::new(cmd).with_force_run().run()?;
     }
-
-    spinner.finish();
 
     Ok(())
 }
@@ -150,7 +151,7 @@ fn lint(
         &["--config".to_string(), config_path],
         files.as_slice(),
     ]
-    .concat();
+        .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();
