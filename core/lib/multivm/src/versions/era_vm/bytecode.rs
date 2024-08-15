@@ -4,7 +4,7 @@ use zksync_utils::bytecode::{compress_bytecode, hash_bytecode, CompressedBytecod
 
 pub(crate) fn compress_bytecodes(
     bytecodes: &[Vec<u8>],
-    is_bytecode_known: impl Fn(H256) -> bool,
+    mut is_bytecode_known: impl FnMut(H256) -> bool,
 ) -> Vec<CompressedBytecodeInfo> {
     bytecodes
         .iter()
