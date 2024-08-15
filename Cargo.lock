@@ -8681,7 +8681,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.17.0"
+version = "24.18.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8832,6 +8832,17 @@ dependencies = [
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_logs_bloom_backfill"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "tracing",
+ "zksync_dal",
  "zksync_types",
 ]
 
@@ -9121,6 +9132,7 @@ dependencies = [
  "zksync_external_proof_integration_api",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_api_server",
  "zksync_node_consensus",

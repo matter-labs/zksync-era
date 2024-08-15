@@ -37,6 +37,7 @@ use zksync_node_framework::{
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::L1GasLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
             main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
@@ -615,6 +616,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
+
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g. genesis will be performed if it's required.
     ///
@@ -685,7 +692,8 @@ impl MainNodeBuilder {
                     self = self
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
-                        .add_state_keeper_layer()?;
+                        .add_state_keeper_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
                 Component::HttpApi => {
                     self = self
