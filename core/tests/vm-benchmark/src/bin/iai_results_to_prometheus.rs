@@ -1,4 +1,4 @@
-use std::{io::BufReader, time::Duration};
+use std::{env, io::BufReader, time::Duration};
 
 use tokio::sync::watch;
 use vise::{Gauge, LabeledFamily, Metrics};
@@ -30,9 +30,8 @@ pub(crate) static VM_CACHEGRIND_METRICS: vise::Global<VmCachegrindMetrics> = vis
 async fn main() {
     let results: Vec<IaiResult> = parse_iai(BufReader::new(std::io::stdin())).collect();
 
-    // FIXME: read from env var
-    let endpoint =
-        "http://vmagent.stage.matterlabs.corp/api/v1/import/prometheus/metrics/job/vm-benchmark";
+    let endpoint = env::var("BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL")
+        .expect("`BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL` env var is not set");
     let (stop_sender, stop_receiver) = watch::channel(false);
     let prometheus_config =
         PrometheusExporterConfig::push(endpoint.to_owned(), Duration::from_millis(100));

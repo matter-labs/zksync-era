@@ -23,10 +23,6 @@ name = "criterion"
 harness = false
 
 [[bench]]
-name = "diy_benchmark"
-harness = false
-
-[[bench]]
 name = "iai"
 harness = false
 

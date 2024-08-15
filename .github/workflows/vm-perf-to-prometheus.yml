@@ -21,7 +21,7 @@ jobs:
 
       - name: setup-env
         run: |
-          echo PUSH_VM_BENCHMARKS_TO_PROMETHEUS=1 >> .env
+          echo BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL="http://vmagent.stage.matterlabs.corp/api/v1/import/prometheus/metrics/job/vm-benchmark" >> .env
 
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
@@ -35,6 +35,7 @@ jobs:
 
       - name: run benchmarks
         run: |
-          ci_run cargo bench --package vm-benchmark --bench diy_benchmark
+          ci_run cargo bench --package vm-benchmark --bench criterion
+          ci_run cargo bench --package vm-benchmark --bench fill_bootloader
           ci_run cargo bench --package vm-benchmark --bench iai | tee iai-result
           ci_run cargo run --package vm-benchmark --bin iai_results_to_prometheus --release < iai-result
