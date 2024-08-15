@@ -6,5 +6,5 @@
 source = "forced"
 
 [external_price_api_client.forced]
-numerator = 2
+numerator = 3
 denominator = 2
