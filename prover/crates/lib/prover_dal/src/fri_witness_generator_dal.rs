@@ -570,12 +570,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 circuit_id;
             "#,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8))
+        .collect()
     }
 
     pub async fn update_node_aggregation_jobs_url(
@@ -816,12 +816,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 depth;
             "#,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
+        .collect()
     }
 
     pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
@@ -859,12 +859,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 depth;
             "#,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
+        .collect()
     }
 
     pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
@@ -896,12 +896,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             AggregationRound::NodeAggregation as i64,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number as u64))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number as u64))
+        .collect()
     }
 
     pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
