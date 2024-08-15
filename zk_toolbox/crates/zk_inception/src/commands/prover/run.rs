@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
+use common::{check_prover_prequisites, cmd::Cmd, logger};
 use config::{EcosystemConfig, GeneralProverConfig};
 use xshell::{cmd, Shell};
 
@@ -21,17 +21,22 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
-    //todo: uncomment check_prover_prequisites(shell);
+    check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
+
+    let current_path = shell.current_dir();
 
     let prover_only_mode = match EcosystemConfig::from_file(shell) {
         Ok(_) => false,
-        Err(_) => match GeneralProverConfig::from_file(shell) {
-            Ok(_) => true,
-            Err(_) => {
-                return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
+        Err(_) => {
+            let _dir = shell.push_dir(current_path);
+            match GeneralProverConfig::from_file(shell) {
+                Ok(_) => true,
+                Err(_) => {
+                    return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
+                }
             }
-        },
+        }
     };
 
     let (link_to_code, config_path, secrets_path, bellman_cuda_dir_path) = if prover_only_mode {

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::{
     copy_prover_configs, traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig,
     ProverConfig,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    //todo: uncomment check_prover_prequisites(shell);
+    check_prover_prequisites(shell);
 
     let current_path = shell.current_dir();
 
@@ -52,12 +52,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         (ecosystem_config.link_to_code, ecosystem_config.config)
     };
 
-    if prover_only_mode {
-        copy_prover_configs(shell, &link_to_code, &configs)?;
-    }
-
     let mut prover_config = if prover_only_mode {
         let prover_config = GeneralProverConfig::from_file(shell)?;
+        copy_prover_configs(shell, &link_to_code, &configs)?;
         prover_config.load_prover_config()?
     } else {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;

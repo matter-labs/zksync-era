@@ -5,26 +5,18 @@ postgres:
     server_url: postgres://postgres:notsecurepassword@localhost:5433/zksync_local_test
     prover_url: postgres://postgres:notsecurepassword@localhost:5433/prover_local_test
 prover:
-  prover_object_store:
-    file_backed:
-      file_backed_base_path: artifacts
-    max_retries: 10
-  public_object_store:
-    file_backed:
-      file_backed_base_path: artifacts
-    max_retries: 10
   setup_data_path: vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
-  setup_load_mode: FROM_DISK
+  setup_load_mode: FromDisk
   specialized_group_id: 100
   queue_capacity: 10
   witness_vector_receiver_port: 3316
   availability_check_interval_in_secs: 10000
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
   shall_save_to_public_bucket: true
-  cloud_type: LOCAL
+  cloud_type: Local
 witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10
