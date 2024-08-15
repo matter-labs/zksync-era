@@ -1,11 +1,12 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use once_cell::sync::Lazy;
-use zksync_basic_types::{AccountTreeId, Address, U256};
+use zksync_basic_types::{AccountTreeId, Address, H256, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS
 };
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
@@ -174,6 +175,18 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         ContractLanguage::Sol,
     ),
 ];
+
+static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreter",
+            ContractLanguage::Yul,
+        ))
+});
+
+pub fn get_evm_interpreter_hash() -> H256 {
+    EVM_INTERPRETER_HASH.clone()
+}
 
 static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
     SYSTEM_CONTRACT_LIST

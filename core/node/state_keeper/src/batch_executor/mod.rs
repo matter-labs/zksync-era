@@ -9,7 +9,7 @@ use zksync_multivm::interface::{
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_state::{OwnedStorage, StorageViewCache};
-use zksync_types::{vm_trace::Call, Transaction};
+use zksync_types::{vm_trace::Call, Transaction, H256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
@@ -30,6 +30,7 @@ pub enum TxExecutionResult {
         tx_metrics: Box<ExecutionMetricsForCriteria>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
+        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
         gas_remaining: u32,
     },
     /// The VM rejected the tx for some reason.

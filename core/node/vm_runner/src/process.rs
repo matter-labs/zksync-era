@@ -87,6 +87,7 @@ impl VmRunner {
                     tx_metrics,
                     call_tracer_result,
                     compressed_bytecodes,
+                    new_known_factory_deps,
                     ..
                 } = exec_result
                 else {
@@ -100,6 +101,7 @@ impl VmRunner {
                     tx,
                     *tx_result,
                     compressed_bytecodes,
+                    new_known_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,

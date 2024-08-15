@@ -87,10 +87,12 @@ impl L2BlockUpdates {
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
             extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
+        self.new_factory_deps.extend(new_known_factory_deps);
         self.events.extend(tx_execution_result.logs.events);
         self.user_l2_to_l1_logs
             .extend(tx_execution_result.logs.user_l2_to_l1_logs);
@@ -120,24 +122,24 @@ impl L2BlockUpdates {
         };
 
         // Get transaction factory deps
-        let factory_deps = &tx.execute.factory_deps;
-        let tx_factory_deps: HashMap<_, _> = factory_deps
-            .iter()
-            .map(|bytecode| (hash_bytecode(bytecode), bytecode))
-            .collect();
+        // let factory_deps = &tx.execute.factory_deps;
+        // let tx_factory_deps: HashMap<_, _> = factory_deps
+        //     .iter()
+        //     .map(|bytecode| (hash_bytecode(bytecode), bytecode))
+        //     .collect();
 
-        // Save all bytecodes that were marked as known on the bootloader
-        let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
-            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                panic!(
-                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                    bytecode_hash,
-                    tx.hash()
-                )
-            });
-            (bytecode_hash, bytecode.to_vec())
-        });
-        self.new_factory_deps.extend(known_bytecodes);
+        // // Save all bytecodes that were marked as known on the bootloader
+        // let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
+        //     let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+        //         panic!(
+        //             "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+        //             bytecode_hash,
+        //             tx.hash()
+        //         )
+        //     });
+        //     (bytecode_hash, bytecode.to_vec())
+        // });
+        // self.new_factory_deps.extend(known_bytecodes);
 
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
@@ -207,6 +209,7 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
             vec![],
+            vec![]
         );
 
         assert_eq!(accumulator.executed_transactions.len(), 1);

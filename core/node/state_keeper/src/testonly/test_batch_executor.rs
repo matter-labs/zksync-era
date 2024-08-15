@@ -267,6 +267,7 @@ pub(crate) fn successful_exec_with_metrics(
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
         gas_remaining: Default::default(),
+        new_known_factory_deps: vec![],
     }
 }
 

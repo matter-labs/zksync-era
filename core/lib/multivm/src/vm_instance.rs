@@ -1,6 +1,6 @@
 use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
-use zksync_types::vm::{FastVmMode, VmVersion};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
+use zksync_types::{vm::{FastVmMode, VmVersion}, H256};
+use zksync_utils::{be_words_to_bytes, bytecode::CompressedBytecodeInfo, h256_to_u256};
 
 use crate::{
     glue::history_mode::HistoryMode,
@@ -269,5 +269,29 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             },
             _ => Self::new(l1_batch_env, system_env, storage_view),
         }
+    }
+
+    // TOOD: this should be refactored to be returned as part of the execution result
+    pub fn ask_decommitter(&mut self, hashes: Vec<H256>) -> Vec<Vec<u8>> {
+        let vm = if let VmInstance::Vm1_5_0(vm) = &self {
+            vm
+        } else {
+            panic!("No supported for old VMs");
+        };
+
+        let mut result = vec![];
+        for hash in hashes {
+            let bytecode = vm
+                .state
+                .decommittment_processor
+                .known_bytecodes
+                .inner()
+                .get(&h256_to_u256(hash))
+                .expect("Bytecode not found")
+                .clone();
+            result.push(be_words_to_bytes(&bytecode));
+        }
+
+        result
     }
 }

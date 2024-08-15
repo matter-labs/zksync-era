@@ -79,6 +79,7 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
             vec![],
+            vec![],
         );
 
         let mut l1_batch_accumulator = L1BatchUpdates::new(L1BatchNumber(1));

@@ -74,7 +74,7 @@ impl EIP712TypedStructure for Execute {
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
         builder.add_member(
             "to",
-            &U256::from(self.contract_address.unwrap_or_default().as_bytes()),
+            &U256::from(self.contract_address.unwrap().as_bytes()),
         );
         builder.add_member("value", &self.value);
         builder.add_member("data", &self.calldata.as_slice());

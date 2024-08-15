@@ -14,7 +14,7 @@ use zksync_multivm::{
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorage, StorageView};
-use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
+use zksync_types::{event::extract_bytecodes_marked_as_known, vm::FastVmMode, vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
@@ -188,6 +188,15 @@ impl CommandReceiver {
             } else {
                 self.execute_tx_in_vm(tx, vm)
             };
+
+        let factory_deps_marked_as_known =
+            extract_bytecodes_marked_as_known(&tx_result.logs.events);
+        let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
+        let new_known_factory_deps = factory_deps_marked_as_known
+            .into_iter()
+            .zip(preimages)
+            .collect();
+
         latency.observe();
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
         APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
@@ -208,6 +217,7 @@ impl CommandReceiver {
             compressed_bytecodes,
             call_tracer_result,
             gas_remaining,
+            new_known_factory_deps,
         }
     }
 
