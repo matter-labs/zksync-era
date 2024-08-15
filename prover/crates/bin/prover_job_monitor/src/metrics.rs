@@ -81,7 +81,7 @@ pub(crate) struct ProverJobsLabels {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
-// #[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum WitnessType {
     BasicWitnessGenerator,
     LeafWitnessGenerator,

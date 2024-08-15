@@ -12,10 +12,10 @@ impl ProtoRepr for proto::ProverJobMonitor {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("prometheus_port")?,
             max_db_connections: required(&self.max_db_connections)
-                .and_then(|x| Ok((*x).try_into()?))
+                .and_then(|x| Ok(*x))
                 .context("max_db_connections")?,
             graceful_shutdown_timeout_ms: required(&self.graceful_shutdown_timeout_ms)
-                .and_then(|x| Ok((*x).try_into()?))
+                .and_then(|x| Ok(*x))
                 .context("graceful_shutdown_timeout_ms")?,
             gpu_prover_archiver_run_interval_ms: required(
                 &self.gpu_prover_archiver_run_interval_ms,
@@ -25,50 +25,50 @@ impl ProtoRepr for proto::ProverJobMonitor {
             gpu_prover_archiver_archive_prover_after_secs: required(
                 &self.gpu_prover_archiver_archive_prover_after_secs,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("gpu_prover_archiver_archive_prover_after_secs")?,
             prover_jobs_archiver_run_interval_ms: required(
                 &self.prover_jobs_archiver_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("prover_jobs_archiver_run_interval_ms")?,
             prover_jobs_archiver_archive_jobs_after_secs: required(
                 &self.prover_jobs_archiver_archive_jobs_after_secs,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("prover_jobs_archiver_archive_jobs_after_secs")?,
             proof_compressor_job_requeuer_run_interval_ms: required(
                 &self.proof_compressor_job_requeuer_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("proof_compressor_job_requeuer_run_interval_ms")?,
             prover_job_requeuer_run_interval_ms: required(
                 &self.prover_job_requeuer_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("prover_job_requeuer_run_interval_ms")?,
             witness_generator_job_requeuer_run_interval_ms: required(
                 &self.witness_generator_job_requeuer_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("witness_generator_job_requeuer_run_interval_ms")?,
             proof_compressor_queue_reporter_run_interval_ms: required(
                 &self.proof_compressor_queue_reporter_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("proof_compressor_queue_reporter_run_interval_ms")?,
             prover_queue_reporter_run_interval_ms: required(
                 &self.prover_queue_reporter_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("prover_queue_reporter_run_interval_ms")?,
             witness_generator_queue_reporter_run_interval_ms: required(
                 &self.witness_generator_queue_reporter_run_interval_ms,
             )
-            .and_then(|x| Ok((*x).try_into()?))
+            .and_then(|x| Ok(*x))
             .context("witness_generator_queue_reporter_run_interval_ms")?,
             witness_job_queuer_run_interval_ms: required(&self.witness_job_queuer_run_interval_ms)
-                .and_then(|x| Ok((*x).try_into()?))
+                .and_then(|x| Ok(*x))
                 .context("witness_job_queuer_run_interval_ms")?,
         })
     }
