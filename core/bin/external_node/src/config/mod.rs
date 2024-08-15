@@ -106,7 +106,6 @@ pub(crate) struct RemoteENConfig {
     pub transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
     pub user_facing_diamond_proxy: Address,
-    diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -1329,7 +1328,7 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
+        let remote_diamond_proxy_addr = remote.user_facing_diamond_proxy;
         if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,

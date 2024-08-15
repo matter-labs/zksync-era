@@ -4,7 +4,7 @@ use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_test_account::Account;
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, Execute, PriorityOpId,
+    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, Execute, PriorityOpId,
     L2_MESSAGE_ROOT_ADDRESS, U256,
 };
 

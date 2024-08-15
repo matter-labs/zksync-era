@@ -400,7 +400,7 @@ where
             client,
             U64::from(chunk_size),
             zksync_types::api::BlockNumber::from(chunk_end),
-            vec![],
+            None,
         )
         .rpc_context("fee_history")
         .with_arg("chunk_size", &chunk_size)

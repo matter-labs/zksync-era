@@ -7,10 +7,8 @@ use zksync_multivm::{
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, commitment::PubdataParams, fee_model::BatchFeeInput,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    block::BlockGasCount, commitment::PubdataParams, fee_model::BatchFeeInput, vm_trace::Call,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};

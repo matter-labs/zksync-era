@@ -16,6 +16,7 @@ pub enum VmVersion {
     Vm1_4_2,
     Vm1_5_0SmallBootloaderMemory,
     Vm1_5_0IncreasedBootloaderMemory,
+    VmSyncLayer,
 }
 
 impl VmVersion {

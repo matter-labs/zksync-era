@@ -1436,7 +1436,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb49164822f3ee45b17acd4a208cfc1251410cf0cad9a833234c9890774dd9f"
 dependencies = [
  "quote 1.0.36",
- "syn 2.0.66",
+ "syn 2.0.72",
 ]
 
 [[package]]
@@ -1773,9 +1773,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa18ce2bc66555b3218614519ac839ddb759a7d6720732f979ef8d13be147ecd"
 dependencies = [
  "once_cell",
- "proc-macro2 1.0.85",
+ "proc-macro2 1.0.86",
  "quote 1.0.36",
- "syn 2.0.66",
+ "syn 2.0.72",
 ]
 
 [[package]]
@@ -4421,7 +4421,7 @@ dependencies = [
  "bincode",
  "chrono",
  "circuit_definitions",
- "clap 4.5.4",
+ "clap 4.5.11",
  "colored",
  "dialoguer",
  "hex",
@@ -6734,7 +6734,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "circuit_definitions",
- "clap 4.5.4",
+ "clap 4.5.11",
  "hex",
  "indicatif",
  "itertools 0.10.5",
@@ -7884,6 +7884,7 @@ dependencies = [
  "zk_evm 0.141.0",
  "zk_evm 0.150.0",
  "zksync_contracts",
+ "zksync_mini_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
@@ -7942,7 +7943,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "circuit_sequencer_api 0.150.2",
- "clap 4.5.4",
+ "clap 4.5.11",
  "ctrlc",
  "futures 0.3.30",
  "reqwest 0.12.5",
@@ -8042,7 +8043,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "circuit_definitions",
- "clap 4.5.4",
+ "clap 4.5.11",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",

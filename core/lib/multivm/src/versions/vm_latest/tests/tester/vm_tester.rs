@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use zksync_contracts::{l2_rollup_da_validator_bytecode, BaseSystemContracts};
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher,
     commitment::{L1BatchCommitmentMode, PubdataParams},

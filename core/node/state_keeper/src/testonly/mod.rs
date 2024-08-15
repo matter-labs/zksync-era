@@ -1,17 +1,17 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
+use std::collections::HashMap;
+
 use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal as _};
-use zksync_multivm::{
-    interface::{
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
-    },
-    vm_latest::VmExecutionLogs,
+use zksync_multivm::interface::{
+    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
+    VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
+use zksync_state::interface::StorageViewCache;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, get_code_key, get_known_code_key, utils::storage_key_for_standard_token_balance,

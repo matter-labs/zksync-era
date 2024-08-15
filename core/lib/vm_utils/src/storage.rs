@@ -6,7 +6,7 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
     block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
     snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, ZKPORTER_IS_AVAILABLE,
+    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 

@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{commitment::PubdataParams, L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{
     tx::BootloaderTx,

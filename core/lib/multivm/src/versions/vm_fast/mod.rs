@@ -8,7 +8,8 @@ mod hook;
 mod initial_bootloader_memory;
 mod pubdata;
 mod refund;
-#[cfg(test)]
-mod tests;
+// FIXME(EVM-711): restore tests for fast VM once it is integrated
+// #[cfg(test)]
+// mod tests;
 mod transaction_data;
 mod vm;

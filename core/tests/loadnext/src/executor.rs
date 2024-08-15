@@ -9,6 +9,7 @@ use zksync_types::{
     api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
+use zksync_web3_decl::client::L2;
 
 use crate::{
     account::AccountLifespan,
@@ -66,7 +67,7 @@ impl Executor {
             .await?
             .unwrap();
         let abi = load_contract(L2_SHARED_BRIDGE_ABI);
-        let query_client = Client::http(config.l2_rpc_address.parse()?)?.build();
+        let query_client: Client<L2> = Client::http(config.l2_rpc_address.parse()?)?.build();
         let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
             .for_contract(l2_native_token_vault, &abi)
             .call(&query_client)

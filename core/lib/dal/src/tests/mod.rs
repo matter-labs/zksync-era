@@ -5,7 +5,7 @@ use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::PubdataParams,
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
