@@ -2,11 +2,13 @@ use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::ExecutionMetrics,
+    vm_trace::Call,
     StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
 
-use crate::{Halt, VmExecutionStatistics, VmRevertReason};
+use crate::{
+    CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
+};
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -65,7 +67,7 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
-    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> ExecutionMetrics {
+    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)
             .unwrap_or(0);
@@ -86,7 +88,7 @@ impl VmExecutionResultAndLogs {
             })
             .sum();
 
-        ExecutionMetrics {
+        VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
             published_bytecode_bytes,
             l2_l1_long_messages,
@@ -100,6 +102,53 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum TxExecutionStatus {
+    Success,
+    Failure,
+}
+
+impl TxExecutionStatus {
+    pub fn from_has_failed(has_failed: bool) -> Self {
+        if has_failed {
+            Self::Failure
+        } else {
+            Self::Success
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransactionExecutionResult {
+    pub transaction: Transaction,
+    pub hash: H256,
+    pub execution_info: VmExecutionMetrics,
+    pub execution_status: TxExecutionStatus,
+    pub refunded_gas: u64,
+    pub operator_suggested_refund: u64,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub revert_reason: Option<String>,
+}
+
+impl TransactionExecutionResult {
+    pub fn call_trace(&self) -> Option<Call> {
+        if self.call_traces.is_empty() {
+            None
+        } else {
+            Some(Call::new_high_level(
+                self.transaction.gas_limit().as_u64(),
+                self.transaction.gas_limit().as_u64() - self.refunded_gas,
+                self.transaction.execute.value,
+                self.transaction.execute.calldata.clone(),
+                vec![],
+                self.revert_reason.clone(),
+                self.call_traces.clone(),
+            ))
         }
     }
 }

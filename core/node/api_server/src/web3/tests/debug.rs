@@ -1,6 +1,7 @@
 //! Tests for the `debug` Web3 namespace.
 
-use zksync_types::{tx::TransactionExecutionResult, vm_trace::Call, BOOTLOADER_ADDRESS};
+use zksync_multivm::interface::TransactionExecutionResult;
+use zksync_types::{vm_trace::Call, BOOTLOADER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::DebugNamespaceClient,
