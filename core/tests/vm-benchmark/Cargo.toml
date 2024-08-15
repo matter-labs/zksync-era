@@ -33,15 +33,3 @@ harness = false
 [[bench]]
 name = "fill_bootloader"
 harness = false
-
-[[bin]]
-name = "iai_results_to_prometheus"
-path = "src/iai_results_to_prometheus.rs"
-
-[[bin]]
-name = "compare_iai_results"
-path = "src/compare_iai_results.rs"
-
-[[bin]]
-name = "instruction-counts"
-path = "src/instruction_counts.rs"
