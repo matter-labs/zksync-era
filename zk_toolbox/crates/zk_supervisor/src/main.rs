@@ -15,7 +15,7 @@ use messages::{
 };
 use xshell::Shell;
 
-use crate::commands::clean::CleanCommands;
+use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod dals;
@@ -42,6 +42,8 @@ enum SupervisorSubcommands {
     Snapshot(SnapshotCommands),
     #[command(about = MSG_SUBCOMMAND_LINT_ABOUT, alias = "l")]
     Lint(LintArgs),
+    #[command(about = MSG_SUBCOMMAND_LINT_ABOUT)]
+    Fmt(FmtArgs),
     #[command(hide = true)]
     Markdown,
 }
@@ -99,6 +101,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
             clap_markdown::print_help_markdown::<Supervisor>();
         }
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
+        SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell, args)?,
     }
     Ok(())
 }

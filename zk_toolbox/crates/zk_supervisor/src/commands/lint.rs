@@ -9,7 +9,7 @@ use crate::messages::{
     MSG_LINT_CONFIG_PATH_ERR, MSG_RUNNING_CONTRACTS_LINTER_SPINNER,
 };
 
-const IGNORED_DIRS: [&str; 18] = [
+pub const IGNORED_DIRS: [&str; 18] = [
     "target",
     "node_modules",
     "volumes",
@@ -31,7 +31,7 @@ const IGNORED_DIRS: [&str; 18] = [
     "contracts/l1-contracts/lib",
 ];
 
-const IGNORED_FILES: [&str; 4] = [
+pub const IGNORED_FILES: [&str; 4] = [
     "KeysWithPlonkVerifier.sol",
     "TokenInit.sol",
     ".tslintrc.js",
@@ -48,7 +48,7 @@ pub struct LintArgs {
     pub extensions: Vec<Extension>,
 }
 
-#[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone)]
+#[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
 #[strum(serialize_all = "lowercase")]
 pub enum Extension {
     Rs,
@@ -151,7 +151,7 @@ fn lint(
         &["--config".to_string(), config_path],
         files.as_slice(),
     ]
-        .concat();
+    .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();
