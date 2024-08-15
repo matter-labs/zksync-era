@@ -9,9 +9,10 @@ use crate::ProtocolVersionId;
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
-/// versions of Era prior to 1.4.1 integration.
+///   versions of Era prior to 1.4.1 integration.
 /// - `PubdataIndependent`: L1 gas price and pubdata price are not necessarily dependent on one another. This options is more suitable for the
-/// versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
+///   versions of Era after the 1.4.1 integration. It is expected that if a VM supports `PubdataIndependent` version, then it should also support
+///   `L1Pegged` version, but converting it into `PubdataIndependentBatchFeeModelInput` in-place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BatchFeeInput {
     L1Pegged(L1PeggedBatchFeeModelInput),
@@ -161,11 +162,11 @@ pub struct PubdataIndependentBatchFeeModelInput {
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
 /// - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
-/// Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
-/// processing the batch on L1.
+///   Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
+///   processing the batch on L1.
 /// - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
-/// The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
-/// processing the batch on L1.
+///   The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+///   processing the batch on L1.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FeeModelConfig {
     V1(FeeModelConfigV1),

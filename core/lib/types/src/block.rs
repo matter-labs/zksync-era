@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{commitment::PubdataParams, Address, H2048, H256, U256};
+use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 use zksync_utils::concat_and_hash;
@@ -56,7 +56,7 @@ pub struct L1BatchHeader {
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
-    pub bloom: H2048,
+    pub bloom: Bloom,
     /// Hashes of contracts used this block
     pub used_contract_hashes: Vec<U256>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
@@ -91,6 +91,7 @@ pub struct L2BlockHeader {
     /// Note, that it is an `u64`, i.e. while the computational limit for the bootloader is an `u32` a much larger
     /// amount of gas can be spent on pubdata.
     pub gas_limit: u64,
+    pub logs_bloom: Bloom,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.
@@ -126,7 +127,7 @@ impl L1BatchHeader {
             priority_ops_onchain_data: vec![],
             l2_to_l1_logs: vec![],
             l2_to_l1_messages: vec![],
-            bloom: H2048::default(),
+            bloom: Bloom::default(),
             used_contract_hashes: vec![],
             base_system_contracts_hashes,
             system_logs: vec![],
@@ -295,8 +296,19 @@ pub struct L1BatchTreeData {
     pub rollup_last_leaf_index: u64,
 }
 
+pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloom {
+    let mut bloom = Bloom::zero();
+    for item in items {
+        bloom.accrue(item);
+    }
+
+    bloom
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{iter, str::FromStr};
+
     use super::*;
 
     #[test]
@@ -345,5 +357,77 @@ mod tests {
         let (unpacked_block_number, unpacked_block_timestamp) = unpack_block_info(block_info);
         assert_eq!(block_number, unpacked_block_number);
         assert_eq!(block_timestamp, unpacked_block_timestamp);
+    }
+
+    #[test]
+    fn test_build_bloom() {
+        let logs = [
+            (
+                Address::from_str("0x86Fa049857E0209aa7D9e616F7eb3b3B78ECfdb0").unwrap(),
+                vec![
+                    H256::from_str(
+                        "0x3452f51d00000000000000000000000000000000000000000000000000000000",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000d0a6e6c54dbc68db5db3a091b171a77407ff7ccf",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x0000000000000000000000000f5e378a82a55f24e88317a8fb7cd2ed8bd3873f",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000000000000000000000000004f0e6ade1e67bb719",
+                    )
+                    .unwrap(),
+                ],
+            ),
+            (
+                Address::from_str("0x86Fa049857E0209aa7D9e616F7eb3b3B78ECfdb0").unwrap(),
+                vec![
+                    H256::from_str(
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000d0a6e6c54dbc68db5db3a091b171a77407ff7ccf",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x0000000000000000000000000f5e378a82a55f24e88317a8fb7cd2ed8bd3873f",
+                    )
+                    .unwrap(),
+                ],
+            ),
+            (
+                Address::from_str("0xd0a6E6C54DbC68Db5db3A091B171A77407Ff7ccf").unwrap(),
+                vec![H256::from_str(
+                    "0x51223fdc0a25891366fb358b4af9fe3c381b1566e287c61a29d01c8a173fe4f4",
+                )
+                .unwrap()],
+            ),
+        ];
+        let iter = logs.iter().flat_map(|log| {
+            log.1
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain(iter::once(BloomInput::Raw(log.0.as_bytes())))
+        });
+
+        let bloom = build_bloom(iter);
+        let expected = Bloom::from_str(
+            "0000000004000000000000000100000000000000000000000000000000000000\
+            0000000000000000000040000000000000000000000000000000000000000200\
+            0000000000020000400000180000000000000000000000000000000000000000\
+            0000000000000000000000000000000000000000080000000000201000000000\
+            2000000000000000400000000000080000008000000000000000000000000000\
+            0000000000000000000000000004000000000001000000000000804000000000\
+            0000000200000000000000000000000400000000000000000000000800200000\
+            0000000000000010000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        assert_eq!(bloom, expected);
     }
 }

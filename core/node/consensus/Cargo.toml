@@ -23,7 +23,6 @@ zksync_consensus_bft.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_dal.workspace = true
-zksync_state.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_metadata_calculator.workspace = true
 zksync_merkle_tree.workspace = true

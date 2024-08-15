@@ -14,6 +14,7 @@ use crate::{
 pub struct RocksDbs {
     pub state_keeper: PathBuf,
     pub merkle_tree: PathBuf,
+    pub protective_reads: PathBuf,
 }
 
 pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
@@ -28,6 +29,11 @@ pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> a
         .context("DB config is not presented")?
         .merkle_tree
         .path = rocks_dbs.merkle_tree.to_str().unwrap().to_string();
+    config
+        .protective_reads_writer_config
+        .as_mut()
+        .context("Protective reads config is not presented")?
+        .db_path = rocks_dbs.protective_reads.to_str().unwrap().to_string();
     Ok(())
 }
 
