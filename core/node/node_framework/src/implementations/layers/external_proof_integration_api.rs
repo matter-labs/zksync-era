@@ -59,7 +59,7 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let main_pool = input.master_pool.get().await.unwrap();
+        let main_pool = input.master_pool.get().await?;
         let blob_store = input.object_store.0;
 
         let task = ProverApiTask {

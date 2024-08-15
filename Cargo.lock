@@ -7281,8 +7281,10 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "iai",
+ "rand 0.8.5",
  "tokio",
  "vise",
+ "zksync_types",
  "zksync_vlog",
  "zksync_vm_benchmark_harness",
 ]
@@ -8541,6 +8543,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -8674,7 +8677,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.17.0"
+version = "24.18.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8825,6 +8828,17 @@ dependencies = [
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_logs_bloom_backfill"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "tracing",
+ "zksync_dal",
  "zksync_types",
 ]
 
@@ -9115,6 +9129,7 @@ dependencies = [
  "zksync_external_proof_integration_api",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_api_server",
  "zksync_node_consensus",
@@ -9740,6 +9755,7 @@ dependencies = [
 name = "zksync_vm_benchmark_harness"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "once_cell",
  "zk_evm 0.133.0",
  "zksync_contracts",
@@ -9761,7 +9777,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
