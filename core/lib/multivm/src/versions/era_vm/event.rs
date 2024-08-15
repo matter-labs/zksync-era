@@ -1,4 +1,4 @@
-use era_vm::world::Event;
+use era_vm::state::Event;
 use zksync_types::{L1BatchNumber, VmEvent, H256};
 use zksync_utils::h256_to_account_address;
 

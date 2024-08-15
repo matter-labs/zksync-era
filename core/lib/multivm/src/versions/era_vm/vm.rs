@@ -1,10 +1,10 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use era_vm::{
+    state::{L2ToL1Log, VMState},
     store::{StorageError, StorageKey as EraStorageKey},
     vm::ExecutionOutput,
-    world::L2ToL1Log,
-    EraVM, VMState,
+    EraVM, Execution,
 };
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
@@ -68,7 +68,7 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
         let vm_hook_position =
             get_vm_hook_position(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
                 * 32;
-        let vm_state = VMState::new(
+        let vm_execution = Execution::new(
             bootloader_code.to_owned(),
             Vec::new(),
             BOOTLOADER_ADDRESS,
@@ -99,7 +99,7 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
         let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
         let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
         let mut vm = EraVM::new(
-            vm_state,
+            vm_execution,
             Rc::new(RefCell::new(world_storage1)),
             Rc::new(RefCell::new(world_storage2)),
         );
@@ -108,14 +108,14 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
         // The bootloader shouldn't pay for growing memory and it writes results
         // to the end of its heap, so it makes sense to preallocate it in its entirety.
         const BOOTLOADER_MAX_MEMORY_SIZE: u32 = 59000000;
-        vm.state
+        vm.execution
             .heaps
-            .get_mut(era_vm::state::FIRST_HEAP)
+            .get_mut(era_vm::execution::FIRST_HEAP)
             .unwrap()
             .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
-        vm.state
+        vm.execution
             .heaps
-            .get_mut(era_vm::state::FIRST_HEAP + 1)
+            .get_mut(era_vm::execution::FIRST_HEAP + 1)
             .unwrap()
             .expand_memory(BOOTLOADER_MAX_MEMORY_SIZE);
 
@@ -155,7 +155,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 },
                 ExecutionOutput::Panic => {
                     return ExecutionResult::Halt {
-                        reason: if self.inner.state.gas_left().unwrap() == 0 {
+                        reason: if self.inner.execution.gas_left().unwrap() == 0 {
                             Halt::BootloaderOutOfGas
                         } else {
                             Halt::VMPanic
@@ -221,9 +221,9 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 Hook::DebugLog => {
                     let heap = self
                         .inner
-                        .state
+                        .execution
                         .heaps
-                        .get(self.inner.state.current_context().unwrap().heap_id)
+                        .get(self.inner.execution.current_context().unwrap().heap_id)
                         .unwrap();
                     let vm_hook_params: Vec<_> = self
                         .get_vm_hook_params(heap)
@@ -256,11 +256,11 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     }
                 }
             }
-            self.inner.state.current_frame_mut().unwrap().pc = self.suspended_at as u64;
+            self.inner.execution.current_frame_mut().unwrap().pc = self.suspended_at as u64;
         }
     }
 
-    fn get_vm_hook_params(&self, heap: &era_vm::state::Heap) -> Vec<U256> {
+    fn get_vm_hook_params(&self, heap: &era_vm::execution::Heap) -> Vec<U256> {
         (get_vm_hook_start_position_latest()..get_vm_hook_start_position_latest() + 2)
             .map(|word| {
                 let res = heap.read((word * 32) as u32);
@@ -307,26 +307,26 @@ impl<S: ReadStorage + 'static> Vm<S> {
     fn read_heap_word(&self, word: usize) -> U256 {
         let heap = self
             .inner
-            .state
+            .execution
             .heaps
-            .get(self.inner.state.current_context().unwrap().heap_id)
+            .get(self.inner.execution.current_context().unwrap().heap_id)
             .unwrap();
         heap.read((word * 32) as u32)
     }
 
     #[cfg(test)]
     /// Returns the current state of the VM in a format that can be compared for equality.
-    pub(crate) fn dump_state(&self) -> VMState {
-        self.inner.state.clone()
+    pub(crate) fn dump_state(&self) -> Execution {
+        self.inner.execution.clone()
     }
 
     fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
-        assert!(self.inner.state.running_contexts.len() == 1); // No on-going far calls
+        assert!(self.inner.execution.running_contexts.len() == 1); // No on-going far calls
         if let Some(heap) = &mut self
             .inner
-            .state
+            .execution
             .heaps
-            .get_mut(self.inner.state.current_context().unwrap().heap_id)
+            .get_mut(self.inner.execution.current_context().unwrap().heap_id)
         {
             for (slot, value) in memory {
                 let end = (slot + 1) * 32;
@@ -352,7 +352,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
         } else {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
-                    .world
+                    .state
                     .storage_read(EraStorageKey::new(
                         KNOWN_CODES_STORAGE_ADDRESS,
                         h256_to_u256(hash),
@@ -397,7 +397,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
             result,
             logs: VmExecutionLogs {
                 storage_logs: Default::default(),
-                events: merge_events(self.inner.world.events(), self.batch_env.number),
+                events: merge_events(self.inner.state.events(), self.batch_env.number),
                 user_l2_to_l1_logs: Default::default(),
                 system_l2_to_l1_logs: Default::default(),
                 total_log_queries_count: 0, // This field is unused
@@ -440,7 +440,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
     }
 
     fn gas_remaining(&self) -> u32 {
-        self.inner.state.current_frame().unwrap().gas_left.0
+        self.inner.execution.current_frame().unwrap().gas_left.0
     }
 }
 
@@ -532,7 +532,6 @@ impl<S: ReadStorage> era_vm::store::ContractStorage for World<S> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
     use once_cell::sync::Lazy;
@@ -551,6 +550,7 @@ mod tests {
     };
     use zksync_utils::bytecode::hash_bytecode;
 
+    use super::*;
     use crate::{
         era_vm::vm::Vm,
         interface::{
