@@ -7,7 +7,7 @@ use crate::{
         CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_fast::Vm,
+    vm_fast::{vm::CircuitsTracer, Vm},
 };
 
 #[derive(Debug, Clone)]
@@ -185,14 +185,14 @@ impl TransactionTestInfo {
 
 // TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug, PartialEq)]
-struct VmStateDump<T> {
-    state: vm2::State<T>,
+struct VmStateDump {
+    state: vm2::State<CircuitsTracer>,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,
 }
 
-impl<S: ReadStorage, T: Clone> Vm<S, T> {
-    fn dump_state(&self) -> VmStateDump<T> {
+impl<S: ReadStorage> Vm<S> {
+    fn dump_state(&self) -> VmStateDump {
         VmStateDump {
             state: self.inner.state.clone(),
             storage_writes: self

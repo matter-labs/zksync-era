@@ -17,10 +17,13 @@ use crate::{
     vm_fast,
 };
 
-#[derive(Debug)]
+struct CircuitsTracerVM2;
+
+impl vm2::Tracer for CircuitsTracerVM2 {}
+
 pub struct ShadowVm<S, T> {
     main: T,
-    shadow: vm_fast::Vm<ImmutableStorageView<S>, ()>,
+    shadow: vm_fast::Vm<ImmutableStorageView<S>>,
 }
 
 impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
@@ -35,12 +38,7 @@ where
     ) -> Self {
         Self {
             main: T::new(batch_env.clone(), system_env.clone(), storage.clone()),
-            shadow: vm_fast::Vm::new(
-                batch_env,
-                system_env,
-                ImmutableStorageView::new(storage),
-                (),
-            ),
+            shadow: vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage)),
         }
     }
 }

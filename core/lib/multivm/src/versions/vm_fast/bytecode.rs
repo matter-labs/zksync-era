@@ -8,7 +8,7 @@ use zksync_utils::{
 
 use super::Vm;
 
-impl<S: ReadStorage, T> Vm<S, T> {
+impl<S: ReadStorage> Vm<S> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
     pub(crate) fn has_unpublished_bytecodes(&mut self) -> bool {
         self.bootloader_state

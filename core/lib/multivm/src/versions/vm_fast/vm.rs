@@ -3,12 +3,13 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, Tracer, VirtualMachine,
+    ExecutionEnd, Program, Settings, StateInterface, Tracer, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_state::ReadStorage;
 use zksync_types::{
+    circuit::CircuitStatistic,
     event::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
         L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
@@ -60,19 +61,370 @@ const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemo
 #[allow(unused)]
 const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
 
-pub struct Vm<S, T> {
-    pub(crate) world: World<S, T>,
-    pub(crate) inner: VirtualMachine<T>,
+// "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack
+// and so take 1-2 RAM permutations more than an average opcode.
+// In the worst case, a rich addressing may take 3 ram permutations
+// (1 for reading the opcode, 1 for writing input value, 1 for writing output value).
+pub(crate) const RICH_ADDRESSING_OPCODE_RAM_CYCLES: u32 = 3;
+
+pub(crate) const AVERAGE_OPCODE_RAM_CYCLES: u32 = 1;
+
+pub(crate) const STORAGE_READ_RAM_CYCLES: u32 = 1;
+pub(crate) const STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
+pub(crate) const STORAGE_READ_STORAGE_SORTER_CYCLES: u32 = 1;
+pub(crate) const STORAGE_READ_STORAGE_APPLICATION_CYCLES: u32 = 1;
+
+pub(crate) const TRANSIENT_STORAGE_READ_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 1;
+
+pub(crate) const EVENT_RAM_CYCLES: u32 = 1;
+pub(crate) const EVENT_LOG_DEMUXER_CYCLES: u32 = 2;
+pub(crate) const EVENT_EVENTS_SORTER_CYCLES: u32 = 2;
+
+pub(crate) const STORAGE_WRITE_RAM_CYCLES: u32 = 1;
+pub(crate) const STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
+pub(crate) const STORAGE_WRITE_STORAGE_SORTER_CYCLES: u32 = 2;
+pub(crate) const STORAGE_WRITE_STORAGE_APPLICATION_CYCLES: u32 = 2;
+
+pub(crate) const TRANSIENT_STORAGE_WRITE_RAM_CYCLES: u32 = 1;
+pub(crate) const TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
+pub(crate) const TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES: u32 = 2;
+
+pub(crate) const FAR_CALL_RAM_CYCLES: u32 = 1;
+pub(crate) const FAR_CALL_STORAGE_SORTER_CYCLES: u32 = 1;
+pub(crate) const FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES: u32 = 1;
+pub(crate) const FAR_CALL_LOG_DEMUXER_CYCLES: u32 = 1;
+
+// 5 RAM permutations, because: 1 to read opcode + 2 reads + 2 writes.
+// 2 reads and 2 writes are needed because unaligned access is implemented with
+// aligned queries.
+pub(crate) const UMA_WRITE_RAM_CYCLES: u32 = 5;
+
+// 3 RAM permutations, because: 1 to read opcode + 2 reads.
+// 2 reads are needed because unaligned access is implemented with aligned queries.
+pub(crate) const UMA_READ_RAM_CYCLES: u32 = 3;
+
+pub(crate) const PRECOMPILE_RAM_CYCLES: u32 = 1;
+pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
+
+pub(crate) const LOG_DECOMMIT_RAM_CYCLES: u32 = 1;
+pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct CircuitsTracer {
+    main_vm_cycles: u32,
+    ram_permutation_cycles: u32,
+    storage_application_cycles: u32,
+    storage_sorter_cycles: u32,
+    code_decommitter_cycles: u32,
+    code_decommitter_sorter_cycles: u32,
+    log_demuxer_cycles: u32,
+    events_sorter_cycles: u32,
+    keccak256_cycles: u32,
+    ecrecover_cycles: u32,
+    sha256_cycles: u32,
+    secp256k1_verify_cycles: u32,
+    transient_storage_checker_cycles: u32,
+}
+
+impl Tracer for CircuitsTracer {
+    // `Opcode::Nop(NopOpcode)`
+    fn after_nop<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    // `Opcode::Add(AddOpcode)`
+    fn after_add<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    // `Opcode::Sub(SubOpcode)`
+    fn after_sub<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    // `Opcode::Mul(MulOpcode)`
+    fn after_mul<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_div<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_jump<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_xor<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_and<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_or<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_shift_left<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_shift_right<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_rotate_left<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_rotate_right<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_pointer_add<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_pointer_sub<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_pointer_pack<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_pointer_shrink<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_this<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_caller<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_code_address<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_context_meta<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_ergs_left<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_sp<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_ret<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_set_context_u128<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_increment_tx_number<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_near_call<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    fn after_storage_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
+        self.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
+        self.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
+    }
+
+    fn after_storage_write<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
+        self.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+        self.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+    }
+
+    fn after_transient_storage_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
+        self.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
+        self.transient_storage_checker_cycles +=
+            TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
+    }
+
+    fn after_transient_storage_write<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
+        self.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+        self.transient_storage_checker_cycles +=
+            TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
+    }
+
+    fn after_l1_message<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += EVENT_RAM_CYCLES;
+        self.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
+        self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
+    }
+
+    fn after_event<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += EVENT_RAM_CYCLES;
+        self.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
+        self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
+    }
+
+    fn after_precompile_call<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+        self.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
+    }
+
+    fn after_decommit<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        // Note, that for decommit the log demuxer circuit is not used.
+        self.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
+        self.code_decommitter_sorter_cycles += LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+    }
+
+    fn after_far_call<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
+        self.code_decommitter_sorter_cycles += FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
+        self.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
+        self.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
+    }
+
+    fn after_aux_heap_write<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+    }
+
+    fn after_aux_heap_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+    }
+
+    fn after_heap_write<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+    }
+
+    fn after_heap_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+    }
+
+    #[inline(always)]
+    fn after_u128<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+    }
+
+    #[inline(always)]
+    fn after_aux_mutating0<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+    }
+
+    #[inline(always)]
+    fn after_pointer_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+    }
+
+    #[inline(always)]
+    fn after_static_memory_read<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+    }
+
+    #[inline(always)]
+    fn after_static_memory_write<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+    }
+}
+
+impl CircuitsTracer {
+    fn circuit_statistic(&self) -> CircuitStatistic {
+        CircuitStatistic {
+            main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
+            ram_permutation: self.ram_permutation_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
+            storage_application: self.storage_application_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
+            storage_sorter: self.storage_sorter_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
+            code_decommitter: self.code_decommitter_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
+            code_decommitter_sorter: self.code_decommitter_sorter_cycles as f32
+                / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
+            log_demuxer: self.log_demuxer_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
+            events_sorter: self.events_sorter_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
+            keccak256: self.keccak256_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
+            ecrecover: self.ecrecover_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
+            sha256: self.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+            secp256k1_verify: self.secp256k1_verify_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
+            transient_storage_checker: self.transient_storage_checker_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
+        }
+    }
+}
+
+pub struct Vm<S> {
+    pub(crate) world: World<S, CircuitsTracer>,
+    pub(crate) inner: VirtualMachine<CircuitsTracer>,
     suspended_at: u16,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
-    tracer: T,
+    pub(crate) tracer: CircuitsTracer,
 }
 
-impl<S: ReadStorage, T: Tracer> Vm<S, T> {
+impl<S: ReadStorage> Vm<S> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
@@ -350,8 +702,8 @@ impl<S: ReadStorage, T: Tracer> Vm<S, T> {
 
 // We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
 // it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage, T: Tracer> Vm<S, T> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S, tracer: T) -> Self {
+impl<S: ReadStorage> Vm<S> {
+    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
@@ -401,7 +753,7 @@ impl<S: ReadStorage, T: Tracer> Vm<S, T> {
             system_env,
             batch_env,
             snapshot: None,
-            tracer,
+            tracer: CircuitsTracer::default(),
         };
 
         me.write_to_bootloader_heap(bootloader_memory);
@@ -416,7 +768,7 @@ impl<S: ReadStorage, T: Tracer> Vm<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
+impl<S: ReadStorage> VmInterface for Vm<S> {
     type TracerDispatcher = ();
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
@@ -503,7 +855,7 @@ impl<S: ReadStorage, T: Tracer> VmInterface for Vm<S, T> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: Default::default(),
+                circuit_statistic: self.tracer.circuit_statistic(),
             },
             refunds,
         }
@@ -615,7 +967,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage, T: Tracer> VmInterfaceHistoryEnabled for Vm<S, T> {
+impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -653,7 +1005,7 @@ impl<S: ReadStorage, T: Tracer> VmInterfaceHistoryEnabled for Vm<S, T> {
     }
 }
 
-impl<S: fmt::Debug, T> fmt::Debug for Vm<S, T> {
+impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field("suspended_at", &self.suspended_at)
