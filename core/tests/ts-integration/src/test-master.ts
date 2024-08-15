@@ -5,6 +5,35 @@ import { claimEtherBack } from './context-owner';
 import { RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
 import { bigIntReviver } from './helpers';
+import { TransactionLike, TransactionRequest } from 'zksync-ethers/build/types';
+import { getBigInt } from 'ethers';
+
+export class BumpUpFeeWallet extends zksync.Wallet {
+    constructor(privateKey: string | ethers.SigningKey, providerL2?: zksync.Provider, providerL1?: ethers.Provider) {
+        super(privateKey, providerL2, providerL1);
+    }
+
+    override async populateTransaction(tx: TransactionRequest): Promise<TransactionLike> {
+        const baseToken = await this._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+        // this is how much percent up we bumping up the fee to account for token price fluctuations
+        const adjustment = 30;
+
+        return super.populateTransaction(tx).then((result) => {
+            if (isETHBasedChain) {
+                return result;
+            } else {
+            }
+            if (result.maxFeePerGas) {
+                result.maxFeePerGas = (BigInt(100 + adjustment) * getBigInt(result.maxFeePerGas)) / BigInt(100);
+            }
+            if (result.gasPrice) {
+                result.gasPrice = (BigInt(100 + adjustment) * getBigInt(result.gasPrice)) / BigInt(100);
+            }
+            return result;
+        });
+    }
+}
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -71,7 +100,7 @@ export class TestMaster {
             this.l2Provider.pollingInterval = 5000;
         }
 
-        this.mainWallet = new zksync.Wallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+        this.mainWallet = new BumpUpFeeWallet(suiteWalletPK, this.l2Provider, this.l1Provider);
     }
 
     /**
@@ -112,7 +141,7 @@ export class TestMaster {
      */
     newEmptyAccount(): zksync.Wallet {
         const randomPK = ethers.Wallet.createRandom().privateKey;
-        const newWallet = new zksync.Wallet(randomPK, this.l2Provider, this.l1Provider);
+        const newWallet = new BumpUpFeeWallet(randomPK, this.l2Provider, this.l1Provider);
         this.subAccounts.push(newWallet);
         return newWallet;
     }
