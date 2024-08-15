@@ -359,11 +359,11 @@ mod tests {
     use assert_matches::assert_matches;
     use futures::FutureExt;
     use zksync_dal::CoreDal;
-    use zksync_multivm::zk_evm_latest::ethereum_types::{H256, U256};
+    use zksync_multivm::interface::VmExecutionMetrics;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
-        writes::StateDiffRecord, L1BatchNumber, L2BlockNumber, StorageLogKind,
+        api::TransactionStatus, block::BlockGasCount, writes::StateDiffRecord, L1BatchNumber,
+        L2BlockNumber, StorageLogKind, H256, U256,
     };
     use zksync_utils::h256_to_u256;
 
@@ -475,7 +475,7 @@ mod tests {
             tx_result,
             vec![],
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();

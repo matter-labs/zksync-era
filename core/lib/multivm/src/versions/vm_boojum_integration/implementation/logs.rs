@@ -1,5 +1,4 @@
 use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -8,7 +7,7 @@ use zksync_types::{
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::{storage::WriteStorage, VmExecutionLogs},
     vm_boojum_integration::{
         old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm,
     },

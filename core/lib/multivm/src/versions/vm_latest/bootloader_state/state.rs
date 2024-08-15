@@ -9,7 +9,7 @@ use super::{
     utils::{apply_pubdata_to_memory, get_encoded_pubdata},
 };
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,

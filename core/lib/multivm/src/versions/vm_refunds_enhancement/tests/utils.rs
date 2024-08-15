@@ -5,7 +5,7 @@ use crate::vm_refunds_enhancement::tests::tester::InMemoryStorageView;
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::{StoragePtr, WriteStorage};
+use crate::interface::storage::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 use zksync_utils::bytecode::hash_bytecode;

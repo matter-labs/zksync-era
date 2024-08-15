@@ -7,7 +7,7 @@ use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
-        l1_tx_params::L1TxParamsResource,
+        gas_adjuster::GasAdjusterResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
@@ -45,7 +45,7 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub l1_tx_params: L1TxParamsResource,
+    pub gas_adjuster: GasAdjusterResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
 }
@@ -82,7 +82,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
-        let gas_adjuster = input.l1_tx_params.0;
+        let gas_adjuster = input.gas_adjuster.0;
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,

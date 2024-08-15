@@ -142,5 +142,5 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 FROM rust-lightweight as rust-lightweight-nightly
 
-RUN rustup install nightly-2024-05-07 && \
-    rustup default nightly-2024-05-07
+RUN rustup install nightly-2024-08-01 && \
+    rustup default nightly-2024-08-01

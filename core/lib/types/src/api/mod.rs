@@ -3,8 +3,9 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use strum::Display;
 use zksync_basic_types::{
+    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    L1BatchNumber, H160, H2048, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::u256_to_h256;
@@ -295,7 +296,7 @@ pub struct TransactionReceipt {
     pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
@@ -347,7 +348,7 @@ pub struct Block<TX> {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Timestamp
     pub timestamp: U256,
     /// Timestamp of the l1 batch this L2 block was included within
@@ -391,7 +392,7 @@ impl<TX> Default for Block<TX> {
             gas_limit: U256::default(),
             base_fee_per_gas: U256::default(),
             extra_data: Bytes::default(),
-            logs_bloom: H2048::default(),
+            logs_bloom: Bloom::default(),
             timestamp: U256::default(),
             l1_batch_timestamp: None,
             difficulty: U256::default(),
@@ -849,6 +850,18 @@ pub struct Proof {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TeeProof {
+    pub l1_batch_number: L1BatchNumber,
+    pub tee_type: Option<TeeType>,
+    pub pubkey: Option<Vec<u8>>,
+    pub signature: Option<Vec<u8>>,
+    pub proof: Option<Vec<u8>>,
+    pub proved_at: DateTime<Utc>,
+    pub attestation: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionDetailedResult {
     pub transaction_hash: H256,
     pub storage_logs: Vec<ApiStorageLog>,
@@ -869,6 +882,17 @@ pub struct ApiStorageLog {
 #[serde(rename_all = "camelCase")]
 pub struct TransactionExecutionInfo {
     pub execution_info: Value,
+}
+
+/// The fee history type returned from `eth_feeHistory` call.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeeHistory {
+    #[serde(flatten)]
+    pub inner: zksync_basic_types::web3::FeeHistory,
+    /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
+    #[serde(default)]
+    pub l2_pubdata_price: Vec<U256>,
 }
 
 #[cfg(test)]

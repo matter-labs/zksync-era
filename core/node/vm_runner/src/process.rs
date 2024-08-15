@@ -173,26 +173,18 @@ impl VmRunner {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             }
-            let Some(batch_data) = self.loader.load_batch(next_batch).await? else {
+            let Some((batch_data, storage)) = self.loader.load_batch(next_batch).await? else {
                 // Next batch has not been loaded yet
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             };
             let updates_manager =
                 UpdatesManager::new(&batch_data.l1_batch_env, &batch_data.system_env);
-            let Some(batch_executor) = self
-                .batch_processor
-                .init_batch(
-                    self.loader.clone().upcast(),
-                    batch_data.l1_batch_env,
-                    batch_data.system_env,
-                    stop_receiver,
-                )
-                .await
-            else {
-                tracing::info!("VM runner was interrupted");
-                break;
-            };
+            let batch_executor = self.batch_processor.init_batch(
+                storage,
+                batch_data.l1_batch_env,
+                batch_data.system_env,
+            );
             let output_handler = self
                 .output_handler_factory
                 .create_handler(next_batch)
@@ -211,7 +203,5 @@ impl VmRunner {
 
             next_batch += 1;
         }
-
-        Ok(())
     }
 }

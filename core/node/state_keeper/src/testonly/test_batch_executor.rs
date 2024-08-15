@@ -13,14 +13,14 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::{mpsc, watch, watch::Receiver};
+use tokio::sync::{mpsc, watch};
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_state::{PgOrRocksdbStorage, ReadStorageFactory};
+use zksync_state::ReadStorageFactory;
 use zksync_types::{
     fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -410,15 +410,13 @@ impl TestBatchExecutorBuilder {
     }
 }
 
-#[async_trait]
-impl BatchExecutor for TestBatchExecutorBuilder {
-    async fn init_batch(
+impl BatchExecutor<()> for TestBatchExecutorBuilder {
+    fn init_batch(
         &mut self,
-        _storage_factory: Arc<dyn ReadStorageFactory>,
-        _l1batch_params: L1BatchEnv,
+        _storage: (),
+        _l1_batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle> {
+    ) -> BatchExecutorHandle {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
@@ -430,7 +428,7 @@ impl BatchExecutor for TestBatchExecutorBuilder {
             executor.run();
             Ok(())
         });
-        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
+        BatchExecutorHandle::from_raw(handle, commands_sender)
     }
 }
 
@@ -806,55 +804,18 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
-// FIXME: move to `utils`?
-#[derive(Debug)]
-pub(crate) struct MockBatchExecutor;
-
-#[async_trait]
-impl BatchExecutor for MockBatchExecutor {
-    async fn init_batch(
-        &mut self,
-        _storage_factory: Arc<dyn ReadStorageFactory>,
-        _l1batch_params: L1BatchEnv,
-        _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<BatchExecutorHandle> {
-        let (send, recv) = mpsc::channel(1);
-        let handle = tokio::task::spawn(async {
-            let mut recv = recv;
-            while let Some(cmd) = recv.recv().await {
-                match cmd {
-                    Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
-                    Command::StartNextL2Block(_, resp) => resp.send(()).unwrap(),
-                    Command::RollbackLastTx(_) => panic!("unexpected rollback"),
-                    Command::FinishBatch(resp) => {
-                        // Blanket result, it doesn't really matter.
-                        resp.send(default_vm_batch_result()).unwrap();
-                        break;
-                    }
-                    Command::FinishBatchWithCache(resp) => resp
-                        .send((default_vm_batch_result(), storage_view_cache()))
-                        .unwrap(),
-                }
-            }
-            anyhow::Ok(())
-        });
-        Some(BatchExecutorHandle::from_raw(handle, send))
-    }
-}
-
+/// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
+/// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
 #[derive(Debug)]
 pub struct MockReadStorageFactory;
 
 #[async_trait]
-impl ReadStorageFactory for MockReadStorageFactory {
+impl ReadStorageFactory<()> for MockReadStorageFactory {
     async fn access_storage(
         &self,
-        _stop_receiver: &Receiver<bool>,
+        _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        // Presume that the storage is never accessed in mocked environment
-        unimplemented!()
+    ) -> anyhow::Result<Option<()>> {
+        Ok(Some(()))
     }
 }

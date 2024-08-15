@@ -20,8 +20,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
-    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, H256,
+    AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -377,6 +377,7 @@ pub async fn create_genesis_l1_batch(
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
+        logs_bloom: Bloom::zero(),
     };
 
     let mut transaction = storage.start_transaction().await?;
