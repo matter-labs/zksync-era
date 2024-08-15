@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use common::logger;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
@@ -81,6 +82,7 @@ impl ReadConfig for GeneralProverConfig {
 impl ReadConfig for ProverConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
+        logger::info(format!("Reading prover config from {:?}", path));
 
         let postgres_config =
             decode_yaml_repr::<zksync_protobuf_config::proto::database::Postgres>(&path, false)?;
