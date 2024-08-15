@@ -282,4 +282,27 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             _ => Self::new(l1_batch_env, system_env, storage_view),
         }
     }
+
+    /// Creates a VM that may use the fast VM depending on the protocol version in `system_env` and `mode`.
+    pub fn maybe_fast(
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<StorageView<S>>,
+        mode: FastVmMode,
+    ) -> Self {
+        let vm_version = system_env.version.into();
+        match vm_version {
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory => match mode {
+                FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
+                FastVmMode::New => {
+                    let storage = ImmutableStorageView::new(storage_view);
+                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+                }
+                FastVmMode::Shadow => {
+                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
+                }
+            },
+            _ => Self::new(l1_batch_env, system_env, storage_view),
+        }
+    }
 }
