@@ -8792,6 +8792,7 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
+ "zksync_periodic_job",
  "zksync_prover_dal",
  "zksync_shared_metrics",
  "zksync_types",
@@ -9139,6 +9140,7 @@ dependencies = [
  "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
+ "zksync_periodic_job",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
  "zksync_prover_dal",
@@ -9278,6 +9280,16 @@ dependencies = [
  "zksync_config",
  "zksync_protobuf",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_periodic_job"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

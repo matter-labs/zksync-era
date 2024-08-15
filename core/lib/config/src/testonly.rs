@@ -1055,6 +1055,30 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
     }
 }
 
+impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::prover_job_monitor::ProverJobMonitorConfig {
+        configs::prover_job_monitor::ProverJobMonitorConfig {
+            prometheus_port: self.sample(rng),
+            max_db_connections: self.sample(rng),
+            graceful_shutdown_timeout_ms: self.sample(rng),
+            gpu_prover_archiver_run_interval_ms: self.sample(rng),
+            gpu_prover_archiver_archive_prover_after_secs: self.sample(rng),
+            prover_jobs_archiver_run_interval_ms: self.sample(rng),
+            prover_jobs_archiver_archive_jobs_after_secs: self.sample(rng),
+            proof_compressor_job_requeuer_run_interval_ms: self.sample(rng),
+            prover_job_requeuer_run_interval_ms: self.sample(rng),
+            witness_generator_job_requeuer_run_interval_ms: self.sample(rng),
+            proof_compressor_queue_reporter_run_interval_ms: self.sample(rng),
+            prover_queue_reporter_run_interval_ms: self.sample(rng),
+            witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
+            witness_job_queuer_run_interval_ms: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::GeneralConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GeneralConfig {
         configs::GeneralConfig {
@@ -1071,7 +1095,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             prover_gateway: self.sample(rng),
             witness_vector_generator: self.sample(rng),
             prover_group_config: self.sample(rng),
-            witness_generator: self.sample(rng),
+            witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
             db_config: self.sample(rng),
@@ -1090,6 +1114,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: self.sample(rng),
             experimental_vm_config: self.sample(rng),
+            prover_job_monitor_config: self.sample(rng),
         }
     }
 }

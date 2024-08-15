@@ -2,11 +2,19 @@
 
 // TODO (PLA-773): Should be moved to the prover workspace.
 
-use std::{convert::TryFrom, str::FromStr};
+use std::{
+    collections::{hash_map::IntoIter, HashMap},
+    convert::TryFrom,
+    iter::once,
+    str::FromStr,
+};
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch};
+use crate::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::JobCountStatistics,
+};
 
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
@@ -136,6 +144,16 @@ impl AggregationRound {
             AggregationRound::Scheduler => None,
         }
     }
+
+    pub fn all_rounds() -> Vec<AggregationRound> {
+        vec![
+            AggregationRound::BasicCircuits,
+            AggregationRound::LeafAggregation,
+            AggregationRound::NodeAggregation,
+            AggregationRound::RecursionTip,
+            AggregationRound::Scheduler,
+        ]
+    }
 }
 
 impl std::fmt::Display for AggregationRound {
@@ -183,6 +201,119 @@ impl TryFrom<i32> for AggregationRound {
             x if x == AggregationRound::RecursionTip as i32 => Ok(AggregationRound::RecursionTip),
             x if x == AggregationRound::Scheduler as i32 => Ok(AggregationRound::Scheduler),
             _ => Err(()),
+        }
+    }
+}
+
+/// Wrapper for mapping from protocol version to prover circuits job stats
+pub struct ProtocolVersionedCircuitProverStats {
+    protocol_versioned_circuit_stats: HashMap<ProtocolSemanticVersion, CircuitProverStats>,
+}
+
+impl FromIterator<CircuitProverStatsEntry> for ProtocolVersionedCircuitProverStats {
+    fn from_iter<I: IntoIterator<Item = CircuitProverStatsEntry>>(iter: I) -> Self {
+        let mut mapping = HashMap::new();
+        for entry in iter {
+            let protocol_semantic_version = entry.protocol_semantic_version;
+            let circuit_prover_stats: &mut CircuitProverStats =
+                mapping.entry(protocol_semantic_version).or_default();
+            circuit_prover_stats.add(entry.circuit_id_round_tuple, entry.job_count_statistics);
+        }
+        Self {
+            protocol_versioned_circuit_stats: mapping,
+        }
+    }
+}
+
+impl IntoIterator for ProtocolVersionedCircuitProverStats {
+    type Item = (ProtocolSemanticVersion, CircuitProverStats);
+    type IntoIter = IntoIter<ProtocolSemanticVersion, CircuitProverStats>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.protocol_versioned_circuit_stats.into_iter()
+    }
+}
+
+/// Wrapper for mapping between circuit/aggregation round to number of such jobs (queued and in progress)
+pub struct CircuitProverStats {
+    circuits_prover_stats: HashMap<CircuitIdRoundTuple, JobCountStatistics>,
+}
+
+impl IntoIterator for CircuitProverStats {
+    type Item = (CircuitIdRoundTuple, JobCountStatistics);
+    type IntoIter = IntoIter<CircuitIdRoundTuple, JobCountStatistics>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.circuits_prover_stats.into_iter()
+    }
+}
+
+impl CircuitProverStats {
+    fn add(
+        &mut self,
+        circuit_id_round_tuple: CircuitIdRoundTuple,
+        job_count_statistics: JobCountStatistics,
+    ) {
+        let stats = self
+            .circuits_prover_stats
+            .entry(circuit_id_round_tuple)
+            .or_default();
+        stats.queued += job_count_statistics.queued;
+        stats.in_progress += job_count_statistics.in_progress;
+    }
+}
+
+impl Default for CircuitProverStats {
+    fn default() -> Self {
+        let mut stats = HashMap::new();
+        for circuit in (1..=15).chain(once(255)) {
+            stats.insert(
+                CircuitIdRoundTuple::new(circuit, 0),
+                JobCountStatistics::default(),
+            );
+        }
+        for circuit in 3..=18 {
+            stats.insert(
+                CircuitIdRoundTuple::new(circuit, 1),
+                JobCountStatistics::default(),
+            );
+        }
+        stats.insert(
+            CircuitIdRoundTuple::new(2, 2),
+            JobCountStatistics::default(),
+        );
+        stats.insert(
+            CircuitIdRoundTuple::new(255, 3),
+            JobCountStatistics::default(),
+        );
+        stats.insert(
+            CircuitIdRoundTuple::new(1, 4),
+            JobCountStatistics::default(),
+        );
+        Self {
+            circuits_prover_stats: stats,
+        }
+    }
+}
+
+/// DTO for communication between DAL and prover_job_monitor.
+/// Represents an entry -- count (queued & in progress) of jobs (circuit_id, aggregation_round) for a given protocol version.
+pub struct CircuitProverStatsEntry {
+    circuit_id_round_tuple: CircuitIdRoundTuple,
+    protocol_semantic_version: ProtocolSemanticVersion,
+    job_count_statistics: JobCountStatistics,
+}
+
+impl CircuitProverStatsEntry {
+    pub fn new(
+        circuit_id_round_tuple: CircuitIdRoundTuple,
+        protocol_semantic_version: ProtocolSemanticVersion,
+        job_count_statistics: JobCountStatistics,
+    ) -> Self {
+        CircuitProverStatsEntry {
+            circuit_id_round_tuple,
+            protocol_semantic_version,
+            job_count_statistics,
         }
     }
 }

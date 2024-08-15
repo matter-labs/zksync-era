@@ -7949,6 +7949,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_periodic_job"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "zksync_proof_fri_compressor"
 version = "0.1.0"
 dependencies = [
@@ -8148,6 +8158,26 @@ dependencies = [
  "zksync_multivm",
  "zksync_object_store",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_prover_job_monitor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 4.5.4",
+ "ctrlc",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_periodic_job",
+ "zksync_prover_dal",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
 ]
 
 [[package]]

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_periodic_job::PeriodicJob;
 use zksync_prover_dal::{Prover, ProverDal};
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
+use crate::prover::metrics::FRI_PROVER_METRICS;
 
 /// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
@@ -39,45 +41,44 @@ impl PeriodicJob for FriProverQueueReporter {
         let mut conn = self.prover_connection_pool.connection().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
-        for (job_identifiers, stats) in &stats {
-            // BEWARE, HERE BE DRAGONS.
-            // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
-            // not the circuit which is running.
-            // There is a single node level aggregation circuit, which is circuit 2.
-            // This can aggregate multiple leaf nodes (which may belong to different circuits).
-            // This reporting is a hacky forced way to use `circuit_id` 2 which will solve auto scalers.
-            // A proper fix will be later provided to solve this at database level.
-            let circuit_id = if job_identifiers.aggregation_round == 2 {
-                2
-            } else {
-                job_identifiers.circuit_id
-            };
-
-            let group_id = self
-                .config
-                .get_group_id_for_circuit_id_and_aggregation_round(
+        for (protocol_semantic_version, circuit_prover_stats) in stats {
+            for (
+                CircuitIdRoundTuple {
                     circuit_id,
-                    job_identifiers.aggregation_round,
-                )
-                .unwrap_or(u8::MAX);
+                    aggregation_round,
+                },
+                JobCountStatistics {
+                    queued,
+                    in_progress,
+                },
+            ) in circuit_prover_stats
+            {
+                let group_id = self
+                    .config
+                    .get_group_id_for_circuit_id_and_aggregation_round(
+                        circuit_id,
+                        aggregation_round,
+                    )
+                    .unwrap_or(u8::MAX);
 
-            FRI_PROVER_METRICS.report_prover_jobs(
-                "queued",
-                circuit_id,
-                job_identifiers.aggregation_round,
-                group_id,
-                job_identifiers.get_semantic_protocol_version(),
-                stats.queued as u64,
-            );
+                FRI_PROVER_METRICS.report_prover_jobs(
+                    "queued",
+                    circuit_id,
+                    aggregation_round,
+                    group_id,
+                    protocol_semantic_version,
+                    queued as u64,
+                );
 
-            FRI_PROVER_METRICS.report_prover_jobs(
-                "in_progress",
-                circuit_id,
-                job_identifiers.aggregation_round,
-                group_id,
-                job_identifiers.get_semantic_protocol_version(),
-                stats.in_progress as u64,
-            );
+                FRI_PROVER_METRICS.report_prover_jobs(
+                    "in_progress",
+                    circuit_id,
+                    aggregation_round,
+                    group_id,
+                    protocol_semantic_version,
+                    in_progress as u64,
+                );
+            }
         }
 
         let lag_by_circuit_type = conn

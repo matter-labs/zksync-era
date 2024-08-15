@@ -1,7 +1,8 @@
 use zksync_dal::ConnectionPool;
+use zksync_periodic_job::PeriodicJob;
 use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::{periodic_job::PeriodicJob, prover::metrics::HOUSE_KEEPER_METRICS};
+use crate::prover::metrics::HOUSE_KEEPER_METRICS;
 
 /// `FriGpuProverArchiver` is a task that periodically archives old fri GPU prover records.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
