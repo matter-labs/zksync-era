@@ -16,7 +16,7 @@ use zksync_config::{
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig, ProverJobMonitorConfig
+        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -77,12 +77,9 @@ pub struct TempConfigStore {
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
-<<<<<<< HEAD
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
-=======
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
->>>>>>> 8d33b9ea6 (Midway commit)
 }
 
 impl TempConfigStore {
@@ -118,14 +115,11 @@ impl TempConfigStore {
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
             consensus_config: None,
-<<<<<<< HEAD
             external_proof_integration_api_config: self
                 .external_proof_integration_api_config
                 .clone(),
             experimental_vm_config: self.experimental_vm_config.clone(),
-=======
             prover_job_monitor_config: self.prover_job_monitor_config.clone(),
->>>>>>> 8d33b9ea6 (Midway commit)
         }
     }
 
@@ -197,12 +191,9 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         pruning: None,
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
-<<<<<<< HEAD
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
-=======
         prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
->>>>>>> 8d33b9ea6 (Midway commit)
     })
 }
 
