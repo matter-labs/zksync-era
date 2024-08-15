@@ -39,6 +39,18 @@ export function loadEcosystem(pathToHome: string) {
     );
 }
 
+export function loadChainConfig(pathToHome: string, chain: string) {
+    const configPath = path.join(pathToHome, chain, '/ZkStack.yaml');
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
+    return yaml.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
 export function loadConfig({
     pathToHome,
     chain,

@@ -6,7 +6,7 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
-import { loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { loadConfig, loadChainConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 /**
  * Attempts to connect to server.
@@ -43,11 +43,15 @@ export async function waitForServer(l2NodeUrl: string) {
     throw new Error('Failed to wait for the server to start');
 }
 
-function getMainWalletPk(pathToHome: string, network: string): string {
-    if (network.toLowerCase() == 'localhost') {
+function getMainWalletPk(pathToHome: string, chain?: string): string {
+    if (chain) {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        return ethers.Wallet.fromPhrase(ethTestConfig.test_mnemonic).privateKey;
+
+        let id = loadChainConfig(pathToHome, chain).id;
+        let wallet_name = `test_mnemonic${id + 1}`;
+
+        return ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
     } else {
         return ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
     }
@@ -73,7 +77,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network.toLowerCase();
-    let mainWalletPK = getMainWalletPk(pathToHome, network);
+    let mainWalletPK = getMainWalletPk(pathToHome, chain);
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
     await waitForServer(l2NodeUrl);
@@ -173,7 +177,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
     const pathToHome = path.join(__dirname, '../../../../');
 
-    let mainWalletPK = getMainWalletPk(pathToHome, network);
+    let mainWalletPK = getMainWalletPk(pathToHome);
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
