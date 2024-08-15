@@ -50,10 +50,14 @@ function getMainWalletPk(pathToHome: string, chain?: string): string {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
 
-        let id = loadChainConfig(pathToHome, chain!).id;
-        let wallet_name = `test_mnemonic${id + 1}`;
-        let pk = ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
+        let wallet_name = `test_mnemonic`;
 
+        if (chain) {
+            let id = loadChainConfig(pathToHome, chain).id;
+            wallet_name += `${id + 1}`;
+        }
+
+        let pk = ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
         process.env.MASTER_WALLET_PK = pk;
 
         return pk;
