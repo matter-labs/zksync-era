@@ -41,13 +41,13 @@ pub struct GeneralProverConfigInternal {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
-    pub postgres_config: PostgresConfig,
-    pub fri_prover_config: FriProverConfig,
-    pub fri_witness_generator_config: FriWitnessGeneratorConfig,
-    pub fri_witness_vector_generator_config: FriWitnessVectorGeneratorConfig,
-    pub fri_prover_gateway_config: FriProverGatewayConfig,
-    pub fri_proof_compressor_config: FriProofCompressorConfig,
-    pub fri_prover_group_config: FriProverGroupConfig,
+    pub postgres: PostgresConfig,
+    pub prover: FriProverConfig,
+    pub witness_generator: FriWitnessGeneratorConfig,
+    pub witness_vector_generator: FriWitnessVectorGeneratorConfig,
+    pub prover_gateway: FriProverGatewayConfig,
+    pub proof_compressor: FriProofCompressorConfig,
+    pub prover_group: FriProverGroupConfig,
 }
 
 impl Serialize for GeneralProverConfig {
@@ -165,21 +165,21 @@ impl GeneralProverConfig {
 impl From<GeneralConfig> for ProverConfig {
     fn from(config: GeneralConfig) -> Self {
         Self {
-            postgres_config: config.postgres_config.expect("Postgres config not found"),
-            fri_prover_config: config.prover_config.expect("FRI prover config not found"),
-            fri_witness_generator_config: config
+            postgres: config.postgres_config.expect("Postgres config not found"),
+            prover: config.prover_config.expect("FRI prover config not found"),
+            witness_generator: config
                 .witness_generator
                 .expect("FRI witness generator config not found"),
-            fri_witness_vector_generator_config: config
+            witness_vector_generator: config
                 .witness_vector_generator
                 .expect("FRI witness vector generator config not found"),
-            fri_prover_gateway_config: config
+            prover_gateway: config
                 .prover_gateway
                 .expect("FRI prover gateway config not found"),
-            fri_proof_compressor_config: config
+            proof_compressor: config
                 .proof_compressor_config
                 .expect("FRI proof compressor config not found"),
-            fri_prover_group_config: config
+            prover_group: config
                 .prover_group_config
                 .expect("FRI prover group config not found"),
         }

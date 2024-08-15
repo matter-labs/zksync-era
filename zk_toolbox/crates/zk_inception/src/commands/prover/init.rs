@@ -82,20 +82,18 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     }
 
     prover_config
-        .fri_prover_config
+        .prover
         .prover_object_store
         .clone_from(&proof_object_store_config);
     if let Some(public_object_store_config) = public_object_store_config {
-        prover_config.fri_prover_config.shall_save_to_public_bucket = true;
-        prover_config.fri_prover_config.public_object_store = Some(public_object_store_config);
+        prover_config.prover.shall_save_to_public_bucket = true;
+        prover_config.prover.public_object_store = Some(public_object_store_config);
     } else {
-        prover_config.fri_prover_config.shall_save_to_public_bucket = false;
+        prover_config.prover.shall_save_to_public_bucket = false;
     }
-    prover_config.fri_prover_config.cloud_type = args.cloud_type;
+    prover_config.prover.cloud_type = args.cloud_type;
 
-    prover_config
-        .fri_proof_compressor_config
-        .universal_setup_path = args.setup_key_config.setup_key_path;
+    prover_config.proof_compressor.universal_setup_path = args.setup_key_config.setup_key_path;
 
     if prover_only_mode {
         prover_config.save_with_base_path(shell, &configs)?;
@@ -108,8 +106,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
             .get_general_config()
             .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
 
-        general_config.prover_config = Some(prover_config.fri_prover_config);
-        general_config.proof_compressor_config = Some(prover_config.fri_proof_compressor_config);
+        general_config.prover_config = Some(prover_config.prover);
+        general_config.proof_compressor_config = Some(prover_config.proof_compressor);
 
         chain_config.save_general_config(&general_config)?;
     }
@@ -127,7 +125,7 @@ fn download_setup_key(
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
     let url = prover_config
-        .fri_proof_compressor_config
+        .proof_compressor
         .universal_setup_download_url
         .clone();
     let path = std::path::Path::new(path);
