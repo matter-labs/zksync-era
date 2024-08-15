@@ -19,6 +19,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception prover`↴](#zk_inception-prover)
+- [`zk_inception prover create`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
 - [`zk_inception prover run`↴](#zk_inception-prover-run)
@@ -397,10 +398,20 @@ Prover related commands
 
 ###### **Subcommands:**
 
+- `create` — Create a new prover subsystem
 - `init` — Initialize prover
 - `generate-sk` — Generate setup keys
 - `run` — Run prover
 - `init-bellman-cuda` — Initialize bellman-cuda
+
+## zk_inception prover create
+
+Create a new prover subsystem. **NOTE**: this command creates a subsystem different from the ecosystem and should be run
+_instead_ of `zk_inception ecosystem create`.
+
+**Usage:** `zk_inception prover create [OPTIONS]`
+
+###### **Options:**
 
 ## `zk_inception prover init`
 

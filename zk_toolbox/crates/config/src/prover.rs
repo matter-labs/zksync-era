@@ -82,64 +82,61 @@ impl ReadConfig for GeneralProverConfig {
 impl ReadConfig for ProverConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
-        logger::info(format!("Reading prover config from {:?}", path));
-
-        let postgres_config =
-            decode_yaml_repr::<zksync_protobuf_config::proto::database::Postgres>(&path, false)?;
-        let fri_prover_config =
-            decode_yaml_repr::<zksync_protobuf_config::proto::prover::Prover>(&path, false)?;
-        let fri_witness_generator_config = decode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::WitnessGenerator,
-        >(&path, false)?;
-        let fri_witness_vector_generator_config = decode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::WitnessVectorGenerator,
-        >(&path, false)?;
-        let fri_prover_gateway_config =
-            decode_yaml_repr::<zksync_protobuf_config::proto::prover::ProverGateway>(&path, false)?;
-        let fri_proof_compressor_config = decode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::ProofCompressor,
-        >(&path, false)?;
-        let fri_prover_group_config =
-            decode_yaml_repr::<zksync_protobuf_config::proto::prover::ProverGroup>(&path, false)?;
-
+        let config = decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            &path, false,
+        )?;
         Ok(ProverConfig {
-            postgres_config,
-            fri_prover_config,
-            fri_witness_generator_config,
-            fri_witness_vector_generator_config,
-            fri_prover_gateway_config,
-            fri_proof_compressor_config,
-            fri_prover_group_config,
+            postgres_config: config.postgres_config?,
+            fri_prover_config: config.prover_config?,
+            fri_witness_generator_config: config.witness_generator?,
+            fri_witness_vector_generator_config: config.witness_vector_generator?,
+            fri_prover_gateway_config: config.prover_gateway?,
+            fri_proof_compressor_config: config.proof_compressor_config?,
+            fri_prover_group_config: config.prover_group_config?,
         })
     }
 }
 
 impl SaveConfig for ProverConfig {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let mut bytes = vec![];
+        let general_config = GeneralConfig {
+            postgres_config: Some(self.postgres_config.clone()),
+            api_config: None,
+            contract_verifier: None,
+            circuit_breaker_config: None,
+            mempool_config: None,
+            operations_manager_config: None,
+            state_keeper_config: None,
+            prover_config: Some(self.fri_prover_config.clone()),
+            witness_generator: Some(self.fri_witness_generator_config.clone()),
+            prometheus_config: None,
+            proof_data_handler_config: None,
+            db_config: None,
+            eth: None,
+            snapshot_creator: None,
+            observability: None,
+            da_dispatcher_config: None,
+            protective_reads_writer_config: None,
+            basic_witness_input_producer_config: None,
+            commitment_generator: None,
+            snapshot_recovery: None,
+            pruning: None,
+            core_object_store: None,
+            base_token_adjuster: None,
+            external_price_api_client_config: None,
+            consensus_config: None,
+            external_proof_integration_api_config: None,
+            witness_vector_generator: Some(self.fri_witness_vector_generator_config.clone()),
+            prover_gateway: Some(self.fri_prover_gateway_config.clone()),
+            proof_compressor_config: Some(self.fri_proof_compressor_config.clone()),
+            prover_group_config: Some(self.fri_prover_group_config.clone()),
+            house_keeper_config: None,
+            experimental_vm_config: None,
+        };
 
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::database::Postgres,
-        >(&self.postgres_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::Prover,
-        >(&self.fri_prover_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::WitnessGenerator,
-        >(&self.fri_witness_generator_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::WitnessVectorGenerator,
-        >(&self.fri_witness_vector_generator_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::ProverGateway,
-        >(&self.fri_prover_gateway_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::ProofCompressor,
-        >(&self.fri_proof_compressor_config)?);
-        bytes.extend(encode_yaml_repr::<
-            zksync_protobuf_config::proto::prover::ProverGroup,
-        >(&self.fri_prover_group_config)?);
-
+        let bytes = encode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
+            &general_config,
+        )?;
         Ok(shell.write_file(path, bytes)?)
     }
 }
