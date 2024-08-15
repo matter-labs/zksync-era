@@ -113,7 +113,7 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
         "contracts/system-contracts/artifacts-zk/contracts-preprocessed/{0}.sol/{0}.json",
         contract_name
     )) {
-        return contract;
+        contract
     } else {
         load_contract(format!(
             "contracts/system-contracts/zkout/{0}.sol/{0}.json",
@@ -236,7 +236,7 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 }
 
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
-    Lazy::new(SystemContractsRepo::new);
+    Lazy::new(SystemContractsRepo::default);
 
 /// Structure representing a system contract repository - that allows
 /// fetching contracts that are located there.
@@ -246,14 +246,16 @@ pub struct SystemContractsRepo {
     pub root: PathBuf,
 }
 
-impl SystemContractsRepo {
+impl Default for SystemContractsRepo {
     /// Returns the default system contracts repository with directory based on the Cargo workspace location.
-    pub fn new() -> Self {
+    fn default() -> Self {
         SystemContractsRepo {
             root: home_path().join("contracts/system-contracts"),
         }
     }
+}
 
+impl SystemContractsRepo {
     pub fn read_sys_contract_bytecode(
         &self,
         directory: &str,
@@ -266,7 +268,7 @@ impl SystemContractsRepo {
                     self.root
                         .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
                 ) {
-                    return contracts;
+                    contracts
                 } else {
                     read_bytecode_from_path(self.root.join(format!(
                         "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
@@ -279,7 +281,7 @@ impl SystemContractsRepo {
                 if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
                     "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
                 ))) {
-                    return contract;
+                    contract
                 } else {
                     read_zbin_bytecode_from_path(self.root.join(format!(
                         "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
