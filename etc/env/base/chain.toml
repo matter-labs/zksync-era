@@ -90,7 +90,7 @@ fee_model_version = "V2"
 validation_computational_gas_limit = 300000
 save_call_traces = true
 
-bootloader_hash = "0x010008e7894d0dd14681c76bdb4d5e4e7f6b51bfe40c957d50eed3fec829fdb0"
+bootloader_hash = "0x010008e54ed4ed2784197a39309255faa062e7f130424f0075bfd7ff11eb22d6"
 default_aa_hash = "0x0100058deb36e1f2eeb48bf3846d0e8eb38e9176754b73116bb41a472459a4dd"
 evm_simulator_hash = "0x01000f197081a9906cc411d0698c4961aeb5c74877f37f7071681da6e8ef3f31"
 
