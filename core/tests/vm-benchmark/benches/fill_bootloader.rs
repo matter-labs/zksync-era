@@ -14,10 +14,7 @@
 
 use std::{iter, time::Duration};
 
-use criterion::{
-    black_box, criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup,
-    BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
@@ -25,6 +22,10 @@ use zksync_vm_benchmark_harness::{
     get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
     BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams,
 };
+
+use crate::common::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime};
+
+mod common;
 
 /// Gas limit for deployment transactions.
 const DEPLOY_GAS_LIMIT: u32 = 30_000_000;
@@ -59,7 +60,7 @@ fn bench_vm<VM: BenchmarkingVmFactory, const FULL: bool>(
 }
 
 fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    group: &mut BenchmarkGroup<'_>,
     name: &str,
     txs: &[Transaction],
     expected_failures: &[bool],
@@ -70,7 +71,7 @@ fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
         }
 
         group.throughput(Throughput::Elements(*txs_in_batch as u64));
-        group.bench_with_input(
+        group.bench_metered_with_input(
             BenchmarkId::new(name, txs_in_batch),
             txs_in_batch,
             |bencher, &txs_in_batch| {
@@ -96,22 +97,23 @@ fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
 }
 
 fn run_vm<VM: BenchmarkingVmFactory, const FULL: bool>(
-    group: &mut BenchmarkGroup<'_, WallTime>,
+    group: &mut BenchmarkGroup<'_>,
     name: &str,
     txs: &[Transaction],
 ) {
     run_vm_expecting_failures::<VM, FULL>(group, name, txs, &[]);
 }
 
-fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criterion) {
-    let is_test_mode = !std::env::args().any(|arg| arg == "--bench");
-    let txs_in_batch = if is_test_mode {
+fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(
+    c: &mut Criterion<MeteredTime>,
+) {
+    let txs_in_batch = if is_test_mode() {
         &TXS_IN_BATCH[..3] // Reduce the number of transactions in a batch so that tests don't take long
     } else {
         TXS_IN_BATCH
     };
 
-    let mut group = c.benchmark_group(if FULL {
+    let mut group = c.metered_group(if FULL {
         format!("fill_bootloader_full{}", VM::LABEL.as_suffix())
     } else {
         format!("fill_bootloader{}", VM::LABEL.as_suffix())
@@ -187,9 +189,10 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Cr
 }
 
 criterion_group!(
-    benches,
-    bench_fill_bootloader::<Fast, false>,
-    bench_fill_bootloader::<Fast, true>,
-    bench_fill_bootloader::<Legacy, false>
+    name = benches;
+    config = Criterion::default().with_measurement(MeteredTime::new("fill_bootloader"));
+    targets = bench_fill_bootloader::<Fast, false>,
+        bench_fill_bootloader::<Fast, true>,
+        bench_fill_bootloader::<Legacy, false>
 );
 criterion_main!(benches);
