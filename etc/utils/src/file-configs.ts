@@ -40,7 +40,8 @@ export function loadEcosystem(pathToHome: string) {
 }
 
 export function loadChainConfig(pathToHome: string, chain: string) {
-    const configPath = path.join(pathToHome, chain, '/ZkStack.yaml');
+    const configPath = path.join(pathToHome, 'chains', chain, '/ZkStack.yaml');
+
     if (!fs.existsSync(configPath)) {
         return [];
     }
