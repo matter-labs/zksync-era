@@ -45,7 +45,7 @@ export async function waitForServer(l2NodeUrl: string) {
 
 function getMainWalletPk(pathToHome: string, chain?: string): string {
     if (process.env.MASTER_WALLET_PK) {
-        return process.env.MASTER_WALLET_PK
+        return process.env.MASTER_WALLET_PK;
     } else {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
