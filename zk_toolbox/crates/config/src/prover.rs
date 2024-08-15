@@ -85,15 +85,7 @@ impl ReadConfig for ProverConfig {
         let config = decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
             &path, false,
         )?;
-        Ok(ProverConfig {
-            postgres_config: config.postgres_config?,
-            fri_prover_config: config.prover_config?,
-            fri_witness_generator_config: config.witness_generator?,
-            fri_witness_vector_generator_config: config.witness_vector_generator?,
-            fri_prover_gateway_config: config.prover_gateway?,
-            fri_proof_compressor_config: config.proof_compressor_config?,
-            fri_prover_group_config: config.prover_group_config?,
-        })
+        Ok(config.into())
     }
 }
 
