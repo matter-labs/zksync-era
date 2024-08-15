@@ -92,6 +92,10 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     prover_config.proof_compressor.universal_setup_path = args.setup_key_config.setup_key_path;
 
+    logger::info(format!(
+        "Prover configuration has been updated {}",
+        prover_only_mode
+    ));
     if prover_only_mode {
         prover_config.save_with_base_path(shell, &configs)?;
     } else {
@@ -108,6 +112,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
         chain_config.save_general_config(&general_config)?;
     }
+    logger::info("Prover configuration has been saved");
 
     init_bellman_cuda(shell, args.bellman_cuda_config).await?;
 
