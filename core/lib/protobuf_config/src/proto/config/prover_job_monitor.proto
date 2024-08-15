@@ -6,4 +6,15 @@ message ProverJobMonitor {
   optional uint32 prometheus_port = 1; // required; u32
   optional uint32 max_db_connections = 2; // required; u32
   optional uint32 graceful_shutdown_timeout_ms = 3; // required; u32
+  optional uint64 gpu_prover_archiver_run_interval_ms = 4; // required; u64
+  optional uint64 gpu_prover_archiver_archive_prover_after_secs = 5; // required; u64
+  optional uint64 prover_jobs_archiver_run_interval_ms = 6; // required; u64
+  optional uint64 prover_jobs_archiver_archive_jobs_after_secs = 7; // required; u64
+  optional uint64 proof_compressor_job_requeuer_run_interval_ms = 8; // required; u64
+  optional uint64 prover_job_requeuer_run_interval_ms = 9; // required; u64
+  optional uint64 witness_generator_job_requeuer_run_interval_ms = 10; // required; u64
+  optional uint64 proof_compressor_queue_reporter_run_interval_ms = 11; // required; u64
+  optional uint64 prover_queue_reporter_run_interval_ms = 12; // required; u64
+  optional uint64 witness_generator_queue_reporter_run_interval_ms = 13; // required; u64
+  optional uint64 witness_job_queuer_run_interval_ms = 14; // required; u64
 }

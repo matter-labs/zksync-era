@@ -2,123 +2,97 @@ use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFami
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "house_keeper")]
-pub(crate) struct HouseKeeperMetrics {
-    pub prover_job_archived: Counter,
-    pub gpu_prover_archived: Counter,
-}
+#[metrics(prefix = "prover_job_monitor")]
+pub(crate) struct ProverJobMonitorMetrics {
+    // archivers
+    /// number of dead GPU provers archived
+    pub archived_gpu_provers: Counter,
+    /// number of finished prover job archived
+    pub archived_prover_jobs: Counter,
 
-#[vise::register]
-pub(crate) static HOUSE_KEEPER_METRICS: vise::Global<HouseKeeperMetrics> = vise::Global::new();
+    // job requeuers
+    /// number of proof compressor jobs that have been requeued for execution
+    pub requeued_proof_compressor_jobs: Counter<u64>,
+    /// number of circuit prover jobs that have been requeued for execution
+    pub requeued_circuit_prover_jobs: Counter<u64>,
+    /// number of witness generator jobs that have been requeued for execution
+    pub requeued_witness_generator_jobs: Family<WitnessType, Counter<u64>>,
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
-#[metrics(rename_all = "snake_case")]
-#[allow(dead_code)]
-pub enum JobStatus {
-    Queued,
-    InProgress,
-    Successful,
-    Failed,
-    SentToServer,
-    Skipped,
-}
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "prover_fri")]
-pub(crate) struct ProverFriMetrics {
-    pub proof_compressor_requeued_jobs: Counter<u64>,
+    // queues reporters
+    /// number of proof compressor jobs that are queued/in_progress per protocol version
     #[metrics(labels = ["type", "protocol_version"])]
     pub proof_compressor_jobs: LabeledFamily<(JobStatus, String), Gauge<u64>, 2>,
-    pub proof_compressor_oldest_uncompressed_batch: Gauge<u64>,
-}
-
-#[vise::register]
-pub(crate) static PROVER_FRI_METRICS: vise::Global<ProverFriMetrics> = vise::Global::new();
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-pub(crate) struct ProverJobsLabels {
-    pub r#type: &'static str,
-    pub circuit_id: String,
-    pub aggregation_round: String,
-    pub prover_group_id: String,
-    pub protocol_version: String,
-}
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "fri_prover")]
-pub(crate) struct FriProverMetrics {
+    /// the oldest batch that has not been compressed yet
+    pub oldest_uncompressed_batch: Gauge<u64>,
+    /// number of prover jobs per circuit, per round, per protocol version, per status
+    /// Sets a specific value for a struct as follows:
+    /// {
+    ///     status: Queued,
+    ///     circuit_id: 1,
+    ///     round: 0,
+    ///     group_id:
+    ///     protocol_version: 0.24.2,
+    /// }
     pub prover_jobs: Family<ProverJobsLabels, Gauge<u64>>,
+    /// the oldest batch that has not been proven yet, per circuit id and aggregation round
     #[metrics(labels = ["circuit_id", "aggregation_round"])]
-    pub block_number: LabeledFamily<(String, String), Gauge<u64>, 2>,
-    pub oldest_unpicked_batch: Gauge<u64>,
-    pub oldest_not_generated_batch: Gauge<u64>,
-    #[metrics(labels = ["round"])]
-    pub oldest_unprocessed_block_by_round: LabeledFamily<String, Gauge<u64>>,
+    pub oldest_unprocessed_batch: LabeledFamily<(String, String), Gauge<u64>, 2>,
+    /// number of witness generator jobs per "round"
+    #[metrics(labels = ["type", "round", "protocol_version"])]
+    pub witness_generator_jobs_by_round: LabeledFamily<(JobStatus, String, String), Gauge<u64>, 3>,
+
+    // witness job queuer
+    /// number of jobs queued per type of witness generator
+    pub queued_witness_generator_jobs: Family<WitnessType, Counter<u64>>,
 }
 
-impl FriProverMetrics {
+impl ProverJobMonitorMetrics {
     pub fn report_prover_jobs(
         &self,
-        r#type: &'static str,
+        status: JobStatus,
         circuit_id: u8,
-        aggregation_round: u8,
-        prover_group_id: u8,
+        round: u8,
+        group_id: u8,
         protocol_version: ProtocolSemanticVersion,
         amount: u64,
     ) {
         self.prover_jobs[&ProverJobsLabels {
-            r#type,
+            status,
             circuit_id: circuit_id.to_string(),
-            aggregation_round: aggregation_round.to_string(),
-            prover_group_id: prover_group_id.to_string(),
+            round: round.to_string(),
+            group_id: group_id.to_string(),
             protocol_version: protocol_version.to_string(),
         }]
             .set(amount);
     }
 }
-
 #[vise::register]
-pub(crate) static FRI_PROVER_METRICS: vise::Global<FriProverMetrics> = vise::Global::new();
+pub(crate) static PROVER_JOB_MONITOR_METRICS: vise::Global<ProverJobMonitorMetrics> =
+    vise::Global::new();
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct ProverJobsLabels {
+    pub status: JobStatus,
+    pub circuit_id: String,
+    pub round: String,
+    pub group_id: String,
+    pub protocol_version: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
-#[allow(clippy::enum_variant_names)]
+// #[allow(clippy::enum_variant_names)]
 pub(crate) enum WitnessType {
-    WitnessInputsFri,
-    LeafAggregationJobsFri,
-    NodeAggregationJobsFri,
-    RecursionTipJobsFri,
-    SchedulerJobsFri,
+    BasicWitnessGenerator,
+    LeafWitnessGenerator,
+    NodeWitnessGenerator,
+    RecursionTipWitnessGenerator,
+    SchedulerWitnessGenerator,
 }
 
-impl From<&str> for WitnessType {
-    fn from(s: &str) -> Self {
-        match s {
-            "witness_inputs_fri" => Self::WitnessInputsFri,
-            "leaf_aggregations_jobs_fri" => Self::LeafAggregationJobsFri,
-            "node_aggregations_jobs_fri" => Self::NodeAggregationJobsFri,
-            "recursion_tip_jobs_fri" => Self::RecursionTipJobsFri,
-            "scheduler_jobs_fri" => Self::SchedulerJobsFri,
-            _ => panic!("Invalid witness type"),
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub enum JobStatus {
+    Queued,
+    InProgress,
 }
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "server")]
-pub(crate) struct ServerMetrics {
-    pub prover_fri_requeued_jobs: Counter<u64>,
-    pub requeued_jobs: Family<WitnessType, Counter<u64>>,
-    #[metrics(labels = ["type", "round", "protocol_version"])]
-    pub witness_generator_jobs_by_round:
-        LabeledFamily<(&'static str, String, String), Gauge<u64>, 3>,
-    #[metrics(labels = ["type", "protocol_version"])]
-    pub witness_generator_jobs: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
-    pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub node_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub scheduler_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-}
-
-#[vise::register]
-pub(crate) static SERVER_METRICS: vise::Global<ServerMetrics> = vise::Global::new();

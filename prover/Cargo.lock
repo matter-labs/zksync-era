@@ -8171,6 +8171,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_config",
  "zksync_core_leftovers",
  "zksync_periodic_job",
  "zksync_prover_dal",

@@ -34,7 +34,7 @@ pub struct GeneralConfig {
     pub prover_gateway: Option<FriProverGatewayConfig>,
     pub witness_vector_generator: Option<FriWitnessVectorGeneratorConfig>,
     pub prover_group_config: Option<FriProverGroupConfig>,
-    pub witness_generator: Option<FriWitnessGeneratorConfig>,
+    pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub db_config: Option<DBConfig>,

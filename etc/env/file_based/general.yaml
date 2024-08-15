@@ -276,6 +276,19 @@ prover_job_monitor:
   prometheus_port: 3317
   max_db_connections: 9
   graceful_shutdown_timeout_ms: 5000
+  gpu_prover_archiver_run_interval_ms: 86400000
+  gpu_prover_archiver_archive_prover_after_secs: 172800
+  prover_jobs_archiver_run_interval_ms: 1800000
+  prover_jobs_archiver_archive_jobs_after_secs: 172800
+  proof_compressor_job_requeuer_run_interval_ms: 10000
+  prover_job_requeuer_run_interval_ms: 10000
+  witness_generator_job_requeuer_run_interval_ms: 10000
+  proof_compressor_queue_reporter_run_interval_ms: 10000
+  prover_queue_reporter_run_interval_ms: 10000
+  witness_generator_queue_reporter_run_interval_ms: 10000
+  witness_job_queuer_run_interval_ms: 10000
+
+
 base_token_adjuster:
   price_polling_interval_ms: 30000
   price_cache_update_interval_ms: 2000

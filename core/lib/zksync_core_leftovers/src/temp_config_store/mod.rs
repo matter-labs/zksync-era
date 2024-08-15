@@ -101,7 +101,7 @@ impl TempConfigStore {
             prover_gateway: self.fri_prover_gateway_config.clone(),
             witness_vector_generator: self.fri_witness_vector_generator.clone(),
             prover_group_config: self.fri_prover_group_config.clone(),
-            witness_generator: self.fri_witness_generator_config.clone(),
+            witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),

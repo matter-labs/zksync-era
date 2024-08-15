@@ -1,89 +1,83 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
-use zksync_dal::ConnectionPool;
+use zksync_periodic_job::PeriodicJob;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_types::prover_dal::StuckJobs;
 
-use crate::{
-    periodic_job::PeriodicJob,
-    prover::metrics::{SERVER_METRICS, WitnessType},
-};
+use crate::metrics::{WitnessType, PROVER_JOB_MONITOR_METRICS};
 
-/// `FriWitnessGeneratorJobRetryManager` is a task that periodically queues stuck prover jobs.
+/// `WitnessGeneratorJobRequeuer` s a task that periodically requeues witness generator jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
-pub struct FriWitnessGeneratorJobRetryManager {
+pub struct WitnessGeneratorJobRequeuer {
     pool: ConnectionPool<Prover>,
+    /// max attempts before giving up on the job
     max_attempts: u32,
+    /// the amount of time that must have passed before a job is considered to have not made progress
     processing_timeouts: WitnessGenerationTimeouts,
-    retry_interval_ms: u64,
+    /// time between each run
+    run_interval_ms: u64,
 }
 
-impl FriWitnessGeneratorJobRetryManager {
+impl WitnessGeneratorJobRequeuer {
     pub fn new(
+        pool: ConnectionPool<Prover>,
         max_attempts: u32,
         processing_timeouts: WitnessGenerationTimeouts,
-        retry_interval_ms: u64,
-        pool: ConnectionPool<Prover>,
+        run_interval_ms: u64,
     ) -> Self {
         Self {
+            pool,
             max_attempts,
             processing_timeouts,
-            retry_interval_ms,
-            pool,
+            run_interval_ms,
         }
     }
 
-    pub fn emit_telemetry(&self, witness_type: &str, stuck_jobs: &Vec<StuckJobs>) {
+    fn emit_telemetry(&self, witness_type: WitnessType, stuck_jobs: &Vec<StuckJobs>) {
         for stuck_job in stuck_jobs {
-            tracing::info!("re-queuing {:?} {:?}", witness_type, stuck_job);
+            tracing::info!("requeued {:?} {:?}", witness_type, stuck_job);
         }
-        SERVER_METRICS.requeued_jobs[&WitnessType::from(witness_type)]
+        PROVER_JOB_MONITOR_METRICS.requeued_witness_generator_jobs[&witness_type]
             .inc_by(stuck_jobs.len() as u64);
     }
 
-    pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
+    async fn requeue_stuck_basic_jobs(&mut self) {
         let stuck_jobs = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_jobs(self.processing_timeouts.basic(), self.max_attempts)
+            .requeue_stuck_basic_jobs(self.processing_timeouts.basic(), self.max_attempts)
             .await;
-        self.emit_telemetry("witness_inputs_fri", &stuck_jobs);
+        self.emit_telemetry(WitnessType::BasicWitnessGenerator, &stuck_jobs);
     }
 
-    pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
+    async fn requeue_stuck_leaf_jobs(&mut self) {
         let stuck_jobs = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_leaf_aggregations_jobs(
-                self.processing_timeouts.leaf(),
-                self.max_attempts,
-            )
+            .requeue_stuck_leaf_jobs(self.processing_timeouts.leaf(), self.max_attempts)
             .await;
-        self.emit_telemetry("leaf_aggregations_jobs_fri", &stuck_jobs);
+        self.emit_telemetry(WitnessType::LeafWitnessGenerator, &stuck_jobs);
     }
 
-    pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
+    async fn requeue_stuck_node_jobs(&mut self) {
         let stuck_jobs = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_node_aggregations_jobs(
-                self.processing_timeouts.node(),
-                self.max_attempts,
-            )
+            .requeue_stuck_node_jobs(self.processing_timeouts.node(), self.max_attempts)
             .await;
-        self.emit_telemetry("node_aggregations_jobs_fri", &stuck_jobs);
+        self.emit_telemetry(WitnessType::NodeWitnessGenerator, &stuck_jobs);
     }
 
-    pub async fn requeue_stuck_recursion_tip_jobs(&mut self) {
+    async fn requeue_stuck_recursion_tip_jobs(&mut self) {
         let stuck_jobs = self
             .pool
             .connection()
@@ -95,10 +89,10 @@ impl FriWitnessGeneratorJobRetryManager {
                 self.max_attempts,
             )
             .await;
-        self.emit_telemetry("recursion_tip_jobs_fri", &stuck_jobs);
+        self.emit_telemetry(WitnessType::RecursionTipWitnessGenerator, &stuck_jobs);
     }
 
-    pub async fn requeue_stuck_scheduler_jobs(&mut self) {
+    async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
             .connection()
@@ -107,24 +101,24 @@ impl FriWitnessGeneratorJobRetryManager {
             .fri_witness_generator_dal()
             .requeue_stuck_scheduler_jobs(self.processing_timeouts.scheduler(), self.max_attempts)
             .await;
-        self.emit_telemetry("scheduler_jobs_fri", &stuck_jobs);
+        self.emit_telemetry(WitnessType::SchedulerWitnessGenerator, &stuck_jobs);
     }
 }
 
 #[async_trait]
-impl PeriodicJob for FriWitnessGeneratorJobRetryManager {
-    const SERVICE_NAME: &'static str = "FriWitnessGeneratorJobRetryManager";
+impl PeriodicJob for WitnessGeneratorJobRequeuer {
+    const SERVICE_NAME: &'static str = "WitnessGeneratorJobRequeuer";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        self.requeue_stuck_witness_inputs_jobs().await;
-        self.requeue_stuck_leaf_aggregations_jobs().await;
-        self.requeue_stuck_node_aggregations_jobs().await;
+        self.requeue_stuck_basic_jobs().await;
+        self.requeue_stuck_leaf_jobs().await;
+        self.requeue_stuck_node_jobs().await;
         self.requeue_stuck_recursion_tip_jobs().await;
         self.requeue_stuck_scheduler_jobs().await;
         Ok(())
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        self.retry_interval_ms
+        self.run_interval_ms
     }
 }

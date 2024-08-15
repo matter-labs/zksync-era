@@ -12,13 +12,14 @@ use tokio::sync::watch;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_witness_generator::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
     metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
@@ -79,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
+        .witness_generator_config
         .context("witness generator config")?;
 
     let prometheus_config = general_config.prometheus_config;
@@ -185,8 +186,8 @@ async fn main() -> anyhow::Result<()> {
                                 .clone()
                                 .expect("public_object_store"),
                         )
-                        .create_store()
-                        .await?,
+                            .create_store()
+                            .await?,
                     ),
                 };
                 let generator = BasicWitnessGenerator::new(
@@ -250,7 +251,7 @@ async fn main() -> anyhow::Result<()> {
     ctrlc::set_handler(move || {
         block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
     })
-    .expect("Error setting Ctrl+C handler");
+        .expect("Error setting Ctrl+C handler");
     let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
     tokio::select! {
         _ = tasks.wait_single() => {},

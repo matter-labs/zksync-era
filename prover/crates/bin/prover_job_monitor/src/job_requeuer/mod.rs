@@ -1,3 +1,7 @@
-mod proof_compressor_job_requer;
+pub use proof_compressor_job_requeuer::ProofCompressorJobRequeuer;
+pub use prover_job_requeuer::ProverJobRequeuer;
+pub use witness_generator_job_requeuer::WitnessGeneratorJobRequeuer;
+
+mod proof_compressor_job_requeuer;
 mod prover_job_requeuer;
 mod witness_generator_job_requeuer;

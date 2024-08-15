@@ -6,9 +6,9 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 
 use crate::metrics::PROVER_JOB_MONITOR_METRICS;
 
-/// `ProverJobRequeuer` is a task that periodically requeues prover jobs that have not made progress in a given unit of time.
+/// `ProofCompressorJobRequeuer` is a task that periodically requeues compressor jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
-pub struct ProverJobRequeuer {
+pub struct ProofCompressorJobRequeuer {
     pool: ConnectionPool<Prover>,
     /// max attempts before giving up on the job
     max_attempts: u32,
@@ -18,7 +18,7 @@ pub struct ProverJobRequeuer {
     run_interval_ms: u64,
 }
 
-impl ProverJobRequeuer {
+impl ProofCompressorJobRequeuer {
     pub fn new(
         pool: ConnectionPool<Prover>,
         max_attempts: u32,
@@ -35,8 +35,8 @@ impl ProverJobRequeuer {
 }
 
 #[async_trait]
-impl PeriodicJob for ProverJobRequeuer {
-    const SERVICE_NAME: &'static str = "ProverJobRequeuer";
+impl PeriodicJob for ProofCompressorJobRequeuer {
+    const SERVICE_NAME: &'static str = "ProofCompressorJobRequeuer";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
@@ -44,15 +44,15 @@ impl PeriodicJob for ProverJobRequeuer {
             .connection()
             .await
             .unwrap()
-            .fri_prover_jobs_dal()
+            .fri_proof_compressor_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            tracing::info!("requeued circuit prover job {:?}", stuck_job);
+            tracing::info!("requeued proof compressor job {:?}", stuck_job);
         }
         PROVER_JOB_MONITOR_METRICS
-            .requeued_circuit_prover_jobs
+            .requeued_proof_compressor_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

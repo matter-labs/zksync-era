@@ -46,7 +46,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_jobs(self.processing_timeouts.basic(), self.max_attempts)
+            .requeue_stuck_basic_jobs(self.processing_timeouts.basic(), self.max_attempts)
             .await;
         self.emit_telemetry("witness_inputs_fri", &stuck_jobs);
     }
@@ -58,10 +58,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_leaf_aggregations_jobs(
-                self.processing_timeouts.leaf(),
-                self.max_attempts,
-            )
+            .requeue_stuck_leaf_jobs(self.processing_timeouts.leaf(), self.max_attempts)
             .await;
         self.emit_telemetry("leaf_aggregations_jobs_fri", &stuck_jobs);
     }
@@ -73,10 +70,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .requeue_stuck_node_aggregations_jobs(
-                self.processing_timeouts.node(),
-                self.max_attempts,
-            )
+            .requeue_stuck_node_jobs(self.processing_timeouts.node(), self.max_attempts)
             .await;
         self.emit_telemetry("node_aggregations_jobs_fri", &stuck_jobs);
     }

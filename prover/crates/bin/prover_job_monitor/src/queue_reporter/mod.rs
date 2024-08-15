@@ -1,3 +1,7 @@
+pub use proof_compressor_queue_reporter::ProofCompressorQueueReporter;
+pub use prover_queue_reporter::ProverQueueReporter;
+pub use witness_generator_queue_reporter::WitnessGeneratorQueueReporter;
+
 mod proof_compressor_queue_reporter;
 mod prover_queue_reporter;
 mod witness_generator_queue_reporter;

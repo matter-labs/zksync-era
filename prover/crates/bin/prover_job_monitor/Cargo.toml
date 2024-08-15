@@ -16,6 +16,7 @@ zksync_prover_dal.workspace = true
 zksync_utils.workspace = true
 zksync_periodic_job.workspace = true
 zksync_types.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 
 vise.workspace = true
 
