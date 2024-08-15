@@ -34,11 +34,11 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
-        TxRevertReason, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
-        VmRevertReason,
+        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        Refunds, SystemEnv, TxRevertReason, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics, VmRevertReason,
     },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -533,9 +533,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         self.bootloader_state.bootloader_memory()
     }
 
-    fn get_last_tx_compressed_bytecodes(
-        &self,
-    ) -> Vec<zksync_utils::bytecode::CompressedBytecodeInfo> {
+    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 

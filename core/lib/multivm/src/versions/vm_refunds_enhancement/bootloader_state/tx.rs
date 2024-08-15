@@ -1,7 +1,8 @@
 use zksync_types::{L2ChainId, H256, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::vm_refunds_enhancement::types::internals::TransactionData;
+use crate::{
+    interface::CompressedBytecodeInfo, vm_refunds_enhancement::types::internals::TransactionData,
+};
 
 /// Information about tx necessary for execution in bootloader.
 #[derive(Debug, Clone)]

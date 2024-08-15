@@ -4,14 +4,15 @@ use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_multivm::{
+    interface::{TransactionExecutionMetrics, VmExecutionMetrics},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     commitment::L1BatchCommitmentMode,
-    fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    tx::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, VmEvent, H256, U256,
 };
@@ -246,7 +247,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -264,7 +265,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -353,7 +354,7 @@ async fn processing_events_when_sealing_l2_block() {
             tx,
             execution_result,
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
             vec![],
         );
@@ -457,7 +458,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         create_execution_result([]),
         vec![],
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
     );
 

@@ -1,18 +1,20 @@
 use std::collections::HashMap;
 
 use zksync_multivm::{
-    interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs},
+    interface::{
+        CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
+        TxExecutionStatus, VmExecutionMetrics, VmExecutionResultAndLogs,
+    },
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     event::extract_bytecodes_marked_as_known,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
 };
-use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::metrics::KEEPER_METRICS;
 
@@ -26,7 +28,7 @@ pub struct L2BlockUpdates {
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     /// How much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
-    pub block_execution_metrics: ExecutionMetrics,
+    pub block_execution_metrics: VmExecutionMetrics,
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub timestamp: u64,
@@ -52,7 +54,7 @@ impl L2BlockUpdates {
             system_l2_to_l1_logs: vec![],
             new_factory_deps: HashMap::new(),
             l1_gas_count: BlockGasCount::default(),
-            block_execution_metrics: ExecutionMetrics::default(),
+            block_execution_metrics: VmExecutionMetrics::default(),
             txs_encoding_size: 0,
             payload_encoding_size: 0,
             timestamp,
@@ -67,7 +69,7 @@ impl L2BlockUpdates {
         &mut self,
         result: VmExecutionResultAndLogs,
         l1_gas_count: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
+        execution_metrics: VmExecutionMetrics,
     ) {
         self.events.extend(result.logs.events);
         self.storage_logs.extend(result.logs.storage_logs);
@@ -85,7 +87,7 @@ impl L2BlockUpdates {
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         tx_l1_gas_this_tx: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
+        execution_metrics: VmExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_traces: Vec<Call>,
     ) {
@@ -204,7 +206,7 @@ mod tests {
             tx,
             create_execution_result([]),
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
             vec![],
         );

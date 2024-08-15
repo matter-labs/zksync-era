@@ -5,7 +5,7 @@ use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    L1BatchNumber, H160, H2048, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
@@ -259,7 +259,7 @@ pub struct TransactionReceipt {
     pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
@@ -311,7 +311,7 @@ pub struct Block<TX> {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Timestamp
     pub timestamp: U256,
     /// Timestamp of the l1 batch this L2 block was included within
@@ -355,7 +355,7 @@ impl<TX> Default for Block<TX> {
             gas_limit: U256::default(),
             base_fee_per_gas: U256::default(),
             extra_data: Bytes::default(),
-            logs_bloom: H2048::default(),
+            logs_bloom: Bloom::default(),
             timestamp: U256::default(),
             l1_batch_timestamp: None,
             difficulty: U256::default(),
