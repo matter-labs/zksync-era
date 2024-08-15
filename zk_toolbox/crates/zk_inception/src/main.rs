@@ -14,8 +14,10 @@ use xshell::Shell;
 
 use crate::commands::{
     args::{PortalArgs, RunServerArgs},
-    chain::ChainCommands, ecosystem::EcosystemCommands,
-    external_node::ExternalNodeCommands, prover::ProverCommands,
+    chain::ChainCommands,
+    ecosystem::EcosystemCommands,
+    external_node::ExternalNodeCommands,
+    prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -121,7 +123,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
-        InceptionSubcommands::Portal(args) => commands::portal::run(shell, args)?,
+        InceptionSubcommands::Portal(args) => commands::portal::run(shell, args).await?,
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();

@@ -216,9 +216,11 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Portal related messages
-pub(super) const MSG_STARTING_PORTAL: &str = "Starting portal";
 pub(super) const MSG_FAILED_TO_START_PORTAL_ERR: &str = "Failed to start portal";
 pub(super) const MSG_CHAINS_NOT_INITIALIZED: &str = "Chains have not been initialized";
+pub(super) fn msg_starting_portal_on_port(port: u16) -> String {
+    format!("Starting portal on port {port}")
+}
 
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
