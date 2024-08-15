@@ -6,7 +6,6 @@ use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -17,9 +16,11 @@ use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256}
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer, types::tracer::TracerExecutionStatus,
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
+    tracers::dynamic::vm_1_4_0::DynTracer,
     vm_boojum_integration::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},

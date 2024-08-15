@@ -7,7 +7,6 @@ use vm2::{
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
-use zksync_state::ReadStorage;
 use zksync_types::{
     circuit::CircuitStatistic,
     event::{
@@ -37,8 +36,11 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        BytecodeCompressionError, Halt, TxRevertReason, VmInterface, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        Refunds, SystemEnv, TxRevertReason, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics, VmRevertReason,
     },
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -51,9 +53,7 @@ use crate::{
             get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
             TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
-        L2BlockEnv, MultiVMSubversion, Refunds, SystemEnv, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        MultiVMSubversion,
     },
 };
 
@@ -885,9 +885,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         self.bootloader_state.bootloader_memory()
     }
 
-    fn get_last_tx_compressed_bytecodes(
-        &self,
-    ) -> Vec<zksync_utils::bytecode::CompressedBytecodeInfo> {
+    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 
@@ -927,7 +925,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
     }
 
-    fn record_vm_memory_metrics(&self) -> crate::vm_latest::VmMemoryMetrics {
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         todo!("Unused during batch execution")
     }
 

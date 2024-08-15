@@ -5,17 +5,17 @@ use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::mpsc};
 use zksync_multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+        storage::{ReadStorage, StorageView},
+        CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_state::{OwnedStorage, ReadStorage, StorageView};
+use zksync_state::OwnedStorage;
 use zksync_types::{vm::FastVmMode, vm_trace::Call, Transaction};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
@@ -57,7 +57,7 @@ impl MainBatchExecutor {
     }
 }
 
-impl BatchExecutor for MainBatchExecutor {
+impl BatchExecutor<OwnedStorage> for MainBatchExecutor {
     fn init_batch(
         &mut self,
         storage: OwnedStorage,

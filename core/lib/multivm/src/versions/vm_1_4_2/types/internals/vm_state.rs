@@ -10,13 +10,15 @@ use zk_evm_1_4_1::{
         STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{block::L2BlockHasher, Address, L2BlockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{L1BatchEnv, L2Block, SystemEnv},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        L1BatchEnv, L2Block, SystemEnv,
+    },
     vm_1_4_2::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,

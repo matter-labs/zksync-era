@@ -15,8 +15,7 @@ use zksync_types::{
 };
 use zksync_witness_generator::{
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
-    node_aggregation,
-    node_aggregation::NodeAggregationWitnessGenerator,
+    node_aggregation::{self, NodeAggregationWitnessGenerator},
     utils::AggregationWrapper,
 };
 

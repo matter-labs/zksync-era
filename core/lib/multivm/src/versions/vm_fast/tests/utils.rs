@@ -6,12 +6,13 @@ use vm2::{instruction_handlers::HeapInterface, HeapId, State};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::ReadStorage;
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H160, H256,
     U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+
+use crate::interface::storage::ReadStorage;
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);

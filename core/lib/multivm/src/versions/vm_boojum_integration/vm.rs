@@ -1,18 +1,18 @@
 use circuit_sequencer_api_1_4_0::sort_storage_access::sort_storage_access_queries;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
     glue::GlueInto,
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        storage::{StoragePtr, WriteStorage},
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     vm_boojum_integration::{
         bootloader_state::BootloaderState,

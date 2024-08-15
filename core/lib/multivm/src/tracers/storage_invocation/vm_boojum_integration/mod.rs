@@ -1,12 +1,10 @@
-use zksync_state::WriteStorage;
-
 use crate::{
     interface::{
+        storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
         Halt,
     },
-    tracers::storage_invocation::StorageInvocations,
+    tracers::{dynamic::vm_1_4_0::DynTracer, StorageInvocations},
     vm_boojum_integration::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 
