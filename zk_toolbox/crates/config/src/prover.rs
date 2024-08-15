@@ -17,8 +17,8 @@ use zksync_config::{
 
 use crate::{
     consts::PROVER_CONFIG_NAME,
-    find_file,
     traits::{FileConfigWithDefaultName, ReadConfig, ZkToolboxConfig},
+    utils::find_file,
     PROVER_FILE, SECRETS_FILE,
 };
 

@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::{
-    copy_prover_configs, traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig,
-    ProverConfig,
+    copy_prover_configs, is_prover_only_system, traits::SaveConfigWithBasePath, EcosystemConfig,
+    GeneralProverConfig, ProverConfig,
 };
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -18,7 +18,7 @@ use super::{
 use crate::{
     consts::PROVER_STORE_MAX_RETRIES,
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONFIGS_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
@@ -26,22 +26,7 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
 
-    let current_path = shell.current_dir();
-
-    let prover_only_mode = match EcosystemConfig::from_file(shell) {
-        Ok(_) => false,
-        Err(_) => {
-            let _dir = shell.push_dir(current_path.clone());
-            match GeneralProverConfig::from_file(shell) {
-                Ok(_) => true,
-                Err(_) => {
-                    return Err(anyhow::anyhow!(MSG_CONFIGS_NOT_FOUND_ERR));
-                }
-            }
-        }
-    };
-
-    let (link_to_code, configs) = if prover_only_mode {
+    let (link_to_code, configs) = if is_prover_only_system(shell)? {
         let general_prover_config = GeneralProverConfig::from_file(shell)?;
         (
             general_prover_config.link_to_code,
@@ -52,7 +37,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         (ecosystem_config.link_to_code, ecosystem_config.config)
     };
 
-    let mut prover_config = if prover_only_mode {
+    let mut prover_config = if is_prover_only_system(shell)? {
         let prover_config = GeneralProverConfig::from_file(shell)?;
         copy_prover_configs(shell, &link_to_code, &configs)?;
         prover_config.load_prover_config()?
@@ -92,11 +77,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     prover_config.proof_compressor.universal_setup_path = args.setup_key_config.setup_key_path;
 
-    logger::info(format!(
-        "Prover configuration has been updated {}",
-        prover_only_mode
-    ));
-    if prover_only_mode {
+    if is_prover_only_system(shell)? {
         prover_config.save_with_base_path(shell, &configs)?;
     } else {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -112,7 +93,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
         chain_config.save_general_config(&general_config)?;
     }
-    logger::info("Prover configuration has been saved");
 
     init_bellman_cuda(shell, args.bellman_cuda_config).await?;
 

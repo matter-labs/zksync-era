@@ -19,7 +19,7 @@ use crate::{
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
-    ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
+    utils, ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -101,7 +101,7 @@ impl EcosystemConfig {
     }
 
     pub fn from_file(shell: &Shell) -> Result<Self, EcosystemConfigFromFileError> {
-        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+        let Ok(path) = utils::find_file(shell, shell.current_dir(), CONFIG_NAME) else {
             return Err(EcosystemConfigFromFileError::NotExists {
                 path: shell.current_dir(),
             });
@@ -252,18 +252,4 @@ pub enum EcosystemConfigFromFileError {
 
 pub fn get_default_era_chain_id() -> L2ChainId {
     L2ChainId::from(ERA_CHAIN_ID)
-}
-
-// Find file in all parents repository and return necessary path or an empty error if nothing has been found
-pub fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
-    let _dir = shell.push_dir(path_buf);
-    if shell.path_exists(file_name) {
-        Ok(shell.current_dir())
-    } else {
-        let current_dir = shell.current_dir();
-        let Some(path) = current_dir.parent() else {
-            return Err(());
-        };
-        find_file(shell, path.to_path_buf(), file_name)
-    }
 }

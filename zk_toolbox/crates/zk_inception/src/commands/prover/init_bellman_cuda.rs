@@ -1,6 +1,8 @@
 use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig};
+use config::{
+    is_prover_only_system, traits::SaveConfigWithBasePath, EcosystemConfig, GeneralProverConfig,
+};
 use xshell::{cmd, Shell};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
@@ -8,7 +10,7 @@ use crate::{
     consts::BELLMAN_CUDA_DIR,
     messages::{
         MSG_BELLMAN_CUDA_DIR_ERR, MSG_BELLMAN_CUDA_INITIALIZED, MSG_BUILDING_BELLMAN_CUDA_SPINNER,
-        MSG_CLONING_BELLMAN_CUDA_SPINNER, MSG_CONFIGS_NOT_FOUND_ERR,
+        MSG_CLONING_BELLMAN_CUDA_SPINNER,
     },
 };
 
@@ -26,28 +28,15 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 
     build_bellman_cuda(shell, &bellman_cuda_dir)?;
 
-    let current_path = shell.current_dir();
-
-    match EcosystemConfig::from_file(shell) {
-        Ok(_) => {
-            let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
-            ecosystem_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
-            ecosystem_config.save_with_base_path(shell, ".")?;
-        }
-        Err(_) => {
-            let _dir = shell.push_dir(current_path.clone());
-            match GeneralProverConfig::from_file(shell) {
-                Ok(_) => {
-                    let mut general_prover_config = GeneralProverConfig::from_file(shell)?;
-                    general_prover_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
-                    general_prover_config.save_with_base_path(shell, ".")?;
-                }
-                Err(_) => {
-                    return Err(anyhow::anyhow!(MSG_CONFIGS_NOT_FOUND_ERR));
-                }
-            }
-        }
-    };
+    if is_prover_only_system(shell)? {
+        let mut general_prover_config = GeneralProverConfig::from_file(shell)?;
+        general_prover_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
+        general_prover_config.save_with_base_path(shell, ".")?;
+    } else {
+        let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+        ecosystem_config.bellman_cuda_dir = Some(bellman_cuda_dir.clone().into());
+        ecosystem_config.save_with_base_path(shell, ".")?;
+    }
 
     logger::outro(MSG_BELLMAN_CUDA_INITIALIZED);
     Ok(())

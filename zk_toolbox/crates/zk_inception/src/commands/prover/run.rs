@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger};
-use config::{EcosystemConfig, GeneralProverConfig};
+use config::{is_prover_only_system, EcosystemConfig, GeneralProverConfig};
 use xshell::{cmd, Shell};
 
 use super::{
@@ -24,45 +24,31 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
 
-    let current_path = shell.current_dir();
-
-    let prover_only_mode = match EcosystemConfig::from_file(shell) {
-        Ok(_) => false,
-        Err(_) => {
-            let _dir = shell.push_dir(current_path);
-            match GeneralProverConfig::from_file(shell) {
-                Ok(_) => true,
-                Err(_) => {
-                    return Err(anyhow::anyhow!(MSG_CHAIN_NOT_FOUND_ERR));
-                }
-            }
-        }
-    };
-
-    let (link_to_code, config_path, secrets_path, bellman_cuda_dir_path) = if prover_only_mode {
-        let general_prover_config = GeneralProverConfig::from_file(shell)?;
-        (
-            general_prover_config.link_to_code.clone(),
-            general_prover_config.path_to_prover_config().clone(),
-            general_prover_config.path_to_secrets().clone(),
-            general_prover_config
-                .bellman_cuda_dir
-                .expect(MSG_BELLMAN_CUDA_DIR_ERR),
-        )
-    } else {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let chain = ecosystem_config
-            .load_chain(Some(ecosystem_config.default_chain.clone()))
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-        (
-            ecosystem_config.link_to_code,
-            chain.path_to_general_config(),
-            chain.path_to_secrets_config(),
-            ecosystem_config
-                .bellman_cuda_dir
-                .expect(MSG_BELLMAN_CUDA_DIR_ERR),
-        )
-    };
+    let (link_to_code, config_path, secrets_path, bellman_cuda_dir_path) =
+        if is_prover_only_system(shell)? {
+            let general_prover_config = GeneralProverConfig::from_file(shell)?;
+            (
+                general_prover_config.link_to_code.clone(),
+                general_prover_config.path_to_prover_config().clone(),
+                general_prover_config.path_to_secrets().clone(),
+                general_prover_config
+                    .bellman_cuda_dir
+                    .expect(MSG_BELLMAN_CUDA_DIR_ERR),
+            )
+        } else {
+            let ecosystem_config = EcosystemConfig::from_file(shell)?;
+            let chain = ecosystem_config
+                .load_chain(Some(ecosystem_config.default_chain.clone()))
+                .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+            (
+                ecosystem_config.link_to_code,
+                chain.path_to_general_config(),
+                chain.path_to_secrets_config(),
+                ecosystem_config
+                    .bellman_cuda_dir
+                    .expect(MSG_BELLMAN_CUDA_DIR_ERR),
+            )
+        };
 
     let link_to_prover = get_link_to_prover(link_to_code.clone());
     shell.change_dir(link_to_prover.clone());
