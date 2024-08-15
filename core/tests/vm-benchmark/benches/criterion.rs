@@ -1,12 +1,11 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
-use zksync_types::Transaction;
-use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx,
-    get_load_test_tx, get_realistic_load_test_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast,
-    Legacy, LoadTestParams,
+use vm_benchmark::{
+    get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
+    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams, BYTECODES,
 };
+use zksync_types::Transaction;
 
 use crate::common::{BenchmarkGroup, CriterionExt, MeteredTime};
 
@@ -20,16 +19,11 @@ fn benches_in_folder<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criter
         .sample_size(SAMPLE_SIZE)
         .measurement_time(Duration::from_secs(10));
 
-    for path in std::fs::read_dir("deployment_benchmarks").unwrap() {
-        let path = path.unwrap().path();
-
-        let test_contract = std::fs::read(&path).expect("failed to read file");
-
-        let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
-        let tx = get_deploy_tx(code);
-        let file_name = path.file_name().unwrap().to_str().unwrap();
+    for bytecode in BYTECODES {
+        let tx = bytecode.deploy_tx();
+        let bench_name = bytecode.name;
         let full_suffix = if FULL { "/full" } else { "" };
-        let bench_name = format!("{file_name}{full_suffix}");
+        let bench_name = format!("{bench_name}{full_suffix}");
 
         group.bench_metered(bench_name, |bencher| {
             if FULL {

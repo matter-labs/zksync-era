@@ -16,12 +16,12 @@ use std::{iter, time::Duration};
 
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use zksync_types::Transaction;
-use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx_with_gas_limit, get_heavy_load_test_tx,
-    get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx,
-    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams,
+use vm_benchmark::{
+    get_deploy_tx_with_gas_limit, get_heavy_load_test_tx, get_load_test_deploy_tx,
+    get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx, BenchmarkingVm,
+    BenchmarkingVmFactory, Bytecode, Fast, Legacy, LoadTestParams,
 };
+use zksync_types::Transaction;
 
 use crate::common::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime};
 
@@ -123,12 +123,12 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(
         .measurement_time(Duration::from_secs(10));
 
     // Deploying simple contract
-    let test_contract =
-        std::fs::read("deployment_benchmarks/deploy_simple_contract").expect("failed to read file");
-    let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
+    let test_contract = Bytecode::get("deploy_simple_contract");
     let max_txs = *txs_in_batch.last().unwrap() as u32;
     let txs: Vec<_> = (0..max_txs)
-        .map(|nonce| get_deploy_tx_with_gas_limit(code, DEPLOY_GAS_LIMIT, nonce))
+        .map(|nonce| {
+            get_deploy_tx_with_gas_limit(test_contract.bytecode(), DEPLOY_GAS_LIMIT, nonce)
+        })
         .collect();
     run_vm::<VM, FULL>(&mut group, "deploy_simple_contract", &txs);
     drop(txs);
