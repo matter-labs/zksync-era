@@ -112,8 +112,14 @@ pub trait BenchmarkingVmFactory {
 }
 
 /// Factory for the new / fast VM.
-#[derive(Debug)]
-pub struct Fast(());
+#[derive(Debug, Copy, Clone)]
+pub struct Fast;
+
+impl Fast {
+    pub const fn new() -> Self {
+        Fast{}
+    }
+}
 
 impl BenchmarkingVmFactory for Fast {
     const LABEL: VmLabel = VmLabel::Fast;
@@ -130,8 +136,14 @@ impl BenchmarkingVmFactory for Fast {
 }
 
 /// Factory for the legacy VM (latest version).
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Legacy;
+
+impl Legacy {
+    pub const fn new() -> Self {
+        Legacy{}
+    }
+}
 
 impl BenchmarkingVmFactory for Legacy {
     const LABEL: VmLabel = VmLabel::Legacy;

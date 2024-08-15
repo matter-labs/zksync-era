@@ -16,7 +16,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-iai.workspace = true
+iai-callgrind.workspace = true
 
 [[bench]]
 name = "criterion"
@@ -49,3 +49,7 @@ path = "src/find_slowest.rs"
 [[bin]]
 name = "instruction-counts"
 path = "src/instruction_counts.rs"
+
+[profile.bench]
+debug = true
+strip = false
