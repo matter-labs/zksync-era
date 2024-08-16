@@ -16,6 +16,8 @@ pub struct DADispatcherConfig {
     /// The maximum number of retries for the dispatch of a blob.
     pub max_retries: Option<u16>,
     /// Enable on-chain verification of the data availability.
+    // TODO: run a verification task to check if the L1 contract expects the inclusion proofs.
+    // Maybe even remove this value and use the L1 as a source of truth.
     pub enable_onchain_verification: Option<bool>,
 }
 
