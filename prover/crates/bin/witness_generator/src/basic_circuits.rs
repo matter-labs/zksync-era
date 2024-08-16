@@ -668,7 +668,11 @@ async fn generate_witness(
         .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
         .collect();
 
-    futures::future::join_all(save_ram_queue_witness_handles).await;
+    let _: Vec<_> = futures::future::join_all(save_ram_queue_witness_handles)
+        .await
+        .into_iter()
+        .map(|result| result.expect("failed to save ram permutation queue witness"))
+        .collect();
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;
