@@ -8,8 +8,14 @@ use era_vm::{
 };
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    l1::is_l1_tx_type, AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160,
-    KNOWN_CODES_STORAGE_ADDRESS, U256,
+    l1::is_l1_tx_type,
+    utils::key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
+    AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, CompressedBytecodeInfo},
@@ -96,13 +102,8 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
                 .code
                 .clone(),
         );
-        let world_storage1 = World::new(storage.clone(), pre_contract_storage.clone());
-        let world_storage2 = World::new(storage.clone(), pre_contract_storage.clone());
-        let mut vm = EraVM::new(
-            vm_execution,
-            Rc::new(RefCell::new(world_storage1)),
-            Rc::new(RefCell::new(world_storage2)),
-        );
+        let world_storage = World::new(storage.clone(), pre_contract_storage.clone());
+        let mut vm = EraVM::new(vm_execution, Rc::new(RefCell::new(world_storage)));
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         // The bootloader shouldn't pay for growing memory and it writes results
@@ -353,15 +354,13 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
                     .state
-                    .storage_read(EraStorageKey::new(
+                    .storage_changes()
+                    .get(&EraStorageKey::new(
                         KNOWN_CODES_STORAGE_ADDRESS,
                         h256_to_u256(hash),
                     ))
-                    .map(|x| !x.is_none())
-                    .unwrap_or_else(|_| {
-                        let mut storage = RefCell::borrow_mut(&self.storage);
-                        storage.is_bytecode_known(&hash)
-                    })
+                    .map(|x| !x.is_zero())
+                    .unwrap_or_else(|| self.storage.is_bytecode_known(&hash))
             })
         };
 
@@ -462,17 +461,14 @@ impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
 pub struct World<S: ReadStorage> {
     pub storage: StoragePtr<S>,
     pub contract_storage: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
 }
 
 impl<S: ReadStorage> World<S> {
     pub fn new_empty(storage: StoragePtr<S>) -> Self {
         let contract_storage = Rc::new(RefCell::new(HashMap::new()));
-        let l2_to_l1_logs = Vec::new();
         Self {
             contract_storage,
             storage,
-            l2_to_l1_logs,
         }
     }
 
@@ -483,29 +479,13 @@ impl<S: ReadStorage> World<S> {
         Self {
             storage,
             contract_storage,
-            l2_to_l1_logs: Vec::new(),
         }
     }
 }
 
-impl<S: ReadStorage> era_vm::store::InitialStorage for World<S> {
-    fn storage_read(&self, key: EraStorageKey) -> Result<Option<U256>, StorageError> {
-        let mut storage = RefCell::borrow_mut(&self.storage);
-        Ok(Some(
-            storage
-                .read_value(&StorageKey::new(
-                    AccountTreeId::new(key.address),
-                    u256_to_h256(key.key),
-                ))
-                .as_bytes()
-                .into(),
-        ))
-    }
-}
-
-impl<S: ReadStorage> era_vm::store::ContractStorage for World<S> {
-    fn decommit(&self, hash: U256) -> Result<Option<Vec<U256>>, StorageError> {
-        Ok(Some(
+impl<S: ReadStorage> era_vm::store::Storage for World<S> {
+    fn decommit(&mut self, hash: U256) -> Option<Vec<U256>> {
+        Some(
             self.contract_storage
                 .borrow_mut()
                 .entry(hash)
@@ -526,7 +506,61 @@ impl<S: ReadStorage> era_vm::store::ContractStorage for World<S> {
                     program_code
                 })
                 .clone(),
-        ))
+        )
+    }
+
+    fn storage_read(
+        &mut self,
+        storage_key: &era_vm::store::StorageKey,
+    ) -> std::option::Option<U256> {
+        let key = &StorageKey::new(
+            AccountTreeId::new(storage_key.address),
+            u256_to_h256(storage_key.key),
+        );
+
+        if self.storage.is_write_initial(&key) {
+            None
+        } else {
+            Some(self.storage.borrow_mut().read_value(key).0.into())
+        }
+    }
+
+    fn cost_of_writing_storage(
+        &mut self,
+        storage_key: &era_vm::store::StorageKey,
+        value: U256,
+    ) -> u32 {
+        let initial_value = self.storage_read(storage_key);
+        let is_initial = initial_value.is_none();
+        let initial_value = initial_value.unwrap_or_default();
+
+        if initial_value == value {
+            return 0;
+        }
+
+        // Since we need to publish the state diffs onchain, for each of the updated storage slot
+        // we basically need to publish the following pair: `(<storage_key, compressed_new_value>)`.
+        // For key we use the following optimization:
+        //   - The first time we publish it, we use 32 bytes.
+        //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
+        //   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
+        //     bytes of the entire key.
+        // For value compression, we use a metadata byte which holds the length of the value and the operation from the
+        // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
+        // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
+        let compressed_value_size = compress_with_best_strategy(initial_value, value).len() as u32;
+
+        if is_initial {
+            (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
+        } else {
+            (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
+        }
+    }
+
+    fn is_free_storage_slot(&self, storage_key: &era_vm::store::StorageKey) -> bool {
+        storage_key.address == zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
+            || storage_key.address == L2_BASE_TOKEN_ADDRESS
+                && u256_to_h256(storage_key.key) == key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 }
 
@@ -553,9 +587,7 @@ mod tests {
     use super::*;
     use crate::{
         era_vm::vm::Vm,
-        interface::{
-            L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-        },
+        interface::{L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
         utils::get_max_gas_per_pubdata_byte,
         vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     };
