@@ -704,7 +704,6 @@ impl EthNamespace {
         let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
         let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
 
-        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
             inner: web3::FeeHistory {
                 oldest_block: zksync_types::web3::BlockNumber::Number(oldest_block.into()),
