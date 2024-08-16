@@ -229,7 +229,7 @@ pub struct RamPermutationQueueWitness {
 }
 
 impl StoredObject for RamPermutationQueueWitness {
-    const BUCKET: Bucket = Bucket::RamPermutationCircuitQueueWitness;
+    const BUCKET: Bucket = Bucket::ProverJobsFri;
     type Key<'a> = RamPermutationQueueWitnessKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
