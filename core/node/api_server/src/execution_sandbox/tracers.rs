@@ -7,8 +7,7 @@ use zksync_multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer, MultiVmTracerPointer,
 };
-
-use super::apply::OneshotExecutor;
+use zksync_types::ProtocolVersionId;
 
 /// Custom tracers supported by the API sandbox.
 #[derive(Debug)]

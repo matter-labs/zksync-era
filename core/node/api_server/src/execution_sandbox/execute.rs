@@ -3,13 +3,12 @@
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
-    VmExecutionResultAndLogs, TransactionExecutionMetrics,
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TransactionExecutionMetrics,
+    TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::{
-    api::state_override::StateOverride, l2::L2Tx,
-    transaction_request::CallOverrides, ExecuteTransactionCommon, Nonce, PackedEthSignature,
-    Transaction, U256,
+    api::state_override::StateOverride, l2::L2Tx, transaction_request::CallOverrides,
+    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 use super::{
