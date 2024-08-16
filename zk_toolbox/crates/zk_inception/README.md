@@ -413,6 +413,12 @@ _instead_ of `zk_inception ecosystem create`.
 
 ###### **Options:**
 
+- `--subsystem-name <NAME>`
+- `--link-to-code <PATH_TO_ZKSYNC_ERA>`
+- `--start-containers` 
+
+  Possible values: `true`, `false`
+
 ## `zk_inception prover init`
 
 Initialize prover
@@ -439,6 +445,7 @@ Initialize prover
 - `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
+- `--setup-database`
 
   Possible values: `true`, `false`
 
@@ -446,6 +453,19 @@ Initialize prover
 - `--cloud-type <CLOUD_TYPE>`
 
   Possible values: `gcp`, `local`
+
+## zk_inception prover setup-database
+
+Setup database for prover.
+
+**Usage:** `zk_inception prover setup-database [OPTIONS]`
+
+###### **Options:**
+
+- `--prover-db-url <PROVER_DB_URL>`
+- `--prover-db-name <PROVER_DB_NAME>`
+- `--use-default-db`
+- `--dont-drop`
 
 ## `zk_inception prover generate-sk`
 
