@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::logger;
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use xshell::Shell;
@@ -11,7 +10,7 @@ use zksync_config::{
     configs::{
         fri_prover_group::FriProverGroupConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        GeneralConfig, Secrets,
+        GeneralConfig, ObservabilityConfig, PrometheusConfig, Secrets,
     },
     PostgresConfig,
 };
@@ -44,6 +43,8 @@ pub struct GeneralProverConfigInternal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProverConfig {
     pub postgres_config: PostgresConfig,
+    pub observability_config: ObservabilityConfig,
+    pub prometheus_config: PrometheusConfig,
     pub fri_prover_config: FriProverConfig,
     pub fri_witness_generator_config: FriWitnessGeneratorConfig,
     pub fri_witness_vector_generator_config: FriWitnessVectorGeneratorConfig,
@@ -101,12 +102,12 @@ impl SaveConfig for ProverConfig {
             state_keeper_config: None,
             prover_config: Some(self.fri_prover_config.clone()),
             witness_generator: Some(self.fri_witness_generator_config.clone()),
-            prometheus_config: None,
+            prometheus_config: Some(self.prometheus_config.clone()),
             proof_data_handler_config: None,
             db_config: None,
             eth: None,
             snapshot_creator: None,
-            observability: None,
+            observability: Some(self.observability_config.clone()),
             da_dispatcher_config: None,
             protective_reads_writer_config: None,
             basic_witness_input_producer_config: None,
@@ -221,6 +222,12 @@ impl From<GeneralConfig> for ProverConfig {
     fn from(config: GeneralConfig) -> Self {
         Self {
             postgres_config: config.postgres_config.expect("Postgres config not found"),
+            observability_config: config
+                .observability
+                .expect("Observability config not found"),
+            prometheus_config: config
+                .prometheus_config
+                .expect("Prometheus config not found"),
             fri_prover_config: config.prover_config.expect("FRI prover config not found"),
             fri_witness_generator_config: config
                 .witness_generator
