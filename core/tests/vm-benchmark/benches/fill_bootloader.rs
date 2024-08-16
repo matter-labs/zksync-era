@@ -17,15 +17,12 @@ use std::{iter, time::Duration};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use vm_benchmark::{
+    criterion::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime},
     get_deploy_tx_with_gas_limit, get_heavy_load_test_tx, get_load_test_deploy_tx,
     get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx, BenchmarkingVm,
     BenchmarkingVmFactory, Bytecode, Fast, Legacy, LoadTestParams,
 };
 use zksync_types::Transaction;
-
-use crate::common::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime};
-
-mod common;
 
 /// Gas limit for deployment transactions.
 const DEPLOY_GAS_LIMIT: u32 = 30_000_000;
@@ -190,7 +187,9 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().with_measurement(MeteredTime::new("fill_bootloader"));
+    config = Criterion::default()
+        .configure_from_args()
+        .with_measurement(MeteredTime::new("fill_bootloader"));
     targets = bench_fill_bootloader::<Fast, false>,
         bench_fill_bootloader::<Fast, true>,
         bench_fill_bootloader::<Legacy, false>

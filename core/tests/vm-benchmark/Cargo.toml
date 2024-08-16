@@ -12,6 +12,7 @@ zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_vlog.workspace = true
 
+criterion.workspace = true
 once_cell.workspace = true
 rand.workspace = true
 vise.workspace = true
@@ -19,7 +20,6 @@ tokio.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-criterion.workspace = true
 iai.workspace = true
 
 [[bench]]

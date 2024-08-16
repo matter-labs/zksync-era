@@ -11,6 +11,7 @@ pub use crate::{
     vm::{BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, VmLabel},
 };
 
+pub mod criterion;
 mod instruction_counter;
 mod transaction;
 mod vm;

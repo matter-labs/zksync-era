@@ -2,14 +2,11 @@ use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use vm_benchmark::{
+    criterion::{BenchmarkGroup, CriterionExt, MeteredTime},
     get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
     BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams, BYTECODES,
 };
 use zksync_types::Transaction;
-
-use crate::common::{BenchmarkGroup, CriterionExt, MeteredTime};
-
-mod common;
 
 const SAMPLE_SIZE: usize = 20;
 
@@ -84,7 +81,9 @@ fn bench_load_test_transaction<VM: BenchmarkingVmFactory>(
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().with_measurement(MeteredTime::new("criterion"));
+    config = Criterion::default()
+        .configure_from_args()
+        .with_measurement(MeteredTime::new("criterion"));
     targets = benches_in_folder::<Fast, false>,
         benches_in_folder::<Fast, true>,
         benches_in_folder::<Legacy, false>,

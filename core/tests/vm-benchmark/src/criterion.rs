@@ -1,3 +1,5 @@
+//! Criterion helpers and extensions.
+
 use std::{cell::RefCell, env, fmt, sync::Once, thread, time::Duration};
 
 use criterion::{
@@ -18,6 +20,7 @@ struct BenchLabels {
     bin: &'static str,
     group: String,
     benchmark: String,
+    arg: Option<String>,
 }
 
 #[derive(Debug, Metrics)]
@@ -61,13 +64,14 @@ impl PrometheusRuntime {
 }
 
 thread_local! {
-    static CURRENT_BENCH_NAME: RefCell<Option<(String, String)>> = const { RefCell::new(None) };
+    static CURRENT_BENCH_LABELS: RefCell<Option<BenchLabels>> = const { RefCell::new(None) };
 }
 
 /// Measurement for criterion that exports .
 #[derive(Debug)]
 pub struct MeteredTime {
     bin_name: &'static str,
+    metrics: &'static VmBenchmarkMetrics,
     _prometheus: Option<PrometheusRuntime>,
 }
 
@@ -84,16 +88,22 @@ impl MeteredTime {
 
         Self {
             bin_name: group_name,
+            metrics: &METRICS,
             _prometheus: prometheus,
         }
     }
 
-    fn start_bench(group_name: String, bench_name: String) {
-        CURRENT_BENCH_NAME.replace(Some((group_name, bench_name)));
+    fn start_bench(group: String, benchmark: String, arg: Option<String>) {
+        CURRENT_BENCH_LABELS.replace(Some(BenchLabels {
+            bin: "", // will be replaced
+            group,
+            benchmark,
+            arg,
+        }));
     }
 
-    fn get_bench() -> (String, String) {
-        CURRENT_BENCH_NAME
+    fn get_bench() -> BenchLabels {
+        CURRENT_BENCH_LABELS
             .with(|cell| cell.borrow().clone())
             .expect("current benchmark not set")
     }
@@ -104,13 +114,9 @@ impl Measurement for MeteredTime {
     type Value = Duration;
 
     fn start(&self) -> Self::Intermediate {
-        let (group, benchmark) = MeteredTime::get_bench();
-        let labels = BenchLabels {
-            bin: self.bin_name,
-            group,
-            benchmark,
-        };
-        METRICS.timing[&labels].start()
+        let mut labels = MeteredTime::get_bench();
+        labels.bin = self.bin_name;
+        self.metrics.timing[&labels].start()
     }
 
     fn end(&self, i: Self::Intermediate) -> Self::Value {
@@ -137,14 +143,16 @@ impl Measurement for MeteredTime {
 /// Drop-in replacement for `criterion::BenchmarkId`.
 pub struct BenchmarkId {
     inner: criterion::BenchmarkId,
-    label: String,
+    benchmark: String,
+    arg: String,
 }
 
 impl BenchmarkId {
     pub fn new<S: Into<String>, P: fmt::Display>(function_name: S, parameter: P) -> Self {
         let function_name = function_name.into();
         Self {
-            label: format!("{function_name}/{parameter}"),
+            benchmark: function_name.clone(),
+            arg: parameter.to_string(),
             inner: criterion::BenchmarkId::new(function_name, parameter),
         }
     }
@@ -177,7 +185,7 @@ impl BenchmarkGroup<'_> {
         F: FnMut(&mut Bencher<'_, MeteredTime>),
     {
         let id = id.into();
-        MeteredTime::start_bench(self.name.clone(), id.clone());
+        MeteredTime::start_bench(self.name.clone(), id.clone(), None);
         self.inner.bench_function(id, bench_fn);
     }
 
@@ -186,7 +194,7 @@ impl BenchmarkGroup<'_> {
         I: ?Sized,
         F: FnMut(&mut Bencher<'_, MeteredTime>, &I),
     {
-        MeteredTime::start_bench(self.name.clone(), id.label);
+        MeteredTime::start_bench(self.name.clone(), id.benchmark, Some(id.arg));
         self.inner.bench_with_input(id.inner, input, bench_fn);
     }
 }
@@ -202,5 +210,84 @@ impl CriterionExt for Criterion<MeteredTime> {
             inner: self.benchmark_group(name.clone()),
             name,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::BYTECODES;
+
+    fn test_benchmark(c: &mut Criterion<MeteredTime>) {
+        let mut group = c.metered_group("single");
+        for bytecode in BYTECODES {
+            group.bench_metered(bytecode.name, |bencher| {
+                bencher.iter(|| thread::sleep(Duration::from_millis(1)))
+            });
+        }
+        drop(group);
+
+        let mut group = c.metered_group("with_arg");
+        for bytecode in BYTECODES {
+            for arg in [1, 10, 100] {
+                group.bench_metered_with_input(
+                    BenchmarkId::new(bytecode.name, arg),
+                    &arg,
+                    |bencher, _arg| {
+                        bencher.iter(|| thread::sleep(Duration::from_millis(1)));
+                    },
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn recording_benchmarks() {
+        let mut metered_time = MeteredTime::new("test");
+        let metrics = &*Box::leak(Box::<VmBenchmarkMetrics>::default());
+        metered_time.metrics = metrics;
+
+        let mut criterion = Criterion::default()
+            .warm_up_time(Duration::from_millis(10))
+            .measurement_time(Duration::from_millis(10))
+            .sample_size(10)
+            .with_measurement(metered_time);
+        test_benchmark(&mut criterion);
+
+        let timing_labels: HashSet<_> = metrics.timing.to_entries().into_keys().collect();
+        // Check that labels are as expected.
+        for bytecode in BYTECODES {
+            assert!(timing_labels.contains(&BenchLabels {
+                bin: "test",
+                group: "single".to_owned(),
+                benchmark: bytecode.name.to_owned(),
+                arg: None,
+            }));
+            assert!(timing_labels.contains(&BenchLabels {
+                bin: "test",
+                group: "with_arg".to_owned(),
+                benchmark: bytecode.name.to_owned(),
+                arg: Some("1".to_owned()),
+            }));
+            assert!(timing_labels.contains(&BenchLabels {
+                bin: "test",
+                group: "with_arg".to_owned(),
+                benchmark: bytecode.name.to_owned(),
+                arg: Some("10".to_owned()),
+            }));
+            assert!(timing_labels.contains(&BenchLabels {
+                bin: "test",
+                group: "with_arg".to_owned(),
+                benchmark: bytecode.name.to_owned(),
+                arg: Some("100".to_owned()),
+            }));
+        }
+        assert_eq!(
+            timing_labels.len(),
+            4 * BYTECODES.len(),
+            "{timing_labels:#?}"
+        );
     }
 }
