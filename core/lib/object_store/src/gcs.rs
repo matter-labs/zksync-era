@@ -85,22 +85,22 @@ impl GoogleCloudStore {
 
 impl From<AuthError> for ObjectStoreError {
     fn from(err: AuthError) -> Self {
-        let is_transient = matches!(
+        let is_retriable = matches!(
             &err,
-            AuthError::HttpError(err) if is_transient_http_error(err)
+            AuthError::HttpError(err) if is_retriable_http_error(err)
         );
         Self::Initialization {
             source: err.into(),
-            is_transient,
+            is_retriable,
         }
     }
 }
 
-fn is_transient_http_error(err: &reqwest::Error) -> bool {
+fn is_retriable_http_error(err: &reqwest::Error) -> bool {
     err.is_timeout()
         || err.is_connect()
         // Not all request errors are logically transient, but a significant part of them are (e.g.,
-        // `hyper` protocol-level errors), and it's safer to consider an error transient.
+        // `hyper` protocol-level errors), and it's safer to consider an error retriable.
         || err.is_request()
         || has_transient_io_source(err)
         || err.status() == Some(StatusCode::BAD_GATEWAY)
@@ -117,8 +117,8 @@ fn get_source<'a, T: StdError + 'static>(mut err: &'a (dyn StdError + 'static)) 
 }
 
 fn has_transient_io_source(err: &(dyn StdError + 'static)) -> bool {
-    // We treat any I/O errors as transient. This isn't always true, but frequently occurring I/O errors
-    // (e.g., "connection reset by peer") *are* transient, and treating an error as transient is a safer option,
+    // We treat any I/O errors as retriable. This isn't always true, but frequently occurring I/O errors
+    // (e.g., "connection reset by peer") *are* transient, and treating an error as retriable is a safer option,
     // even if it can lead to unnecessary retries.
     get_source::<io::Error>(err).is_some()
 }
@@ -136,19 +136,20 @@ impl From<HttpError> for ObjectStoreError {
         if is_not_found {
             ObjectStoreError::KeyNotFound(err.into())
         } else {
-            let is_transient = match &err {
-                HttpError::HttpClient(err) => is_transient_http_error(err),
+            let is_retriable = match &err {
+                HttpError::HttpClient(err) => is_retriable_http_error(err),
                 HttpError::TokenSource(err) => {
-                    // Token sources are mostly based on the `reqwest` HTTP client, so transient error detection
+                    // Token sources are mostly based on the `reqwest` HTTP client, so retriable error detection
                     // can reuse the same logic.
                     let err = err.as_ref();
                     has_transient_io_source(err)
-                        || get_source::<reqwest::Error>(err).is_some_and(is_transient_http_error)
+                        || get_source::<reqwest::Error>(err).is_some_and(is_retriable_http_error)
                 }
+                HttpError::Response(err) => err.is_retriable(),
                 _ => false,
             };
             ObjectStoreError::Other {
-                is_transient,
+                is_retriable,
                 source: err.into(),
             }
         }

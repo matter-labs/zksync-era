@@ -5,7 +5,7 @@ use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::PubdataParams,
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -13,9 +13,11 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
     L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
+};
+use zksync_vm_interface::{
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
 };
 
 use crate::{
@@ -50,6 +52,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         pubdata_params: PubdataParams::default(),
         virtual_blocks: 1,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     }
 }
 pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
@@ -153,7 +156,7 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

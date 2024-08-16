@@ -1,12 +1,16 @@
 use itertools::Itertools;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
-use zksync_utils::{
-    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
-    bytes_to_be_words,
-};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
-use crate::{interface::VmInterface, vm_refunds_enhancement::Vm, HistoryMode};
+use crate::{
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        CompressedBytecodeInfo, VmInterface,
+    },
+    utils::bytecode,
+    vm_refunds_enhancement::Vm,
+    HistoryMode,
+};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
@@ -44,15 +48,6 @@ pub(crate) fn compress_bytecodes<S: WriteStorage>(
         .dedup_by(|x, y| x.1 == y.1)
         .filter(|(_idx, dep)| !storage.borrow_mut().is_bytecode_known(&hash_bytecode(dep)))
         .sorted_by_key(|(idx, _dep)| *idx)
-        .filter_map(|(_idx, dep)| {
-            let compressed_bytecode = compress_bytecode(dep);
-
-            compressed_bytecode
-                .ok()
-                .map(|compressed| CompressedBytecodeInfo {
-                    original: dep.clone(),
-                    compressed,
-                })
-        })
+        .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
         .collect()
 }

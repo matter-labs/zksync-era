@@ -371,7 +371,7 @@ impl ZksNamespace {
 
             // Create a client for pinging the RPC.
             let client: Client<L2> = Client::http(
-                std::env::var("SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL")
+                std::env::var("GATEWAY_API_WEB3_JSON_RPC_HTTP_URL")
                     .unwrap()
                     .parse()
                     .unwrap(),

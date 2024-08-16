@@ -1,7 +1,5 @@
-use zksync_state::WriteStorage;
-
 use crate::{
-    interface::VmInterface,
+    interface::{storage::WriteStorage, VmInterface},
     vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };

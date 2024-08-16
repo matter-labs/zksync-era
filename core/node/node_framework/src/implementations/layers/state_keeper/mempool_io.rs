@@ -11,7 +11,7 @@ use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource,
+        fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
     },
@@ -49,7 +49,7 @@ pub struct MempoolIOLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub fee_input: FeeInputResource,
+    pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
 }
 

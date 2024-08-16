@@ -15,7 +15,7 @@ use zk_evm_1_5_0::{
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
 };
 use zksync_multivm::utils::get_used_bootloader_memory_bytes;
-use zksync_types::{zk_evm_types::LogQuery, ProtocolVersionId, VmVersion, H256, U256};
+use zksync_types::{vm::VmVersion, zk_evm_types::LogQuery, ProtocolVersionId, H256, U256};
 use zksync_utils::expand_memory_contents;
 
 /// Encapsulates computations of commitment components.

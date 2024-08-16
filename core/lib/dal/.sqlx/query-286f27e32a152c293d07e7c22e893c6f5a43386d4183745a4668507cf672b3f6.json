@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_proof_generation_details\n            SET\n                status = 'picked_by_prover',\n                updated_at = NOW(),\n                prover_taken_at = NOW()\n            WHERE\n                tee_type = $1\n                AND l1_batch_number = (\n                    SELECT\n                        proofs.l1_batch_number\n                    FROM\n                        tee_proof_generation_details AS proofs\n                        JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number\n                    WHERE\n                        inputs.status = $2\n                        AND (\n                            proofs.status = 'ready_to_be_proven'\n                            OR (\n                                proofs.status = 'picked_by_prover'\n                                AND proofs.prover_taken_at < NOW() - $3::INTERVAL\n                            )\n                        )\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                tee_proof_generation_details.l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "286f27e32a152c293d07e7c22e893c6f5a43386d4183745a4668507cf672b3f6"
+}

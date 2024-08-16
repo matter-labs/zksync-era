@@ -2,13 +2,6 @@ name: Build Prover FRI GPU with builtin setup data
 
 on:
   workflow_call:
-    secrets:
-      DOCKERHUB_USER:
-        description: "DOCKERHUB_USER"
-        required: true
-      DOCKERHUB_TOKEN:
-        description: "DOCKERHUB_TOKEN"
-        required: true
     inputs:
       image_tag_suffix:
         description: "Commit sha or git tag for Docker tag"
@@ -35,10 +28,6 @@ jobs:
       - name: Download Setup data
         run: |
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
-
-      -  name: Auth Docker hub registry
-         run: |
-           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to us-central1 GAR
         run: |

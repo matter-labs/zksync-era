@@ -304,6 +304,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     /// - all node aggregation jobs at depth 0 for the batch
     /// - the recursion tip witness job
     /// - the scheduler witness job
+    ///
     /// NOTE: Not all batches have all circuits, so it's possible we'll be missing some aggregation jobs (for circuits not present in the batch).
     pub async fn create_aggregation_jobs(
         &mut self,

@@ -11,14 +11,14 @@ use zk_evm_1_3_1::{
 };
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::{Call, VmExecutionTrace, VmTrace},
+    vm_trace::Call,
     L1BatchNumber, VmEvent, H256, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::{TxExecutionStatus, VmExecutionLogs},
+    versions::shared::{VmExecutionTrace, VmTrace},
     vm_m6::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
@@ -396,9 +396,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     }
 
     /// Removes the latest snapshot without rolling back to it.
-    /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop().unwrap();
+        self.snapshots.pop();
     }
 
     /// Returns the amount of gas remaining to the VM.
@@ -781,7 +780,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
                 // after because draining will drop timestamps.
-                let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
+                let (raw_events, l1_messages) = self.state.event_sink.flatten();
                 full_result.events = merge_events(raw_events)
                     .into_iter()
                     .map(|e| {

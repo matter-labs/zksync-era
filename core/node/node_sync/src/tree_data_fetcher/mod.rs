@@ -44,9 +44,9 @@ impl From<DalError> for TreeDataFetcherError {
 }
 
 impl TreeDataFetcherError {
-    fn is_transient(&self) -> bool {
+    fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_transient(),
+            Self::Rpc(err) => err.is_retriable(),
             Self::Internal(_) => false,
         }
     }
@@ -294,7 +294,7 @@ impl TreeDataFetcher {
         self.health_updater.update(health.into());
     }
 
-    /// Runs this component until a fatal error occurs or a stop signal is received. Transient errors
+    /// Runs this component until a fatal error occurs or a stop signal is received. Retriable errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.metrics.observe_info(&self);
@@ -330,7 +330,7 @@ impl TreeDataFetcher {
                     self.health_updater.update(health.into());
                     true
                 }
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     tracing::warn!(
                         "Transient error in tree data fetcher, will retry after a delay: {err:?}"
                     );

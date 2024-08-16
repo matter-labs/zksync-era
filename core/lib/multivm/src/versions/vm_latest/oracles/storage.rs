@@ -9,7 +9,6 @@ use zk_evm_1_5_0::{
         TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
@@ -22,6 +21,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
+    interface::storage::{StoragePtr, WriteStorage},
     vm_latest::{
         old_vm::{
             history_recorder::{
@@ -37,9 +37,9 @@ use crate::{
 
 /// We employ the following rules for cold/warm storage rules:
 /// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
-/// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
+///   would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
 /// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
-/// and so require more RAM to store them.
+///   and so require more RAM to store them.
 
 const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
 const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
@@ -620,11 +620,11 @@ fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: b
 
 #[cfg(test)]
 mod tests {
-    use zksync_state::{InMemoryStorage, StorageView};
     use zksync_types::H256;
     use zksync_utils::h256_to_u256;
 
     use super::*;
+    use crate::interface::storage::{InMemoryStorage, StorageView};
 
     #[test]
     fn test_get_pubdata_price_bytes() {

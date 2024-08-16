@@ -2,14 +2,13 @@ use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{commitment::PubdataParams, L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{
     tx::BootloaderTx,
     utils::{apply_pubdata_to_memory, get_encoded_pubdata},
 };
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,

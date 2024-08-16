@@ -1,9 +1,9 @@
 use std::fmt;
 
-use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
-use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Transaction,
+use zksync_multivm::interface::{
+    ExecutionResult, TransactionExecutionMetrics, VmExecutionResultAndLogs,
 };
+use zksync_types::{l2::L2Tx, ExecuteTransactionCommon, Transaction};
 
 use super::{
     execute::{TransactionExecutionOutput, TransactionExecutor},

@@ -98,7 +98,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             token = Object.values(tokens.tokens)[1];
         }
     }
-    const weth = tokens.tokens['WETH'];
     let baseToken;
 
     for (const key in tokens.tokens) {
@@ -114,12 +113,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
-
-    const l2WethAddress = await new zksync.Wallet(
-        mainWalletPK,
-        l2Provider,
-        ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);
@@ -152,13 +145,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             decimals: token.decimals,
             l1Address: token.address,
             l2Address: l2TokenAddress
-        },
-        wethToken: {
-            name: weth.name,
-            symbol: weth.symbol,
-            decimals: weth.decimals,
-            l1Address: weth.address,
-            l2Address: l2WethAddress
         },
         baseToken: {
             name: baseToken?.name || token.name,
@@ -218,7 +204,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     if (!token) {
         token = tokens[0];
     }
-    const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
     const baseToken = tokens.find((token: { address: string }) =>
         zksync.utils.isAddressEq(token.address, baseTokenAddress)
     )!;
@@ -229,12 +214,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
-
-    const l2WethAddress = await new zksync.Wallet(
-        mainWalletPK,
-        l2Provider,
-        ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
@@ -284,13 +263,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             decimals: token.decimals,
             l1Address: token.address,
             l2Address: l2TokenAddress
-        },
-        wethToken: {
-            name: weth.name,
-            symbol: weth.symbol,
-            decimals: weth.decimals,
-            l1Address: weth.address,
-            l2Address: l2WethAddress
         },
         baseToken: {
             name: baseToken?.name || token.name,

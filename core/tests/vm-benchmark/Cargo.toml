@@ -6,8 +6,11 @@ license.workspace = true
 publish = false
 
 [dependencies]
-zksync_vm_benchmark_harness.workspace = true
+zksync_types.workspace = true
 zksync_vlog.workspace = true
+zksync_vm_benchmark_harness.workspace = true
+
+rand.workspace = true
 vise.workspace = true
 tokio.workspace = true
 
@@ -25,6 +28,10 @@ harness = false
 
 [[bench]]
 name = "iai"
+harness = false
+
+[[bench]]
+name = "fill_bootloader"
 harness = false
 
 [[bin]]

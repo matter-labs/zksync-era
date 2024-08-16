@@ -11,44 +11,44 @@ export async function build(zkSyncNetwork: boolean): Promise<void> {
 }
 
 const syncLayerEnvVars = [
-    'SYNC_LAYER_CREATE2_FACTORY_ADDR',
+    'GATEWAY_CREATE2_FACTORY_ADDR',
 
-    'SYNC_LAYER_STATE_TRANSITION_PROXY_ADDR',
-    'SYNC_LAYER_STATE_TRANSITION_IMPL_ADDR',
+    'GATEWAY_STATE_TRANSITION_PROXY_ADDR',
+    'GATEWAY_STATE_TRANSITION_IMPL_ADDR',
 
-    'SYNC_LAYER_DIAMOND_INIT_ADDR',
-    'SYNC_LAYER_DEFAULT_UPGRADE_ADDR',
-    'SYNC_LAYER_GENESIS_UPGRADE_ADDR',
-    'SYNC_LAYER_GOVERNANCE_ADDR',
-    'SYNC_LAYER_ADMIN_FACET_ADDR',
-    'SYNC_LAYER_EXECUTOR_FACET_ADDR',
-    'SYNC_LAYER_GETTERS_FACET_ADDR',
-    'SYNC_LAYER_MAILBOX_FACET_ADDR',
+    'GATEWAY_DIAMOND_INIT_ADDR',
+    'GATEWAY_DEFAULT_UPGRADE_ADDR',
+    'GATEWAY_GENESIS_UPGRADE_ADDR',
+    'GATEWAY_GOVERNANCE_ADDR',
+    'GATEWAY_ADMIN_FACET_ADDR',
+    'GATEWAY_EXECUTOR_FACET_ADDR',
+    'GATEWAY_GETTERS_FACET_ADDR',
+    'GATEWAY_MAILBOX_FACET_ADDR',
 
-    'SYNC_LAYER_VERIFIER_ADDR',
-    'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
+    'GATEWAY_VERIFIER_ADDR',
+    'GATEWAY_VALIDATOR_TIMELOCK_ADDR',
 
-    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'GATEWAY_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    'SYNC_LAYER_L1_MULTICALL3_ADDR',
-    'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
+    'GATEWAY_L1_MULTICALL3_ADDR',
+    'GATEWAY_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
-    'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
-    'SYNC_LAYER_CHAIN_ID',
+    'GATEWAY_API_WEB3_JSON_RPC_HTTP_URL',
+    'GATEWAY_CHAIN_ID',
 
-    'SYNC_LAYER_BRIDGEHUB_IMPL_ADDR',
-    'SYNC_LAYER_BRIDGEHUB_PROXY_ADDR',
+    'GATEWAY_BRIDGEHUB_IMPL_ADDR',
+    'GATEWAY_BRIDGEHUB_PROXY_ADDR',
 
-    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'GATEWAY_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    // 'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
-    // 'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
-    // 'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
-    // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
+    // 'GATEWAY_L1_SHARED_BRIDGE_IMPL_ADDR',
+    // 'GATEWAY_L1_SHARED_BRIDGE_PROXY_ADDR',
+    // 'GATEWAY_L1_ERC20_BRIDGE_IMPL_ADDR',
+    // 'GATEWAY_L1_ERC20_BRIDGE_PROXY_ADDR',
     'CONTRACTS_STM_ASSET_INFO',
 
-    'SYNC_LAYER_DIAMOND_PROXY_ADDR',
-    'SYNC_LAYER_L1_RELAYED_SL_DA_VALIDATOR'
+    'GATEWAY_DIAMOND_PROXY_ADDR',
+    'GATEWAY_L1_RELAYED_SL_DA_VALIDATOR'
 ];
 
 const USER_FACING_ENV_VARS = ['CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR', 'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR'];
@@ -63,15 +63,15 @@ export async function prepareSyncLayer(): Promise<void> {
     );
 
     const paramsFromEnv = [
-        `SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL=${process.env.API_WEB3_JSON_RPC_HTTP_URL}`,
-        `SYNC_LAYER_CHAIN_ID=${process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID}`
+        `GATEWAY_API_WEB3_JSON_RPC_HTTP_URL=${process.env.API_WEB3_JSON_RPC_HTTP_URL}`,
+        `GATEWAY_CHAIN_ID=${process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID}`
     ].join('\n');
 
     const deployLog =
         fs
             .readFileSync('sync-layer-prep.log')
             .toString()
-            .replace(/CONTRACTS/g, 'SYNC_LAYER') +
+            .replace(/CONTRACTS/g, 'GATEWAY') +
         '\n' +
         paramsFromEnv;
 
@@ -102,14 +102,15 @@ async function migrateToSyncLayer() {
     const migrationLog = fs
         .readFileSync('sync-layer-migration.log')
         .toString()
-        .replace(/CONTRACTS/g, 'SYNC_LAYER');
+        .replace(/CONTRACTS/g, 'GATEWAY');
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', envFile);
 
     // FIXME: consider creating new sync_layer_* variable.
-    updateContractsEnv(envFile, migrationLog, ['SYNC_LAYER_DIAMOND_PROXY_ADDR']);
-    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.SYNC_LAYER_DIAMOND_PROXY_ADDR!, envFile, true);
+    updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR']);
+    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
+    env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
 }
 
 async function prepareValidatorsOnSyncLayer() {
@@ -125,7 +126,7 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
 /// FIXME: generally we should use a different approach for config maintaining within sync layer
 /// the chain should retain both "sync_layer" and "contracts_" contracts and be able to switch between them
 async function updateConfigOnSyncLayer() {
-    const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
+    const specialParams = ['GATEWAY_API_WEB3_JSON_RPC_HTTP_URL', 'GATEWAY_CHAIN_ID'];
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
 
@@ -140,15 +141,13 @@ async function updateConfigOnSyncLayer() {
         if (specialParams.includes(envVar)) {
             continue;
         }
-        const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
+        const contractsVar = envVar.replace(/GATEWAY/g, 'CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('ETH_CLIENT_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
     env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
-
-    console.log('b');
+    env.modify('ETH_CLIENT_CHAIN_ID', process.env.GATEWAY_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
 

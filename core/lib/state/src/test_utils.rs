@@ -88,6 +88,7 @@ pub(crate) async fn create_l2_block(
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     };
 
     conn.blocks_dal()

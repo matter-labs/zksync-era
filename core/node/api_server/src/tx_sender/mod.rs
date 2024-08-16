@@ -10,7 +10,7 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::VmExecutionResultAndLogs,
+    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_eth_call_gas_limit, get_max_batch_gas_limit,
@@ -25,15 +25,15 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     api::state_override::StateOverride,
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
+    vm::VmVersion,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
-    MAX_NEW_FACTORY_DEPS, U256,
+    ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -108,7 +108,7 @@ pub struct MultiVMBaseSystemContracts {
     /// Contracts to be used after the 1.5.0 upgrade
     pub(crate) vm_1_5_0_increased_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
-    pub(crate) sync_layer: BaseSystemContracts,
+    pub(crate) gateway: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -138,7 +138,7 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
             ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => self.vm_1_5_0_increased_memory,
-            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => self.sync_layer,
+            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => self.gateway,
         }
     }
 }
@@ -182,7 +182,7 @@ impl ApiContracts {
                 vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
                 vm_1_5_0_increased_memory:
                     BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
-                sync_layer: BaseSystemContracts::estimate_gas_sync_layer(),
+                gateway: BaseSystemContracts::estimate_gas_gateway(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -196,7 +196,7 @@ impl ApiContracts {
                 vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
                 vm_1_5_0_increased_memory:
                     BaseSystemContracts::playground_post_1_5_0_increased_memory(),
-                sync_layer: BaseSystemContracts::playground_sync_layer(),
+                gateway: BaseSystemContracts::playground_gateway(),
             },
         }
     }
