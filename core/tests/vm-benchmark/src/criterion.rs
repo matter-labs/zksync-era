@@ -1,13 +1,16 @@
 //! Criterion helpers and extensions.
 
-use std::{cell::RefCell, env, fmt, sync::Once, thread, time::Duration};
+use std::{
+    cell::RefCell, convert::Infallible, env, fmt, rc::Rc, sync::Once, thread, time::Duration,
+};
 
 use criterion::{
     measurement::{Measurement, ValueFormatter, WallTime},
-    Bencher, Criterion, Throughput,
+    Criterion, Throughput,
 };
+use once_cell::{sync::OnceCell as SyncOnceCell, unsync::OnceCell};
 use tokio::sync::watch;
-use vise::{Buckets, EncodeLabelSet, Family, Histogram, Metrics};
+use vise::{Buckets, EncodeLabelSet, Family, Histogram, LatencyObserver, Metrics};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Checks whether a benchmark binary is running in the test mode (as opposed to benchmarking).
@@ -68,17 +71,16 @@ impl PrometheusRuntime {
 thread_local! {
     static CURRENT_BENCH_LABELS: RefCell<Option<BenchLabels>> = const { RefCell::new(None) };
 }
+static BIN_NAME: SyncOnceCell<&'static str> = SyncOnceCell::new();
 
 /// Measurement for criterion that exports .
 #[derive(Debug)]
 pub struct MeteredTime {
-    bin_name: &'static str,
-    metrics: &'static VmBenchmarkMetrics,
     _prometheus: Option<PrometheusRuntime>,
 }
 
 impl MeteredTime {
-    pub fn new(group_name: &'static str) -> Self {
+    pub fn new(bin_name: &'static str) -> Self {
         static PROMETHEUS_INIT: Once = Once::new();
 
         let mut prometheus = None;
@@ -88,16 +90,18 @@ impl MeteredTime {
             });
         }
 
+        if let Err(prev_name) = BIN_NAME.set(bin_name) {
+            assert_eq!(prev_name, bin_name, "attempted to redefine binary name");
+        }
+
         Self {
-            bin_name: group_name,
-            metrics: &METRICS,
             _prometheus: prometheus,
         }
     }
 
     fn start_bench(group: String, benchmark: String, arg: Option<String>) {
         CURRENT_BENCH_LABELS.replace(Some(BenchLabels {
-            bin: "", // will be replaced
+            bin: BIN_NAME.get().copied().unwrap_or(""),
             group,
             benchmark,
             arg,
@@ -112,17 +116,16 @@ impl MeteredTime {
 }
 
 impl Measurement for MeteredTime {
-    type Intermediate = vise::LatencyObserver<'static>;
+    type Intermediate = Infallible;
     type Value = Duration;
 
     fn start(&self) -> Self::Intermediate {
-        let mut labels = MeteredTime::get_bench();
-        labels.bin = self.bin_name;
-        self.metrics.timing[&labels].start()
+        // All measurements must be done via `Bencher::iter()`
+        unreachable!("must not be invoked directly");
     }
 
-    fn end(&self, i: Self::Intermediate) -> Self::Value {
-        i.observe()
+    fn end(&self, _: Self::Intermediate) -> Self::Value {
+        unreachable!("must not be invoked directly");
     }
 
     fn add(&self, v1: &Self::Value, v2: &Self::Value) -> Self::Value {
@@ -164,6 +167,7 @@ impl BenchmarkId {
 pub struct BenchmarkGroup<'a> {
     name: String,
     inner: criterion::BenchmarkGroup<'a, MeteredTime>,
+    metrics: &'static VmBenchmarkMetrics,
 }
 
 impl BenchmarkGroup<'_> {
@@ -182,22 +186,101 @@ impl BenchmarkGroup<'_> {
         self
     }
 
-    pub fn bench_metered<F>(&mut self, id: impl Into<String>, bench_fn: F)
+    pub fn bench_metered<F>(&mut self, id: impl Into<String>, mut bench_fn: F)
     where
-        F: FnMut(&mut Bencher<'_, MeteredTime>),
+        F: FnMut(&mut Bencher<'_, '_>),
     {
         let id = id.into();
         MeteredTime::start_bench(self.name.clone(), id.clone(), None);
-        self.inner.bench_function(id, bench_fn);
+        self.inner.bench_function(id, |bencher| {
+            bench_fn(&mut Bencher {
+                inner: bencher,
+                metrics: self.metrics,
+            })
+        });
     }
 
-    pub fn bench_metered_with_input<I, F>(&mut self, id: BenchmarkId, input: &I, bench_fn: F)
+    pub fn bench_metered_with_input<I, F>(&mut self, id: BenchmarkId, input: &I, mut bench_fn: F)
     where
         I: ?Sized,
-        F: FnMut(&mut Bencher<'_, MeteredTime>, &I),
+        F: FnMut(&mut Bencher<'_, '_>, &I),
     {
         MeteredTime::start_bench(self.name.clone(), id.benchmark, Some(id.arg));
-        self.inner.bench_with_input(id.inner, input, bench_fn);
+        self.inner
+            .bench_with_input(id.inner, input, |bencher, input| {
+                bench_fn(
+                    &mut Bencher {
+                        inner: bencher,
+                        metrics: self.metrics,
+                    },
+                    input,
+                )
+            });
+    }
+}
+
+pub struct Bencher<'a, 'r> {
+    inner: &'r mut criterion::Bencher<'a, MeteredTime>,
+    metrics: &'static VmBenchmarkMetrics,
+}
+
+impl Bencher<'_, '_> {
+    pub fn iter(&mut self, mut routine: impl FnMut(BenchmarkTimer)) {
+        let histogram = &self.metrics.timing[&MeteredTime::get_bench()];
+        self.inner.iter_custom(move |iters| {
+            let mut total = Duration::ZERO;
+            for _ in 0..iters {
+                let (measure, observation) = BenchmarkTimer::new(histogram);
+                routine(measure);
+                total += observation.get().copied().unwrap_or_default();
+            }
+            total
+        })
+    }
+}
+
+/// Timer for benchmarks supplied to the `Bencher::iter()` closure.
+#[derive(Debug)]
+#[must_use = "should be started to start measurements"]
+pub struct BenchmarkTimer {
+    histogram: &'static Histogram<Duration>,
+    observation: Rc<OnceCell<Duration>>,
+}
+
+impl BenchmarkTimer {
+    fn new(histogram: &'static Histogram<Duration>) -> (Self, Rc<OnceCell<Duration>>) {
+        let observation = Rc::<OnceCell<_>>::default();
+        let this = Self {
+            histogram,
+            observation: observation.clone(),
+        };
+        (this, observation)
+    }
+
+    /// Starts the timer. The timer will remain active until the returned guard is dropped. If you drop the timer implicitly,
+    /// be careful with the drop order (inverse to the variable declaration order); when in doubt, drop the guard explicitly.
+    pub fn start(self) -> BenchmarkTimerGuard {
+        BenchmarkTimerGuard {
+            observer: Some(self.histogram.start()),
+            observation: self.observation,
+        }
+    }
+}
+
+/// Guard returned from [`BenchmarkTimer::start()`].
+#[derive(Debug)]
+#[must_use = "will stop the timer on drop"]
+pub struct BenchmarkTimerGuard {
+    observer: Option<LatencyObserver<'static>>,
+    observation: Rc<OnceCell<Duration>>,
+}
+
+impl Drop for BenchmarkTimerGuard {
+    fn drop(&mut self) {
+        if let Some(observer) = self.observer.take() {
+            let latency = observer.observe();
+            self.observation.set(latency).ok();
+        }
     }
 }
 
@@ -211,6 +294,7 @@ impl CriterionExt for Criterion<MeteredTime> {
         BenchmarkGroup {
             inner: self.benchmark_group(name.clone()),
             name,
+            metrics: &METRICS,
         }
     }
 }
@@ -222,23 +306,31 @@ mod tests {
     use super::*;
     use crate::BYTECODES;
 
-    fn test_benchmark(c: &mut Criterion<MeteredTime>) {
+    fn test_benchmark(c: &mut Criterion<MeteredTime>, metrics: &'static VmBenchmarkMetrics) {
         let mut group = c.metered_group("single");
+        group.metrics = metrics;
         for bytecode in BYTECODES {
             group.bench_metered(bytecode.name, |bencher| {
-                bencher.iter(|| thread::sleep(Duration::from_millis(1)))
+                bencher.iter(|timer| {
+                    let _guard = timer.start();
+                    thread::sleep(Duration::from_millis(1))
+                })
             });
         }
         drop(group);
 
         let mut group = c.metered_group("with_arg");
+        group.metrics = metrics;
         for bytecode in BYTECODES {
             for arg in [1, 10, 100] {
                 group.bench_metered_with_input(
                     BenchmarkId::new(bytecode.name, arg),
                     &arg,
                     |bencher, _arg| {
-                        bencher.iter(|| thread::sleep(Duration::from_millis(1)));
+                        bencher.iter(|timer| {
+                            let _guard = timer.start();
+                            thread::sleep(Duration::from_millis(1))
+                        });
                     },
                 )
             }
@@ -247,16 +339,15 @@ mod tests {
 
     #[test]
     fn recording_benchmarks() {
-        let mut metered_time = MeteredTime::new("test");
+        let metered_time = MeteredTime::new("test");
         let metrics = &*Box::leak(Box::<VmBenchmarkMetrics>::default());
-        metered_time.metrics = metrics;
 
         let mut criterion = Criterion::default()
             .warm_up_time(Duration::from_millis(10))
             .measurement_time(Duration::from_millis(10))
             .sample_size(10)
             .with_measurement(metered_time);
-        test_benchmark(&mut criterion);
+        test_benchmark(&mut criterion, metrics);
 
         let timing_labels: HashSet<_> = metrics.timing.to_entries().into_keys().collect();
         // Check that labels are as expected.

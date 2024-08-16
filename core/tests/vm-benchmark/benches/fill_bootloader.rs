@@ -14,7 +14,7 @@
 
 use std::{iter, time::Duration};
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use vm_benchmark::{
     criterion::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime},
@@ -74,19 +74,18 @@ fn run_vm_expecting_failures<VM: BenchmarkingVmFactory, const FULL: bool>(
             |bencher, &txs_in_batch| {
                 if FULL {
                     // Include VM initialization / drop into the measured time
-                    bencher.iter(|| {
+                    bencher.iter(|timer| {
+                        let _guard = timer.start();
                         let mut vm = BenchmarkingVm::<VM>::default();
                         bench_vm::<_, true>(&mut vm, &txs[..txs_in_batch], expected_failures);
                     });
                 } else {
-                    bencher.iter_batched(
-                        BenchmarkingVm::<VM>::default,
-                        |mut vm| {
-                            bench_vm::<_, false>(&mut vm, &txs[..txs_in_batch], expected_failures);
-                            vm
-                        },
-                        BatchSize::LargeInput, // VM can consume significant amount of RAM, especially the new one
-                    );
+                    bencher.iter(|timer| {
+                        let mut vm = BenchmarkingVm::<VM>::default();
+                        let guard = timer.start();
+                        bench_vm::<_, false>(&mut vm, &txs[..txs_in_batch], expected_failures);
+                        drop(guard);
+                    });
                 }
             },
         );

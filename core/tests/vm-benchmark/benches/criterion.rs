@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use vm_benchmark::{
     criterion::{BenchmarkGroup, CriterionExt, MeteredTime},
     get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
@@ -25,16 +25,17 @@ fn benches_in_folder<VM: BenchmarkingVmFactory, const FULL: bool>(c: &mut Criter
         group.bench_metered(bench_name, |bencher| {
             if FULL {
                 // Include VM initialization / drop into the measured time
-                bencher.iter(|| BenchmarkingVm::<VM>::default().run_transaction(black_box(&tx)));
+                bencher.iter(|timer| {
+                    let _guard = timer.start();
+                    BenchmarkingVm::<VM>::default().run_transaction(black_box(&tx));
+                });
             } else {
-                bencher.iter_batched(
-                    BenchmarkingVm::<VM>::default,
-                    |mut vm| {
-                        let result = vm.run_transaction(black_box(&tx));
-                        (vm, result)
-                    },
-                    BatchSize::LargeInput, // VM can consume significant amount of RAM, especially the new one
-                );
+                bencher.iter(|timer| {
+                    let mut vm = BenchmarkingVm::<VM>::default();
+                    let guard = timer.start();
+                    let _result = vm.run_transaction(black_box(&tx));
+                    drop(guard); // do not include latency of dropping `_result`
+                });
             }
         });
     }
@@ -63,19 +64,15 @@ fn bench_load_test_transaction<VM: BenchmarkingVmFactory>(
     tx: &Transaction,
 ) {
     group.bench_metered(name, |bencher| {
-        bencher.iter_batched(
-            || {
-                let mut vm = BenchmarkingVm::<VM>::default();
-                vm.run_transaction(&get_load_test_deploy_tx());
-                vm
-            },
-            |mut vm| {
-                let result = vm.run_transaction(black_box(tx));
-                assert!(!result.result.is_failed(), "{:?}", result.result);
-                (vm, result)
-            },
-            BatchSize::LargeInput,
-        );
+        bencher.iter(|timer| {
+            let mut vm = BenchmarkingVm::<VM>::default();
+            vm.run_transaction(&get_load_test_deploy_tx());
+
+            let guard = timer.start();
+            let result = vm.run_transaction(black_box(tx));
+            drop(guard); // do not include the latency of `result` checks / drop
+            assert!(!result.result.is_failed(), "{:?}", result.result);
+        });
     });
 }
 
