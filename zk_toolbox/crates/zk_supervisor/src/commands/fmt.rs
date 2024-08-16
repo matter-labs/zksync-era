@@ -1,4 +1,4 @@
-use std::{env::args, ffi::OsStr, future, path::PathBuf, process::Command};
+use std::path::PathBuf;
 
 use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
@@ -9,7 +9,6 @@ use crate::commands::lint::Extension;
 const CONFIG_PATH: &str = "etc/prettier-config";
 
 async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Result<()> {
-    let spinner = Spinner::new(&format!("Running prettier for: {extension}"));
     let mode = if check { "--check" } else { "--write" };
     let glob = format!("**/*.{extension}");
     let config = format!("etc/prettier-config/{extension}.js");
@@ -29,7 +28,6 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
 
 async fn rustfmt(shell: Shell, check: bool, link_to_code: PathBuf) -> anyhow::Result<()> {
     for dir in vec![".", "prover", "zk_toolbox"] {
-        logger::info(format!("Running rustfmt for: {dir}"));
         let _dir = shell.push_dir(link_to_code.join(dir));
         let mut cmd = cmd!(shell, "cargo fmt -- --config imports_granularity=Crate --config group_imports=StdExternalCrate");
         if check {
@@ -74,6 +72,8 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             let mut tasks = vec![];
             let extensions: Vec<_> =
                 vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
+            let spinner =
+                Spinner::new(&format!("Running prettier for: {extensions:?} and rustfmt"));
             for ext in extensions {
                 tasks.push(tokio::spawn(prettier(shell.clone(), ext, args.check)));
             }
@@ -89,14 +89,17 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
                         logger::error(err)
                     }
                 });
+            spinner.finish()
         }
         Some(Formatter::Prettier { mut extensions }) => {
             if extensions.is_empty() {
                 extensions = vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
             }
+            let spinner = Spinner::new(&format!("Running prettier for: {extensions:?}"));
             for ext in extensions {
                 prettier(shell.clone(), ext, args.check).await?
             }
+            spinner.finish()
         }
         Some(Formatter::Rustfmt) => {
             run_all_rust_formatters(shell.clone(), args.check, ".".into()).await?

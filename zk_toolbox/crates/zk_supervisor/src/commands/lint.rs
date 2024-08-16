@@ -9,7 +9,7 @@ use crate::messages::{
     MSG_LINT_CONFIG_PATH_ERR, MSG_RUNNING_CONTRACTS_LINTER_SPINNER,
 };
 
-pub const IGNORED_DIRS: [&str; 18] = [
+const IGNORED_DIRS: [&str; 18] = [
     "target",
     "node_modules",
     "volumes",
@@ -31,7 +31,7 @@ pub const IGNORED_DIRS: [&str; 18] = [
     "contracts/l1-contracts/lib",
 ];
 
-pub const IGNORED_FILES: [&str; 4] = [
+const IGNORED_FILES: [&str; 4] = [
     "KeysWithPlonkVerifier.sol",
     "TokenInit.sol",
     ".tslintrc.js",
