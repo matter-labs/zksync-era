@@ -151,9 +151,10 @@ pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be pre
 pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
-pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
 pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
+pub(super) const MSG_SETUP_DATABASE_HELP: &str = "Setup database for prover";
+pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Don't drop database";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
 pub(super) const MSG_INITIALIZING_DATABASES_SPINNER: &str = "Initializing databases...";
@@ -252,6 +253,7 @@ pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
 /// Prover related messages
+pub(super) const MSG_SETUP_DATABASE_PROMPT: &str = "Do you want to setup database for prover now?";
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";

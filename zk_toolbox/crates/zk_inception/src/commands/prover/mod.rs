@@ -2,7 +2,7 @@ use args::{init::ProverInitArgs, init_bellman_cuda::InitBellmanCudaArgs, run::Pr
 use clap::Subcommand;
 use xshell::Shell;
 
-use crate::commands::prover::args::create::ProverCreateArgs;
+use crate::commands::prover::args::{create::ProverCreateArgs, setup_database::SetupDatabaseArgs};
 
 mod args;
 mod create;
@@ -11,6 +11,7 @@ mod generate_sk;
 mod init;
 mod init_bellman_cuda;
 mod run;
+mod setup_database;
 mod utils;
 
 #[derive(Subcommand, Debug)]
@@ -26,6 +27,7 @@ pub enum ProverCommands {
     #[command(alias = "cuda")]
     InitBellmanCuda(Box<InitBellmanCudaArgs>),
     Create(Box<ProverCreateArgs>),
+    SetupDatabase(Box<SetupDatabaseArgs>),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -35,5 +37,6 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
         ProverCommands::Create(args) => create::run(*args, shell),
+        ProverCommands::SetupDatabase(args) => setup_database::run(shell, *args).await,
     }
 }
