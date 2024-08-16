@@ -36,6 +36,5 @@ pub struct DataAvailabilityBlob {
     pub l1_batch_number: L1BatchNumber,
     pub blob_id: String,
     pub inclusion_data: Option<Vec<u8>>,
-    pub verify_inclusion: bool,
     pub sent_at: DateTime<Utc>,
 }

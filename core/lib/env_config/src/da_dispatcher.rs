@@ -26,7 +26,7 @@ mod tests {
             polling_interval_ms: Some(interval),
             max_rows_to_dispatch: Some(rows_limit),
             max_retries: Some(max_retries),
-            enable_onchain_verification: false,
+            enable_onchain_verification: Some(false),
         }
     }
 

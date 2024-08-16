@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
 pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 100;
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
+pub const DEFAULT_ENABLE_ONCHAIN_VERIFICATION: bool = true;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DADispatcherConfig {
@@ -15,8 +16,7 @@ pub struct DADispatcherConfig {
     /// The maximum number of retries for the dispatch of a blob.
     pub max_retries: Option<u16>,
     /// Enable on-chain verification of the data availability.
-    #[serde(default)]
-    pub enable_onchain_verification: bool,
+    pub enable_onchain_verification: Option<bool>,
 }
 
 impl DADispatcherConfig {
@@ -25,7 +25,7 @@ impl DADispatcherConfig {
             polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
             max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
-            enable_onchain_verification: false,
+            enable_onchain_verification: Some(DEFAULT_ENABLE_ONCHAIN_VERIFICATION),
         }
     }
 
@@ -43,5 +43,10 @@ impl DADispatcherConfig {
 
     pub fn max_retries(&self) -> u16 {
         self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
+    }
+
+    pub fn enable_onchain_verification(&self) -> bool {
+        self.enable_onchain_verification
+            .unwrap_or(DEFAULT_ENABLE_ONCHAIN_VERIFICATION)
     }
 }

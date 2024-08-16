@@ -11,7 +11,7 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
             polling_interval_ms: self.polling_interval_ms,
             max_rows_to_dispatch: self.max_rows_to_dispatch,
             max_retries: self.max_retries.map(|x| x as u16),
-            enable_onchain_verification: self.enable_onchain_verification.unwrap_or_default(),
+            enable_onchain_verification: self.enable_onchain_verification,
         })
     }
 
@@ -20,7 +20,7 @@ impl ProtoRepr for proto::DataAvailabilityDispatcher {
             polling_interval_ms: this.polling_interval_ms,
             max_rows_to_dispatch: this.max_rows_to_dispatch,
             max_retries: this.max_retries.map(Into::into),
-            enable_onchain_verification: Some(this.enable_onchain_verification),
+            enable_onchain_verification: this.enable_onchain_verification,
         }
     }
 }

@@ -7,7 +7,6 @@ pub(crate) struct StorageDABlob {
     pub l1_batch_number: i64,
     pub blob_id: String,
     pub inclusion_data: Option<Vec<u8>>,
-    pub verify_inclusion: bool,
     pub sent_at: NaiveDateTime,
 }
 
@@ -17,7 +16,6 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
             l1_batch_number: L1BatchNumber(blob.l1_batch_number as u32),
             blob_id: blob.blob_id,
             inclusion_data: blob.inclusion_data,
-            verify_inclusion: blob.verify_inclusion,
             sent_at: blob.sent_at.and_utc(),
         }
     }

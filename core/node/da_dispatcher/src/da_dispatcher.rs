@@ -104,7 +104,6 @@ impl DataAvailabilityDispatcher {
                 .insert_l1_batch_da(
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
-                    self.config.enable_onchain_verification,
                     sent_at,
                 )
                 .await?;
@@ -137,7 +136,7 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = if blob_info.verify_inclusion {
+        let inclusion_data = if self.config.enable_onchain_verification() {
             self.client
                 .get_inclusion_data(blob_info.blob_id.as_str())
                 .await
