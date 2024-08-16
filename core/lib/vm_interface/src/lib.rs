@@ -24,7 +24,7 @@ pub use crate::{
             VmRevertReasonParsingError,
         },
         inputs::{
-            L1BatchEnv, L2BlockEnv, OneshotEnv, PendingL2BlockEnv, SystemEnv, TxExecutionMode,
+            L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionMode,
             VmExecutionMode,
         },
         outputs::{

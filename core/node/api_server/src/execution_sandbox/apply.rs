@@ -15,7 +15,7 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        BytecodeCompressionError, L1BatchEnv, L2BlockEnv, OneshotEnv, PendingL2BlockEnv, SystemEnv,
+        BytecodeCompressionError, L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv,
         TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     tracers::StorageInvocations,
@@ -68,7 +68,7 @@ pub(super) async fn prepare_env_and_storage(
             .schedule_values_update(resolved_block_info.state_l2_block_number);
     }
 
-    let (next_l2_block_info, l2_block_info_to_reset) = load_l2_block_info(
+    let (next_block, current_block) = load_l2_block_info(
         &mut connection,
         block_args.is_pending_l2_block(),
         &resolved_block_info,
@@ -85,12 +85,12 @@ pub(super) async fn prepare_env_and_storage(
     .context("cannot create `PostgresStorage`")?
     .with_caches(setup_args.caches.clone());
 
-    let (system, l1_batch) = prepare_env(setup_args, &resolved_block_info, next_l2_block_info);
+    let (system, l1_batch) = prepare_env(setup_args, &resolved_block_info, next_block);
 
     let env = OneshotEnv {
         system,
         l1_batch,
-        pending_block: l2_block_info_to_reset.map(Into::into),
+        current_block,
     };
     initialization_stage.observe();
     Ok((env, storage))
@@ -100,23 +100,22 @@ async fn load_l2_block_info(
     connection: &mut Connection<'_, Core>,
     is_pending_block: bool,
     resolved_block_info: &ResolvedBlockInfo,
-) -> anyhow::Result<(L2BlockEnv, Option<PendingL2BlockEnv>)> {
-    let mut l2_block_info_to_reset = None;
-    let current_l2_block_info =
-        read_stored_l2_block_info(connection, resolved_block_info.state_l2_block_number)
-            .await
-            .context("failed reading L2 block info")?;
+) -> anyhow::Result<(L2BlockEnv, Option<StoredL2BlockEnv>)> {
+    let mut current_block = None;
+    let next_block = read_stored_l2_block(connection, resolved_block_info.state_l2_block_number)
+        .await
+        .context("failed reading L2 block info")?;
 
-    let next_l2_block_info = if is_pending_block {
+    let next_block = if is_pending_block {
         L2BlockEnv {
-            number: current_l2_block_info.number + 1,
+            number: next_block.number + 1,
             timestamp: resolved_block_info.l1_batch_timestamp,
             prev_block_hash: resolved_block_info.state_l2_block_hash,
             // For simplicity, we assume each L2 block create one virtual block.
             // This may be wrong only during transition period.
             max_virtual_blocks_to_create: 1,
         }
-    } else if current_l2_block_info.number == 0 {
+    } else if next_block.number == 0 {
         // Special case:
         // - For environments, where genesis block was created before virtual block upgrade it doesn't matter what we put here.
         // - Otherwise, we need to put actual values here. We cannot create next L2 block with block_number=0 and `max_virtual_blocks_to_create=0`
@@ -131,7 +130,7 @@ async fn load_l2_block_info(
         // We need to reset L2 block info in storage to process transaction in the current block context.
         // Actual resetting will be done after `storage_view` is created.
         let prev_block_number = resolved_block_info.state_l2_block_number - 1;
-        let prev_l2_block_info = read_stored_l2_block_info(connection, prev_block_number)
+        let prev_l2_block = read_stored_l2_block(connection, prev_block_number)
             .await
             .context("failed reading previous L2 block info")?;
 
@@ -152,10 +151,10 @@ async fn load_l2_block_info(
             });
         }
 
-        l2_block_info_to_reset = Some(prev_l2_block_info);
+        current_block = Some(prev_l2_block);
         L2BlockEnv {
-            number: current_l2_block_info.number,
-            timestamp: current_l2_block_info.timestamp,
+            number: next_block.number,
+            timestamp: next_block.timestamp,
             prev_block_hash: prev_block_hash.with_context(|| {
                 format!("missing hash for previous L2 block #{prev_block_number}")
             })?,
@@ -163,13 +162,13 @@ async fn load_l2_block_info(
         }
     };
 
-    Ok((next_l2_block_info, l2_block_info_to_reset))
+    Ok((next_block, current_block))
 }
 
 fn prepare_env(
     setup_args: TxSetupArgs,
     resolved_block_info: &ResolvedBlockInfo,
-    next_l2_block_info: L2BlockEnv,
+    next_block: L2BlockEnv,
 ) -> (SystemEnv, L1BatchEnv) {
     let TxSetupArgs {
         execution_mode,
@@ -203,7 +202,7 @@ fn prepare_env(
         fee_input,
         fee_account: *operator_account.address(),
         enforced_base_fee,
-        first_l2_block: next_l2_block_info,
+        first_l2_block: next_block,
     };
     (system_env, l1_batch_env)
 }
@@ -220,7 +219,7 @@ impl<S: ReadStorage> VmSandbox<S> {
     /// This method is blocking.
     pub fn new(storage: S, mut env: OneshotEnv, execution_args: TxExecutionArgs) -> Self {
         let mut storage_view = StorageView::new(storage);
-        Self::setup_storage_view(&mut storage_view, &execution_args, env.pending_block);
+        Self::setup_storage_view(&mut storage_view, &execution_args, env.current_block);
 
         let protocol_version = env.system.version;
         if execution_args.adjust_pubdata_price {
@@ -251,7 +250,7 @@ impl<S: ReadStorage> VmSandbox<S> {
     fn setup_storage_view(
         storage_view: &mut StorageView<S>,
         execution_args: &TxExecutionArgs,
-        l2_block_info_to_reset: Option<PendingL2BlockEnv>,
+        current_block: Option<StoredL2BlockEnv>,
     ) {
         let storage_view_setup_started_at = Instant::now();
         if let Some(nonce) = execution_args.enforced_nonce {
@@ -269,15 +268,13 @@ impl<S: ReadStorage> VmSandbox<S> {
         storage_view.set_value(balance_key, u256_to_h256(current_balance));
 
         // Reset L2 block info if necessary.
-        if let Some(l2_block_info_to_reset) = l2_block_info_to_reset {
+        if let Some(current_block) = current_block {
             let l2_block_info_key = StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
             );
-            let l2_block_info = pack_block_info(
-                l2_block_info_to_reset.number as u64,
-                l2_block_info_to_reset.timestamp,
-            );
+            let l2_block_info =
+                pack_block_info(current_block.number.into(), current_block.timestamp);
             storage_view.set_value(l2_block_info_key, u256_to_h256(l2_block_info));
 
             let l2_block_txs_rolling_hash_key = StorageKey::new(
@@ -286,7 +283,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             );
             storage_view.set_value(
                 l2_block_txs_rolling_hash_key,
-                l2_block_info_to_reset.txs_rolling_hash,
+                current_block.txs_rolling_hash,
             );
         }
 
@@ -416,10 +413,10 @@ where
     }
 }
 
-async fn read_stored_l2_block_info(
+async fn read_stored_l2_block(
     connection: &mut Connection<'_, Core>,
     l2_block_number: L2BlockNumber,
-) -> anyhow::Result<PendingL2BlockEnv> {
+) -> anyhow::Result<StoredL2BlockEnv> {
     let l2_block_info_key = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -439,7 +436,7 @@ async fn read_stored_l2_block_info(
         .get_historical_value_unchecked(l2_block_txs_rolling_hash_key.hashed_key(), l2_block_number)
         .await?;
 
-    Ok(PendingL2BlockEnv {
+    Ok(StoredL2BlockEnv {
         number: l2_block_number_from_state as u32,
         timestamp,
         txs_rolling_hash,

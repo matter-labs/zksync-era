@@ -10,20 +10,20 @@ pub struct L2BlockEnv {
 }
 
 impl L2BlockEnv {
-    pub fn from_l2_block_data(miniblock_execution_data: &L2BlockExecutionData) -> Self {
+    pub fn from_l2_block_data(execution_data: &L2BlockExecutionData) -> Self {
         Self {
-            number: miniblock_execution_data.number.0,
-            timestamp: miniblock_execution_data.timestamp,
-            prev_block_hash: miniblock_execution_data.prev_block_hash,
-            max_virtual_blocks_to_create: miniblock_execution_data.virtual_blocks,
+            number: execution_data.number.0,
+            timestamp: execution_data.timestamp,
+            prev_block_hash: execution_data.prev_block_hash,
+            max_virtual_blocks_to_create: execution_data.virtual_blocks,
         }
     }
 }
 
-/// Pending block information used in oneshot transaction / call execution.
-// FIXME: come up with a better name
+/// Current block information stored in the system context contract. Can be used to set up
+/// oneshot transaction / call execution.
 #[derive(Debug, Clone, Copy)]
-pub struct PendingL2BlockEnv {
+pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
     pub txs_rolling_hash: H256,
