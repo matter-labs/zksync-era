@@ -1,14 +1,21 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_5_0::{aux_structures::Timestamp, zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER}};
+use zk_evm_1_5_0::{
+    aux_structures::Timestamp,
+    zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
+};
 use zksync_contracts::known_code_storage_contract;
 use zksync_state::WriteStorage;
 use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
-use crate::{interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus}, vm_latest::{utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState}};
-
 use super::{traits::VmTracer, utils::read_pointer};
+use crate::{
+    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
+    vm_latest::{
+        utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState,
+    },
+};
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
 /// to the code decommitter.

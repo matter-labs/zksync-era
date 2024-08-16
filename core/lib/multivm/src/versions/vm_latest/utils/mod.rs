@@ -1,5 +1,8 @@
 use zk_evm_1_4_1::sha2;
-use zk_evm_1_5_0::{aux_structures::MemoryPage, zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32}};
+use zk_evm_1_5_0::{
+    aux_structures::MemoryPage,
+    zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32},
+};
 use zksync_types::H256;
 
 /// Utility functions for the VM.

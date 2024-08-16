@@ -67,7 +67,7 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
 
     pub(crate) evm_tracer: Option<EvmDebugTracer<S, H>>,
     pub(crate) evm_deploy_tracer: EvmDeployTracer<S>,
-    
+
     subversion: MultiVMSubversion,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
@@ -299,7 +299,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             .circuits_tracer
             .finish_cycle(state, bootloader_state)
             .stricter(&result);
-        
+
         result = self
             .evm_deploy_tracer
             .finish_cycle(state, bootloader_state)
