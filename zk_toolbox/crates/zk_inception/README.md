@@ -415,7 +415,7 @@ _instead_ of `zk_inception ecosystem create`.
 
 - `--subsystem-name <NAME>`
 - `--link-to-code <PATH_TO_ZKSYNC_ERA>`
-- `--start-containers` 
+- `--start-containers`
 
   Possible values: `true`, `false`
 
