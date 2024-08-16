@@ -1,5 +1,35 @@
 # Changelog
 
+## [16.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.3.0...prover-v16.4.0) (2024-08-16)
+
+
+### Features
+
+* Bump harness & gpu deps ([#2634](https://github.com/matter-labs/zksync-era/issues/2634)) ([2a7d566](https://github.com/matter-labs/zksync-era/commit/2a7d566ffeb63dc0a038d6b38cbda6bef7c7b105))
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+* **vlog:** Report observability config, flush, and shutdown ([#2622](https://github.com/matter-labs/zksync-era/issues/2622)) ([e23e661](https://github.com/matter-labs/zksync-era/commit/e23e6611731835ef3abd34f3f9867f9dc533eb21))
+* **vm:** Extract VM interface to separate crate ([#2638](https://github.com/matter-labs/zksync-era/issues/2638)) ([cb9ac4e](https://github.com/matter-labs/zksync-era/commit/cb9ac4e59fd16e6c125586bc02ef90e3b97ff80b))
+* **vm:** Fast VM integration ([#1949](https://github.com/matter-labs/zksync-era/issues/1949)) ([b752a54](https://github.com/matter-labs/zksync-era/commit/b752a54bebe6eb3bf0bea044996f5116cc5dc4e2))
+
+
+### Bug Fixes
+
+* Bump prover dependencies & rust toolchain ([#2600](https://github.com/matter-labs/zksync-era/issues/2600)) ([849c6a5](https://github.com/matter-labs/zksync-era/commit/849c6a5dcd095e8fead0630a2a403f282c26a2aa))
+* **prover:** Fix NWG ([#2590](https://github.com/matter-labs/zksync-era/issues/2590)) ([9b58ae9](https://github.com/matter-labs/zksync-era/commit/9b58ae97875455d58d42fe203cfb1f51cb270f62))
+* **prover:** Updated README.md ([#2604](https://github.com/matter-labs/zksync-era/issues/2604)) ([be9f357](https://github.com/matter-labs/zksync-era/commit/be9f357099ed281892c1ff4618514fc7c25f9b59))
+
+## [16.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.2.0...prover-v16.3.0) (2024-08-07)
+
+
+### Features
+
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+
+
+### Bug Fixes
+
+* **prover:** Fix NWG ([#2590](https://github.com/matter-labs/zksync-era/issues/2590)) ([9b58ae9](https://github.com/matter-labs/zksync-era/commit/9b58ae97875455d58d42fe203cfb1f51cb270f62))
+
 ## [16.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.1.0...prover-v16.2.0) (2024-08-02)
 
 

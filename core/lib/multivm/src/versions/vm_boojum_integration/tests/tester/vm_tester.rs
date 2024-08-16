@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
+use crate::interface::storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::MiniblockHasher,
     get_code_key, get_is_account_key,

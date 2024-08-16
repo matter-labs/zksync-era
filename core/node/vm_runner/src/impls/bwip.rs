@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
     block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
     H256,
@@ -30,6 +30,7 @@ impl BasicWitnessInputProducer {
     pub async fn new(
         pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
+        batch_executor: Box<dyn BatchExecutor>,
         rocksdb_path: String,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
@@ -47,13 +48,12 @@ impl BasicWitnessInputProducer {
         };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutor::new(false, false);
         let vm_runner = VmRunner::new(
             pool,
             Box::new(io),
             Arc::new(loader),
             Box::new(output_handler_factory),
-            Box::new(batch_processor),
+            batch_executor,
         );
         Ok((
             Self { vm_runner },
@@ -75,8 +75,7 @@ impl BasicWitnessInputProducer {
     }
 }
 
-/// A collections of tasks that need to be run in order for BWIP to work as
-/// intended.
+/// Collection of tasks that need to be run in order for BWIP to work as intended.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerTasks {
     /// Task that synchronizes storage with new available batches.

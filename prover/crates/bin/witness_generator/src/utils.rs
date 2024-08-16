@@ -97,6 +97,32 @@ impl StoredObject for AggregationWrapper {
     serialize_using_bincode!();
 }
 
+/// TODO: remove after transition
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AggregationWrapperLegacy(
+    pub  Vec<(
+        u64,
+        RecursionQueueSimulator<GoldilocksField>,
+        ZkSyncRecursiveLayerCircuit,
+    )>,
+);
+
+impl StoredObject for AggregationWrapperLegacy {
+    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
+    type Key<'a> = AggregationsKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        } = key;
+        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SchedulerPartialInputWrapper(
     pub  SchedulerCircuitInstanceWitness<
@@ -201,11 +227,15 @@ pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
-    let mut proofs = Vec::with_capacity(job_ids.len());
+    let mut handles = Vec::with_capacity(job_ids.len());
     for job_id in job_ids {
-        proofs.push(object_store.get(*job_id).await.unwrap());
+        handles.push(object_store.get(*job_id));
     }
-    proofs
+    futures::future::join_all(handles)
+        .await
+        .into_iter()
+        .map(|x| x.unwrap())
+        .collect()
 }
 
 /// Loads all proofs for a given recursion tip's job ids.

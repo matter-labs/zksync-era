@@ -29,7 +29,6 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
-use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
@@ -364,7 +363,7 @@ impl StateKeeper {
             let res = ctx.wait(client.fetch_l2_block_number()).await?;
             match res {
                 Ok(_) => return Ok(client),
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     ctx.sleep(time::Duration::seconds(5)).await?;
                 }
                 Err(err) => {
@@ -525,10 +524,7 @@ impl StateKeeperRunner {
                     .join("cache")
                     .to_string_lossy()
                     .into(),
-                RocksdbStorageOptions {
-                    block_cache_capacity: (1 << 20), // `1MB`
-                    max_open_files: None,
-                },
+                Default::default(),
             );
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();

@@ -16,7 +16,7 @@ pub use protocol_upgrade::{ProtocolUpgrade, ProtocolVersion};
 use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::Execute;
-pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
+pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
 pub use zksync_crypto_primitives::*;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
@@ -34,7 +34,6 @@ pub mod abi;
 pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
-pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod debug_flat_call;
@@ -49,11 +48,9 @@ pub mod protocol_upgrade;
 pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
-pub mod storage_writes_deduplicator;
 pub mod system_contracts;
 pub mod tokens;
 pub mod tx;
-pub mod vm_trace;
 pub mod zk_evm_types;
 
 pub mod api;

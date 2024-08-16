@@ -240,8 +240,8 @@ impl CheckHealth for TreeApiHttpClient {
             // Tree API is not a critical component, so its errors are not considered fatal for the app health.
             Err(err) => Health::from(HealthStatus::Affected).with_details(serde_json::json!({
                 "error": err.to_string(),
-                // Transient error detection is a best-effort estimate
-                "is_transient_error": matches!(err, TreeApiError::NotReady(_)),
+                // Retriable error detection is a best-effort estimate
+                "is_retriable_error": matches!(err, TreeApiError::NotReady(_)),
             })),
         }
     }
