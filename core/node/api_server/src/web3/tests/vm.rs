@@ -34,8 +34,8 @@ impl CallTest {
         }
     }
 
-    fn create_executor(latest_block: L2BlockNumber) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn create_executor(latest_block: L2BlockNumber) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         tx_executor.set_call_responses(move |tx, env| {
             let expected_block_number = match tx.execute.calldata() {
                 b"pending" => latest_block + 1,
@@ -54,7 +54,7 @@ impl CallTest {
 
 #[async_trait]
 impl HttpTest for CallTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         Self::create_executor(L2BlockNumber(1))
     }
 
@@ -116,7 +116,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(first_local_l2_block)
     }
@@ -222,8 +222,8 @@ impl HttpTest for SendRawTransactionTest {
         }
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let pending_block = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
@@ -320,8 +320,8 @@ impl SendTransactionWithDetailedOutputTest {
 }
 #[async_trait]
 impl HttpTest for SendTransactionWithDetailedOutputTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
         let vm_execution_logs = VmExecutionLogs {
             storage_logs: self.storage_logs(),
@@ -415,7 +415,7 @@ impl TraceCallTest {
 
 #[async_trait]
 impl HttpTest for TraceCallTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         CallTest::create_executor(L2BlockNumber(1))
     }
 
@@ -484,7 +484,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(number)
     }
@@ -554,8 +554,8 @@ impl HttpTest for EstimateGasTest {
         SendRawTransactionTest { snapshot_recovery }.storage_initialization()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let pending_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
@@ -656,7 +656,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         self.inner.storage_initialization()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         self.inner.transaction_executor()
     }
 

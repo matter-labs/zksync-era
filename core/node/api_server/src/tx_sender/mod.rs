@@ -252,6 +252,10 @@ impl TxSenderBuilder {
             self.whitelisted_tokens_for_aa_cache.unwrap_or_else(|| {
                 Arc::new(RwLock::new(self.config.whitelisted_tokens_for_aa.clone()))
             });
+        let missed_storage_invocation_limit = self
+            .config
+            .vm_execution_cache_misses_limit
+            .unwrap_or(usize::MAX);
 
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
@@ -263,7 +267,7 @@ impl TxSenderBuilder {
             storage_caches,
             whitelisted_tokens_for_aa_cache,
             sealer,
-            executor: TransactionExecutor::real(),
+            executor: TransactionExecutor::real(missed_storage_invocation_limit),
         }))
     }
 }
@@ -690,9 +694,7 @@ impl TxSender {
         }
 
         let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
-        let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        let execution_args =
-            TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, tx, base_fee);
+        let execution_args = TxExecutionArgs::for_gas_estimate(tx, base_fee);
         let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
@@ -991,7 +993,6 @@ impl TxSender {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
-        let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let connection = self.acquire_replica_connection().await?;
         self.0
             .executor
@@ -1002,7 +1003,6 @@ impl TxSender {
                 call_overrides,
                 tx,
                 block_args,
-                vm_execution_cache_misses_limit,
                 vec![],
                 state_override,
             )

@@ -12,10 +12,11 @@ use zksync_types::{
 };
 
 use super::{
-    apply, storage::StorageWithOverrides, testonly::MockTransactionExecutor, vm_metrics, ApiTracer,
-    BlockArgs, OneshotExecutor, TxSharedArgs, VmPermit,
+    apply::{self, MainOneshotExecutor},
+    storage::StorageWithOverrides,
+    testonly::MockOneshotExecutor,
+    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSharedArgs, VmPermit,
 };
-use crate::execution_sandbox::apply::MainOneshotExecutor;
 
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
@@ -23,7 +24,6 @@ pub(crate) struct TxExecutionArgs {
     pub enforced_nonce: Option<Nonce>,
     pub added_balance: U256,
     pub enforced_base_fee: Option<u64>,
-    pub missed_storage_invocation_limit: usize,
     /// If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
     /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
     /// current L1 prices for gas or pubdata.
@@ -38,39 +38,27 @@ impl TxExecutionArgs {
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
             enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
-            missed_storage_invocation_limit: usize::MAX,
             adjust_pubdata_price: true,
             transaction: tx.into(),
         }
     }
 
-    fn for_eth_call(
-        enforced_base_fee: Option<u64>,
-        vm_execution_cache_misses_limit: Option<usize>,
-        mut call: L2Tx,
-    ) -> Self {
+    fn for_eth_call(enforced_base_fee: Option<u64>, mut call: L2Tx) -> Self {
         if call.common_data.signature.is_empty() {
             call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
         Self {
             execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
             enforced_base_fee,
-            missed_storage_invocation_limit,
             adjust_pubdata_price: false,
             transaction: call.into(),
         }
     }
 
-    pub fn for_gas_estimate(
-        vm_execution_cache_misses_limit: Option<usize>,
-        transaction: Transaction,
-        base_fee: u64,
-    ) -> Self {
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
+    pub fn for_gas_estimate(transaction: Transaction, base_fee: u64) -> Self {
         // For L2 transactions we need to explicitly put enough balance into the account of the users
         // while for L1->L2 transactions the `to_mint` field plays this role
         let added_balance = match &transaction.common_data {
@@ -81,7 +69,6 @@ impl TxExecutionArgs {
 
         Self {
             execution_mode: TxExecutionMode::EstimateFee,
-            missed_storage_invocation_limit,
             enforced_nonce: transaction.nonce(),
             added_balance,
             enforced_base_fee: Some(base_fee),
@@ -106,12 +93,12 @@ pub(crate) struct TransactionExecutionOutput {
 pub(crate) enum TransactionExecutor {
     Real(MainOneshotExecutor),
     #[doc(hidden)] // Intended for tests only
-    Mock(MockTransactionExecutor),
+    Mock(MockOneshotExecutor),
 }
 
 impl TransactionExecutor {
-    pub fn real() -> Self {
-        Self::Real(MainOneshotExecutor)
+    pub fn real(missed_storage_invocation_limit: usize) -> Self {
+        Self::Real(MainOneshotExecutor::new(missed_storage_invocation_limit))
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
@@ -158,15 +145,10 @@ impl TransactionExecutor {
         call_overrides: CallOverrides,
         tx: L2Tx,
         block_args: BlockArgs,
-        vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let execution_args = TxExecutionArgs::for_eth_call(
-            call_overrides.enforced_base_fee,
-            vm_execution_cache_misses_limit,
-            tx,
-        );
+        let execution_args = TxExecutionArgs::for_eth_call(call_overrides.enforced_base_fee, tx);
 
         let output = self
             .execute_tx_in_sandbox(

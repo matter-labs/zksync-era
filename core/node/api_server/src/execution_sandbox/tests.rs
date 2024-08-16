@@ -191,7 +191,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let transaction = Transaction::from(create_l2_transaction(10, 100));
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
 
-    let execution_args = TxExecutionArgs::for_gas_estimate(None, transaction.clone(), 123);
+    let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone(), 123);
     let (env, storage) = apply::prepare_env_and_storage(
         connection,
         TxSharedArgs::mock(estimate_gas_contracts),

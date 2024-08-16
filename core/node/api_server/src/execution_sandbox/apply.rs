@@ -16,7 +16,7 @@ use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         BytecodeCompressionError, L1BatchEnv, L2BlockEnv, OneshotEnv, PendingL2BlockEnv, SystemEnv,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     tracers::StorageInvocations,
     utils::adjust_pubdata_price_for_tx,
@@ -341,8 +341,21 @@ impl<S: ReadStorage> VmSandbox<S> {
     }
 }
 
+/// Main [`OneshotExecutor`] implementation used by the API server.
 #[derive(Debug, Default)]
-pub struct MainOneshotExecutor;
+pub struct MainOneshotExecutor {
+    missed_storage_invocation_limit: usize,
+}
+
+impl MainOneshotExecutor {
+    /// Creates a new executor with the specified limit of cache misses for storage read operations (an anti-DoS measure).
+    /// The limit is applied for calls and gas estimations, but not during transaction validation.
+    pub fn new(missed_storage_invocation_limit: usize) -> Self {
+        Self {
+            missed_storage_invocation_limit,
+        }
+    }
+}
 
 #[async_trait]
 impl<S> OneshotExecutor<S> for MainOneshotExecutor
@@ -358,9 +371,16 @@ where
         args: TxExecutionArgs,
         tracers: Self::Tracers,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        let missed_storage_invocation_limit = match args.execution_mode {
+            // storage accesses are not limited for tx validation
+            TxExecutionMode::VerifyExecute => usize::MAX,
+            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
+                self.missed_storage_invocation_limit
+            }
+        };
+
         tokio::task::spawn_blocking(move || {
-            let tracers =
-                VmSandbox::wrap_tracers(tracers, &env, args.missed_storage_invocation_limit);
+            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
             let executor = VmSandbox::new(storage, env, args);
             executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
@@ -381,9 +401,16 @@ where
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     )> {
+        let missed_storage_invocation_limit = match args.execution_mode {
+            // storage accesses are not limited for tx validation
+            TxExecutionMode::VerifyExecute => usize::MAX,
+            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
+                self.missed_storage_invocation_limit
+            }
+        };
+
         tokio::task::spawn_blocking(move || {
-            let tracers =
-                VmSandbox::wrap_tracers(tracers, &env, args.missed_storage_invocation_limit);
+            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
             let executor = VmSandbox::new(storage, env, args);
             executor.apply(|vm, transaction| {
                 vm.inspect_transaction_with_bytecode_compression(tracers.into(), transaction, true)

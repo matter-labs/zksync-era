@@ -216,7 +216,6 @@ impl DebugNamespace {
                 call_overrides,
                 tx.clone(),
                 block_args,
-                self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
                 None,
             )

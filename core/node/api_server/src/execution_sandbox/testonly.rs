@@ -13,12 +13,12 @@ use super::{execute::TransactionExecutor, OneshotExecutor, TxExecutionArgs};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
-pub struct MockTransactionExecutor {
+pub struct MockOneshotExecutor {
     call_responses: Box<TxResponseFn>,
     tx_responses: Box<TxResponseFn>,
 }
 
-impl fmt::Debug for MockTransactionExecutor {
+impl fmt::Debug for MockOneshotExecutor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MockTransactionExecutor")
@@ -26,7 +26,7 @@ impl fmt::Debug for MockTransactionExecutor {
     }
 }
 
-impl Default for MockTransactionExecutor {
+impl Default for MockOneshotExecutor {
     fn default() -> Self {
         Self {
             call_responses: Box::new(|tx, _| {
@@ -42,7 +42,7 @@ impl Default for MockTransactionExecutor {
     }
 }
 
-impl MockTransactionExecutor {
+impl MockOneshotExecutor {
     #[cfg(test)]
     pub(crate) fn set_call_responses<F>(&mut self, responses: F)
     where
@@ -95,7 +95,7 @@ impl MockTransactionExecutor {
 }
 
 #[async_trait]
-impl<S> OneshotExecutor<S> for MockTransactionExecutor
+impl<S> OneshotExecutor<S> for MockOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
@@ -125,8 +125,8 @@ where
     }
 }
 
-impl From<MockTransactionExecutor> for TransactionExecutor {
-    fn from(executor: MockTransactionExecutor) -> Self {
+impl From<MockOneshotExecutor> for TransactionExecutor {
+    fn from(executor: MockOneshotExecutor) -> Self {
         Self::Mock(executor)
     }
 }

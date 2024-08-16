@@ -57,7 +57,7 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::{
-    execution_sandbox::testonly::MockTransactionExecutor,
+    execution_sandbox::testonly::MockOneshotExecutor,
     web3::testonly::{spawn_http_server, spawn_ws_server},
 };
 
@@ -137,8 +137,8 @@ trait HttpTest: Send + Sync {
         StorageInitialization::Genesis
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        MockTransactionExecutor::default()
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        MockOneshotExecutor::default()
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {

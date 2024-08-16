@@ -13,7 +13,7 @@ use zksync_types::L2ChainId;
 
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
-    execution_sandbox::{testonly::MockTransactionExecutor, TransactionExecutor},
+    execution_sandbox::{testonly::MockOneshotExecutor, TransactionExecutor},
     tx_sender::TxSenderConfig,
 };
 
@@ -102,7 +102,7 @@ impl ApiServerHandles {
 pub async fn spawn_http_server(
     api_config: InternalApiConfig,
     pool: ConnectionPool<Core>,
-    tx_executor: MockTransactionExecutor,
+    tx_executor: MockOneshotExecutor,
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
@@ -130,7 +130,7 @@ pub async fn spawn_ws_server(
         api_config,
         pool,
         websocket_requests_per_minute_limit,
-        MockTransactionExecutor::default(),
+        MockOneshotExecutor::default(),
         Arc::default(),
         stop_receiver,
     )
@@ -142,7 +142,7 @@ async fn spawn_server(
     api_config: InternalApiConfig,
     pool: ConnectionPool<Core>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tx_executor: MockTransactionExecutor,
+    tx_executor: MockOneshotExecutor,
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
