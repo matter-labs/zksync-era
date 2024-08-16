@@ -686,12 +686,11 @@ impl EthNamespace {
 
         // DAL method returns fees in DESC order while we need ASC.
         base_fee_per_gas.reverse();
-        // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
-        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
-
         effective_pubdata_price_history.reverse();
 
         let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
+        // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
+        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
