@@ -1,7 +1,5 @@
 use zksync_types::Transaction;
 
-/// Bytecodes have consist of an odd number of 32 byte words
-/// This function "fixes" bytecodes of wrong length by cutting off their end.
 pub use crate::{
     transaction::{
         get_deploy_tx, get_deploy_tx_with_gas_limit, get_heavy_load_test_tx,
@@ -31,6 +29,8 @@ impl Bytecode {
             .unwrap_or_else(|| panic!("bytecode `{name}` is not defined"))
     }
 
+    /// Bytecodes must consist of an odd number of 32 byte words.
+    /// This function "fixes" bytecodes of wrong length by cutting off their end.
     fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> &[u8] {
         let mut words = bytes.len() / 32;
         assert!(words > 0, "bytecode is empty");

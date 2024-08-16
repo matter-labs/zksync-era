@@ -1,4 +1,4 @@
-name: Compare VM perfomance to base branch
+name: Compare VM performance to base branch
 
 on:
   pull_request:

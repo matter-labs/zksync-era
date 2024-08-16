@@ -43,6 +43,7 @@ impl Drop for PrometheusRuntime {
     fn drop(&mut self) {
         self.stop_sender.send_replace(true);
         // Metrics are pushed automatically on exit, so we wait *after* sending a stop signal
+        println!("Waiting for Prometheus metrics to be pushed");
         thread::sleep(Duration::from_secs(1));
     }
 }
@@ -53,6 +54,7 @@ impl PrometheusRuntime {
 
         let gateway_url = env::var("BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL").ok()?;
         let runtime = tokio::runtime::Runtime::new().expect("Failed initializing Tokio runtime");
+        println!("Pushing Prometheus metrics to {gateway_url} each {PUSH_INTERVAL:?}");
         let (stop_sender, stop_receiver) = watch::channel(false);
         let prometheus_config = PrometheusExporterConfig::push(gateway_url, PUSH_INTERVAL);
         runtime.spawn(prometheus_config.run(stop_receiver));
