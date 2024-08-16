@@ -1,8 +1,9 @@
+use std::{collections::HashMap, path::PathBuf};
+
 use anyhow::{anyhow, Context};
 use common::{docker, ethereum, ethereum::TokenInfo, logger};
 use config::{portal::*, traits::SaveConfig, ChainConfig, EcosystemConfig};
 use ethers::types::Address;
-use std::{collections::HashMap, path::PathBuf};
 use types::{BaseToken, L1Network};
 use xshell::Shell;
 
