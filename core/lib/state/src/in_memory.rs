@@ -1,7 +1,10 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
-    block::DeployedContract, get_code_key, get_deployer_key, get_known_code_key, get_system_context_init_logs, system_contracts::{get_evm_interpreter_hash, get_system_smart_contracts}, L2ChainId, StorageKey, StorageLog, StorageValue, H256, U256
+    block::DeployedContract,
+    get_code_key, get_deployer_key, get_known_code_key, get_system_context_init_logs,
+    system_contracts::{get_evm_interpreter_hash, get_system_smart_contracts},
+    L2ChainId, StorageKey, StorageLog, StorageValue, H256, U256,
 };
 use zksync_utils::u256_to_h256;
 

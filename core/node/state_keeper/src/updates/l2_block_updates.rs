@@ -209,7 +209,7 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
             vec![],
-            vec![]
+            vec![],
         );
 
         assert_eq!(accumulator.executed_transactions.len(), 1);

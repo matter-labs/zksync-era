@@ -14,7 +14,9 @@ use zksync_multivm::{
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorage, StorageView};
-use zksync_types::{event::extract_bytecodes_marked_as_known, vm::FastVmMode, vm_trace::Call, Transaction};
+use zksync_types::{
+    event::extract_bytecodes_marked_as_known, vm::FastVmMode, vm_trace::Call, Transaction,
+};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};

@@ -14,7 +14,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
-use super::PubdataTracer;
+use super::{EvmDebugTracer, EvmDeployTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
@@ -64,6 +64,10 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
+
+    pub(crate) evm_tracer: Option<EvmDebugTracer<S, H>>,
+    pub(crate) evm_deploy_tracer: EvmDeployTracer<S>,
+    
     subversion: MultiVMSubversion,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
@@ -93,7 +97,9 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
+            evm_deploy_tracer: EvmDeployTracer::new(),
             storage,
+            evm_tracer: None,
             _phantom: PhantomData,
         }
     }
@@ -172,7 +178,11 @@ macro_rules! dispatch_tracers {
         if let Some(tracer) = &mut $self.pubdata_tracer {
             tracer.$function($( $params ),*);
         }
+        if let Some(tracer) = &mut $self.evm_tracer {
+            tracer.$function($( $params ),*);
+        }
         $self.circuits_tracer.$function($( $params ),*);
+        $self.evm_deploy_tracer.$function($( $params ),*);
     };
 }
 
@@ -287,6 +297,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 
         result = self
             .circuits_tracer
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
+        
+        result = self
+            .evm_deploy_tracer
             .finish_cycle(state, bootloader_state)
             .stricter(&result);
 

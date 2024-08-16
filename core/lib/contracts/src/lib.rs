@@ -184,6 +184,10 @@ pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
 
+pub fn known_code_storage_contract() -> Contract {
+  load_sys_contract("KnownCodesStorage")
+}
+
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }

@@ -1,5 +1,8 @@
 use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
-use zksync_types::{vm::{FastVmMode, VmVersion}, H256};
+use zksync_types::{
+    vm::{FastVmMode, VmVersion},
+    H256,
+};
 use zksync_utils::{be_words_to_bytes, bytecode::CompressedBytecodeInfo, h256_to_u256};
 
 use crate::{
