@@ -5,12 +5,7 @@ use zksync_multivm::{
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
-    block::{BlockGasCount, L2BlockHasher},
-    event::extract_bytecodes_marked_as_known,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    vm_trace::Call,
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, VmEvent, H256,
+    block::{BlockGasCount, L2BlockHasher}, event::{convert_vm_events_to_log_queries, extract_bytecodes_marked_as_known}, l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log}, tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult}, vm_trace::Call, L2BlockNumber, ProtocolVersionId, StorageLogKind, StorageLogQuery, StorageLogWithPreviousValue, Transaction, VmEvent, H256
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
@@ -92,7 +87,7 @@ impl L2BlockUpdates {
     ) {
         let saved_factory_deps =
             extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
-        self.new_factory_deps.extend(new_known_factory_deps);
+        self.new_factory_deps.extend(new_known_factory_deps.clone());
         self.events.extend(tx_execution_result.logs.events);
         self.user_l2_to_l1_logs
             .extend(tx_execution_result.logs.user_l2_to_l1_logs);
@@ -122,24 +117,27 @@ impl L2BlockUpdates {
         };
 
         // Get transaction factory deps
-        // let factory_deps = &tx.execute.factory_deps;
-        // let tx_factory_deps: HashMap<_, _> = factory_deps
-        //     .iter()
-        //     .map(|bytecode| (hash_bytecode(bytecode), bytecode))
-        //     .collect();
+        let factory_deps = &tx.execute.factory_deps;
+        let mut tx_factory_deps: HashMap<_, _> = factory_deps
+            .iter()
+            .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
+            .collect();
+        new_known_factory_deps.into_iter().for_each(|(hash, bytecode)| {
+            tx_factory_deps.insert(hash, bytecode);
+        });
 
-        // // Save all bytecodes that were marked as known on the bootloader
-        // let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
-        //     let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-        //         panic!(
-        //             "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-        //             bytecode_hash,
-        //             tx.hash()
-        //         )
-        //     });
-        //     (bytecode_hash, bytecode.to_vec())
-        // });
-        // self.new_factory_deps.extend(known_bytecodes);
+        // Save all bytecodes that were marked as known on the bootloader
+        let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
+            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                panic!(
+                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                    bytecode_hash,
+                    tx.hash()
+                )
+            });
+            (bytecode_hash, bytecode.to_vec())
+        });
+        self.new_factory_deps.extend(known_bytecodes);
 
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;

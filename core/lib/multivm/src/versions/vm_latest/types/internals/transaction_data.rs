@@ -63,7 +63,6 @@ impl From<Transaction> for TransactionData {
                 };
 
                 let should_deploy_contract = if execute_tx.execute.contract_address.is_none() {
-                    println!("DEPLOYING");
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()

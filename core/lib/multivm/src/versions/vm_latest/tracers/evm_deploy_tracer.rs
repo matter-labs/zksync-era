@@ -4,9 +4,9 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
 };
-use zksync_contracts::known_code_storage_contract;
+use zksync_contracts::known_codes_contract;
 use zksync_state::WriteStorage;
-use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
+use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::{traits::VmTracer, utils::read_pointer};
@@ -44,7 +44,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
         // It is assumed that by that time the user has already paid for its size.
         // So even if we do not revert the addition of the this bytecode it is not a ddos vector, since
         // the payment is the same as if the bytecode publication was reverted.
-
         let current_callstack = &state.local_state.callstack.current;
 
         // Here we assume that the only case when PC is 0 at the start of the execution of the contract.
@@ -63,7 +62,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
 
         let data = read_pointer(&state.memory, FatPointer::from_u256(calldata_ptr.value));
 
-        let contract = known_code_storage_contract();
+        let contract = known_codes_contract();
 
         if data.len() < 4 {
             // Not interested

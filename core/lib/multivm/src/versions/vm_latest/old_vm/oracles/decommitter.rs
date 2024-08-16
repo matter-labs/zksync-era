@@ -164,8 +164,8 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         _monotonic_cycle_counter: u32,
         mut partial_query: DecommittmentQuery,
     ) -> anyhow::Result<DecommittmentQuery> {
-        let (stored_hash, length) = stored_hash_from_query(&partial_query);
-        partial_query.decommitted_length = length;
+        let versioned_hash = VersionedCodeHash::from_query(&partial_query);
+        let stored_hash = versioned_hash.to_stored_hash();
 
         if let Some(memory_page) = self
             .decommitted_code_hashes
@@ -176,19 +176,12 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
+            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
             Ok(partial_query)
         } else {
             partial_query.is_fresh = true;
-            if self
-                .decommitted_code_hashes
-                .inner()
-                .get(&stored_hash)
-                .is_none()
-            {
-                self.decommitted_code_hashes
-                    .insert(stored_hash, None, partial_query.timestamp);
-            }
+            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
             Ok(partial_query)
         }
@@ -202,11 +195,10 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         memory: &mut M,
     ) -> anyhow::Result<Option<Vec<U256>>> {
         assert!(partial_query.is_fresh);
-
         self.decommitment_requests.push((), partial_query.timestamp);
 
-        let stored_hash = stored_hash_from_query(&partial_query).0;
-
+        let versioned_hash = VersionedCodeHash::from_query(&partial_query);
+        let stored_hash = versioned_hash.to_stored_hash();
         // We are fetching a fresh bytecode that we didn't read before.
         let values = self.get_bytecode(stored_hash, partial_query.timestamp);
         let page_to_use = partial_query.memory_page;
@@ -249,28 +241,49 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     }
 }
 
-fn concat_header_and_preimage(
-    header: VersionedHashHeader,
-    normalized_preimage: VersionedHashNormalizedPreimage,
-) -> [u8; 32] {
-    let mut buffer = [0u8; 32];
-
-    buffer[0..4].copy_from_slice(&header.0);
-    buffer[4..32].copy_from_slice(&normalized_preimage.0);
-
-    buffer
+#[derive(Debug)]
+// TODO: consider moving this to the zk-evm crate
+enum VersionedCodeHash {
+    ZkEVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
+    EVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
 }
 
-/// For a given decommitment query, returns a pair of the stored hash as U256 and the length of the preimage in 32-byte words.
-fn stored_hash_from_query(partial_query: &DecommittmentQuery) -> (U256, u16) {
-    let full_hash =
-        concat_header_and_preimage(partial_query.header, partial_query.normalized_preimage);
+impl VersionedCodeHash {
+    fn from_query(query: &DecommittmentQuery) -> Self {
+        match query.header.0[0] {
+            1 => Self::ZkEVM(query.header, query.normalized_preimage),
+            2 => Self::EVM(query.header, query.normalized_preimage),
+            _ => panic!("Unsupported hash version"),
+        }
+    }
 
-    let versioned_hash =
-        ContractCodeSha256::try_deserialize(full_hash).expect("Invalid ContractCodeSha256 hash");
+    /// Returns the hash in the format it is stored in the DB.
+    fn to_stored_hash(&self) -> U256 {
+        let (header, preimage) = match self {
+            Self::ZkEVM(header, preimage) => (header, preimage),
+            Self::EVM(header, preimage) => (header, preimage),
+        };
 
-    let stored_hash = H256(ContractCodeSha256::serialize_to_stored(versioned_hash).unwrap());
-    let length = versioned_hash.code_length_in_words;
+        let mut hash = [0u8; 32];
+        &mut hash[0..4].copy_from_slice(&header.0);
+        &mut hash[4..32].copy_from_slice(&preimage.0);
 
-    (h256_to_u256(stored_hash), length)
+        // Hash[1] is used in both of the versions to denote whether the bytecode is being constructed.
+        // We ignore this param.
+        hash[1] = 0;
+
+        h256_to_u256(H256(hash))
+    }
+
+    fn get_preimage_length(&self) -> u32 {
+        // In zkEVM the hash[2..3] denotes the length of the preimage in words, while
+        // in EVM the hash[2..3] denotes the length of the preimage in bytes.
+        match self {
+            Self::ZkEVM(header, _) => {
+                let length_in_words = header.0[2] as u32 * 256 + header.0[3] as u32;
+                length_in_words * 32
+            }
+            Self::EVM(header, _) => header.0[2] as u32 * 256 + header.0[3] as u32,
+        }
+    }
 }
