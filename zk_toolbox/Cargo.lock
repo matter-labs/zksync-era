@@ -6294,10 +6294,13 @@ dependencies = [
  "clap-markdown",
  "common",
  "config",
+ "ethers",
  "human-panic",
  "serde",
+ "serde_json",
  "strum",
  "tokio",
+ "types",
  "url",
  "xshell",
 ]

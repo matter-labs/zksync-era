@@ -6,13 +6,15 @@ use clap::Subcommand;
 use xshell::Shell;
 
 use crate::messages::{
-    MSG_ALL_TEST_ABOUT, MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT,
-    MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_UPGRADE_TEST_ABOUT,
+    MSG_ALL_TEST_ABOUT, MSG_BUILD_ABOUT, MSG_FUND_TEST_WALLETS, MSG_INTEGRATION_TESTS_ABOUT,
+    MSG_L1_CONTRACTS_ABOUT, MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT,
+    MSG_UPGRADE_TEST_ABOUT,
 };
 
 mod all;
 mod args;
 mod build;
+mod fund;
 mod integration;
 mod l1_contracts;
 mod prover;
@@ -38,9 +40,11 @@ pub enum TestCommands {
     L1Contracts,
     #[clap(about = MSG_PROVER_TEST_ABOUT, alias = "p")]
     Prover,
+    #[clap(about = MSG_FUND_TEST_WALLETS, alias = "p")]
+    Fund,
 }
 
-pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
     match args {
         TestCommands::Integration(args) => integration::run(shell, args),
         TestCommands::Revert(args) => revert::run(shell, args),
@@ -50,5 +54,6 @@ pub fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Build => build::run(shell),
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell),
+        TestCommands::Fund => fund::run(shell).await,
     }
 }
