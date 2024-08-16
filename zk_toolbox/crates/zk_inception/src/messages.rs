@@ -176,8 +176,16 @@ pub(super) fn msg_prover_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide prover database url for chain {chain_name}")
 }
 
+pub(super) fn msg_prover_db_url_prover_only_prompt() -> String {
+    "Please provide prover database url for prover subsystem".to_string()
+}
+
 pub(super) fn msg_prover_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide prover database name for chain {chain_name}")
+}
+
+pub(super) fn msg_prover_db_name_prover_only_prompt() -> String {
+    "Please provide prover database name for prover subsystem".to_string()
 }
 
 pub(super) fn msg_external_node_db_name_prompt(chain_name: &str) -> String {
