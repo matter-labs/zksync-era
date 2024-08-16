@@ -372,7 +372,7 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        let shared_args = self.call_args(&tx, None).await?;
+        let setup_args = self.call_args(&tx, None).await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
@@ -383,7 +383,7 @@ impl TxSender {
             .executor
             .execute_tx_in_sandbox(
                 vm_permit.clone(),
-                shared_args.clone(),
+                setup_args.clone(),
                 TxExecutionArgs::for_validation(tx.clone()),
                 connection,
                 block_args,
@@ -408,7 +408,7 @@ impl TxSender {
                 connection,
                 vm_permit,
                 tx.clone(),
-                shared_args,
+                setup_args,
                 block_args,
                 computational_gas_limit,
             )
@@ -707,7 +707,7 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.args_for_gas_estimate(fee_model_params, base_fee).await;
+        let setup_args = self.args_for_gas_estimate(fee_model_params, base_fee).await;
         let execution_args = TxExecutionArgs::for_gas_estimate(tx);
         let connection = self.acquire_replica_connection().await?;
         let execution_output = self
@@ -715,7 +715,7 @@ impl TxSender {
             .executor
             .execute_tx_in_sandbox(
                 vm_permit,
-                shared_args,
+                setup_args,
                 execution_args,
                 connection,
                 block_args,

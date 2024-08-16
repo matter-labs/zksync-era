@@ -180,7 +180,7 @@ impl DebugNamespace {
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.call_args(call_overrides.enforced_base_fee).await;
+        let setup_args = self.call_args(call_overrides.enforced_base_fee).await;
         let vm_permit = self
             .state
             .tx_sender
@@ -202,7 +202,7 @@ impl DebugNamespace {
         let result = executor
             .execute_tx_in_sandbox(
                 vm_permit,
-                shared_args,
+                setup_args,
                 TxExecutionArgs::for_eth_call(tx.clone()),
                 connection,
                 block_args,
