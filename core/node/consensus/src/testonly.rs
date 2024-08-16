@@ -168,7 +168,7 @@ fn make_config(
         // That's because not all genesis setups are currently supported in zksync-era.
         // TODO: this might be misleading, so it would be better to write some more custom
         // genesis generator for zksync-era tests.
-        genesis_spec: genesis_spec,
+        genesis_spec,
         rpc: None,
     }
 }
