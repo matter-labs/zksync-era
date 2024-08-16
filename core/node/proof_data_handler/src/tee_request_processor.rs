@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
@@ -47,26 +47,62 @@ impl TeeRequestProcessor {
             .await
             .map_err(RequestProcessorError::Dal)?;
 
-        let l1_batch_number_result = connection
-            .tee_proof_generation_dal()
-            .get_next_batch_to_be_proven(request.tee_type, self.config.proof_generation_timeout())
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        loop {
+            let l1_batch_number = match connection
+                .tee_proof_generation_dal()
+                .get_next_batch_to_be_proven(
+                    request.tee_type,
+                    self.config.proof_generation_timeout(),
+                )
+                .await
+                .map_err(RequestProcessorError::Dal)?
+            {
+                Some(number) => number,
+                None => return Ok(Json(TeeProofGenerationDataResponse(None))),
+            };
 
-        let l1_batch_number = match l1_batch_number_result {
-            Some(number) => number,
-            None => return Ok(Json(TeeProofGenerationDataResponse(None))),
-        };
+            match self.get_blob(l1_batch_number).await {
+                Ok(input) => {
+                    return Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
+                }
+                Err(ObjectStoreError::KeyNotFound(_)) => {
+                    tracing::warn!(
+                        "Blob for batch number {} has not been found in the object store. Marking the job as skipped.",
+                        l1_batch_number
+                    );
+                    connection
+                        .tee_proof_generation_dal()
+                        .mark_proof_generation_job_as_skipped(l1_batch_number, request.tee_type)
+                        .await
+                        .map_err(RequestProcessorError::Dal)?;
+                    continue;
+                }
+                Err(err) => return Err(RequestProcessorError::ObjectStore(err)),
+            }
+        }
+    }
 
-        let tee_verifier_input: TeeVerifierInput = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+    async fn get_blob(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<TeeVerifierInput, ObjectStoreError> {
+        let max_blob_store_retries = 3;
+        let mut last_err: Option<ObjectStoreError> = None;
 
-        let response = TeeProofGenerationDataResponse(Some(Box::new(tee_verifier_input)));
+        for _ in 0..max_blob_store_retries {
+            match self.blob_store.get(l1_batch_number).await {
+                Ok(input) => return Ok(input),
+                Err(err) => match err {
+                    ObjectStoreError::Other { is_retriable, .. } if is_retriable => {
+                        last_err = Some(err);
+                        continue;
+                    }
+                    _ => return Err(err),
+                },
+            }
+        }
 
-        Ok(Json(response))
+        Err(last_err.unwrap())
     }
 
     pub(crate) async fn submit_proof(

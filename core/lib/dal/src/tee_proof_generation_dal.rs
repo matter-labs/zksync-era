@@ -150,6 +150,44 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn mark_proof_generation_job_as_skipped(
+        &mut self,
+        batch_number: L1BatchNumber,
+        tee_type: TeeType,
+    ) -> DalResult<()> {
+        let l1_batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE tee_proof_generation_details
+            SET
+                status = 'skipped',
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+                AND tee_type = $2
+            "#,
+            l1_batch_number,
+            tee_type.to_string()
+        );
+        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .with_arg("tee_type", &tee_type);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot mark proof as skipped because batch number {} does not exist",
+                l1_batch_number
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
     pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
         let query = sqlx::query!(
             r#"
