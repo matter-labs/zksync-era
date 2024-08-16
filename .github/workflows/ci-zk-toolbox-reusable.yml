@@ -162,6 +162,9 @@ jobs:
           ci_run zk_inception server --ignore-prerequisites --chain chain_validium &>server_validium.log &
           ci_run sleep 5
 
+      - name: Fund test wallets
+        run: |
+          ci_run zk_supervisor test fund
 
       - name: Run tests on all chains
         run: |
