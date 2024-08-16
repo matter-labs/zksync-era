@@ -27,6 +27,7 @@ impl ConnectionPool {
     }
 
     /// Waits for the `number` L2 block.
+    #[tracing::instrument(skip_all)]
     pub async fn wait_for_payload(
         &self,
         ctx: &ctx::Ctx,
@@ -49,6 +50,7 @@ impl ConnectionPool {
     }
 
     /// Waits for the `number` L1 batch hash.
+    #[tracing::instrument(skip_all)]
     pub async fn wait_for_batch_hash(
         &self,
         ctx: &ctx::Ctx,

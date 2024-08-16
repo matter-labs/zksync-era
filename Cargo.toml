@@ -220,16 +220,16 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.0" }
 vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "9a38900d7af9b1d72b47ce3be980e77c1239a61d" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.10"
-zksync_consensus_bft = "=0.1.0-rc.10"
-zksync_consensus_crypto = "=0.1.0-rc.10"
-zksync_consensus_executor = "=0.1.0-rc.10"
-zksync_consensus_network = "=0.1.0-rc.10"
-zksync_consensus_roles = "=0.1.0-rc.10"
-zksync_consensus_storage = "=0.1.0-rc.10"
-zksync_consensus_utils = "=0.1.0-rc.10"
-zksync_protobuf = "=0.1.0-rc.10"
-zksync_protobuf_build = "=0.1.0-rc.10"
+zksync_concurrency = "=0.1.0-rc.11"
+zksync_consensus_bft = "=0.1.0-rc.11"
+zksync_consensus_crypto = "=0.1.0-rc.11"
+zksync_consensus_executor = "=0.1.0-rc.11"
+zksync_consensus_network = "=0.1.0-rc.11"
+zksync_consensus_roles = "=0.1.0-rc.11"
+zksync_consensus_storage = "=0.1.0-rc.11"
+zksync_consensus_utils = "=0.1.0-rc.11"
+zksync_protobuf = "=0.1.0-rc.11"
+zksync_protobuf_build = "=0.1.0-rc.11"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
@@ -300,17 +300,3 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
-
-[patch.crates-io]
-zksync_consensus_bft = { path = '/home/gprusak/github/era-consensus/node/actors/bft' }
-zksync_consensus_crypto = { path = '/home/gprusak/github/era-consensus/node/libs/crypto' }
-zksync_consensus_executor = { path = '/home/gprusak/github/era-consensus/node/actors/executor' }
-zksync_consensus_network = { path = '/home/gprusak/github/era-consensus/node/actors/network' }
-zksync_consensus_roles = { path = '/home/gprusak/github/era-consensus/node/libs/roles' }
-zksync_consensus_storage = { path = '/home/gprusak/github/era-consensus/node/libs/storage' }
-zksync_consensus_utils = { path = '/home/gprusak/github/era-consensus/node/libs/utils' }
-zksync_concurrency = { path = '/home/gprusak/github/era-consensus/node/libs/concurrency' }
-zksync_protobuf = { path = '/home/gprusak/github/era-consensus/node/libs/protobuf' }
-zksync_protobuf_build = { path = '/home/gprusak/github/era-consensus/node/libs/protobuf_build' }
-
-
