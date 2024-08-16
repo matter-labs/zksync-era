@@ -101,7 +101,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
             clap_markdown::print_help_markdown::<Supervisor>();
         }
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
-        SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell, args)?,
+        SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
     }
     Ok(())
 }

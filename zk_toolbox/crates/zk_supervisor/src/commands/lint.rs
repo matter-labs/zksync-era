@@ -151,7 +151,7 @@ fn lint(
         &["--config".to_string(), config_path],
         files.as_slice(),
     ]
-        .concat();
+    .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();
