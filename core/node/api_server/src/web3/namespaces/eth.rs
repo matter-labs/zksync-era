@@ -688,7 +688,7 @@ impl EthNamespace {
         base_fee_per_gas.reverse();
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
-        
+
         effective_pubdata_price_history.reverse();
 
         let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
