@@ -51,11 +51,11 @@ pub struct LintArgs {
 #[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
 #[strum(serialize_all = "lowercase")]
 pub enum Extension {
-    Rs,
     Md,
     Sol,
     Js,
     Ts,
+    Rs,
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
@@ -151,7 +151,7 @@ fn lint(
         &["--config".to_string(), config_path],
         files.as_slice(),
     ]
-    .concat();
+        .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();

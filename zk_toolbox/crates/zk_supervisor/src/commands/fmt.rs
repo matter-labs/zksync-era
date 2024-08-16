@@ -1,8 +1,10 @@
+use std::env::args;
+use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::process::Command;
 
 use clap::Parser;
 use common::{cmd::Cmd, logger};
-use strum::IntoEnumIterator;
 use xshell::{cmd, Shell};
 
 use crate::commands::lint::{Extension, IGNORED_DIRS, IGNORED_FILES};
@@ -24,9 +26,9 @@ fn prettier(shell: &Shell, extension: Extension, check: bool) -> anyhow::Result<
         .arg(format!("--{}", command))
         .arg(format!("{}", files.join(" ")));
 
-    if !check {
-        prettier_command = prettier_command.arg("> /dev/null");
-    }
+    // if !check {
+    //     prettier_command = prettier_command.arg("> /dev/null");
+    // }
 
     Ok(prettier_command.run()?)
 }
@@ -35,9 +37,9 @@ fn prettier_contracts(shell: &Shell, check: bool) -> anyhow::Result<()> {
     let mut prettier_command = cmd!(shell, "yarn --silent --cwd contracts")
         .arg(format!("prettier:{}", if check { "check" } else { "fix" }));
 
-    if !check {
-        prettier_command = prettier_command.arg("> /dev/null");
-    }
+    // if !check {
+    //     prettier_command = prettier_command.arg("> /dev/null");
+    // }
 
     Ok(Cmd::new(prettier_command).run()?)
 }
@@ -85,7 +87,8 @@ pub struct FmtArgs {
 pub fn run(shell: &Shell, args: FmtArgs) -> anyhow::Result<()> {
     match args.formatter {
         None => {
-            let extensions: Vec<_> = Extension::iter().collect();
+            let extensions: Vec<_> =
+                vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
             for ext in extensions {
                 prettier(shell, ext, args.check)?
             }
@@ -94,7 +97,7 @@ pub fn run(shell: &Shell, args: FmtArgs) -> anyhow::Result<()> {
         }
         Some(Formatter::Prettier { mut extensions }) => {
             if extensions.is_empty() {
-                extensions = Extension::iter().collect()
+                extensions = vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
             }
             for ext in extensions {
                 prettier(shell, ext, args.check)?
@@ -113,23 +116,47 @@ fn get_unignored_files(shell: &Shell, extension: Extension) -> anyhow::Result<Ve
         "."
     };
 
-    let ignored_dirs = IGNORED_DIRS
+    let ignored_dirs: Vec<_> = IGNORED_DIRS
         .iter()
-        .map(|dir| format!("-o -path '*/{}' -prune", dir))
-        .collect::<Vec<String>>()
-        .join(" ");
+        .map(|dir| {
+            vec![
+                "-o".to_string(),
+                "-path".to_string(),
+                format!("'*{dir}'"),
+                "-prune".to_string(),
+            ]
+        })
+        .flatten()
+        .collect();
 
-    let ignored_files = IGNORED_FILES
+    let ignored_files: Vec<_> = IGNORED_FILES
         .iter()
-        .map(|file| format!("-a ! -name '{}'", file))
-        .collect::<Vec<String>>()
-        .join(" ");
+        .map(|file| {
+            vec![
+                "-a".to_string(),
+                "!".to_string(),
+                "-name".to_ascii_lowercase(),
+                format!("'{file}'"),
+            ]
+        })
+        .flatten()
+        .collect();
 
-    let output = Cmd::new(cmd!(
-        shell,
-        "find {root} -type f -name '*.{extension}' {ignored_files} -print {ignored_dirs}"
-    ))
-    .run_with_output()?;
+    dbg!(shell.current_dir());
+    // let output = Cmd::new(
+    //     cmd!(shell, "find {root} -type f -name").arg(format!("'*.{extension}'")), // .args(ignored_files)
+    //                                                                               // .arg("-print"),
+    // )
+    // .run_with_output()?;
+    // dbg!(&output);
+    let output = Cmd::new(
+        cmd!(shell, "find {root} -type f -name '*.js'")
+            .args(ignored_files)
+            .arg("-print")
+            .args(ignored_dirs),
+    )
+        .run_with_output()?;
+    dbg!(&output);
 
     let files = String::from_utf8(output.stdout)?
         .lines()
