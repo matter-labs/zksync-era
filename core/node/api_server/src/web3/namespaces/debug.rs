@@ -167,24 +167,15 @@ impl DebugNamespace {
             .state
             .resolve_block_args(&mut connection, block_id)
             .await?;
-        drop(connection);
-
         self.current_method().set_block_diff(
             self.state
                 .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
-
         if request.gas.is_none() {
-            request.gas = Some(
-                self.state
-                    .tx_sender
-                    .get_default_eth_call_gas(block_args)
-                    .await
-                    .map_err(Web3Error::InternalError)?
-                    .into(),
-            )
+            request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
         }
+        drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;

@@ -19,7 +19,7 @@ use zksync_multivm::{
         TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     tracers::StorageInvocations,
-    utils::adjust_pubdata_price_for_tx,
+    utils::{adjust_pubdata_price_for_tx, get_eth_call_gas_limit},
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
     MultiVMTracer, MultiVmTracerPointer, VmInstance,
 };
@@ -473,7 +473,19 @@ impl BlockArgs {
         )
     }
 
-    pub(crate) async fn resolve_block_info(
+    pub(crate) async fn default_eth_call_gas(
+        &self,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<U256> {
+        let protocol_version = self
+            .resolve_block_info(connection)
+            .await
+            .context("failed to resolve block info")?
+            .protocol_version;
+        Ok(get_eth_call_gas_limit(protocol_version.into()).into())
+    }
+
+    async fn resolve_block_info(
         &self,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
