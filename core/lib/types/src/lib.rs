@@ -49,7 +49,6 @@ pub mod storage;
 pub mod system_contracts;
 pub mod tokens;
 pub mod tx;
-pub mod vm_trace;
 pub mod zk_evm_types;
 
 pub mod api;
