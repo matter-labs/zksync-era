@@ -550,18 +550,23 @@ impl ConsistencyChecker {
                 .map(|addr| (addr, setup.client.as_ref()))
         });
 
-        if regular.is_none() && migration.is_none() {
-            return Ok(());
+        let log_version = |address, client| async move {
+            tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+            let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+                .for_contract(address, &self.contract)
+                .call(client)
+                .await?;
+            tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+            Ok::<_, CheckError>(())
+        };
+
+        if let Some((address, client)) = regular {
+            log_version(address, client).await?;
+        }
+        if let Some((address, client)) = migration {
+            log_version(address, client).await?;
         }
 
-        let (address, client) = regular.or(migration).unwrap();
-
-        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
-        let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
-            .for_contract(address, &self.contract)
-            .call(client)
-            .await?;
-        tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
         Ok(())
     }
 

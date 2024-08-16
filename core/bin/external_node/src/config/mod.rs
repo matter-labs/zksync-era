@@ -1415,7 +1415,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
-            diamond_proxy_addr: config
+            sl_diamond_proxy_addr: config
                 .remote
                 .gateway_diamond_proxy
                 .unwrap_or(config.remote.user_facing_diamond_proxy),

@@ -105,8 +105,13 @@ pub struct InternalApiConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
+    /// This is the diamond proxy address that users interact with (e.g. to deposit).
+    /// If the current network's settlement layer is Gateway, this is the diamond proxy on L1.
     pub user_facing_diamond_proxy_addr: Address,
-    pub diamond_proxy_addr: Address,
+    /// This is the diamind proxy address on the current network's settlement layer
+    /// (either Gateway or L1). If the current network's settlement layer is L1,
+    /// this is the same as `user_facing_diamond_proxy_addr`.
+    pub sl_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
@@ -171,7 +176,7 @@ impl InternalApiConfig {
             user_facing_diamond_proxy_addr: contracts_config
                 .user_facing_diamond_proxy_addr
                 .unwrap_or(contracts_config.diamond_proxy_addr),
-            diamond_proxy_addr: contracts_config.diamond_proxy_addr,
+            sl_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),

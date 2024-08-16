@@ -8,6 +8,7 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
+    resource::{Resource, ResourceId},
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -82,7 +83,10 @@ impl WiringLayer for TreeDataFetcherLayer {
             fetcher = fetcher.with_migration_setup(
                 input
                     .migration_client
-                    .expect("Migration client not configured")
+                    .ok_or_else(|| WiringError::ResourceLacking {
+                        id: ResourceId::of::<GatewayEthInterfaceResource>(),
+                        name: GatewayEthInterfaceResource::name(),
+                    })?
                     .0,
                 diamond_proxy_address,
                 first_batch_migrated,

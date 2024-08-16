@@ -7,6 +7,7 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
+    resource::{Resource, ResourceId},
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -91,7 +92,10 @@ impl WiringLayer for ConsistencyCheckerLayer {
             consistency_checker = consistency_checker.with_migration_setup(
                 input
                     .migration_client
-                    .expect("Migration client not provided")
+                    .ok_or_else(|| WiringError::ResourceLacking {
+                        id: ResourceId::of::<GatewayEthInterfaceResource>(),
+                        name: GatewayEthInterfaceResource::name(),
+                    })?
                     .0,
                 first_batch_migrated,
                 Some(diamond_proxy_address),

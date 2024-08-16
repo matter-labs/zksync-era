@@ -133,12 +133,12 @@ impl ZksNamespace {
 
     pub fn get_gateway_main_contract_impl(&self) -> Option<Address> {
         if self.state.api_config.user_facing_diamond_proxy_addr
-            == self.state.api_config.diamond_proxy_addr
+            == self.state.api_config.sl_diamond_proxy_addr
         {
             // We are not connected to the gateway.
             None
         } else {
-            Some(self.state.api_config.diamond_proxy_addr)
+            Some(self.state.api_config.sl_diamond_proxy_addr)
         }
     }
 
