@@ -3,9 +3,13 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, StateInterface, Tracer, VirtualMachine,
+    CallframeInterface, ExecutionEnd, Program, Settings, StateInterface, Tracer, VirtualMachine,
 };
-use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zk_evm_1_4_1::zkevm_opcode_defs::system_params::ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS;
+use zk_evm_1_5_0::zkevm_opcode_defs::{
+    system_params::INITIAL_FRAME_FORMAL_EH_LOCATION, KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
+    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
+};
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
     circuit::CircuitStatistic,
@@ -153,121 +157,151 @@ impl Tracer for CircuitsTracer {
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcode::Div(DivOpcode)`
     fn after_div<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcode::Jump(JumpOpcode)`
     fn after_jump<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `BinopOpcode::Xor`
     fn after_xor<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `BinopOpcode::And`
     fn after_and<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `BinopOpcode::Or`
     fn after_or<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // ShiftOpcode::Shl
     fn after_shift_left<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // ShiftOpcode::Shr
     fn after_shift_right<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // ShiftOpcode::Rol
     fn after_rotate_left<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // ShiftOpcode::Ror
     fn after_rotate_right<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `PtrOpcode::Add`
     fn after_pointer_add<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `PtrOpcode::Sub`
     fn after_pointer_sub<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `PtrOpcode::Pack`
     fn after_pointer_pack<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `PtrOpcode::Shrink`
     fn after_pointer_shrink<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::This)`
     fn after_this<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::Caller)`
     fn after_caller<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::CodeAddress)`
     fn after_code_address<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::Meta)`
     fn after_context_meta<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::ErgsLeft)`
     fn after_ergs_left<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::Sp)`
     fn after_sp<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Ret(RetOpcode)`
     fn after_ret<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::SetContextU128)`
     fn after_set_context_u128<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Context(ContextOpcode::AuxMutating0)`
+    fn after_aux_mutating0<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+    }
+
+    // `Opcodes::Context(ContextOpcode::IncrementTxNumber)`
     fn after_increment_tx_number<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::NearCall(NearCallOpcode)`
     fn after_near_call<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::StorageRead)`
     fn after_storage_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
@@ -275,6 +309,7 @@ impl Tracer for CircuitsTracer {
         self.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::StorageWrite)`
     fn after_storage_write<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
@@ -282,6 +317,7 @@ impl Tracer for CircuitsTracer {
         self.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::TransientStorageRead)`
     fn after_transient_storage_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
@@ -290,6 +326,7 @@ impl Tracer for CircuitsTracer {
             TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::TransientStorageWrite)`
     fn after_transient_storage_write<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
@@ -298,6 +335,7 @@ impl Tracer for CircuitsTracer {
             TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::ToL1Message)`
     fn after_l1_message<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += EVENT_RAM_CYCLES;
@@ -305,6 +343,7 @@ impl Tracer for CircuitsTracer {
         self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
     }
 
+    // `Opcodes::Log(LogOpcode::Event)`
     fn after_event<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += EVENT_RAM_CYCLES;
@@ -312,72 +351,93 @@ impl Tracer for CircuitsTracer {
         self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
     }
 
-    fn after_precompile_call<S: StateInterface>(&mut self, _state: &mut S) {
+    // `Opcodes::Log(LogOpcode::PrecompileCall)`
+    fn after_precompile_call<S: StateInterface>(&mut self, state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
         self.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
+        let address_bytes = state.current_frame().address().0;
+
+        let address_low = u16::from_le_bytes([address_bytes[19], address_bytes[18]]);
+
+        match address_low {
+            KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS => {
+                self.keccak256_cycles += state.callframe(0).last_precompile_cycles() as u32;
+            }
+            SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS => {
+                self.sha256_cycles += state.callframe(0).last_precompile_cycles() as u32;
+            }
+            ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS => {
+                self.ecrecover_cycles += state.callframe(0).last_precompile_cycles() as u32;
+            }
+            SECP256R1_VERIFY_PRECOMPILE_ADDRESS => {
+                self.secp256k1_verify_cycles += state.callframe(0).last_precompile_cycles() as u32;
+            }
+            _ => (),
+        }
     }
 
-    fn after_decommit<S: StateInterface>(&mut self, _state: &mut S) {
+    // `Opcodes::Log(LogOpcode::Decommit)`
+    fn after_decommit<S: StateInterface>(&mut self, state: &mut S) {
         self.main_vm_cycles += 1;
         // Note, that for decommit the log demuxer circuit is not used.
         self.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
         self.code_decommitter_sorter_cycles += LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+        self.code_decommitter_cycles += state.callframe(0).last_precompile_cycles() as u32;
     }
 
-    fn after_far_call<S: StateInterface>(&mut self, _state: &mut S) {
+    // `Opcodes::FarCall(_)`
+    fn after_far_call<S: StateInterface>(&mut self, state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
         self.code_decommitter_sorter_cycles += FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
         self.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
         self.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
+        self.code_decommitter_cycles += state.callframe(0).last_precompile_cycles() as u32;
     }
 
+    // `Opcode::UMA(UMAOpcode::AuxHeapWrite)`
     fn after_aux_heap_write<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
     }
 
+    // `Opcode::UMA(UMAOpcode::AuxHeapRead)`
     fn after_aux_heap_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
     }
 
+    // `Opcode::UMA(UMAOpcode::HeapWrite)`
     fn after_heap_write<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
     }
 
+    // `Opcode::UMA(UMAOpcode::HeapRead)`
     fn after_heap_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
     }
 
-    #[inline(always)]
-    fn after_u128<S: StateInterface>(&mut self, _state: &mut S) {
-        self.main_vm_cycles += 1;
-    }
-
-    #[inline(always)]
-    fn after_aux_mutating0<S: StateInterface>(&mut self, _state: &mut S) {
-        self.main_vm_cycles += 1;
-    }
-
-    #[inline(always)]
     fn after_pointer_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
     }
 
-    #[inline(always)]
     fn after_static_memory_read<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
     }
 
-    #[inline(always)]
     fn after_static_memory_write<S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
         self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+    }
+
+    fn after_context_u128<S: StateInterface>(&mut self, _state: &mut S) {
+        self.main_vm_cycles += 1;
+        self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
     }
 }
 
