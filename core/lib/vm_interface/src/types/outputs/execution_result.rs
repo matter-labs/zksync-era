@@ -1,9 +1,10 @@
-use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use zksync_system_constants::{BOOTLOADER_ADDRESS, PUBLISH_BYTECODE_OVERHEAD};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    vm_trace::Call,
-    StorageLogWithPreviousValue, Transaction, VmEvent, H256,
+    zk_evm_types::FarCallOpcode,
+    Address, StorageLogWithPreviousValue, Transaction, VmEvent, H256, U256,
 };
 
 use crate::{
@@ -118,6 +119,111 @@ impl TxExecutionStatus {
             Self::Failure
         } else {
             Self::Success
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+pub enum CallType {
+    #[serde(serialize_with = "far_call_type_to_u8")]
+    #[serde(deserialize_with = "far_call_type_from_u8")]
+    Call(FarCallOpcode),
+    Create,
+    NearCall,
+}
+
+impl Default for CallType {
+    fn default() -> Self {
+        Self::Call(FarCallOpcode::Normal)
+    }
+}
+
+fn far_call_type_from_u8<'de, D>(deserializer: D) -> Result<FarCallOpcode, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let res = u8::deserialize(deserializer)?;
+    match res {
+        0 => Ok(FarCallOpcode::Normal),
+        1 => Ok(FarCallOpcode::Delegate),
+        2 => Ok(FarCallOpcode::Mimic),
+        _ => Err(serde::de::Error::custom("Invalid FarCallOpcode")),
+    }
+}
+
+fn far_call_type_to_u8<S>(far_call_type: &FarCallOpcode, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_u8(*far_call_type as u8)
+}
+
+/// Represents a call in the VM trace.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Call {
+    /// Type of the call.
+    pub r#type: CallType,
+    /// Address of the caller.
+    pub from: Address,
+    /// Address of the callee.
+    pub to: Address,
+    /// Gas from the parent call.
+    pub parent_gas: u64,
+    /// Gas provided for the call.
+    pub gas: u64,
+    /// Gas used by the call.
+    pub gas_used: u64,
+    /// Value transferred.
+    pub value: U256,
+    /// Input data.
+    pub input: Vec<u8>,
+    /// Output data.
+    pub output: Vec<u8>,
+    /// Error message provided by vm or some unexpected errors.
+    pub error: Option<String>,
+    /// Revert reason.
+    pub revert_reason: Option<String>,
+    /// Subcalls.
+    pub calls: Vec<Call>,
+}
+
+impl PartialEq for Call {
+    fn eq(&self, other: &Self) -> bool {
+        self.revert_reason == other.revert_reason
+            && self.input == other.input
+            && self.from == other.from
+            && self.to == other.to
+            && self.r#type == other.r#type
+            && self.value == other.value
+            && self.error == other.error
+            && self.output == other.output
+            && self.calls == other.calls
+    }
+}
+
+impl Call {
+    pub fn new_high_level(
+        gas: u64,
+        gas_used: u64,
+        value: U256,
+        input: Vec<u8>,
+        output: Vec<u8>,
+        revert_reason: Option<String>,
+        calls: Vec<Call>,
+    ) -> Self {
+        Self {
+            r#type: CallType::Call(FarCallOpcode::Normal),
+            from: Address::zero(),
+            to: BOOTLOADER_ADDRESS,
+            parent_gas: gas,
+            gas,
+            gas_used,
+            value,
+            input,
+            output,
+            error: None,
+            revert_reason,
+            calls,
         }
     }
 }
