@@ -20,6 +20,7 @@ pub enum Bucket {
     StorageSnapshot,
     DataAvailability,
     TeeVerifierInput,
+    RamPermutationCircuitQueueWitness,
 }
 
 impl Bucket {
@@ -39,6 +40,7 @@ impl Bucket {
             Self::StorageSnapshot => "storage_logs_snapshots",
             Self::DataAvailability => "data_availability",
             Self::TeeVerifierInput => "tee_verifier_inputs",
+            Self::RamPermutationCircuitQueueWitness => "ram_permutation_witnesses",
         }
     }
 }

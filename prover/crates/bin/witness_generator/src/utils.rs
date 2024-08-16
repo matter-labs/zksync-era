@@ -4,9 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use circuit_definitions::circuit_definitions::{
-    base_layer::ZkSyncBaseLayerCircuit,
-    recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
+use circuit_definitions::{
+    circuit_definitions::{
+        base_layer::ZkSyncBaseLayerCircuit,
+        recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
+    },
+    encodings::memory_query::MemoryQueueStateWitnesses,
 };
 use once_cell::sync::Lazy;
 use zkevm_test_harness::{
@@ -28,8 +31,8 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
     },
-    keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper,
+    keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey, RamPermutationQueueWitnessKey},
+    CircuitAuxData, CircuitWrapper, FriProofWrapper, RamPermutationQueueWitness,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
@@ -125,6 +128,7 @@ pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
+    aux_data_for_partial_circuit: Option<CircuitAuxData>,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
@@ -135,11 +139,44 @@ pub async fn save_circuit(
         aggregation_round: AggregationRound::BasicCircuits,
         depth: 0,
     };
-    let blob_url = object_store
-        .put(circuit_key, &CircuitWrapper::Base(circuit))
-        .await
-        .unwrap();
+
+    let blob_url = if let Some(aux_data_for_partial_circuit) = aux_data_for_partial_circuit {
+        object_store
+            .put(
+                circuit_key,
+                &CircuitWrapper::BasePartial((circuit, aux_data_for_partial_circuit)),
+            )
+            .await
+            .unwrap()
+    } else {
+        object_store
+            .put(circuit_key, &CircuitWrapper::Base(circuit))
+            .await
+            .unwrap()
+    };
     (circuit_id, blob_url)
+}
+
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number)
+)]
+pub async fn save_ram_premutation_queue_witness(
+    block_number: L1BatchNumber,
+    circuit_subsequence_number: usize,
+    is_sorted: bool,
+    witness: MemoryQueueStateWitnesses<GoldilocksField>,
+    object_store: Arc<dyn ObjectStore>,
+) -> String {
+    let witness_key = RamPermutationQueueWitnessKey {
+        block_number,
+        circuit_subsequence_number,
+        is_sorted,
+    };
+    object_store
+        .put(witness_key, &RamPermutationQueueWitness { witness })
+        .await
+        .unwrap()
 }
 
 #[tracing::instrument(
