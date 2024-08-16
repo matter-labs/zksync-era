@@ -405,7 +405,7 @@ type Witness = (
 );
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn generate_witness(
+pub async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
     input: WitnessInputData,

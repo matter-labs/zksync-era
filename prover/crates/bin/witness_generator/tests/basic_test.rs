@@ -18,6 +18,7 @@ use zksync_witness_generator::{
     node_aggregation,
     node_aggregation::NodeAggregationWitnessGenerator,
     utils::AggregationWrapper,
+    basic_circuits::generate_witness
 };
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
@@ -204,4 +205,34 @@ async fn test_node_witness_gen() {
         .expect("expected aggregation missing");
 
     compare_serialized(&expected_aggregation, &aggregations);
+}
+
+
+#[tokio::test]
+async fn test_basic_witness_gen() {
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/bwg/".to_owned(),
+        },
+        max_retries: 5,
+        local_mirror_path: None,
+    };
+    let object_store = ObjectStoreFactory::new(object_store_config)
+        .create_store()
+        .await
+        .unwrap();
+
+    //let block_number = L1BatchNumber(489509);
+    let block_number = L1BatchNumber(11163);
+
+    let input = object_store.get(block_number).await.unwrap();
+
+    let instant = Instant::now();
+
+    //snapshot_prof("Before run");
+    let (_circuit_urls, _queue_urls, _scheduler_witness, _aux_output_witness) =
+        generate_witness(block_number, object_store, input, 500).await;
+    //snapshot_prof("After run");
+    println!("Generated witness, {:?}", instant.elapsed());
+    //print_peak_mem_snapshots();
 }
