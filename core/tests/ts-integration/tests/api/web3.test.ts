@@ -881,6 +881,7 @@ describe('web3 API compatibility tests', () => {
             const expectedBaseFee = (await alice.provider.getBlock(receipt.blockNumber - 1 + i)).baseFeePerGas;
             expect(BigInt(response.baseFeePerGas[i])).toEqual(expectedBaseFee);
         }
+        expect(response.baseFeePerBlobGas).toHaveLength(3);
     });
 
     test('Should check zks_getProtocolVersion endpoint', async () => {
