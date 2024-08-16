@@ -41,13 +41,12 @@ use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
 use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSharedArgs,
+    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSetupArgs,
 };
 
 pub(super) async fn prepare_env_and_storage(
     mut connection: Connection<'static, Core>,
-    shared_args: TxSharedArgs,
-    execution_args: &TxExecutionArgs,
+    setup_args: TxSetupArgs,
     block_args: &BlockArgs,
 ) -> anyhow::Result<(OneshotEnv, PostgresStorage<'static>)> {
     let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
@@ -64,7 +63,7 @@ pub(super) async fn prepare_env_and_storage(
     }
 
     if block_args.resolves_to_latest_sealed_l2_block() {
-        shared_args
+        setup_args
             .caches
             .schedule_values_update(resolved_block_info.state_l2_block_number);
     }
@@ -84,14 +83,9 @@ pub(super) async fn prepare_env_and_storage(
     )
     .await
     .context("cannot create `PostgresStorage`")?
-    .with_caches(shared_args.caches.clone());
+    .with_caches(setup_args.caches.clone());
 
-    let (system, l1_batch) = prepare_env(
-        shared_args,
-        execution_args,
-        &resolved_block_info,
-        next_l2_block_info,
-    );
+    let (system, l1_batch) = prepare_env(setup_args, &resolved_block_info, next_l2_block_info);
 
     let env = OneshotEnv {
         system,
@@ -173,19 +167,20 @@ async fn load_l2_block_info(
 }
 
 fn prepare_env(
-    shared_args: TxSharedArgs,
-    execution_args: &TxExecutionArgs,
+    setup_args: TxSetupArgs,
     resolved_block_info: &ResolvedBlockInfo,
     next_l2_block_info: L2BlockEnv,
 ) -> (SystemEnv, L1BatchEnv) {
-    let TxSharedArgs {
+    let TxSetupArgs {
+        execution_mode,
         operator_account,
         fee_input,
         base_system_contracts,
         validation_computational_gas_limit,
         chain_id,
+        enforced_base_fee,
         ..
-    } = shared_args;
+    } = setup_args;
 
     // In case we are executing in a past block, we'll use the historical fee data.
     let fee_input = resolved_block_info
@@ -197,7 +192,7 @@ fn prepare_env(
         base_system_smart_contracts: base_system_contracts
             .get_by_protocol_version(resolved_block_info.protocol_version),
         bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        execution_mode: execution_args.execution_mode,
+        execution_mode,
         default_validation_computational_gas_limit: validation_computational_gas_limit,
         chain_id,
     };
@@ -207,7 +202,7 @@ fn prepare_env(
         timestamp: resolved_block_info.l1_batch_timestamp,
         fee_input,
         fee_account: *operator_account.address(),
-        enforced_base_fee: execution_args.enforced_base_fee,
+        enforced_base_fee,
         first_l2_block: next_l2_block_info,
     };
     (system_env, l1_batch_env)
@@ -371,7 +366,7 @@ where
         args: TxExecutionArgs,
         tracers: Self::Tracers,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let missed_storage_invocation_limit = match args.execution_mode {
+        let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
             TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
@@ -401,7 +396,7 @@ where
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     )> {
-        let missed_storage_invocation_limit = match args.execution_mode {
+        let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
             TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {

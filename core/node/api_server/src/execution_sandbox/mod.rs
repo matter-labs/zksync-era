@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, VmExecutionResultAndLogs,
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
+    VmExecutionResultAndLogs,
 };
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -155,9 +156,10 @@ async fn get_pending_state(
     Ok((block_id, resolved_block_number))
 }
 
-/// Arguments for VM execution not specific to a particular transaction.
+/// Arguments for VM execution necessary to set up storage and environment.
 #[derive(Debug, Clone)]
-pub(crate) struct TxSharedArgs {
+pub(crate) struct TxSetupArgs {
+    pub execution_mode: TxExecutionMode,
     pub operator_account: AccountTreeId,
     pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
@@ -165,12 +167,17 @@ pub(crate) struct TxSharedArgs {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub enforced_base_fee: Option<u64>,
 }
 
-impl TxSharedArgs {
+impl TxSetupArgs {
     #[cfg(test)]
-    pub fn mock(base_system_contracts: MultiVMBaseSystemContracts) -> Self {
+    pub fn mock(
+        execution_mode: TxExecutionMode,
+        base_system_contracts: MultiVMBaseSystemContracts,
+    ) -> Self {
         Self {
+            execution_mode,
             operator_account: AccountTreeId::default(),
             fee_input: BatchFeeInput::l1_pegged(55, 555),
             base_system_contracts,
@@ -178,6 +185,7 @@ impl TxSharedArgs {
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
             whitelisted_tokens_for_aa: Vec::new(),
+            enforced_base_fee: None,
         }
     }
 }

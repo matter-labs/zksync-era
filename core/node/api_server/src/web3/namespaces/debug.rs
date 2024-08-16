@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
-    interface::{Call, CallType, ExecutionResult},
+    interface::{Call, CallType, ExecutionResult, TxExecutionMode},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
@@ -19,7 +19,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::{ApiTracer, TxSharedArgs},
+    execution_sandbox::{ApiTracer, TxExecutionArgs, TxSetupArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
@@ -189,7 +189,7 @@ impl DebugNamespace {
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.shared_args().await;
+        let shared_args = self.call_args(call_overrides.enforced_base_fee).await;
         let vm_permit = self
             .state
             .tx_sender
@@ -209,17 +209,17 @@ impl DebugNamespace {
         let connection = self.state.acquire_connection().await?;
         let executor = &self.state.tx_sender.0.executor;
         let result = executor
-            .execute_tx_eth_call(
+            .execute_tx_in_sandbox(
                 vm_permit,
                 shared_args,
+                TxExecutionArgs::for_eth_call(tx.clone()),
                 connection,
-                call_overrides,
-                tx.clone(),
                 block_args,
-                custom_tracers,
                 None,
+                custom_tracers,
             )
-            .await?;
+            .await?
+            .vm;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
@@ -249,9 +249,10 @@ impl DebugNamespace {
         Ok(Self::map_call(call, false))
     }
 
-    async fn shared_args(&self) -> TxSharedArgs {
+    async fn call_args(&self, enforced_base_fee: Option<u64>) -> TxSetupArgs {
         let sender_config = self.sender_config();
-        TxSharedArgs {
+        TxSetupArgs {
+            execution_mode: TxExecutionMode::EthCall,
             operator_account: AccountTreeId::default(),
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
@@ -263,6 +264,7 @@ impl DebugNamespace {
                 .tx_sender
                 .read_whitelisted_tokens_for_aa_cache()
                 .await,
+            enforced_base_fee,
         }
     }
 }

@@ -4,61 +4,64 @@ use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TransactionExecutionMetrics,
-    TxExecutionMode, VmExecutionResultAndLogs,
+    VmExecutionResultAndLogs,
 };
 use zksync_types::{
-    api::state_override::StateOverride, l2::L2Tx, transaction_request::CallOverrides,
-    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
+    api::state_override::StateOverride, l2::L2Tx, ExecuteTransactionCommon, Nonce,
+    PackedEthSignature, Transaction, U256,
 };
 
 use super::{
     apply::{self, MainOneshotExecutor},
     storage::StorageWithOverrides,
     testonly::MockOneshotExecutor,
-    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSharedArgs, VmPermit,
+    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSetupArgs, VmPermit,
 };
 
+/// Executor-independent arguments necessary to for oneshot transaction execution.
+///
+/// # Developer guidelines
+///
+/// Please don't add fields that duplicate `SystemEnv` or `L1BatchEnv` information, since both of these
+/// are also provided to an executor.
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
-    pub execution_mode: TxExecutionMode,
+    /// Transaction / call itself.
+    pub transaction: Transaction,
+    /// Nonce override for the initiator account.
     pub enforced_nonce: Option<Nonce>,
+    /// Balance added to the initiator account.
     pub added_balance: U256,
-    pub enforced_base_fee: Option<u64>,
-    /// If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    /// If `true`, then the batch's L1 / pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
     /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
     /// current L1 prices for gas or pubdata.
     pub adjust_pubdata_price: bool,
-    pub transaction: Transaction,
 }
 
 impl TxExecutionArgs {
     pub fn for_validation(tx: L2Tx) -> Self {
         Self {
-            execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
             adjust_pubdata_price: true,
             transaction: tx.into(),
         }
     }
 
-    fn for_eth_call(enforced_base_fee: Option<u64>, mut call: L2Tx) -> Self {
+    pub fn for_eth_call(mut call: L2Tx) -> Self {
         if call.common_data.signature.is_empty() {
             call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
 
         Self {
-            execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee,
             adjust_pubdata_price: false,
             transaction: call.into(),
         }
     }
 
-    pub fn for_gas_estimate(transaction: Transaction, base_fee: u64) -> Self {
+    pub fn for_gas_estimate(transaction: Transaction) -> Self {
         // For L2 transactions we need to explicitly put enough balance into the account of the users
         // while for L1->L2 transactions the `to_mint` field plays this role
         let added_balance = match &transaction.common_data {
@@ -68,10 +71,8 @@ impl TxExecutionArgs {
         };
 
         Self {
-            execution_mode: TxExecutionMode::EstimateFee,
             enforced_nonce: transaction.nonce(),
             added_balance,
-            enforced_base_fee: Some(base_fee),
             adjust_pubdata_price: true,
             transaction,
         }
@@ -108,7 +109,7 @@ impl TransactionExecutor {
     pub async fn execute_tx_in_sandbox(
         &self,
         vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
+        setup_args: TxSetupArgs,
         execution_args: TxExecutionArgs,
         connection: Connection<'static, Core>,
         block_args: BlockArgs,
@@ -117,8 +118,7 @@ impl TransactionExecutor {
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
         let (env, storage) =
-            apply::prepare_env_and_storage(connection, shared_args, &execution_args, &block_args)
-                .await?;
+            apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
         let state_override = state_override.unwrap_or_default();
         let storage = StorageWithOverrides::new(storage, &state_override);
 
@@ -134,34 +134,6 @@ impl TransactionExecutor {
             metrics,
             are_published_bytecodes_ok: published_bytecodes.is_ok(),
         })
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn execute_tx_eth_call(
-        &self,
-        vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
-        connection: Connection<'static, Core>,
-        call_overrides: CallOverrides,
-        tx: L2Tx,
-        block_args: BlockArgs,
-        custom_tracers: Vec<ApiTracer>,
-        state_override: Option<StateOverride>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let execution_args = TxExecutionArgs::for_eth_call(call_overrides.enforced_base_fee, tx);
-
-        let output = self
-            .execute_tx_in_sandbox(
-                vm_permit,
-                shared_args,
-                execution_args,
-                connection,
-                block_args,
-                state_override,
-                custom_tracers,
-            )
-            .await?;
-        Ok(output.vm)
     }
 }
 

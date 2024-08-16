@@ -10,7 +10,7 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_eth_call_gas_limit, get_max_batch_gas_limit,
@@ -41,7 +41,7 @@ pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
+        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSetupArgs,
         VmConcurrencyBarrier, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
@@ -372,7 +372,7 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        let shared_args = self.shared_args().await?;
+        let shared_args = self.call_args(&tx, None).await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
@@ -464,14 +464,23 @@ impl TxSender {
 
     /// **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
     /// Thus, you shouldn't call it if you're holding a DB connection already.
-    async fn shared_args(&self) -> anyhow::Result<TxSharedArgs> {
+    async fn call_args(
+        &self,
+        tx: &L2Tx,
+        call_overrides: Option<&CallOverrides>,
+    ) -> anyhow::Result<TxSetupArgs> {
         let fee_input = self
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
             .await
             .context("cannot get batch fee input")?;
-        Ok(TxSharedArgs {
+        Ok(TxSetupArgs {
+            execution_mode: if call_overrides.is_some() {
+                TxExecutionMode::EthCall
+            } else {
+                TxExecutionMode::VerifyExecute
+            },
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
             fee_input,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
@@ -482,6 +491,11 @@ impl TxSender {
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
             whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
+            enforced_base_fee: if let Some(overrides) = call_overrides {
+                overrides.enforced_base_fee
+            } else {
+                Some(tx.common_data.fee.max_fee_per_gas.as_u64())
+            },
         })
     }
 
@@ -693,8 +707,8 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
-        let execution_args = TxExecutionArgs::for_gas_estimate(tx, base_fee);
+        let shared_args = self.args_for_gas_estimate(fee_model_params, base_fee).await;
+        let execution_args = TxExecutionArgs::for_gas_estimate(tx);
         let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
@@ -712,10 +726,10 @@ impl TxSender {
         Ok((execution_output.vm, execution_output.metrics))
     }
 
-    async fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
+    async fn args_for_gas_estimate(&self, fee_input: BatchFeeInput, base_fee: u64) -> TxSetupArgs {
         let config = &self.0.sender_config;
-
-        TxSharedArgs {
+        TxSetupArgs {
+            execution_mode: TxExecutionMode::EstimateFee,
             operator_account: AccountTreeId::new(config.fee_account_addr),
             fee_input,
             // We want to bypass the computation gas limit check for gas estimation
@@ -724,6 +738,7 @@ impl TxSender {
             caches: self.storage_caches(),
             chain_id: config.chain_id,
             whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
+            enforced_base_fee: Some(base_fee),
         }
     }
 
@@ -994,20 +1009,20 @@ impl TxSender {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let connection = self.acquire_replica_connection().await?;
-        self.0
+        let result = self
+            .0
             .executor
-            .execute_tx_eth_call(
+            .execute_tx_in_sandbox(
                 vm_permit,
-                self.shared_args().await?,
+                self.call_args(&tx, Some(&call_overrides)).await?,
+                TxExecutionArgs::for_eth_call(tx),
                 connection,
-                call_overrides,
-                tx,
                 block_args,
-                vec![],
                 state_override,
+                vec![],
             )
-            .await?
-            .into_api_call_result()
+            .await?;
+        result.vm.into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {

@@ -17,7 +17,7 @@ use super::{
     execute::TransactionExecutor,
     storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSharedArgs, VmPermit,
+    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSetupArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
@@ -37,7 +37,7 @@ impl TransactionExecutor {
         mut connection: Connection<'static, Core>,
         vm_permit: VmPermit,
         tx: L2Tx,
-        shared_args: TxSharedArgs,
+        setup_args: TxSetupArgs,
         block_args: BlockArgs,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
@@ -46,18 +46,16 @@ impl TransactionExecutor {
             &mut connection,
             &tx,
             computational_gas_limit,
-            &shared_args.whitelisted_tokens_for_aa,
+            &setup_args.whitelisted_tokens_for_aa,
         )
         .await
         .context("failed getting validation params")?;
 
-        let execution_args = TxExecutionArgs::for_validation(tx);
-
         let (env, storage) =
-            apply::prepare_env_and_storage(connection, shared_args, &execution_args, &block_args)
-                .await?;
+            apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
         let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
+        let execution_args = TxExecutionArgs::for_validation(tx);
         let (tracer, validation_result) = ApiTracer::validation(params);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
         let result = self
