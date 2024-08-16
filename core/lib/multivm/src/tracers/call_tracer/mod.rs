@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_types::vm_trace::Call;
 
-use crate::{glue::tracers::IntoOldVmTracer, tracers::call_tracer::metrics::CALL_METRICS};
+use crate::{
+    glue::tracers::IntoOldVmTracer, interface::Call, tracers::call_tracer::metrics::CALL_METRICS,
+};
 
 mod metrics;
 pub mod vm_1_4_1;

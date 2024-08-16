@@ -376,7 +376,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn connection(&self) -> DalResult<Connection<'_, DB>> {
+    pub async fn connection(&self) -> DalResult<Connection<'static, DB>> {
         self.connection_inner(None).await
     }
 
@@ -390,7 +390,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     pub fn connection_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = DalResult<Connection<'_, DB>>> + '_ {
+    ) -> impl Future<Output = DalResult<Connection<'static, DB>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = ConnectionTags {
@@ -404,7 +404,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     async fn connection_inner(
         &self,
         tags: Option<ConnectionTags>,
-    ) -> DalResult<Connection<'_, DB>> {
+    ) -> DalResult<Connection<'static, DB>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self.acquire_connection_retried(tags.as_ref()).await?;
         let elapsed = acquire_latency.observe();
@@ -415,7 +415,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         Ok(Connection::<DB>::from_pool(
             conn,
             tags,
-            self.traced_connections.as_deref(),
+            self.traced_connections.as_ref(),
         ))
     }
 

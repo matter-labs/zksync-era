@@ -10,13 +10,13 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx,
-    vm_trace::Call, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber,
-    PriorityOpId, ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx, Address,
+    ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
+    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+    Call, TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
 };
 
 use crate::{
