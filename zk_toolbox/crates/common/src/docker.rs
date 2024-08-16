@@ -17,7 +17,7 @@ pub fn run(
     docker_image: &str,
     docker_args: HashMap<String, String>,
 ) -> anyhow::Result<()> {
-    let mut args = vec!["--platform", "linux/amd64"];
+    let mut args = vec![];
     for (key, value) in docker_args.iter() {
         args.push(key);
         args.push(value);

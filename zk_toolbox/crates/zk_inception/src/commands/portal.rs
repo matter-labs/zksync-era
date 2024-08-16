@@ -11,7 +11,8 @@ use crate::{
     commands::args::PortalArgs,
     consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_CONFIG_FILE, PORTAL_DOCKER_IMAGE, PORTAL_DOCKER_PORT},
     messages::{
-        msg_starting_portal_on_port, MSG_CHAINS_NOT_INITIALIZED, MSG_FAILED_TO_START_PORTAL_ERR,
+        msg_portal_chain_not_initialized, msg_portal_failed_to_configure_chain,
+        msg_portal_starting_on, MSG_FAILED_TO_START_PORTAL_ERR,
     },
 };
 
@@ -62,7 +63,7 @@ pub async fn create_hyperchain_config(
         None
     };
     // Base token:
-    let (base_token_addr, base_token_info) = if chain_config.base_token != BaseToken::eth() {
+    let (base_token_addr, base_token_info) = if chain_config.base_token == BaseToken::eth() {
         (
             ethers::utils::hex::encode_prefixed(Address::zero()),
             TokenInfo {
@@ -109,12 +110,12 @@ pub async fn create_hyperchains_config(
     for chain_config in chain_configs {
         match create_hyperchain_config(chain_config).await {
             Ok(config) => hyperchain_configs.push(config),
-            Err(e) => logger::warn(format!("Failed to create HyperchainConfig: {}", e)),
+            Err(_) => logger::warn(msg_portal_failed_to_configure_chain(&chain_config.name)),
         }
     }
     // Ensure at least one HyperchainConfig is created
     if hyperchain_configs.is_empty() {
-        Err(anyhow!("Failed to create any valid HyperchainConfig"))
+        Err(anyhow!(MSG_FAILED_TO_START_PORTAL_ERR))
     } else {
         Ok(HyperchainsConfigs(hyperchain_configs))
     }
@@ -129,13 +130,13 @@ pub async fn run(shell: &Shell, args: PortalArgs) -> anyhow::Result<()> {
         match ecosystem_config.load_chain(Some(chain.clone())) {
             Some(chain_config) => chain_configs.push(chain_config),
             None => {
-                logger::warn(format!("Chain '{}' is not initialized, skipping", chain));
+                logger::warn(msg_portal_chain_not_initialized(&chain));
                 continue;
             }
         }
     }
     if chain_configs.is_empty() {
-        return Err(anyhow!(MSG_CHAINS_NOT_INITIALIZED));
+        return Err(anyhow!(MSG_FAILED_TO_START_PORTAL_ERR));
     }
 
     let hyperchain_configs = create_hyperchains_config(&chain_configs).await?;
@@ -145,12 +146,14 @@ pub async fn run(shell: &Shell, args: PortalArgs) -> anyhow::Result<()> {
     };
 
     // Serialize and save runtime config to file
-
     let config_file_path = shell.current_dir().join(PORTAL_CONFIG_FILE);
     runtime_config.save(shell, &config_file_path)?;
-    logger::info(format!("Config saved to {}", config_file_path.display()));
+    logger::info(format!(
+        "Portal config saved to {}",
+        config_file_path.display()
+    ));
 
-    logger::info(msg_starting_portal_on_port(args.port));
+    logger::info(msg_portal_starting_on("127.0.0.1", args.port));
     run_portal(shell, &config_file_path, args.port)?;
     Ok(())
 }
@@ -165,6 +168,7 @@ fn run_portal(shell: &Shell, config_file_path: &PathBuf, port: u16) -> anyhow::R
     );
 
     let mut docker_args = HashMap::new();
+    docker_args.insert("--platform".to_string(), "linux/amd64".to_string());
     docker_args.insert("-p".to_string(), port_mapping);
     docker_args.insert("-v".to_string(), volume_mapping);
 

@@ -217,9 +217,14 @@ pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node confi
 
 /// Portal related messages
 pub(super) const MSG_FAILED_TO_START_PORTAL_ERR: &str = "Failed to start portal";
-pub(super) const MSG_CHAINS_NOT_INITIALIZED: &str = "Chains have not been initialized";
-pub(super) fn msg_starting_portal_on_port(port: u16) -> String {
-    format!("Starting portal on port {port}")
+pub(super) fn msg_portal_chain_not_initialized(chain_name: &str) -> String {
+    format!("Chain {chain_name} is not initialized, skipping")
+}
+pub(super) fn msg_portal_failed_to_configure_chain(chain_name: &str) -> String {
+    format!("Failed to configure chain {chain_name}, skipping")
+}
+pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
+    format!("Starting portal on http://{host}:{port}")
 }
 
 /// Forge utils related messages
