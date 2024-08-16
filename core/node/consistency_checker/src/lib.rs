@@ -543,18 +543,18 @@ impl ConsistencyChecker {
     async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
         let regular = self
             .diamond_proxy_addr
-            .map(|addr| (addr, self.l1_client.as_ref()));
+            .map(|addr| (addr, self.l1_client.clone()));
         let migration = self.migration_setup.as_ref().and_then(|setup| {
             setup
                 .diamond_proxy_address
-                .map(|addr| (addr, setup.client.as_ref()))
+                .map(|addr| (addr, setup.client.clone()))
         });
 
         let log_version = |address, client| async move {
             tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
             let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
                 .for_contract(address, &self.contract)
-                .call(client)
+                .call(&client)
                 .await?;
             tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
             Ok::<_, CheckError>(())

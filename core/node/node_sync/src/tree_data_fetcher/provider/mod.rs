@@ -242,8 +242,13 @@ impl TreeDataProvider for L1DataProvider {
                 client,
                 first_migrated_batch,
                 diamond_proxy_address,
-            }) if *first_migrated_batch <= number => (client.as_ref(), *diamond_proxy_address),
-            _ => (self.eth_client.as_ref(), self.diamond_proxy_address),
+            }) if *first_migrated_batch <= number => {
+                (client as &dyn EthInterface, *diamond_proxy_address)
+            }
+            _ => (
+                &self.eth_client as &dyn EthInterface,
+                self.diamond_proxy_address,
+            ),
         };
 
         let from_block = match from_block {
