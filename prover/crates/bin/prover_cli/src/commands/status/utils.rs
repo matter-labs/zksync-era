@@ -294,7 +294,7 @@ pub fn get_witness_generator_job_status_from_vec(
         matches!(
             job.get_status(),
             WitnessJobStatus::Failed(_) | WitnessJobStatus::InProgress,
-        ) && job.get_attempts() as u32 >= max_attempts
+        ) && job.get_attempts() >= max_attempts
     }) {
         Status::Stuck
     } else if prover_jobs.iter().all(|job| {
