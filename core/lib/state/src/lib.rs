@@ -20,8 +20,7 @@ pub use self::{
     },
     shadow_storage::ShadowStorage,
     storage_factory::{
-        BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory,
-        RocksdbWithMemory,
+        BatchDiff, OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory, RocksdbWithMemory,
     },
 };
 

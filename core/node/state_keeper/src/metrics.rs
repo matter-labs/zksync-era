@@ -348,6 +348,7 @@ pub(super) enum L2BlockSealStage {
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
     ReportTxMetrics,
+    CalculateLogsBloom,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,11 @@
         "ordinal": 15,
         "name": "gas_limit",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "logs_bloom",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -105,8 +110,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "8998ddd82cf15feb671b0d4efc6f7496667ce703e30d1bf2e0fb5a66fb0a1d18"
+  "hash": "45e52d05a4483def84c141e3529bab30553732953e589cd237595227044f438d"
 }
