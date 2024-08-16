@@ -3,12 +3,12 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::RECURSION_ARITY;
-use tokio::sync::Semaphore;
+use tokio::{runtime::Handle, sync::Semaphore};
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -34,7 +34,7 @@ use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
-        save_recursive_layer_prover_input_artifacts, AggregationWrapper, AggregationWrapperLegacy,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
     },
 };
 
@@ -138,51 +138,56 @@ impl NodeAggregationWitnessGenerator {
             let vk = vk.clone();
             let all_leafs_layer_params = job.all_leafs_layer_params.clone();
 
-            let handle = tokio::task::spawn(async move {
-                let _permit = semaphore
-                    .acquire()
-                    .await
-                    .expect("failed to get permit to process queues chunk");
+            let handle = tokio::task::spawn_blocking(move || {
+                let async_task = async {
+                    let _permit = semaphore
+                        .acquire()
+                        .await
+                        .expect("failed to get permit to process queues chunk");
 
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_chunk, &*object_store).await;
-                let mut recursive_proofs = vec![];
-                for wrapper in proofs {
-                    match wrapper {
-                        FriProofWrapper::Base(_) => {
-                            panic!(
-                                "Expected only recursive proofs for node agg {} {}",
-                                job.circuit_id, job.block_number
-                            );
-                        }
-                        FriProofWrapper::Recursive(recursive_proof) => {
-                            recursive_proofs.push(recursive_proof)
+                    let proofs =
+                        load_proofs_for_job_ids(&proofs_ids_for_chunk, &*object_store).await;
+                    let mut recursive_proofs = vec![];
+                    for wrapper in proofs {
+                        match wrapper {
+                            FriProofWrapper::Base(_) => {
+                                panic!(
+                                    "Expected only recursive proofs for node agg {} {}",
+                                    job.circuit_id, job.block_number
+                                );
+                            }
+                            FriProofWrapper::Recursive(recursive_proof) => {
+                                recursive_proofs.push(recursive_proof)
+                            }
                         }
                     }
-                }
 
-                let (result_circuit_id, recursive_circuit, input_queue) = create_node_witness(
-                    &chunk,
-                    recursive_proofs,
-                    &vk,
-                    node_vk_commitment,
-                    &all_leafs_layer_params,
-                );
+                    let (result_circuit_id, recursive_circuit, input_queue) = create_node_witness(
+                        &chunk,
+                        recursive_proofs,
+                        &vk,
+                        node_vk_commitment,
+                        &all_leafs_layer_params,
+                    );
 
-                let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
-                    job.block_number,
-                    circuit_idx,
-                    vec![recursive_circuit],
-                    AggregationRound::NodeAggregation,
-                    job.depth + 1,
-                    &*object_store,
-                    Some(job.circuit_id),
-                )
-                .await;
+                    let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
+                        job.block_number,
+                        circuit_idx,
+                        vec![recursive_circuit],
+                        AggregationRound::NodeAggregation,
+                        job.depth + 1,
+                        &*object_store,
+                        Some(job.circuit_id),
+                    )
+                    .await;
 
-                (
-                    (result_circuit_id, input_queue),
-                    recursive_circuit_id_and_url,
-                )
+                    (
+                        (result_circuit_id, input_queue),
+                        recursive_circuit_id_and_url,
+                    )
+                };
+
+                Handle::current().block_on(async_task)
             });
 
             handles.push(handle);
@@ -444,27 +449,12 @@ async fn get_artifacts(
         circuit_id: metadata.circuit_id,
         depth: metadata.depth,
     };
-    let result = object_store.get(key).await;
-
-    // TODO: remove after transition
-    return match result {
-        Ok(aggregation_wrapper) => aggregation_wrapper,
-        Err(error) => {
-            // probably legacy struct is saved in GCS
-            if let ObjectStoreError::Serialization(serialization_error) = error {
-                let legacy_wrapper: AggregationWrapperLegacy =
-                    object_store.get(key).await.unwrap_or_else(|inner_error| {
-                        panic!(
-                            "node aggregation job artifacts getting error. Key: {:?}, errors: {:?} {:?}",
-                            key, serialization_error, inner_error
-                        )
-                    });
-                AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
-            } else {
-                panic!("node aggregation job artifacts missing: {:?}", key)
-            }
-        }
-    };
+    object_store.get(key).await.unwrap_or_else(|error| {
+        panic!(
+            "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
+            key, error
+        )
+    })
 }
 
 #[tracing::instrument(

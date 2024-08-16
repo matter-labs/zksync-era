@@ -1,5 +1,13 @@
 # Changelog
 
+## [24.18.0](https://github.com/matter-labs/zksync-era/compare/core-v24.17.0...core-v24.18.0) (2024-08-14)
+
+
+### Features
+
+* add logs bloom ([#2633](https://github.com/matter-labs/zksync-era/issues/2633)) ([1067462](https://github.com/matter-labs/zksync-era/commit/10674620d1a04333507ca17b9a34ab3cb58846cf))
+* **zk_toolbox:** Minting base token ([#2571](https://github.com/matter-labs/zksync-era/issues/2571)) ([ae2dd3b](https://github.com/matter-labs/zksync-era/commit/ae2dd3bbccdffc25b040313b2c7983a936f36aac))
+
 ## [24.17.0](https://github.com/matter-labs/zksync-era/compare/core-v24.16.0...core-v24.17.0) (2024-08-13)
 
 

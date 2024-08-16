@@ -6,12 +6,11 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    storage::StorageViewCache, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-    VmExecutionResultAndLogs,
+    storage::StorageViewCache, Call, CompressedBytecodeInfo, FinishedL1Batch, Halt, L1BatchEnv,
+    L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
-use zksync_types::{vm_trace::Call, Transaction};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
+use zksync_types::Transaction;
 
 use crate::{
     metrics::{ExecutorCommand, EXECUTOR_METRICS},
@@ -55,10 +54,12 @@ impl TxExecutionResult {
 /// An abstraction that allows us to create different kinds of batch executors.
 /// The only requirement is to return a [`BatchExecutorHandle`], which does its work
 /// by communicating with the externally initialized thread.
-pub trait BatchExecutor: 'static + Send + Sync + fmt::Debug {
+///
+/// This type is generic over the storage type accepted to create the VM instance, mostly for testing purposes.
+pub trait BatchExecutor<S = OwnedStorage>: 'static + Send + Sync + fmt::Debug {
     fn init_batch(
         &mut self,
-        storage: OwnedStorage,
+        storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle;

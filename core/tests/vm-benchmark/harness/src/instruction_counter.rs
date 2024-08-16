@@ -13,7 +13,7 @@ pub struct InstructionCounter {
 
 /// A tracer that counts the number of instructions executed by the VM.
 impl InstructionCounter {
-    #[allow(dead_code)] // FIXME
+    #[allow(dead_code)] // FIXME: re-enable instruction counting once new tracers are merged
     pub fn new(output: Rc<RefCell<usize>>) -> Self {
         Self { count: 0, output }
     }

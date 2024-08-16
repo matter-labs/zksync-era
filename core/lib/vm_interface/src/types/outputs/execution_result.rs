@@ -1,12 +1,15 @@
-use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use zksync_system_constants::{BOOTLOADER_ADDRESS, PUBLISH_BYTECODE_OVERHEAD};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    tx::ExecutionMetrics,
-    StorageLogWithPreviousValue, Transaction, VmEvent, H256,
+    zk_evm_types::FarCallOpcode,
+    Address, StorageLogWithPreviousValue, Transaction, VmEvent, H256, U256,
 };
 
-use crate::{Halt, VmExecutionStatistics, VmRevertReason};
+use crate::{
+    CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
+};
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -65,7 +68,7 @@ impl ExecutionResult {
 }
 
 impl VmExecutionResultAndLogs {
-    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> ExecutionMetrics {
+    pub fn get_execution_metrics(&self, tx: Option<&Transaction>) -> VmExecutionMetrics {
         let contracts_deployed = tx
             .map(|tx| tx.execute.factory_deps.len() as u16)
             .unwrap_or(0);
@@ -86,7 +89,7 @@ impl VmExecutionResultAndLogs {
             })
             .sum();
 
-        ExecutionMetrics {
+        VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
             published_bytecode_bytes,
             l2_l1_long_messages,
@@ -100,6 +103,158 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum TxExecutionStatus {
+    Success,
+    Failure,
+}
+
+impl TxExecutionStatus {
+    pub fn from_has_failed(has_failed: bool) -> Self {
+        if has_failed {
+            Self::Failure
+        } else {
+            Self::Success
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+pub enum CallType {
+    #[serde(serialize_with = "far_call_type_to_u8")]
+    #[serde(deserialize_with = "far_call_type_from_u8")]
+    Call(FarCallOpcode),
+    Create,
+    NearCall,
+}
+
+impl Default for CallType {
+    fn default() -> Self {
+        Self::Call(FarCallOpcode::Normal)
+    }
+}
+
+fn far_call_type_from_u8<'de, D>(deserializer: D) -> Result<FarCallOpcode, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let res = u8::deserialize(deserializer)?;
+    match res {
+        0 => Ok(FarCallOpcode::Normal),
+        1 => Ok(FarCallOpcode::Delegate),
+        2 => Ok(FarCallOpcode::Mimic),
+        _ => Err(serde::de::Error::custom("Invalid FarCallOpcode")),
+    }
+}
+
+fn far_call_type_to_u8<S>(far_call_type: &FarCallOpcode, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_u8(*far_call_type as u8)
+}
+
+/// Represents a call in the VM trace.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Call {
+    /// Type of the call.
+    pub r#type: CallType,
+    /// Address of the caller.
+    pub from: Address,
+    /// Address of the callee.
+    pub to: Address,
+    /// Gas from the parent call.
+    pub parent_gas: u64,
+    /// Gas provided for the call.
+    pub gas: u64,
+    /// Gas used by the call.
+    pub gas_used: u64,
+    /// Value transferred.
+    pub value: U256,
+    /// Input data.
+    pub input: Vec<u8>,
+    /// Output data.
+    pub output: Vec<u8>,
+    /// Error message provided by vm or some unexpected errors.
+    pub error: Option<String>,
+    /// Revert reason.
+    pub revert_reason: Option<String>,
+    /// Subcalls.
+    pub calls: Vec<Call>,
+}
+
+impl PartialEq for Call {
+    fn eq(&self, other: &Self) -> bool {
+        self.revert_reason == other.revert_reason
+            && self.input == other.input
+            && self.from == other.from
+            && self.to == other.to
+            && self.r#type == other.r#type
+            && self.value == other.value
+            && self.error == other.error
+            && self.output == other.output
+            && self.calls == other.calls
+    }
+}
+
+impl Call {
+    pub fn new_high_level(
+        gas: u64,
+        gas_used: u64,
+        value: U256,
+        input: Vec<u8>,
+        output: Vec<u8>,
+        revert_reason: Option<String>,
+        calls: Vec<Call>,
+    ) -> Self {
+        Self {
+            r#type: CallType::Call(FarCallOpcode::Normal),
+            from: Address::zero(),
+            to: BOOTLOADER_ADDRESS,
+            parent_gas: gas,
+            gas,
+            gas_used,
+            value,
+            input,
+            output,
+            error: None,
+            revert_reason,
+            calls,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransactionExecutionResult {
+    pub transaction: Transaction,
+    pub hash: H256,
+    pub execution_info: VmExecutionMetrics,
+    pub execution_status: TxExecutionStatus,
+    pub refunded_gas: u64,
+    pub operator_suggested_refund: u64,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub revert_reason: Option<String>,
+}
+
+impl TransactionExecutionResult {
+    pub fn call_trace(&self) -> Option<Call> {
+        if self.call_traces.is_empty() {
+            None
+        } else {
+            Some(Call::new_high_level(
+                self.transaction.gas_limit().as_u64(),
+                self.transaction.gas_limit().as_u64() - self.refunded_gas,
+                self.transaction.execute.value,
+                self.transaction.execute.calldata.clone(),
+                vec![],
+                self.revert_reason.clone(),
+                self.call_traces.clone(),
+            ))
         }
     }
 }

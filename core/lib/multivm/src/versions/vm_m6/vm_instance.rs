@@ -11,14 +11,12 @@ use zk_evm_1_3_1::{
 };
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::Call,
     L1BatchNumber, VmEvent, H256, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::VmExecutionLogs,
+    interface::{Call, TxExecutionStatus, VmExecutionLogs},
     versions::shared::{VmExecutionTrace, VmTrace},
     vm_m6::{
         bootloader_state::BootloaderState,

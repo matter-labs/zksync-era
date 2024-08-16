@@ -102,7 +102,7 @@ impl WiringLayer for StateKeeperLayer {
 
         let state_keeper = StateKeeperTask {
             io,
-            batch_executor_base,
+            batch_executor: batch_executor_base,
             output_handler,
             sealer,
             storage_factory: Arc::new(storage_factory),
@@ -125,7 +125,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn BatchExecutor>,
+    batch_executor: Box<dyn BatchExecutor>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
@@ -141,7 +141,7 @@ impl Task for StateKeeperTask {
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver.0,
             self.io,
-            self.batch_executor_base,
+            self.batch_executor,
             self.output_handler,
             self.sealer,
             self.storage_factory,
