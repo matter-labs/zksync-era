@@ -11,8 +11,8 @@ use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::PriceAPIClient;
 
-const VARIATION_RANGE: f64 = 0.2; //20%
-const NEXT_VALUE_VARIATION_RANGE: f64 = 0.03; //3%
+const VARIATION_RANGE: f64 = 0.03; //20%
+const NEXT_VALUE_VARIATION_RANGE: f64 = 0.01; //3%
 
 // Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
 #[derive(Debug)]
