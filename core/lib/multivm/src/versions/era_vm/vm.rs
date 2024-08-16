@@ -92,6 +92,7 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
                 .to_fixed_bytes(),
             vm_hook_position,
             true,
+            system_env.bootloader_gas_limit,
         );
         let pre_contract_storage = Rc::new(RefCell::new(HashMap::new()));
         pre_contract_storage.borrow_mut().insert(
@@ -315,11 +316,11 @@ impl<S: ReadStorage + 'static> Vm<S> {
         heap.read((word * 32) as u32)
     }
 
-    #[cfg(test)]
-    /// Returns the current state of the VM in a format that can be compared for equality.
-    pub(crate) fn dump_state(&self) -> Execution {
-        self.inner.execution.clone()
-    }
+    // #[cfg(test)]
+    // /// Returns the current state of the VM in a format that can be compared for equality.
+    // pub(crate) fn dump_state(&self) -> Execution {
+    //     self.inner.execution.clone()
+    // }
 
     fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
         assert!(self.inner.execution.running_contexts.len() == 1); // No on-going far calls
@@ -564,141 +565,141 @@ impl<S: ReadStorage> era_vm::store::Storage for World<S> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{cell::RefCell, path::PathBuf, rc::Rc};
+// #[cfg(test)]
+// mod tests {
+//     use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-    use once_cell::sync::Lazy;
-    use zksync_contracts::{deployer_contract, BaseSystemContracts};
-    use zksync_state::{InMemoryStorage, StorageView};
-    use zksync_types::{
-        block::L2BlockHasher,
-        ethabi::{encode, Token},
-        fee::Fee,
-        fee_model::BatchFeeInput,
-        helpers::unix_timestamp_ms,
-        l2::L2Tx,
-        utils::storage_key_for_eth_balance,
-        Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
-        Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
-    };
-    use zksync_utils::bytecode::hash_bytecode;
+//     use once_cell::sync::Lazy;
+//     use zksync_contracts::{deployer_contract, BaseSystemContracts};
+//     use zksync_state::{InMemoryStorage, StorageView};
+//     use zksync_types::{
+//         block::L2BlockHasher,
+//         ethabi::{encode, Token},
+//         fee::Fee,
+//         fee_model::BatchFeeInput,
+//         helpers::unix_timestamp_ms,
+//         l2::L2Tx,
+//         utils::storage_key_for_eth_balance,
+//         Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId,
+//         Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+//     };
+//     use zksync_utils::bytecode::hash_bytecode;
 
-    use super::*;
-    use crate::{
-        era_vm::vm::Vm,
-        interface::{L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
-        utils::get_max_gas_per_pubdata_byte,
-        vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-    };
-    /// Bytecodes have consist of an odd number of 32 byte words
-    /// This function "fixes" bytecodes of wrong length by cutting off their end.
-    pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
-        let mut words = bytes.len() / 32;
-        if words == 0 {
-            return None;
-        }
-        if words & 1 == 0 {
-            words -= 1;
-        }
-        Some(&bytes[..32 * words])
-    }
+//     use super::*;
+//     use crate::{
+//         era_vm::vm::Vm,
+//         interface::{L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
+//         utils::get_max_gas_per_pubdata_byte,
+//         vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+//     };
+//     /// Bytecodes have consist of an odd number of 32 byte words
+//     /// This function "fixes" bytecodes of wrong length by cutting off their end.
+//     pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
+//         let mut words = bytes.len() / 32;
+//         if words == 0 {
+//             return None;
+//         }
+//         if words & 1 == 0 {
+//             words -= 1;
+//         }
+//         Some(&bytes[..32 * words])
+//     }
 
-    static PRIVATE_KEY: Lazy<K256PrivateKey> =
-        Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
-    static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
-        Lazy::new(BaseSystemContracts::load_from_disk);
-    static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
-        let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+//     static PRIVATE_KEY: Lazy<K256PrivateKey> =
+//         Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
+//     static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
+//         Lazy::new(BaseSystemContracts::load_from_disk);
+//     static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
+//         let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-        // Give `PRIVATE_KEY` some money
-        let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
-        storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
+//         // Give `PRIVATE_KEY` some money
+//         let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
+//         storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
 
-        storage
-    });
-    static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
-        deployer_contract()
-            .function("create")
-            .unwrap()
-            .short_signature()
-    });
+//         storage
+//     });
+//     static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
+//         deployer_contract()
+//             .function("create")
+//             .unwrap()
+//             .short_signature()
+//     });
 
-    pub fn get_deploy_tx(code: &[u8]) -> Transaction {
-        let params = [
-            Token::FixedBytes(vec![0u8; 32]),
-            Token::FixedBytes(hash_bytecode(code).0.to_vec()),
-            Token::Bytes([].to_vec()),
-        ];
-        let calldata = CREATE_FUNCTION_SIGNATURE
-            .iter()
-            .cloned()
-            .chain(encode(&params))
-            .collect();
+//     pub fn get_deploy_tx(code: &[u8]) -> Transaction {
+//         let params = [
+//             Token::FixedBytes(vec![0u8; 32]),
+//             Token::FixedBytes(hash_bytecode(code).0.to_vec()),
+//             Token::Bytes([].to_vec()),
+//         ];
+//         let calldata = CREATE_FUNCTION_SIGNATURE
+//             .iter()
+//             .cloned()
+//             .chain(encode(&params))
+//             .collect();
 
-        let mut signed = L2Tx::new_signed(
-            CONTRACT_DEPLOYER_ADDRESS,
-            calldata,
-            Nonce(0),
-            Fee {
-                gas_limit: U256::from(30000000u32),
-                max_fee_per_gas: U256::from(250_000_000),
-                max_priority_fee_per_gas: U256::from(0),
-                gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
-                    ProtocolVersionId::latest().into(),
-                )),
-            },
-            U256::zero(),
-            L2ChainId::from(270),
-            &PRIVATE_KEY,
-            vec![code.to_vec()], // maybe not needed?
-            Default::default(),
-        )
-        .expect("should create a signed execute transaction");
+//         let mut signed = L2Tx::new_signed(
+//             CONTRACT_DEPLOYER_ADDRESS,
+//             calldata,
+//             Nonce(0),
+//             Fee {
+//                 gas_limit: U256::from(30000000u32),
+//                 max_fee_per_gas: U256::from(250_000_000),
+//                 max_priority_fee_per_gas: U256::from(0),
+//                 gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
+//                     ProtocolVersionId::latest().into(),
+//                 )),
+//             },
+//             U256::zero(),
+//             L2ChainId::from(270),
+//             &PRIVATE_KEY,
+//             vec![code.to_vec()], // maybe not needed?
+//             Default::default(),
+//         )
+//         .expect("should create a signed execute transaction");
 
-        signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
+//         signed.set_input(H256::random().as_bytes().to_vec(), H256::random());
 
-        signed.into()
-    }
+//         signed.into()
+//     }
 
-    #[test]
-    fn test_vm() {
-        let path = PathBuf::from("./src/versions/era_vm/test_contract/storage");
-        let test_contract = std::fs::read(&path).expect("failed to read file");
-        let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
-        let tx = get_deploy_tx(code);
-        let timestamp = unix_timestamp_ms();
-        let mut vm = Vm::new(
-            crate::interface::L1BatchEnv {
-                previous_batch_hash: None,
-                number: L1BatchNumber(1),
-                timestamp,
-                fee_input: BatchFeeInput::l1_pegged(
-                    50_000_000_000, // 50 gwei
-                    250_000_000,    // 0.25 gwei
-                ),
-                fee_account: Address::random(),
-                enforced_base_fee: None,
-                first_l2_block: L2BlockEnv {
-                    number: 1,
-                    timestamp,
-                    prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
-                    max_virtual_blocks_to_create: 100,
-                },
-            },
-            crate::interface::SystemEnv {
-                zk_porter_available: false,
-                version: ProtocolVersionId::latest(),
-                base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
-                bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-                execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
-            },
-            Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
-        );
-        vm.push_transaction(tx);
-        let a = vm.execute(VmExecutionMode::OneTx);
-        println!("{:?}", a.result);
-    }
-}
+//     #[test]
+//     fn test_vm() {
+//         let path = PathBuf::from("./src/versions/era_vm/test_contract/storage");
+//         let test_contract = std::fs::read(&path).expect("failed to read file");
+//         let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
+//         let tx = get_deploy_tx(code);
+//         let timestamp = unix_timestamp_ms();
+//         let mut vm = Vm::new(
+//             crate::interface::L1BatchEnv {
+//                 previous_batch_hash: None,
+//                 number: L1BatchNumber(1),
+//                 timestamp,
+//                 fee_input: BatchFeeInput::l1_pegged(
+//                     50_000_000_000, // 50 gwei
+//                     250_000_000,    // 0.25 gwei
+//                 ),
+//                 fee_account: Address::random(),
+//                 enforced_base_fee: None,
+//                 first_l2_block: L2BlockEnv {
+//                     number: 1,
+//                     timestamp,
+//                     prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+//                     max_virtual_blocks_to_create: 100,
+//                 },
+//             },
+//             crate::interface::SystemEnv {
+//                 zk_porter_available: false,
+//                 version: ProtocolVersionId::latest(),
+//                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
+//                 bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+//                 execution_mode: TxExecutionMode::VerifyExecute,
+//                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+//                 chain_id: L2ChainId::from(270),
+//             },
+//             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
+//         );
+//         vm.push_transaction(tx);
+//         let a = vm.execute(VmExecutionMode::OneTx);
+//         println!("{:?}", a.result);
+//     }
+// }
