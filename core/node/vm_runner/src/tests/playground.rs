@@ -8,37 +8,46 @@ use zksync_state::RocksdbStorage;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
-use crate::impls::{VmPlayground, VmPlaygroundCursorOptions};
+use crate::impls::{VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundTasks};
+
+async fn setup_storage(pool: &ConnectionPool<Core>, batch_count: u32) -> GenesisParams {
+    let mut conn = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    if !conn.blocks_dal().is_genesis_needed().await.unwrap() {
+        return genesis_params;
+    }
+
+    insert_genesis_batch(&mut conn, &genesis_params)
+        .await
+        .unwrap();
+
+    // Generate some batches and persist them in Postgres
+    let mut accounts = [Account::random()];
+    fund(&mut conn, &accounts).await;
+    store_l1_batches(
+        &mut conn,
+        1..=batch_count,
+        genesis_params.base_system_contracts().hashes(),
+        &mut accounts,
+    )
+    .await
+    .unwrap();
+
+    // Fill in missing storage logs for all batches so that running VM for all of them works correctly.
+    storage_writer::write_storage_logs(pool.clone()).await;
+    genesis_params
+}
 
 async fn run_playground(
     pool: ConnectionPool<Core>,
     rocksdb_dir: &tempfile::TempDir,
-    reset_state: bool,
+    reset_to: Option<L1BatchNumber>,
 ) {
-    let mut conn = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
-    if conn.blocks_dal().is_genesis_needed().await.unwrap() {
-        insert_genesis_batch(&mut conn, &genesis_params)
-            .await
-            .unwrap();
-
-        // Generate some batches and persist them in Postgres
-        let mut accounts = [Account::random()];
-        fund(&mut conn, &accounts).await;
-        store_l1_batches(
-            &mut conn,
-            1..=1, // TODO: test on >1 batch
-            genesis_params.base_system_contracts().hashes(),
-            &mut accounts,
-        )
-        .await
-        .unwrap();
-    }
-
+    let genesis_params = setup_storage(&pool, 5).await;
     let cursor = VmPlaygroundCursorOptions {
-        first_processed_batch: L1BatchNumber(0),
+        first_processed_batch: reset_to.unwrap_or(L1BatchNumber(0)),
         window_size: NonZeroU32::new(1).unwrap(),
-        reset_state,
+        reset_state: reset_to.is_some(),
     };
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
@@ -50,23 +59,36 @@ async fn run_playground(
     .await
     .unwrap();
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let playground_io = playground.io().clone();
-    assert_eq!(
-        playground_io
-            .latest_processed_batch(&mut conn)
-            .await
-            .unwrap(),
-        L1BatchNumber(0)
-    );
-    assert_eq!(
-        playground_io
-            .last_ready_to_be_loaded_batch(&mut conn)
-            .await
-            .unwrap(),
-        L1BatchNumber(1)
-    );
+    let mut conn = pool.connection().await.unwrap();
+    if reset_to.is_none() {
+        assert_eq!(
+            playground_io
+                .latest_processed_batch(&mut conn)
+                .await
+                .unwrap(),
+            L1BatchNumber(0)
+        );
+        assert_eq!(
+            playground_io
+                .last_ready_to_be_loaded_batch(&mut conn)
+                .await
+                .unwrap(),
+            L1BatchNumber(1)
+        );
+    }
+
+    wait_for_all_batches(playground, playground_tasks, &mut conn).await;
+}
+
+async fn wait_for_all_batches(
+    playground: VmPlayground,
+    playground_tasks: VmPlaygroundTasks,
+    conn: &mut Connection<'_, Core>,
+) {
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut health_check = playground.health_check();
+    let playground_io = playground.io().clone();
 
     let mut completed_batches = playground_io.subscribe_to_completed_batches();
     let task_handles = [
@@ -78,9 +100,17 @@ async fn run_playground(
         ),
         tokio::spawn(async move { playground.run(&stop_receiver).await }),
     ];
+
     // Wait until all batches are processed.
+    let last_batch_number = conn
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
+        .await
+        .unwrap()
+        .expect("No batches in storage");
+
     completed_batches
-        .wait_for(|&number| number == L1BatchNumber(1))
+        .wait_for(|&number| number == last_batch_number)
         .await
         .unwrap();
     health_check
@@ -90,25 +120,22 @@ async fn run_playground(
             }
             let health_details = health.details().unwrap();
             assert_eq!(health_details["vm_mode"], "shadow");
-            health_details["last_processed_batch"] == 1_u64
+            health_details["last_processed_batch"] == u64::from(last_batch_number.0)
         })
         .await;
 
     // Check that playground I/O works correctly.
     assert_eq!(
-        playground_io
-            .latest_processed_batch(&mut conn)
-            .await
-            .unwrap(),
-        L1BatchNumber(1)
+        playground_io.latest_processed_batch(conn).await.unwrap(),
+        last_batch_number
     );
-    // There's no batch #2 in storage
+    // There's no next batch
     assert_eq!(
         playground_io
-            .last_ready_to_be_loaded_batch(&mut conn)
+            .last_ready_to_be_loaded_batch(conn)
             .await
             .unwrap(),
-        L1BatchNumber(1)
+        last_batch_number
     );
 
     stop_sender.send_replace(true);
@@ -122,14 +149,22 @@ async fn run_playground(
 async fn vm_playground_basics(reset_state: bool) {
     let pool = ConnectionPool::test_pool().await;
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
-    run_playground(pool, &rocksdb_dir, reset_state).await;
+    run_playground(pool, &rocksdb_dir, reset_state.then_some(L1BatchNumber(0))).await;
 }
 
 #[tokio::test]
-async fn resetting_playground_state() {
+async fn starting_from_non_zero_batch() {
     let pool = ConnectionPool::test_pool().await;
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
-    run_playground(pool.clone(), &rocksdb_dir, false).await;
+    run_playground(pool, &rocksdb_dir, Some(L1BatchNumber(3))).await;
+}
+
+#[test_casing(2, [L1BatchNumber(0), L1BatchNumber(2)])]
+#[tokio::test]
+async fn resetting_playground_state(reset_to: L1BatchNumber) {
+    let pool = ConnectionPool::test_pool().await;
+    let rocksdb_dir = tempfile::TempDir::new().unwrap();
+    run_playground(pool.clone(), &rocksdb_dir, None).await;
 
     // Manually catch up RocksDB to Postgres to ensure that resetting it is not trivial.
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -141,5 +176,32 @@ async fn resetting_playground_state() {
         .await
         .unwrap();
 
-    run_playground(pool.clone(), &rocksdb_dir, true).await;
+    run_playground(pool.clone(), &rocksdb_dir, Some(reset_to)).await;
+}
+
+#[test_casing(2, [2, 3])]
+#[tokio::test]
+async fn using_larger_window_size(window_size: u32) {
+    assert!(window_size > 1);
+    let pool = ConnectionPool::test_pool().await;
+    let rocksdb_dir = tempfile::TempDir::new().unwrap();
+
+    let genesis_params = setup_storage(&pool, 5).await;
+    let cursor = VmPlaygroundCursorOptions {
+        first_processed_batch: L1BatchNumber(0),
+        window_size: NonZeroU32::new(window_size).unwrap(),
+        reset_state: false,
+    };
+    let (playground, playground_tasks) = VmPlayground::new(
+        pool.clone(),
+        FastVmMode::Shadow,
+        rocksdb_dir.path().to_str().unwrap().to_owned(),
+        genesis_params.config().l2_chain_id,
+        cursor,
+    )
+    .await
+    .unwrap();
+
+    let mut conn = pool.connection().await.unwrap();
+    wait_for_all_batches(playground, playground_tasks, &mut conn).await;
 }
