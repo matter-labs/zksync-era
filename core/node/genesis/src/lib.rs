@@ -105,7 +105,6 @@ impl GenesisParams {
                 .evm_simulator_hash
                 .ok_or(GenesisError::MalformedConfig("evm_simulator_hash"))?,
         };
-        // FIXME: uncomment this and update hashes.
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -311,7 +310,6 @@ pub async fn ensure_genesis_state(
                 "expected_rollup_last_leaf_index",
             ))?;
 
-    // FIXME: uncomment this and update hashes.
     if expected_root_hash != root_hash {
         return Err(GenesisError::RootHash(expected_root_hash, root_hash));
     }
