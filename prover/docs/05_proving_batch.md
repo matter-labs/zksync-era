@@ -1,4 +1,4 @@
-If you got to this section, then you should be wondering how to prove and verify the batch by yourself.
+If you got to this section, then most likely you are wondering how to prove and verify the batch by yourself.
 
 For that there are some requirements for your machine:
 

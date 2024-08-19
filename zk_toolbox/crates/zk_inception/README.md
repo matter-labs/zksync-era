@@ -20,6 +20,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover create`↴](#zk_inception-prover)
+- [`zk_inception prover setup-database`↴](#zk_inception-prover-setup-database)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
 - [`zk_inception prover run`↴](#zk_inception-prover-run)
@@ -454,7 +455,7 @@ Initialize prover
 
   Possible values: `gcp`, `local`
 
-## zk_inception prover setup-database
+## `zk_inception prover setup-database`
 
 Setup database for prover.
 
