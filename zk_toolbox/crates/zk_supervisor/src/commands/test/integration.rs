@@ -2,8 +2,9 @@ use std::{collections::HashMap, path::PathBuf, vec};
 
 use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
-use config::{ChainConfig, EcosystemConfig};
+use config::{ChainConfig, EcosystemConfig, GeneralConfig};
 use ethers::{
+    providers::{Http, Middleware, Provider},
     signers::{coins_bip39::English, MnemonicBuilder, Signer},
     types::H160,
     utils::hex,
@@ -24,6 +25,7 @@ const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
+
     let chain_config = ecosystem_config
         .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
@@ -126,19 +128,27 @@ async fn fund_test_wallet(
     address: H160,
 ) -> anyhow::Result<()> {
     let wallets = ecosystem.get_wallets()?;
+    let l1_rpc = chain
+        .get_secrets_config()?
+        .l1
+        .context("No L1 secrets available")?
+        .l1_rpc_url
+        .expose_str()
+        .to_owned();
 
-    common::ethereum::distribute_eth(
-        wallets.operator,
-        vec![address],
-        chain
-            .get_secrets_config()?
-            .l1
-            .context("No L1 secrets available")?
-            .l1_rpc_url
-            .expose_str()
-            .to_owned(),
-        ecosystem.l1_network.chain_id(),
-        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-    )
-    .await
+    let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
+    let balance = provider.get_balance(address, None).await?;
+
+    if balance.is_zero() {
+        common::ethereum::distribute_eth(
+            wallets.operator,
+            vec![address],
+            l1_rpc,
+            ecosystem.l1_network.chain_id(),
+            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+        )
+        .await?
+    }
+
+    Ok(())
 }
