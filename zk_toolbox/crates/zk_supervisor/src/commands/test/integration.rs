@@ -4,6 +4,7 @@ use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner, wallets::Wallet};
 use config::{ChainConfig, EcosystemConfig};
 use ethers::{
+    abi::AbiEncode,
     providers::{Http, Middleware, Provider},
     signers::{coins_bip39::English, MnemonicBuilder},
     types::H256,
@@ -49,7 +50,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", private_key.to_string());
+        .env("MASTER_WALLET_PK", private_key.encode_hex());
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
