@@ -8,6 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest, H256},
 };
+use types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
 
@@ -64,12 +65,6 @@ abigen!(
     function mint(address to, uint256 amount)
     ]"
 );
-
-pub struct TokenInfo {
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-}
 
 pub async fn get_token_info(token_address: Address, rpc_url: String) -> anyhow::Result<TokenInfo> {
     let provider = Provider::<Http>::try_from(rpc_url)?;

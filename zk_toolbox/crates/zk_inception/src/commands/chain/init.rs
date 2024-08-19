@@ -20,10 +20,13 @@ use xshell::Shell;
 
 use crate::{
     accept_ownership::accept_admin,
-    commands::chain::{
-        args::init::{InitArgs, InitArgsFinal},
-        deploy_l2_contracts, deploy_paymaster,
-        genesis::genesis,
+    commands::{
+        chain::{
+            args::init::{InitArgs, InitArgsFinal},
+            deploy_l2_contracts, deploy_paymaster,
+            genesis::genesis,
+        },
+        portal::create_and_save_portal_config,
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
@@ -125,6 +128,8 @@ pub async fn init(
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
+
+    let _ = create_and_save_portal_config(ecosystem_config, shell).await;
 
     Ok(())
 }

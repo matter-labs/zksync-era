@@ -216,13 +216,10 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Portal related messages
-pub(super) const MSG_FAILED_TO_START_PORTAL_ERR: &str = "Failed to start portal";
-pub(super) fn msg_portal_chain_not_initialized(chain_name: &str) -> String {
-    format!("Chain {chain_name} is not initialized, skipping")
-}
-pub(super) fn msg_portal_failed_to_configure_chain(chain_name: &str) -> String {
-    format!("Failed to configure chain {chain_name}, skipping")
-}
+pub(super) const MSG_PORTAL_CONFIG_IS_EMPTY_ERR: &str = "Hyperchains config is empty";
+pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
+pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run portal docker container";
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
