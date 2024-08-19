@@ -4,6 +4,7 @@ use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
+use url::Url;
 use xshell::Shell;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
 
@@ -21,7 +22,7 @@ use crate::{
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
         MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
-        MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_SETUP_KEY_PATH_PROMPT, MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
 
@@ -63,6 +64,14 @@ pub struct ProverInitArgs {
 
     #[clap(long)]
     pub setup_database: Option<bool>,
+    #[clap(long, help = MSG_PROVER_DB_URL_HELP)]
+    pub prover_db_url: Option<Url>,
+    #[clap(long, help = MSG_PROVER_DB_NAME_HELP)]
+    pub prover_db_name: Option<String>,
+    #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
+    pub use_default: bool,
+    #[clap(long, short, action)]
+    pub dont_drop: bool,
 
     #[clap(long)]
     cloud_type: Option<InternalCloudConnectionMode>,
@@ -475,27 +484,39 @@ impl ProverInitArgs {
     ) -> Option<ProverDatabaseConfig> {
         let setup_database = self
             .setup_database
+            .clone()
             .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
 
         if setup_database {
             let DBNames { prover_name, .. } = generate_db_names(config);
             let chain_name = config.name.clone();
 
-            let dont_drop = !PromptConfirm::new("Do you want to drop the database?").ask();
+            let dont_drop = self
+                .dont_drop
+                .clone()
+                .unwrap_or_else(|| !PromptConfirm::new("Do you want to drop the database?").ask());
 
-            if PromptConfirm::new("Do you want to use default database?").ask() {
+            if self
+                .use_default
+                .clone()
+                .unwrap_or_else(|| PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP).ask())
+            {
                 Some(ProverDatabaseConfig {
                     database_config: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
                     dont_drop,
                 })
             } else {
-                let prover_db_url = Prompt::new(&msg_prover_db_url_prompt(&chain_name))
-                    .default(DATABASE_PROVER_URL.as_str())
-                    .ask();
+                let prover_db_url = self.prover_db_url.clone().unwrap_or_else(|| {
+                    Prompt::new(&msg_prover_db_url_prompt(&chain_name))
+                        .default(DATABASE_PROVER_URL.as_str())
+                        .ask()
+                });
 
-                let prover_db_name: String = Prompt::new(&msg_prover_db_name_prompt(&chain_name))
-                    .default(&prover_name)
-                    .ask();
+                let prover_db_name: String = self.prover_db_name.clone().unwrap_or_else(|| {
+                    Prompt::new(&msg_prover_db_name_prompt(&chain_name))
+                        .default(&prover_name)
+                        .ask()
+                });
 
                 let prover_db_name = slugify!(&prover_db_name, separator = "_");
 
