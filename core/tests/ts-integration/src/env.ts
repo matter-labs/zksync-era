@@ -78,7 +78,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
-    console.log('Main wallet pk:', mainWalletPK);
 
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
