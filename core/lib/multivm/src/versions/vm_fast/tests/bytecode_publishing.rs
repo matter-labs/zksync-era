@@ -1,7 +1,5 @@
-use zksync_types::event::extract_long_l2_to_l1_messages;
-
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterface},
     utils::bytecode,
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
@@ -32,7 +30,7 @@ fn test_bytecode_publishing() {
     vm.vm.execute(VmExecutionMode::Batch);
 
     let state = vm.vm.get_current_execution_state();
-    let long_messages = extract_long_l2_to_l1_messages(&state.events);
+    let long_messages = VmEvent::extract_long_l2_to_l1_messages(&state.events);
     assert!(
         long_messages.contains(&compressed_bytecode),
         "Bytecode not published"

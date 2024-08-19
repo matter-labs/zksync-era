@@ -18,7 +18,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 
 #[derive(ClapArgs)]
-pub(crate) struct Args {
+pub struct Args {
     #[clap(short, long)]
     file_path: String,
 }
@@ -73,7 +73,7 @@ fn pretty_print_scheduler_witness(
 fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
     println!(" == Circuit ==");
     match circuit {
-        CircuitWrapper::Base(circuit) => {
+        CircuitWrapper::Base(circuit) | CircuitWrapper::BasePartial((circuit, _)) => {
             println!(
                 "Type: basic. Id: {:?} ({})",
                 circuit.numeric_circuit_type(),

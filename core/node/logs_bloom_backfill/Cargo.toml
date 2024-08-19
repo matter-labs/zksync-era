@@ -17,3 +17,6 @@ zksync_types.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+zksync_vm_interface.workspace = true
