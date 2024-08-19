@@ -7,7 +7,7 @@ unmaintained = "warn"
 yanked = "warn"
 notice = "warn"
 ignore = [
-    { crate = "sqlx@0.8.0", reason = "https://github.com/launchbadge/sqlx/issues/3440 to be fixed in next version (0.8.1), which is not out yet" },
+    "RUSTSEC-2024-0363",
 ]
 
 [licenses]
