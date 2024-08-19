@@ -1,15 +1,14 @@
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
+use common::{cmd::Cmd, db::wait_for_db, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use super::args::rust::RustArgs;
 use crate::{
     commands::database,
-    dals::{get_test_dals, Dal},
+    dals::get_test_dals,
     messages::{
-        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_FAILED_TO_CONNECT_TO_DATABASE_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
+        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
         MSG_RESETTING_TEST_DATABASES, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
     },
 };
@@ -71,19 +70,6 @@ fn nextest_is_installed(shell: &Shell) -> anyhow::Result<bool> {
     Ok(out.contains("cargo-nextest"))
 }
 
-fn wait_for_dal(shell: &Shell, dal: &Dal) -> anyhow::Result<()> {
-    let url = dal.url.as_str();
-    for _ in 0..10 {
-        if let Ok(out) = Cmd::new(cmd!(shell, "pg_isready -d {url}")).run_with_output() {
-            if out.status.success() {
-                return Ok(());
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
-    anyhow::bail!(MSG_FAILED_TO_CONNECT_TO_DATABASE_ERR);
-}
-
 async fn reset_test_databases(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_RESETTING_TEST_DATABASES);
     let ecosystem = EcosystemConfig::from_file(shell)?;
@@ -100,7 +86,7 @@ async fn reset_test_databases(shell: &Shell) -> anyhow::Result<()> {
     .run()?;
 
     for dal in get_test_dals(shell)? {
-        wait_for_dal(shell, &dal)?;
+        wait_for_db(shell, &dal.url.clone(), 3).await?;
         database::reset::reset_database(shell, ecosystem.link_to_code.clone(), dal.clone()).await?;
     }
 
