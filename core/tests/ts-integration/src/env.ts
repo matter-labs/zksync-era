@@ -6,7 +6,7 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
-import { loadConfig, loadChainConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 /**
  * Attempts to connect to server.
