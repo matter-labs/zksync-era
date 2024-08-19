@@ -1,16 +1,17 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, vec};
 
 use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{ChainConfig, EcosystemConfig};
 use ethers::{
-    signers::{coins_bip39::English, MnemonicBuilder},
+    signers::{coins_bip39::English, MnemonicBuilder, Signer},
+    types::H160,
     utils::hex,
 };
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
-use super::{args::integration::IntegrationArgs, fund::fund_test_wallet};
+use super::args::integration::IntegrationArgs;
 use crate::messages::{
     msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS,
     MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
@@ -19,6 +20,7 @@ use crate::messages::{
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
 const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
+const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -45,23 +47,21 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         .unwrap()
         .as_str();
 
-    let secret_key = hex::encode(
-        MnemonicBuilder::<English>::default()
-            .phrase(phrase)
-            .derivation_path(test_wallets.base_path.as_str())
-            .context(format!(
-                "Impossible to parse derivation path: {}",
-                test_wallets.base_path
-            ))?
-            .build()
-            .context(format!("Impossible to parse mnemonic: {}", phrase))?
-            .signer()
-            .to_bytes(),
-    );
+    let mnemonic = MnemonicBuilder::<English>::default()
+        .phrase(phrase)
+        .derivation_path(test_wallets.base_path.as_str())
+        .context(format!(
+            "Impossible to parse derivation path: {}",
+            test_wallets.base_path
+        ))?
+        .build()
+        .context(format!("Impossible to parse mnemonic: {}", phrase))?;
+
+    let secret_key = hex::encode(mnemonic.signer().to_bytes());
 
     logger::info(format!("MASTER_WALLET_PK: {}", secret_key));
 
-    fund_test_wallet(shell, &ecosystem_config, &chain_config).await?;
+    fund_test_wallet(&ecosystem_config, &chain_config, mnemonic.address()).await?;
 
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
@@ -118,4 +118,27 @@ struct TestWallets {
     base_path: String,
     #[serde(flatten)]
     wallets: HashMap<String, String>,
+}
+
+async fn fund_test_wallet(
+    ecosystem: &EcosystemConfig,
+    chain: &ChainConfig,
+    address: H160,
+) -> anyhow::Result<()> {
+    let wallets = ecosystem.get_wallets()?;
+
+    common::ethereum::distribute_eth(
+        wallets.operator,
+        vec![address],
+        chain
+            .get_secrets_config()?
+            .l1
+            .context("No L1 secrets available")?
+            .l1_rpc_url
+            .expose_str()
+            .to_owned(),
+        ecosystem.l1_network.chain_id(),
+        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    )
+    .await
 }
