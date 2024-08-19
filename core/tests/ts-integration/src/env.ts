@@ -43,21 +43,14 @@ export async function waitForServer(l2NodeUrl: string) {
     throw new Error('Failed to wait for the server to start');
 }
 
-function getMainWalletPk(pathToHome: string, chain?: string): string {
+function getMainWalletPk(pathToHome: string): string {
     if (process.env.MASTER_WALLET_PK) {
         return process.env.MASTER_WALLET_PK;
     } else {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
 
-        let wallet_name = `test_mnemonic`;
-
-        if (chain) {
-            let id = loadChainConfig(pathToHome, chain).id;
-            wallet_name += `${id + 1}`;
-        }
-
-        let pk = ethers.Wallet.fromPhrase(ethTestConfig[wallet_name]).privateKey;
+        let pk = ethers.Wallet.fromPhrase(ethTestConfig['test_mnemonic']).privateKey;
         process.env.MASTER_WALLET_PK = pk;
 
         return pk;
@@ -84,7 +77,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network.toLowerCase();
-    let mainWalletPK = getMainWalletPk(pathToHome, chain);
+    let mainWalletPK = getMainWalletPk(pathToHome);
+    console.log('Main wallet pk:', mainWalletPK);
+
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
     await waitForServer(l2NodeUrl);
