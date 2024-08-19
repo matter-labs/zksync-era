@@ -8,7 +8,8 @@ use crate::{
     commands::database,
     dals::{get_test_dals, Dal},
     messages::{
-        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
+        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_FAILED_TO_CONNECT_TO_DATABASE_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
         MSG_RESETTING_TEST_DATABASES, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
     },
 };
@@ -80,7 +81,7 @@ fn wait_for_dal(shell: &Shell, dal: &Dal) -> anyhow::Result<()> {
         }
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
-    anyhow::bail!("Failed to connect to the database");
+    anyhow::bail!(MSG_FAILED_TO_CONNECT_TO_DATABASE_ERR);
 }
 
 async fn reset_test_databases(shell: &Shell) -> anyhow::Result<()> {
