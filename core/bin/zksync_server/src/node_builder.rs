@@ -442,7 +442,7 @@ impl MainNodeBuilder {
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
         let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
+        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
         let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
         let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 

@@ -10,6 +10,9 @@ use zksync_vm_interface::storage::ReadStorage;
 
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
+/// Storage with a static lifetime that can be sent to Tokio tasks etc.
+pub type OwnedStorage = PgOrRocksdbStorage<'static>;
+
 /// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param
 /// (mostly for testing purposes); the default is [`OwnedStorage`].
 #[async_trait]
@@ -35,8 +38,9 @@ impl ReadStorageFactory for ConnectionPool<Core> {
         _stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<OwnedStorage>> {
-        let storage = OwnedPostgresStorage::new(self.clone(), l1_batch_number);
-        Ok(Some(storage.into()))
+        let connection = self.connection().await?;
+        let storage = OwnedStorage::postgres(connection, l1_batch_number).await?;
+        Ok(Some(storage))
     }
 }
 
@@ -61,31 +65,29 @@ pub struct RocksdbWithMemory {
     pub batch_diffs: Vec<BatchDiff>,
 }
 
-/// Owned Postgres-backed VM storage for a certain L1 batch.
+/// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
+/// underneath.
 #[derive(Debug)]
-pub struct OwnedPostgresStorage {
-    connection_pool: ConnectionPool<Core>,
-    l1_batch_number: L1BatchNumber,
+pub enum PgOrRocksdbStorage<'a> {
+    /// Implementation over a Postgres connection.
+    Postgres(PostgresStorage<'a>),
+    /// Implementation over a RocksDB cache instance.
+    Rocksdb(RocksdbStorage),
+    /// Implementation over a RocksDB cache instance with in-memory DB diffs.
+    RocksdbWithMemory(RocksdbWithMemory),
 }
 
-impl OwnedPostgresStorage {
-    /// Creates a VM storage for the specified batch number.
-    pub fn new(connection_pool: ConnectionPool<Core>, l1_batch_number: L1BatchNumber) -> Self {
-        Self {
-            connection_pool,
-            l1_batch_number,
-        }
-    }
-
-    /// Returns a [`ReadStorage`] implementation backed by Postgres
+impl PgOrRocksdbStorage<'static> {
+    /// Creates a Postgres-based storage. Because of the `'static` lifetime requirement, `connection` must be
+    /// non-transactional.
     ///
     /// # Errors
     ///
-    /// Propagates Postgres errors.
-    pub async fn borrow(&self) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
-        let l1_batch_number = self.l1_batch_number;
-        let mut connection = self.connection_pool.connection().await?;
-
+    /// Propagates Postgres I/O errors.
+    pub async fn postgres(
+        mut connection: Connection<'static, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Self> {
         let l2_block_number = if let Some((_, l2_block_number)) = connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -114,42 +116,7 @@ impl OwnedPostgresStorage {
                 .into(),
         )
     }
-}
 
-/// Owned version of [`PgOrRocksdbStorage`]. It is thus possible to send to blocking tasks for VM execution.
-#[derive(Debug)]
-pub enum OwnedStorage {
-    /// Readily initialized storage with a static lifetime.
-    Static(PgOrRocksdbStorage<'static>),
-    /// Storage that must be `borrow()`ed from.
-    Lending(OwnedPostgresStorage),
-}
-
-impl From<OwnedPostgresStorage> for OwnedStorage {
-    fn from(storage: OwnedPostgresStorage) -> Self {
-        Self::Lending(storage)
-    }
-}
-
-impl From<PgOrRocksdbStorage<'static>> for OwnedStorage {
-    fn from(storage: PgOrRocksdbStorage<'static>) -> Self {
-        Self::Static(storage)
-    }
-}
-
-/// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
-/// underneath.
-#[derive(Debug)]
-pub enum PgOrRocksdbStorage<'a> {
-    /// Implementation over a Postgres connection.
-    Postgres(PostgresStorage<'a>),
-    /// Implementation over a RocksDB cache instance.
-    Rocksdb(RocksdbStorage),
-    /// Implementation over a RocksDB cache instance with in-memory DB diffs.
-    RocksdbWithMemory(RocksdbWithMemory),
-}
-
-impl PgOrRocksdbStorage<'static> {
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
     /// returns a [`ReadStorage`] implementation backed by caught-up RocksDB.
     ///

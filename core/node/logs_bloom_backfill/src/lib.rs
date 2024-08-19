@@ -124,8 +124,9 @@ impl LogsBloomBackfill {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, VmEvent, H256,
+        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, H256,
     };
+    use zksync_vm_interface::VmEvent;
 
     use super::*;
 

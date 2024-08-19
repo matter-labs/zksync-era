@@ -16,7 +16,7 @@ use zksync_config::{
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
+        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
     EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -79,6 +79,7 @@ pub struct TempConfigStore {
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
 }
 
 impl TempConfigStore {
@@ -97,7 +98,7 @@ impl TempConfigStore {
             prover_gateway: self.fri_prover_gateway_config.clone(),
             witness_vector_generator: self.fri_witness_vector_generator.clone(),
             prover_group_config: self.fri_prover_group_config.clone(),
-            witness_generator: self.fri_witness_generator_config.clone(),
+            witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
@@ -118,6 +119,7 @@ impl TempConfigStore {
                 .external_proof_integration_api_config
                 .clone(),
             experimental_vm_config: self.experimental_vm_config.clone(),
+            prover_job_monitor_config: self.prover_job_monitor_config.clone(),
         }
     }
 
@@ -197,6 +199,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
     })
 }
 

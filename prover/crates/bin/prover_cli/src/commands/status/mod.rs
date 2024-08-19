@@ -4,7 +4,7 @@ use crate::cli::ProverCLIConfig;
 
 pub(crate) mod batch;
 pub(crate) mod l1;
-mod utils;
+pub mod utils;
 
 #[derive(Subcommand)]
 pub enum StatusCommand {
