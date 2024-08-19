@@ -170,4 +170,46 @@ impl CliTestDal<'_, '_> {
         .await
         .unwrap();
     }
+
+    pub async fn update_attempts_prover_job(
+        &mut self,
+        status: ProverJobStatus,
+        attempts: u8,
+        circuit_id: u8,
+        aggregation_round: i64,
+        batch_number: L1BatchNumber,
+        sequence_number: usize,
+    ) {
+        sqlx::query(&format!(
+            "UPDATE prover_jobs_fri 
+                SET status = '{}', attempts = {} 
+                WHERE l1_batch_number = {} 
+                AND sequence_number = {} 
+                AND aggregation_round = {}
+                AND circuit_id = {}",
+            status, attempts, batch_number.0, sequence_number, aggregation_round, circuit_id,
+        ))
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn update_attempts_lwg(
+        &mut self,
+        status: ProverJobStatus,
+        attempts: u8,
+        circuit_id: u8,
+        batch_number: L1BatchNumber,
+    ) {
+        sqlx::query(&format!(
+            "UPDATE leaf_aggregation_witness_jobs_fri 
+                SET status = '{}', attempts = {} 
+                WHERE l1_batch_number = {}
+                AND circuit_id = {}",
+            status, attempts, batch_number.0, circuit_id,
+        ))
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
 }
