@@ -60,8 +60,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 struct TestWallets {
     #[serde(rename = "web3_url")]
     _web3_url: String,
-    #[serde(rename = "test_mnemonic")]
-    _test_mnemonic: String,
+    test_mnemonic: String,
     test_mnemonic2: String,
     test_mnemonic3: String,
     test_mnemonic4: String,
@@ -92,6 +91,7 @@ impl TestWallets {
         };
 
         Ok(vec![
+            address_from_string(&self.test_mnemonic)?,
             address_from_string(&self.test_mnemonic2)?,
             address_from_string(&self.test_mnemonic3)?,
             address_from_string(&self.test_mnemonic4)?,
