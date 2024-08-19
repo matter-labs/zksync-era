@@ -23,13 +23,13 @@ assert_matches.workspace = true
 iai.workspace = true
 
 [[bench]]
-name = "criterion"
+name = "oneshot"
+harness = false
+
+[[bench]]
+name = "batch"
 harness = false
 
 [[bench]]
 name = "iai"
-harness = false
-
-[[bench]]
-name = "fill_bootloader"
 harness = false

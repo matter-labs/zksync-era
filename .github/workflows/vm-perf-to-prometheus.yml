@@ -40,8 +40,8 @@ jobs:
 
       - name: run benchmarks
         run: |
-          ci_run cargo bench --package vm-benchmark --bench criterion
+          ci_run cargo bench --package vm-benchmark --bench oneshot
           # Run only benches with 1,000 transactions per batch to not spend too much time
-          ci_run cargo bench --package vm-benchmark --bench fill_bootloader '/1000$'
+          ci_run cargo bench --package vm-benchmark --bench batch '/1000$'
           ci_run cargo bench --package vm-benchmark --bench iai | tee iai-result
           ci_run cargo run --package vm-benchmark --bin iai_results_to_prometheus --release < iai-result
