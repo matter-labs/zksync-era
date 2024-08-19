@@ -8,12 +8,8 @@ use common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
-    PromptConfirm,
 };
-use config::{
-    copy_configs, set_databases, set_prover_database, traits::SaveConfigWithBasePath,
-    EcosystemConfig,
-};
+use config::{copy_configs, set_prover_database, traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 use zksync_config::{
     configs::{object_store::ObjectStoreMode, GeneralConfig},
@@ -27,19 +23,18 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::{
-    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES, SERVER_MIGRATIONS},
+    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
-        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
+        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
         MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
         MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    //check_prover_prequisites(shell);
+    check_prover_prequisites(shell);
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

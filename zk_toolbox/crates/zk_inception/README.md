@@ -269,6 +269,7 @@ Initialize chain, deploying necessary contracts and performing on-chain operatio
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
 - `--deploy-paymaster <DEPLOY_PAYMASTER>`
+- `--copy-configs` - Copy default configs to the chain
 
   Possible values: `true`, `false`
 
@@ -418,7 +419,7 @@ Initialize prover
 - `--project-id <PROJECT_ID>`
 - `--shall-save-to-public-bucket <SHALL_SAVE_TO_PUBLIC_BUCKET>`
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--public-store-dir <PUBLIC_STORE_DIR>`
 - `--public-bucket-base-url <PUBLIC_BUCKET_BASE_URL>`
@@ -428,8 +429,10 @@ Initialize prover
 - `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
+- `--setup-database`
+- `--copy-configs`
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--setup-key-path <SETUP_KEY_PATH>`
 - `--cloud-type <CLOUD_TYPE>`
