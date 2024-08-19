@@ -7,11 +7,14 @@ that.
 
 ## Requirements
 
-First of all, you need to install CUDA drivers, all other things will be dealt with by `zk_inception` tool. For that,
-check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
+First of all, you need to install CUDA drivers, all other things will be dealt with by `zk_inception` and `prover_cli`
+tools. For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
 
 Now, you can use `zk_inception` tool for setting up the env and running prover subsystem. Check the steps for
 installation in [this guide](../../zk_toolbox/README.md). And don't forget to install the prerequisites!
+
+Also, to assure that you are working with database securely, you need to use `prover_cli` tool. You can find the guide
+for installation [here](../crates/bin/prover_cli/README.md).
 
 ## Initializing system
 
@@ -62,45 +65,26 @@ cargo run --bin prover_version
 It will give you the latest prover protocol version in a semver format, like `0.24.2`, you need to know only minor and
 patch versions. Now, go to the `prover/crates/bin/vk_setup_data_generator_server_fri/data/commitments.json` and get
 `snark_wrapper` value from it. Then, you need to insert the info about protocol version into the database. First,
-connect to the database, e.g. locally you can do it like that(for local DB you can find the url in `prover.yaml` or
-`general.yaml` files):
+connect to the database, e.g. locally you can do it like that:
+
+Now, with the use of `prover_cli` tool, you can insert the data about the batch and protocol version into the database:
+
+First, let the tool know which database it should connect to((for local DB you can find the url in `secrets.yaml` file):
 
 ```shell
-psql postgres://postgres:notsecurepassword@localhost/prover_local
+pli config --db-url <DATABASE_URL>
 ```
 
-And run the following query:
+Now, insert the information about protocol version in the database:
 
 ```shell
-INSERT INTO
-prover_fri_protocol_versions (
-id,
-recursion_scheduler_level_vk_hash,
-created_at,
-protocol_version_patch
-)
-VALUES
-(<minor version>, '<snark wrapper value>'::bytea, NOW(), <patch version>)
-ON CONFLICT (id, protocol_version_patch) DO NOTHING
-
+pli insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
 ```
 
-Now, you need to insert the batch into the database. Run the following query:
+And finally, provide the data about the batch:
 
 ```shell
-INSERT INTO
-witness_inputs_fri (
-l1_batch_number,
-witness_inputs_blob_url,
-protocol_version,
-status,
-created_at,
-updated_at,
-protocol_version_patch
-)
-VALUES
-(<batch number>, 'witness_inputs_<batch_number>.bin', <minor version>, 'queued', NOW(), NOW(), <patch version>)
-ON CONFLICT (l1_batch_number) DO NOTHING
+pli insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
 ```
 
 ## Running prover subsystem
