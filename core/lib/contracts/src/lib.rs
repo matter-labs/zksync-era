@@ -58,6 +58,8 @@ const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
+const MAILBOX_CONTRACT_FILE: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/mailbox/mailbox.sol/Mailbox.json";
 
 fn home_path() -> &'static Path {
     workspace_dir_or_current_dir()
@@ -158,6 +160,10 @@ pub fn multicall_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+}
+
+pub fn mailbox_contract() -> Contract {
+    load_contract(MAILBOX_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]

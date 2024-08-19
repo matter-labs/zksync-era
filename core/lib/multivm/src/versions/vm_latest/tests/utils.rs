@@ -143,3 +143,7 @@ pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
         "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
     (read_bytecode(PATH), load_contract(PATH))
 }
+
+pub(crate) fn read_mailbox_contract() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/mailbox/mailbox.sol/Mailbox.json")
+}
