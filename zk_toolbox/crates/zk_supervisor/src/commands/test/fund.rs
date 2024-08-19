@@ -21,8 +21,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let chain = ecosystem
         .load_chain(global_config().chain_name.clone())
-        .context(MSG_CHAIN_NOT_FOUND_ERR)
-        .unwrap();
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     if chain.wallet_creation == WalletCreation::Localhost
         && ecosystem.l1_network == L1Network::Localhost
@@ -31,17 +30,18 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
         let wallets_path: PathBuf = ecosystem.link_to_code.join(TEST_WALLETS_PATH);
         let test_wallets: TestWallets =
-            serde_json::from_str(shell.read_file(&wallets_path)?.as_ref()).unwrap();
+            serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
+                .context("Impossible to deserialize test wallets")?;
 
         let wallets = ecosystem.get_wallets()?;
 
         common::ethereum::distribute_eth(
             wallets.operator,
-            test_wallets.address_list(),
+            test_wallets.address_list()?,
             chain
                 .get_secrets_config()?
                 .l1
-                .unwrap()
+                .context("No L1 secrets available")?
                 .l1_rpc_url
                 .expose_str()
                 .to_owned(),
@@ -77,27 +77,30 @@ struct TestWallets {
 }
 
 impl TestWallets {
-    pub fn address_list(&self) -> Vec<H160> {
-        let address_from_string = |s: &String| {
-            MnemonicBuilder::<English>::default()
+    pub fn address_list(&self) -> anyhow::Result<Vec<H160>> {
+        let address_from_string = |s: &String| -> anyhow::Result<H160> {
+            Ok(MnemonicBuilder::<English>::default()
                 .phrase(s.as_str())
                 .derivation_path(self.base_path.as_str())
-                .unwrap()
+                .context(format!(
+                    "Impossible to parse derivation path: {}",
+                    self.base_path
+                ))?
                 .build()
-                .unwrap()
-                .address()
+                .context(format!("Impossible to parse mnemonic: {}", s))?
+                .address())
         };
 
-        vec![
-            address_from_string(&self.test_mnemonic2),
-            address_from_string(&self.test_mnemonic3),
-            address_from_string(&self.test_mnemonic4),
-            address_from_string(&self.test_mnemonic5),
-            address_from_string(&self.test_mnemonic6),
-            address_from_string(&self.test_mnemonic7),
-            address_from_string(&self.test_mnemonic8),
-            address_from_string(&self.test_mnemonic9),
-            address_from_string(&self.test_mnemonic10),
-        ]
+        Ok(vec![
+            address_from_string(&self.test_mnemonic2)?,
+            address_from_string(&self.test_mnemonic3)?,
+            address_from_string(&self.test_mnemonic4)?,
+            address_from_string(&self.test_mnemonic5)?,
+            address_from_string(&self.test_mnemonic6)?,
+            address_from_string(&self.test_mnemonic7)?,
+            address_from_string(&self.test_mnemonic8)?,
+            address_from_string(&self.test_mnemonic9)?,
+            address_from_string(&self.test_mnemonic10)?,
+        ])
     }
 }
