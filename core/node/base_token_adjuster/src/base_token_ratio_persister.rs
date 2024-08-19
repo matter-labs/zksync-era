@@ -7,7 +7,7 @@ use zksync_contracts::chain_admin_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, Options};
 use zksync_external_price_api::PriceAPIClient;
-use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     base_token_ratio::BaseTokenAPIRatio,
     ethabi::{Contract, Token},
@@ -22,7 +22,7 @@ pub struct BaseTokenRatioPersister {
     base_token_address: Address,
     price_api_client: Arc<dyn PriceAPIClient>,
     eth_client: Box<dyn BoundEthInterface>,
-    gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    gas_adjuster: Arc<dyn TxParamsProvider>,
     token_multiplier_setter_account_address: Address,
     chain_admin_contract: Contract,
     diamond_proxy_contract_address: Address,
@@ -37,7 +37,7 @@ impl BaseTokenRatioPersister {
         base_token_address: Address,
         price_api_client: Arc<dyn PriceAPIClient>,
         eth_client: Box<dyn BoundEthInterface>,
-        gas_adjuster: Arc<dyn L1TxParamsProvider>,
+        gas_adjuster: Arc<dyn TxParamsProvider>,
         token_multiplier_setter_account_address: Address,
         diamond_proxy_contract_address: Address,
         chain_admin_contract_address: Option<Address>,
