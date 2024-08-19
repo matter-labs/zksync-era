@@ -19,7 +19,7 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
+    //check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem_config

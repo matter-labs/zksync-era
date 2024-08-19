@@ -58,7 +58,9 @@ pub async fn init(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    if init_args.copy_configs {
+        copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    }
 
     let mut genesis_config = chain_config.get_genesis_config()?;
     update_from_chain_config(&mut genesis_config, chain_config);

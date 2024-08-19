@@ -10,8 +10,8 @@ use crate::{
     commands::chain::args::genesis::GenesisArgs,
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_COPY_CONFIGS_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
     },
 };
 
@@ -28,6 +28,8 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long)]
+    pub copy_configs: Option<bool>,
 }
 
 impl InitArgs {
@@ -52,11 +54,18 @@ impl InitArgs {
                 .ask()
         });
 
+        let copy_configs = self.copy_configs.unwrap_or_else(|| {
+            common::PromptConfirm::new(MSG_COPY_CONFIGS_PROMPT)
+                .default(true)
+                .ask()
+        });
+
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
+            copy_configs,
         }
     }
 }
@@ -67,4 +76,5 @@ pub struct InitArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
+    pub copy_configs: bool,
 }

@@ -1,6 +1,8 @@
 use clap::{Parser, ValueEnum};
-use common::{logger, Prompt, PromptConfirm, PromptSelect};
+use common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use config::ChainConfig;
 use serde::{Deserialize, Serialize};
+use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use xshell::Shell;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
@@ -9,8 +11,10 @@ use super::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{
     commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
+    defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL},
     messages::{
-        MSG_CLOUD_TYPE_PROMPT, MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT,
+        msg_prover_db_name_prompt, msg_prover_db_url_prompt, MSG_CLOUD_TYPE_PROMPT,
+        MSG_COPY_CONFIGS_PROMPT, MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT,
         MSG_CREATE_GCS_BUCKET_NAME_PROMTP, MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
@@ -53,6 +57,12 @@ pub struct ProverInitArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub setup_key_config: SetupKeyConfigTmp,
+
+    #[clap(long)]
+    pub copy_configs: Option<bool>,
+
+    #[clap(long)]
+    pub setup_database: Option<bool>,
 
     #[clap(long)]
     cloud_type: Option<InternalCloudConnectionMode>,
@@ -161,12 +171,20 @@ pub struct SetupKeyConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct ProverDatabaseConfig {
+    pub database_config: DatabaseConfig,
+    pub dont_drop: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
     pub bellman_cuda_config: InitBellmanCudaArgs,
     pub cloud_type: CloudConnectionMode,
+    pub copy_configs: bool,
+    pub database_config: Option<ProverDatabaseConfig>,
 }
 
 impl ProverInitArgs {
@@ -174,12 +192,15 @@ impl ProverInitArgs {
         &self,
         shell: &Shell,
         setup_key_path: &str,
+        chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
         let cloud_type = self.get_cloud_type_with_prompt();
+        let copy_configs = self.ask_copy_configs();
+        let database_config = self.fill_database_values_with_prompt(chain_config);
 
         Ok(ProverInitArgsFinal {
             proof_store,
@@ -187,6 +208,8 @@ impl ProverInitArgs {
             setup_key_config,
             bellman_cuda_config,
             cloud_type,
+            copy_configs,
+            database_config,
         })
     }
 
@@ -439,5 +462,49 @@ impl ProverInitArgs {
         });
 
         cloud_type.into()
+    }
+
+    fn ask_copy_configs(&self) -> bool {
+        self.copy_configs
+            .unwrap_or_else(|| PromptConfirm::new(MSG_COPY_CONFIGS_PROMPT).ask())
+    }
+
+    fn fill_database_values_with_prompt(
+        &self,
+        config: &ChainConfig,
+    ) -> Option<ProverDatabaseConfig> {
+        let setup_database = self
+            .setup_database
+            .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
+
+        if setup_database {
+            let DBNames { prover_name, .. } = generate_db_names(config);
+            let chain_name = config.name.clone();
+
+            let dont_drop = !PromptConfirm::new("Do you want to drop the database?").ask();
+
+            if PromptConfirm::new("Do you want to use default database?").ask() {
+                Some(ProverDatabaseConfig {
+                    database_config: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
+                    dont_drop,
+                })
+            } else {
+                let prover_db_url = Prompt::new(&msg_prover_db_url_prompt(&chain_name))
+                    .default(DATABASE_PROVER_URL.as_str())
+                    .ask();
+                let prover_db_name = slugify!(
+                    Prompt::new(&msg_prover_db_name_prompt(&chain_name))
+                        .default(&prover_name)
+                        .ask(),
+                    separator = "_"
+                );
+                Some(ProverDatabaseConfig {
+                    database_config: DatabaseConfig::new(prover_db_url, prover_db_name),
+                    dont_drop,
+                })
+            }
+        } else {
+            None
+        }
     }
 }
