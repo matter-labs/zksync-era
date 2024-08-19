@@ -6,6 +6,7 @@ pub struct IaiResult {
     pub l1_accesses: u64,
     pub l2_accesses: u64,
     pub ram_accesses: u64,
+    pub total_rw: u64,
     pub cycles: u64,
 }
 
@@ -30,6 +31,7 @@ impl<I: Iterator<Item = String>> Iterator for IaiResultParser<I> {
                 l1_accesses: self.parse_stat(),
                 l2_accesses: self.parse_stat(),
                 ram_accesses: self.parse_stat(),
+                total_rw: self.parse_stat(),
                 cycles: self.parse_stat(),
             };
             self.lines.next();
