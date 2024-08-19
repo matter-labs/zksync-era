@@ -1,17 +1,15 @@
 use anyhow::Context as _;
 use bigdecimal::Zero as _;
-use zksync_consensus_roles::{
-    attester, attester::BatchNumber, validator, validator::WeightedValidator,
-};
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-pub use crate::consensus::{Attester, AttesterCommittee, Payload, Validator, ValidatorCommittee};
-use crate::{consensus, Core, CoreDal};
-use zksync_protobuf::ProtoFmt as _;
+pub use crate::consensus::{proto, AttestationStatus, Payload};
+use crate::{Core, CoreDal};
+use zksync_protobuf::{ProtoRepr as _, ProtoFmt as _};
 use zksync_types::L2BlockNumber;
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -344,10 +342,11 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(certificate)?))
     }
 
-    pub async fn batch_committee(
+    /// Fetches committee that should attest a given batch.
+    pub async fn attester_committee(
         &mut self,
-        batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<AttesterCommittee>> {
+        number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<attester::Committee>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -357,17 +356,17 @@ impl ConsensusDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            i64::try_from(batch_number.0)?
+            i64::try_from(number.0).context("overflow")?
         )
-        .instrument("batch_committee")
+        .instrument("attester_committee")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-
-        Ok(Some(zksync_protobuf::serde::deserialize(row.committee)?))
+        let committee : proto::AttesterCommittee = zksync_protobuf::serde::deserialize_proto(row.committee)?;
+        Ok(Some(committee.read()?))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -452,11 +451,14 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_batch_committee(
+    /// Persist the attester committee for the given batch.
+    pub async fn insert_attester_committee(
         &mut self,
-        number: BatchNumber,
-        committee: AttesterCommittee,
+        number: attester::BatchNumber,
+        committee: &attester::Committee,
     ) -> anyhow::Result<()> {
+        let committee = proto::AttesterCommittee::build(committee);
+        let committee = zksync_protobuf::serde::serialize_proto(&committee, serde_json::value::Serializer).unwrap();
         let res = sqlx::query!(
             r#"
             INSERT INTO
@@ -465,10 +467,10 @@ impl ConsensusDal<'_, '_> {
                 ($1, NULL, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            i64::try_from(number.0).context("overflow")?.into(),
-            zksync_protobuf::serde::serialize(&committee, serde_json::value::Serializer).unwrap(),
+            i64::try_from(number.0).context("overflow")?,
+            committee
         )
-        .instrument("insert_batch_committee")
+        .instrument("insert_attester_committee")
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -480,7 +482,8 @@ impl ConsensusDal<'_, '_> {
 
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
-    /// No verification is performed - it cannot be performed due to circular dependency on
+    /// Verification against previously stored attester committee is performed.
+    /// Batch hash is not verified - it cannot be performed due to circular dependency on
     /// `zksync_l1_contract_interface`.
     pub async fn insert_batch_certificate(
         &mut self,
@@ -614,45 +617,6 @@ impl ConsensusDal<'_, '_> {
             genesis: genesis.hash(),
             next_batch_to_attest,
         }))
-    }
-
-    pub async fn get_last_batch_committee_number(
-        &mut self,
-    ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                MAX(l1_batch_number) AS "number"
-            FROM
-                l1_batches_consensus
-            "#
-        )
-        .instrument("get_last_batch_committee_number")
-        .report_latency()
-        .fetch_one(self.storage)
-        .await?;
-
-        let Some(n) = row.number else {
-            return Ok(None);
-        };
-        Ok(Some(attester::BatchNumber(
-            n.try_into().context("overflow")?,
-        )))
-    }
-
-    pub async fn next_batch_to_extract_committee(
-        &mut self,
-    ) -> anyhow::Result<attester::BatchNumber> {
-        // First batch that we don't have a committee for.
-        if let Some(last) = self
-            .get_last_batch_committee_number()
-            .await
-            .context("get_last_batch_certificate_number()")?
-        {
-            return Ok(last + 1);
-        }
-
-        Ok(attester::BatchNumber(0))
     }
 }
 

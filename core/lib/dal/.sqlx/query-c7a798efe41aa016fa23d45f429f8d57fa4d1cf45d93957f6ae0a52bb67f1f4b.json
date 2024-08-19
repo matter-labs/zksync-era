@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE l1_batches_consensus\n            SET\n                certificate = $2,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c7a798efe41aa016fa23d45f429f8d57fa4d1cf45d93957f6ae0a52bb67f1f4b"
+}

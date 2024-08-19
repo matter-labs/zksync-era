@@ -3,6 +3,7 @@ syntax = "proto3";
 package zksync.dal;
 
 import "zksync/roles/validator.proto";
+import "zksync/roles/attester.proto";
 
 message Payload {
   // zksync-era ProtocolVersionId
@@ -117,25 +118,8 @@ message PaymasterParams {
   optional bytes paymaster_input = 2; // required
 }
 
-message Validator {
-  // TODO: what format?
-  optional bytes public_key = 1; // required
-  optional uint64 weight = 2; // required
-  optional bytes proof_of_possession = 3; // required
-}
-
-message Attester {
-  // TODO: what format?
-  optional bytes public_key = 1; // required
-  optional uint64 weight = 2; // required
-}
-
-message ValidatorCommittee {
-   repeated Validator members = 1; // required
-}
-
 message AttesterCommittee {
-   repeated Attester members = 1; // required
+   repeated roles.attester.WeightedAttester members = 1; // required
 }
 
 message AttestationStatus {

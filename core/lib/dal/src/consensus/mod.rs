@@ -6,7 +6,6 @@ mod testonly;
 mod tests;
 
 use anyhow::{anyhow, Context as _};
-use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
@@ -471,116 +470,17 @@ impl ProtoRepr for proto::Transaction {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Validator {
-    /// Validator public key.
-    pub pub_key: validator::PublicKey,
-    /// Validator weight inside a Committee.
-    pub weight: validator::Weight,
-    /// Proof-of-possession (PoP) of the validator's public key (a signature over the public key)
-    pub proof_of_possession: validator::Signature,
-}
+impl ProtoRepr for proto::AttesterCommittee {
+    type Type = attester::Committee;
 
-impl ProtoFmt for Validator {
-    type Proto = proto::Validator;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            pub_key: required(&r.pub_key)
-                .map(|x| validator::PublicKey::decode(x))
-                .context("pub_key")??,
-            weight: *required(&r.weight).context("weight")?,
-            proof_of_possession: required(&r.proof_of_possession)
-                .map(|x| validator::Signature::decode(x))
-                .context("proof_of_possession")??,
-        })
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let members: Vec<_> = self.members.iter().enumerate().map(|(i,m)|attester::WeightedAttester::read(m).context(i)).collect::<Result<_,_>>().context("members")?;
+        Self::Type::new(members.into_iter())
     }
 
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            pub_key: Some(self.pub_key.encode()),
-            weight: Some(self.weight),
-            proof_of_possession: Some(self.proof_of_possession.encode()),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ValidatorCommittee {
-    pub members: Vec<Validator>,
-}
-
-impl ProtoFmt for ValidatorCommittee {
-    type Proto = proto::ValidatorCommittee;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            members: r
-                .members
-                .iter()
-                .map(ProtoFmt::read)
-                .collect::<Result<_, _>>()
-                .context("members")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            members: self.members.iter().map(|x| x.build()).collect(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Attester {
-    /// Attester public key.
-    pub pub_key: attester::PublicKey,
-    /// Attester weight inside a Committee.
-    pub weight: attester::Weight,
-}
-
-impl ProtoFmt for Attester {
-    type Proto = proto::Attester;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            pub_key: required(&r.pub_key)
-                .map(|x| attester::PublicKey::decode(x))
-                .context("pub_key")??,
-            weight: *required(&r.weight).context("weight")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            pub_key: Some(self.pub_key.encode()),
-            weight: Some(self.weight),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Default, Clone)]
-pub struct AttesterCommittee {
-    pub members: Vec<Attester>,
-}
-
-impl ProtoFmt for AttesterCommittee {
-    type Proto = proto::AttesterCommittee;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            members: r
-                .members
-                .iter()
-                .map(ProtoFmt::read)
-                .collect::<Result<_, _>>()
-                .context("members")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            members: self.members.iter().map(|x| x.build()).collect(),
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            members: this.iter().map(|x| x.build()).collect(),
         }
     }
 }
