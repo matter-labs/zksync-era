@@ -296,7 +296,7 @@ describe('EVM equivalence contract', () => {
                     })(),
                 alice.provider
             );
-            
+
             let errorString;
 
             try {
