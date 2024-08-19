@@ -46,7 +46,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         .init_test_wallet(&ecosystem_config, &chain_config)
         .await?;
 
-    let private_key = wallets.get_test_wallet(chain_config)?.private_key.unwrap();
+    let private_key = wallets.get_test_wallet(&chain_config)?.private_key.unwrap();
 
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
@@ -121,10 +121,10 @@ impl TestWallets {
         self.get("test_mnemonic".to_string())
     }
 
-    fn get_test_wallet(&self, chain_config: &ChainConfig,) -> anyhow::Result<Wallet> {
+    fn get_test_wallet(&self, chain_config: &ChainConfig) -> anyhow::Result<Wallet> {
         let test_wallet_id: String = format!("test_mnemonic{}", chain_config.id + 1);
 
-        self.get(test_wallet_id)?
+        self.get(test_wallet_id)
     }
 
     async fn init_test_wallet(
