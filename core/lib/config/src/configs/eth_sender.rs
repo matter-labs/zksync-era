@@ -40,6 +40,8 @@ impl EthConfig {
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
+                tx_aggregation_paused: false,
+                tx_aggregation_only_prove_and_execute: false,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -119,6 +121,12 @@ pub struct SenderConfig {
 
     /// The mode in which we send pubdata: Calldata, Blobs or Custom (DA layers, Object Store, etc.)
     pub pubdata_sending_mode: PubdataSendingMode,
+    /// special mode specifically for gateway migration to allow all inflight txs to be processed
+    #[serde(default = "SenderConfig::default_tx_aggregation_paused")]
+    pub tx_aggregation_paused: bool,
+    /// special mode specifically for gateway migration to decrease number of non-executed batches
+    #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
+    pub tx_aggregation_only_prove_and_execute: bool,
 }
 
 impl SenderConfig {
@@ -152,6 +160,13 @@ impl SenderConfig {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
+    }
+
+    const fn default_tx_aggregation_paused() -> bool {
+        false
+    }
+    const fn default_tx_aggregation_only_prove_and_execute() -> bool {
+        false
     }
 }
 
