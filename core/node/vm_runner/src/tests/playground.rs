@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_health_check::HealthStatus;
@@ -6,7 +8,7 @@ use zksync_state::RocksdbStorage;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
-use crate::impls::VmPlayground;
+use crate::impls::{VmPlayground, VmPlaygroundCursorOptions};
 
 async fn run_playground(
     pool: ConnectionPool<Core>,
@@ -33,13 +35,17 @@ async fn run_playground(
         .unwrap();
     }
 
+    let cursor = VmPlaygroundCursorOptions {
+        first_processed_batch: L1BatchNumber(0),
+        window_size: NonZeroU32::new(1).unwrap(),
+        reset_state,
+    };
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
         FastVmMode::Shadow,
         rocksdb_dir.path().to_str().unwrap().to_owned(),
         genesis_params.config().l2_chain_id,
-        L1BatchNumber(0),
-        reset_state,
+        cursor,
     )
     .await
     .unwrap();

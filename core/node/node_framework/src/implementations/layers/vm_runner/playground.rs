@@ -3,7 +3,7 @@ use zksync_config::configs::ExperimentalVmPlaygroundConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    impls::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask},
+    impls::{VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask},
     ConcurrentOutputHandlerFactoryTask,
 };
 
@@ -71,13 +71,17 @@ impl WiringLayer for VmPlaygroundLayer {
         // - 1 connection for the only running VM instance.
         let connection_pool = master_pool.get_custom(3).await?;
 
+        let cursor = VmPlaygroundCursorOptions {
+            first_processed_batch: self.config.first_processed_batch,
+            window_size: 1_u32.try_into().unwrap(), // FIXME
+            reset_state: self.config.reset,
+        };
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
             self.config.fast_vm_mode,
             self.config.db_path,
             self.zksync_network_id,
-            self.config.first_processed_batch,
-            self.config.reset,
+            cursor,
         )
         .await?;
 
