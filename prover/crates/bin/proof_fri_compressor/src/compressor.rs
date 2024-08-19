@@ -2,16 +2,19 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use circuit_sequencer_api::proof::FinalProof;
+use fflonk::{bellman::worker::Worker, CompressionInput, CompressionMode, CompressionSchedule, FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
 use tokio::task::JoinHandle;
-#[cfg(feature = "gpu")]
-use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CONFIG};
-#[cfg(not(feature = "gpu"))]
-use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::{
+    wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionProofForWrapper,
+    ZkSyncCompressionVerificationKeyForWrapper,
+};
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
+    ZkSyncRecursionProof, ZkSyncRecursionVerificationKey,
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -54,12 +57,76 @@ impl ProofCompressor {
         }
     }
 
+    pub fn fflonk_compress_proof(
+        proof: ZkSyncRecursionProof,
+        vk: ZkSyncRecursionVerificationKey,
+        schedule: CompressionSchedule,
+    ) -> (
+        ZkSyncCompressionProofForWrapper,
+        ZkSyncCompressionVerificationKeyForWrapper,
+    ) {
+        let worker = franklin_crypto::boojum::worker::Worker::new();
+        let mut input = CompressionInput::RecursionLayer(Some(proof), vk, CompressionMode::One);
+
+        dbg!(&schedule);
+        let CompressionSchedule {
+            compression_steps, ..
+        } = schedule;
+
+        let last_compression_wrapping_mode = CompressionMode::from_compression_mode(
+            compression_steps.last().unwrap().clone() as u8 + 1,
+        );
+        dbg!(&last_compression_wrapping_mode);
+
+        let num_compression_steps = compression_steps.len();
+        let mut compression_modes_iter = compression_steps.into_iter();
+        for step_idx in 0..num_compression_steps {
+            let compression_mode = compression_modes_iter.next().unwrap();
+            let compression_circuit = input.into_compression_circuit();
+            println!("Proving compression {}", compression_mode as u8);
+            let (proof, vk) =
+                fflonk::inner_prove_compression_layer_circuit(compression_circuit, &worker);
+            println!(
+                "Proof for compression {} is generated!",
+                compression_mode as u8
+            );
+
+            if step_idx + 1 == num_compression_steps {
+                input = CompressionInput::CompressionWrapperLayer(
+                    Some(proof),
+                    vk,
+                    last_compression_wrapping_mode,
+                );
+            } else {
+                input = CompressionInput::CompressionLayer(
+                    Some(proof),
+                    vk,
+                    CompressionMode::from_compression_mode(compression_mode as u8 + 1),
+                );
+            }
+        }
+
+        // last wrapping step
+        println!(
+            "Proving compression {} for wrapper",
+            last_compression_wrapping_mode as u8
+        );
+        let compression_circuit = input.into_compression_wrapper_circuit();
+        let (proof, vk) =
+            fflonk::inner_prove_compression_wrapper_circuit(compression_circuit, &worker);
+        println!(
+            "Proof for compression wrapper {} is generated!",
+            last_compression_wrapping_mode as u8
+        );
+        (proof, vk)
+    }
+
     #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
         l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
-    ) -> anyhow::Result<FinalProof> {
+    ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
         let keystore = Keystore::default();
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
@@ -67,36 +134,38 @@ impl ProofCompressor {
             )
             .context("get_recursiver_layer_vk_for_circuit_type()")?;
 
-        #[cfg(feature = "gpu")]
-        let wrapper_proof = {
-            let crs = get_trusted_setup();
-            let wrapper_config = DEFAULT_WRAPPER_CONFIG;
-            let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
+        // set compression schedule:
+        // - "hard" is the strategy that gives smallest final circuit
+        let compression_schedule = CompressionSchedule::hard();
+        let compression_wrapper_mode = compression_schedule
+            .compression_steps
+            .last()
+            .unwrap()
+            .clone() as u8
+            + 1;
+        // compress proof step by step: 1 -> 2 -> 3 -> 4 -> 5(wrapper)
+        let (compression_wrapper_proof, compression_wrapper_vk) = Self::fflonk_compress_proof(
+            proof.into_inner(),
+            scheduler_vk.into_inner(),
+            compression_schedule,
+        );
 
-            prover
-                .generate_setup_data(scheduler_vk.into_inner())
-                .unwrap();
-            prover.generate_proofs(proof.into_inner()).unwrap();
-
-            prover.get_wrapper_proof().unwrap()
+        // construct fflonk snark verifier circuit
+        let wrapper_function =
+            ZkSyncCompressionWrapper::from_numeric_circuit_type(compression_wrapper_mode);
+        let fixed_parameters = compression_wrapper_vk.fixed_parameters.clone();
+        let circuit = FflonkSnarkVerifierCircuit {
+            witness: Some(compression_wrapper_proof),
+            vk: compression_wrapper_vk,
+            fixed_parameters,
+            transcript_params: (),
+            wrapper_function,
         };
-        #[cfg(not(feature = "gpu"))]
-        let wrapper_proof = {
-            let config = WrapperConfig::new(_compression_mode);
-
-            let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
-            wrapper_proof.into_inner()
-        };
-
-        // (Re)serialization should always succeed.
-        let serialized = bincode::serialize(&wrapper_proof)
-            .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-
-        // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
-        // So `FinalProof` and `Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>` are compatible on serialization bytecode level.
-        let final_proof: FinalProof =
-            bincode::deserialize(&serialized).expect("Failed to deserialize final proof");
-        Ok(final_proof)
+        // create fflonk proof in single shot - without precomputation
+        let (proof, _) =
+            fflonk::prove_fflonk_snark_verifier_circuit_single_shot(&circuit, &Worker::new());
+        println!("finished proof");
+        Ok(proof)
     }
 
     fn aux_output_witness_to_array(
@@ -118,7 +187,7 @@ impl ProofCompressor {
 impl JobProcessor for ProofCompressor {
     type Job = ZkSyncRecursionLayerProof;
     type JobId = L1BatchNumber;
-    type JobArtifacts = FinalProof;
+    type JobArtifacts = FflonkSnarkVerifierCircuitProof;
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
@@ -183,7 +252,7 @@ impl JobProcessor for ProofCompressor {
         &self,
         job_id: Self::JobId,
         started_at: Instant,
-        artifacts: FinalProof,
+        artifacts: FflonkSnarkVerifierCircuitProof,
     ) -> anyhow::Result<()> {
         METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(

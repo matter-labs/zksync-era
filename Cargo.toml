@@ -207,7 +207,7 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.4" }
+circuit_sequencer_api_1_5_0 = { git = "https://github.com/matter-labs/zksync-protocol", package = "circuit_sequencer_api", branch = "si/fflonk" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
 kzg = { package = "zksync_kzg", version = "=0.150.4" }
 zk_evm = { version = "=0.133.0" }
@@ -215,7 +215,8 @@ zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.4" }
+zk_evm_1_5_0 = { git = "https://github.com/matter-labs/zksync-protocol", package = "zk_evm", branch = "si/fflonk" }
+fflonk = { git = "https://github.com/matter-labs/zksync-crypto", package = "fflonk", branch = "si/fflonk" }
 
 # New VM; pinned to a specific commit because of instability
 vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "9a38900d7af9b1d72b47ce3be980e77c1239a61d" }

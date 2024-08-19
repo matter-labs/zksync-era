@@ -17,6 +17,7 @@ zksync_types.workspace = true
 
 # We can use the newest api to send proofs to L1.
 circuit_sequencer_api_1_5_0.workspace = true
+fflonk.workspace = true
 
 serde.workspace = true
 strum = { workspace = true, features = ["derive"] }

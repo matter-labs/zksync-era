@@ -56,13 +56,15 @@ tracing-subscriber = { version = "0.3" }
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.4"
-circuit_sequencer_api = "=0.150.4"
-zkevm_test_harness = "=0.150.4"
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", package = "circuit_definitions", branch = "si/fflonk" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", package = "circuit_sequencer_api", branch = "si/fflonk" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", package = "zkevm_test_harness", branch = "si/fflonk" }
+fflonk = { git = "https://github.com/matter-labs/zksync-crypto", package = "fflonk", branch = "si/fflonk" }
+franklin-crypto = { git = "https://github.com/matter-labs/zksync-crypto", package = "franklin-crypto", branch = "si/fflonk" }
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.4" }
-shivini = "=0.150.4"
+wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "zksync-wrapper-prover", branch = "daniyar/fflonk" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "shivini", branch = "daniyar/fflonk" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -87,6 +89,9 @@ zksync_prover_dal = { path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
 vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+
+[patch.crates-io]
+boojum = { git = "https://github.com/matter-labs/zksync-crypto", package = "boojum", branch = "si/fflonk" }
 
 # for `perf` profiling
 [profile.perf]

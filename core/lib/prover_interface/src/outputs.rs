@@ -1,6 +1,5 @@
 use core::fmt;
-
-use circuit_sequencer_api_1_5_0::proof::FinalProof;
+use fflonk::FflonkSnarkVerifierCircuitProof;
 use serde::{Deserialize, Serialize};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber};
@@ -9,7 +8,7 @@ use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType
 #[derive(Clone, Serialize, Deserialize)]
 pub struct L1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: FinalProof,
+    pub scheduler_proof: FflonkSnarkVerifierCircuitProof,
     pub protocol_version: ProtocolSemanticVersion,
 }
 
