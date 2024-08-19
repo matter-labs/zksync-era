@@ -70,6 +70,8 @@ mod tests {
                     l1_batch_min_age_before_execute_seconds: Some(1000),
                     max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
+                    tx_aggregation_only_prove_and_execute: false,
+                    tx_aggregation_paused: false,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -84,6 +86,7 @@ mod tests {
                     num_samples_for_blob_base_fee_estimate: 10,
                     internal_pubdata_pricing_multiplier: 1.0,
                     max_blob_base_fee: None,
+                    settlement_mode: Default::default(),
                 }),
                 watcher: Some(EthWatchConfig {
                     confirmations_for_eth_event: Some(0),

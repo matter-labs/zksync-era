@@ -61,6 +61,10 @@ impl WitnessVectorGenerator {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number)
+    )]
     pub fn generate_witness_vector(
         job: ProverJob,
         keystore: &Keystore,
@@ -74,6 +78,9 @@ impl WitnessVectorGenerator {
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::BasePartial(_) => {
+                panic!("Invalid circuit wrapper received for witness vector generation");
             }
         };
         Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
@@ -134,6 +141,11 @@ impl JobProcessor for WitnessVectorGenerator {
         })
     }
 
+    #[tracing::instrument(
+        name = "WitnessVectorGenerator::save_result",
+        skip_all,
+        fields(l1_batch = %artifacts.prover_job.block_number)
+    )]
     async fn save_result(
         &self,
         job_id: Self::JobId,

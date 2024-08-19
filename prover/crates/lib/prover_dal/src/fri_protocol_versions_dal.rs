@@ -1,5 +1,5 @@
 use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     H256,
 };
 use zksync_db_connection::connection::Connection;
@@ -20,34 +20,14 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_fri_protocol_versions (
-                    id,
-                    recursion_scheduler_level_vk_hash,
-                    recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash,
-                    created_at,
-                    protocol_version_patch
-                )
+                prover_fri_protocol_versions (id, recursion_scheduler_level_vk_hash, created_at, protocol_version_patch)
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), $6)
+                ($1, $2, NOW(), $3)
             ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
             id.minor as i32,
             l1_verifier_config
                 .recursion_scheduler_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_circuits_set_vks_hash
                 .as_bytes(),
             id.patch.0 as i32
         )
@@ -63,10 +43,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash,
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash
+                recursion_scheduler_level_vk_hash
             FROM
                 prover_fri_protocol_versions
             WHERE
@@ -80,13 +57,6 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| L1VerifierConfig {
-            params: VerifierParams {
-                recursion_node_level_vk_hash: H256::from_slice(&row.recursion_node_level_vk_hash),
-                recursion_leaf_level_vk_hash: H256::from_slice(&row.recursion_leaf_level_vk_hash),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &row.recursion_circuits_set_vks_hash,
-                ),
-            },
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &row.recursion_scheduler_level_vk_hash,
             ),
@@ -97,10 +67,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash,
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash
+                recursion_scheduler_level_vk_hash
             FROM
                 prover_fri_protocol_versions
             ORDER BY
@@ -112,16 +79,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?;
 
-        let params = VerifierParams {
-            recursion_node_level_vk_hash: H256::from_slice(&result.recursion_node_level_vk_hash),
-            recursion_leaf_level_vk_hash: H256::from_slice(&result.recursion_leaf_level_vk_hash),
-            recursion_circuits_set_vks_hash: H256::from_slice(
-                &result.recursion_circuits_set_vks_hash,
-            ),
-        };
-
         Ok(L1VerifierConfig {
-            params,
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &result.recursion_scheduler_level_vk_hash,
             ),

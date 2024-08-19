@@ -6,7 +6,8 @@ use zksync_types::{
     prover_dal::{
         BasicWitnessGeneratorJobInfo, LeafWitnessGeneratorJobInfo, NodeWitnessGeneratorJobInfo,
         ProofCompressionJobInfo, ProofCompressionJobStatus, ProverJobFriInfo, ProverJobStatus,
-        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, WitnessJobStatus,
+        RecursionTipWitnessGeneratorJobInfo, SchedulerWitnessGeneratorJobInfo, Stallable,
+        WitnessJobStatus,
     },
     L1BatchNumber,
 };
@@ -53,6 +54,20 @@ pub enum Status {
     #[default]
     #[strum(to_string = "Jobs not found 🚫")]
     JobsNotFound,
+}
+
+impl From<ProverJobStatus> for Status {
+    fn from(status: ProverJobStatus) -> Self {
+        match status {
+            ProverJobStatus::Queued => Status::Queued,
+            ProverJobStatus::InProgress(_) => Status::InProgress,
+            ProverJobStatus::Successful(_) => Status::Successful,
+            ProverJobStatus::Failed(_) => Status::Custom("Failed".to_owned()),
+            ProverJobStatus::Skipped => Status::Custom("Skipped ⏩".to_owned()),
+            ProverJobStatus::Ignored => Status::Custom("Ignored".to_owned()),
+            ProverJobStatus::InGPUProof => Status::Custom("In GPU Proof".to_owned()),
+        }
+    }
 }
 
 impl From<WitnessJobStatus> for Status {
@@ -151,31 +166,6 @@ impl From<ProofCompressionJobStatus> for Status {
     }
 }
 
-impl From<Vec<ProverJobFriInfo>> for Status {
-    fn from(jobs_vector: Vec<ProverJobFriInfo>) -> Self {
-        if jobs_vector.is_empty() {
-            Status::JobsNotFound
-        } else if jobs_vector
-            .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
-        {
-            Status::Custom("In GPU Proof ⚡️".to_owned())
-        } else if jobs_vector
-            .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::Queued))
-        {
-            Status::Queued
-        } else if jobs_vector
-            .iter()
-            .all(|job| matches!(job.status, ProverJobStatus::Successful(_)))
-        {
-            Status::Successful
-        } else {
-            Status::InProgress
-        }
-    }
-}
-
 #[allow(clippy::large_enum_variant)]
 #[derive(EnumString, Clone, Display)]
 pub enum StageInfo {
@@ -214,7 +204,7 @@ impl StageInfo {
         }
     }
 
-    pub fn prover_jobs_status(&self) -> Option<Status> {
+    pub fn prover_jobs_status(&self, max_attempts: u32) -> Option<Status> {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 prover_jobs_info, ..
@@ -224,38 +214,144 @@ impl StageInfo {
             }
             | StageInfo::NodeWitnessGenerator {
                 prover_jobs_info, ..
-            } => Some(Status::from(prover_jobs_info)),
+            } => Some(get_prover_jobs_status_from_vec(
+                &prover_jobs_info,
+                max_attempts,
+            )),
             StageInfo::RecursionTipWitnessGenerator(_)
             | StageInfo::SchedulerWitnessGenerator(_)
             | StageInfo::Compressor(_) => None,
         }
     }
 
-    pub fn witness_generator_jobs_status(&self) -> Status {
+    pub fn witness_generator_jobs_status(&self, max_attempts: u32) -> Status {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 witness_generator_job_info,
                 ..
             } => witness_generator_job_info
-                .map(|witness_generator_job_info| Status::from(witness_generator_job_info.status))
+                .map(|witness_generator_job_info| {
+                    get_witness_generator_job_status(&witness_generator_job_info, max_attempts)
+                })
                 .unwrap_or_default(),
             StageInfo::LeafWitnessGenerator {
                 witness_generator_jobs_info,
                 ..
-            } => Status::from(witness_generator_jobs_info),
+            } => {
+                get_witness_generator_job_status_from_vec(witness_generator_jobs_info, max_attempts)
+            }
             StageInfo::NodeWitnessGenerator {
                 witness_generator_jobs_info,
                 ..
-            } => Status::from(witness_generator_jobs_info),
-            StageInfo::RecursionTipWitnessGenerator(status) => status
-                .map(|job| Status::from(job.status))
-                .unwrap_or_default(),
-            StageInfo::SchedulerWitnessGenerator(status) => status
-                .map(|job| Status::from(job.status))
-                .unwrap_or_default(),
+            } => {
+                get_witness_generator_job_status_from_vec(witness_generator_jobs_info, max_attempts)
+            }
+            StageInfo::RecursionTipWitnessGenerator(witness_generator_job_info) => {
+                witness_generator_job_info
+                    .map(|witness_generator_job_info| {
+                        get_witness_generator_job_status(&witness_generator_job_info, max_attempts)
+                    })
+                    .unwrap_or_default()
+            }
+            StageInfo::SchedulerWitnessGenerator(witness_generator_job_info) => {
+                witness_generator_job_info
+                    .map(|witness_generator_job_info| {
+                        get_witness_generator_job_status(&witness_generator_job_info, max_attempts)
+                    })
+                    .unwrap_or_default()
+            }
             StageInfo::Compressor(status) => status
                 .map(|job| Status::from(job.status))
                 .unwrap_or_default(),
         }
+    }
+}
+
+pub fn get_witness_generator_job_status(data: &impl Stallable, max_attempts: u32) -> Status {
+    let status = data.get_status();
+    if matches!(
+        status,
+        WitnessJobStatus::Failed(_) | WitnessJobStatus::InProgress,
+    ) && data.get_attempts() >= max_attempts
+    {
+        return Status::Stuck;
+    }
+    Status::from(status)
+}
+
+pub fn get_witness_generator_job_status_from_vec(
+    prover_jobs: Vec<impl Stallable>,
+    max_attempts: u32,
+) -> Status {
+    if prover_jobs.is_empty() {
+        Status::JobsNotFound
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.get_status(), WitnessJobStatus::WaitingForProofs))
+    {
+        Status::WaitingForProofs
+    } else if prover_jobs.iter().any(|job| {
+        matches!(
+            job.get_status(),
+            WitnessJobStatus::Failed(_) | WitnessJobStatus::InProgress,
+        ) && job.get_attempts() >= max_attempts
+    }) {
+        Status::Stuck
+    } else if prover_jobs.iter().all(|job| {
+        matches!(job.get_status(), WitnessJobStatus::Queued)
+            || matches!(job.get_status(), WitnessJobStatus::WaitingForProofs)
+    }) {
+        Status::Queued
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.get_status(), WitnessJobStatus::Successful(_)))
+    {
+        Status::Successful
+    } else {
+        Status::InProgress
+    }
+}
+
+pub fn get_prover_job_status(prover_jobs: ProverJobFriInfo, max_attempts: u32) -> Status {
+    if matches!(
+        prover_jobs.status,
+        ProverJobStatus::Failed(_) | ProverJobStatus::InProgress(_),
+    ) && prover_jobs.attempts as u32 >= max_attempts
+    {
+        return Status::Stuck;
+    }
+    Status::from(prover_jobs.status)
+}
+
+pub fn get_prover_jobs_status_from_vec(
+    prover_jobs: &[ProverJobFriInfo],
+    max_attempts: u32,
+) -> Status {
+    if prover_jobs.is_empty() {
+        Status::JobsNotFound
+    } else if prover_jobs.iter().any(|job| {
+        matches!(
+            job.status,
+            ProverJobStatus::Failed(_) | ProverJobStatus::InProgress(_),
+        ) && job.attempts as u32 >= max_attempts
+    }) {
+        Status::Stuck
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.status, ProverJobStatus::InGPUProof))
+    {
+        Status::Custom("In GPU Proof ⚡️".to_owned())
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.status, ProverJobStatus::Queued))
+    {
+        Status::Queued
+    } else if prover_jobs
+        .iter()
+        .all(|job| matches!(job.status, ProverJobStatus::Successful(_)))
+    {
+        Status::Successful
+    } else {
+        Status::InProgress
     }
 }

@@ -1,6 +1,11 @@
 # Building solidity from sources so binary is available for any architecture
 FROM debian:bookworm as solidity-builder
 
+# Link Docker Image with repository
+# https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
+LABEL org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
+
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -126,7 +131,7 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
 
 # Install foundry
 RUN cargo install --git https://github.com/foundry-rs/foundry \
-    --profile local --locked forge cast
+    --profile release --locked forge cast
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
@@ -137,5 +142,5 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 FROM rust-lightweight as rust-lightweight-nightly
 
-RUN rustup install nightly-2024-05-07 && \
-    rustup default nightly-2024-05-07
+RUN rustup install nightly-2024-08-01 && \
+    rustup default nightly-2024-08-01

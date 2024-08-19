@@ -99,6 +99,7 @@ pub mod gpu_prover {
             }
         }
 
+        #[tracing::instrument(name = "Prover::get_setup_data", skip_all)]
         fn get_setup_data(
             &self,
             key: ProverServiceDataKey,
@@ -124,6 +125,11 @@ pub mod gpu_prover {
             })
         }
 
+        #[tracing::instrument(
+            name = "Prover::prove",
+            skip_all,
+            fields(l1_batch = %job.witness_vector_artifacts.prover_job.block_number)
+        )]
         pub fn prove(
             job: GpuProverJob,
             setup_data: Arc<GoldilocksGpuProverSetupData>,
@@ -148,6 +154,7 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
             };
 
             let started_at = Instant::now();
@@ -190,6 +197,7 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }

@@ -11,13 +11,14 @@ lazy_static! {
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
+pub const ROCKS_DB_PROTECTIVE_READS: &str = "protective_reads";
 pub const EN_ROCKS_DB_PREFIX: &str = "en";
 pub const MAIN_ROCKS_DB_PREFIX: &str = "main";
 
 pub const L2_CHAIN_ID: u32 = 271;
 /// Path to base chain configuration inside zksync-era
 /// Local RPC url
-pub(super) const LOCAL_RPC_URL: &str = "http://localhost:8545";
+pub(super) const LOCAL_RPC_URL: &str = "http://127.0.0.1:8545";
 
 pub struct DBNames {
     pub server_name: String,

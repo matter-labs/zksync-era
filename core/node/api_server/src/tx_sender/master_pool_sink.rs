@@ -2,8 +2,9 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
+use zksync_types::{l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::web3::metrics::API_METRICS;
@@ -56,9 +57,8 @@ impl TxSink for MasterPoolSink {
                 .transactions_dal()
                 .insert_transaction_l2(tx, execution_metrics)
                 .await
-                .map(|submission_res_handle| {
-                    APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
-                    submission_res_handle
+                .inspect(|submission_res_handle| {
+                    APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();
                 })
                 .map_err(|err| err.generalize().into()),
             Err(err) => Err(err.generalize().into()),

@@ -1,8 +1,8 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 
 use crate::{
     interface::{
+        storage::WriteStorage,
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },

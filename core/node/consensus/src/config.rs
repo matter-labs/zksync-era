@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use secrecy::{ExposeSecret as _, Secret};
-use zksync_concurrency::net;
+use zksync_concurrency::{limiter, net, time};
 use zksync_config::{
     configs,
     configs::consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
@@ -121,6 +121,11 @@ pub(super) fn executor(
 
     let mut rpc = executor::RpcConfig::default();
     rpc.get_block_rate = cfg.rpc().get_block_rate();
+    // Disable batch syncing, because it is not implemented.
+    rpc.get_batch_rate = limiter::Rate {
+        burst: 0,
+        refresh: time::Duration::ZERO,
+    };
 
     Ok(executor::Config {
         server_addr: cfg.server_addr,
@@ -142,5 +147,6 @@ pub(super) fn executor(
         rpc,
         // TODO: Add to configuration
         debug_page: None,
+        batch_poll_interval: time::Duration::seconds(1),
     })
 }

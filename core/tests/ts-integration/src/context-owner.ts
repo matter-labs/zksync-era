@@ -2,7 +2,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish } from 'ethers';
 
-import { TestContext, TestEnvironment, TestWallets } from './types';
+import { NodeMode, TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
@@ -542,16 +542,80 @@ export class TestContextOwner {
     }
 
     /**
+     * Waits until the VM playground processes all L1 batches. If the playground runs the new VM in the shadow mode, this means
+     * that there are no divergence in old and new VM execution. Outputs a warning if the VM playground isn't run or runs not in the shadow mode.
+     */
+    private async waitForVmPlayground() {
+        while (true) {
+            const lastProcessedBatch = await this.lastPlaygroundBatch();
+            if (lastProcessedBatch === undefined) {
+                this.reporter.warn('The node does not run VM playground; run to check old / new VM divergence');
+                break;
+            }
+            const lastNodeBatch = await this.l2Provider.getL1BatchNumber();
+
+            this.reporter.debug(`VM playground progress: L1 batch #${lastProcessedBatch} / ${lastNodeBatch}`);
+            if (lastProcessedBatch >= lastNodeBatch) {
+                break;
+            }
+            await zksync.utils.sleep(500);
+        }
+    }
+
+    /**
+     * Returns the number of the last L1 batch processed by the VM playground, taking it from the node health endpoint.
+     * Returns `undefined` if the VM playground isn't run or doesn't have the shadow mode.
+     */
+    private async lastPlaygroundBatch() {
+        interface VmPlaygroundHealth {
+            readonly status: string;
+            readonly details?: {
+                vm_mode?: string;
+                last_processed_batch?: number;
+            };
+        }
+
+        interface NodeHealth {
+            readonly components: {
+                vm_playground?: VmPlaygroundHealth;
+            };
+        }
+
+        const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+        const nodeHealth = (await (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).json()) as NodeHealth;
+        const playgroundHealth = nodeHealth.components.vm_playground;
+        if (playgroundHealth === undefined) {
+            return undefined;
+        }
+        if (playgroundHealth.status !== 'ready') {
+            throw new Error(`Unexpected VM playground health status: ${playgroundHealth.status}`);
+        }
+        if (playgroundHealth.details?.vm_mode !== 'shadow') {
+            this.reporter.warn(
+                `VM playground mode is '${playgroundHealth.details?.vm_mode}'; should be set to 'shadow' to check VM divergence`
+            );
+            return undefined;
+        }
+        return playgroundHealth.details?.last_processed_batch ?? 0;
+    }
+
+    /**
      * Performs context deinitialization.
      */
     async teardownContext() {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
+            if (this.env.nodeMode == NodeMode.Main && this.env.network === 'localhost') {
+                // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
+                // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
+                // processes all batches on the node.
+                this.reporter.startAction('Waiting for VM playground to catch up');
+                await this.waitForVmPlayground();
+                this.reporter.finishAction();
+            }
             this.reporter.startAction(`Tearing down the context`);
-
             await this.collectFunds();
-
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.

@@ -112,7 +112,7 @@ impl TeeProver {
     }
 
     async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job().await? {
+        match self.api_client.get_job(self.tee_type).await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
                 self.api_client
@@ -137,10 +137,10 @@ impl TeeProver {
 /// TEE prover configuration options.
 #[derive(Debug, Clone)]
 pub struct TeeProverConfig {
-    /// Number of retries for transient errors before giving up on recovery (i.e., returning an error
+    /// Number of retries for retriable errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
     pub max_retries: usize,
-    /// Initial back-off interval when retrying recovery on a transient error. Each subsequent retry interval
+    /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
     pub initial_retry_backoff: Duration,
     pub retry_backoff_multiplier: f32,
@@ -198,7 +198,7 @@ impl Task for TeeProver {
                 }
                 Err(err) => {
                     METRICS.network_errors_counter.inc_by(1);
-                    if !err.is_transient() || retries > self.config.max_retries {
+                    if !err.is_retriable() || retries > self.config.max_retries {
                         return Err(err.into());
                     }
                     retries += 1;

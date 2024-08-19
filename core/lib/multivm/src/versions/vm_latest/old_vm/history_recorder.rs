@@ -5,9 +5,10 @@ use zk_evm_1_5_0::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{StorageKey, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
+
+use crate::interface::storage::{StoragePtr, WriteStorage};
 
 pub(crate) type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
 pub(crate) type IntFrameManagerWithHistory<T, H> = HistoryRecorder<FramedStack<T>, H>;

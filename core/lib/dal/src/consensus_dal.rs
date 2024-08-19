@@ -9,11 +9,10 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_protobuf::ProtoFmt;
-use zksync_types::L2BlockNumber;
-
 pub use crate::consensus::{Attester, AttesterCommittee, Payload, Validator, ValidatorCommittee};
 use crate::{consensus, Core, CoreDal};
+use zksync_protobuf::ProtoFmt as _;
+use zksync_types::L2BlockNumber;
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -51,9 +50,20 @@ impl ConsensusDal<'_, '_> {
             let Some(genesis) = row.genesis else {
                 return Ok(None);
             };
-            let genesis: validator::GenesisRaw =
-                zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")?;
-            Ok(Some(genesis.with_hash()))
+            // Deserialize the json, but don't allow for unknown fields.
+            // We might encounter an unknown fields here in case if support for the previous
+            // consensus protocol version is removed before the migration to a new version
+            // is performed. The node should NOT operate in such a state.
+            Ok(Some(
+                validator::GenesisRaw::read(
+                    &zksync_protobuf::serde::deserialize_proto_with_options(
+                        &genesis, /*deny_unknown_fields=*/ true,
+                    )
+                    .decode_column("genesis")?,
+                )
+                .decode_column("genesis")?
+                .with_hash(),
+            ))
         })
         .instrument("genesis")
         .fetch_optional(self.storage)
@@ -95,6 +105,14 @@ impl ConsensusDal<'_, '_> {
             serde_json::value::Serializer,
         )
         .unwrap();
+        sqlx::query!(
+            r#"
+            DELETE FROM l1_batches_consensus
+            "#
+        )
+        .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
+        .execute(&mut txn)
+        .await?;
         sqlx::query!(
             r#"
             DELETE FROM miniblocks_consensus
@@ -493,7 +511,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
     /// depending on the order in which votes have been collected over gossip by consensus.
-    pub async fn get_last_batch_certificate_number(
+    pub async fn last_batch_certificate_number(
         &mut self,
     ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let row = sqlx::query!(
@@ -506,7 +524,7 @@ impl ConsensusDal<'_, '_> {
                 certificate IS NOT NULL
             "#
         )
-        .instrument("get_last_batch_certificate_number")
+        .instrument("last_batch_certificate_number")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -519,38 +537,83 @@ impl ConsensusDal<'_, '_> {
         )))
     }
 
-    /// Next batch that the attesters should vote for.
+    /// Number of L1 batch that the L2 block belongs to.
+    /// None if the L2 block doesn't exist.
+    pub async fn batch_of_block(
+        &mut self,
+        block: validator::BlockNumber,
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    )
+                ) AS "l1_batch_number!"
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::try_from(block.0).context("overflow")?,
+        )
+        .instrument("batch_of_block")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            row.l1_batch_number.try_into().context("overflow")?,
+        )))
+    }
+
+    /// Global attestation status.
+    /// Includes the next batch that the attesters should vote for.
+    /// None iff the consensus genesis is missing (i.e. consensus wasn't enabled) or
+    /// L2 block with number `genesis.first_block` doesn't exist yet.
+    ///
     /// This is a main node only query.
     /// ENs should call the attestation_status RPC of the main node.
-    pub async fn next_batch_to_attest(&mut self) -> anyhow::Result<attester::BatchNumber> {
-        // First batch that we don't have a certificate for.
-        if let Some(last) = self
-            .get_last_batch_certificate_number()
-            .await
-            .context("get_last_batch_certificate_number()")?
-        {
-            return Ok(last + 1);
+    pub async fn attestation_status(&mut self) -> anyhow::Result<Option<AttestationStatus>> {
+        let Some(genesis) = self.genesis().await.context("genesis()")? else {
+            return Ok(None);
+        };
+        let Some(next_batch_to_attest) = async {
+            // First batch that we don't have a certificate for.
+            if let Some(last) = self
+                .last_batch_certificate_number()
+                .await
+                .context("last_batch_certificate_number()")?
+            {
+                return Ok(Some(last + 1));
+            }
+            // Otherwise start with the batch containing the first block of the fork.
+            self.batch_of_block(genesis.first_block)
+                .await
+                .context("batch_of_block()")
         }
-        // Otherwise start with the last sealed L1 batch.
-        // We don't want to backfill certificates for old batches.
-        // Note that there is a race condition in case the next
-        // batch is sealed before the certificate for the current
-        // last sealed batch is stored. This is only relevant
-        // for the first certificate though and anyway this is
-        // a test setup, so we are OK with that race condition.
-        if let Some(sealed) = self
-            .storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("get_sealed_l1_batch_number()")?
-        {
-            return Ok(attester::BatchNumber(sealed.0.into()));
-        }
-        // Otherwise start with 0.
-        // Note that main node doesn't start from snapshot
-        // and doesn't have prunning enabled.
-        Ok(attester::BatchNumber(0))
+        .await?
+        else {
+            tracing::info!(%genesis.first_block, "genesis block not found");
+            return Ok(None);
+        };
+        Ok(Some(AttestationStatus {
+            genesis: genesis.hash(),
+            next_batch_to_attest,
+        }))
     }
 
     pub async fn get_last_batch_committee_number(
@@ -704,7 +767,7 @@ mod tests {
         // Retrieve the latest certificate.
         let number = conn
             .consensus_dal()
-            .get_last_batch_certificate_number()
+            .last_batch_certificate_number()
             .await
             .unwrap()
             .unwrap();

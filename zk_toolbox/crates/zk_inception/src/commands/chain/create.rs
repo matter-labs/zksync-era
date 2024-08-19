@@ -1,5 +1,6 @@
 use std::cell::OnceCell;
 
+use anyhow::Context;
 use common::{logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
@@ -11,8 +12,8 @@ use zksync_basic_types::L2ChainId;
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
     messages::{
-        MSG_CHAIN_CREATED, MSG_CREATING_CHAIN, MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER,
-        MSG_SELECTED_CONFIG,
+        MSG_ARGS_VALIDATOR_ERR, MSG_CHAIN_CREATED, MSG_CREATING_CHAIN,
+        MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER, MSG_SELECTED_CONFIG,
     },
 };
 
@@ -26,10 +27,14 @@ fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt(
-        ecosystem_config.list_of_chains().len() as u32,
-        &ecosystem_config.l1_network,
-    );
+    let tokens = ecosystem_config.get_erc20_tokens();
+    let args = args
+        .fill_values_with_prompt(
+            ecosystem_config.list_of_chains().len() as u32,
+            &ecosystem_config.l1_network,
+            tokens,
+        )
+        .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_CHAIN);

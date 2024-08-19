@@ -9,7 +9,7 @@ use tokio::{
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state::{PgOrRocksdbStorage, PostgresStorage, ReadStorage, ReadStorageFactory};
+use zksync_state::{interface::ReadStorage, OwnedStorage, PostgresStorage};
 use zksync_test_account::Account;
 use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
 
@@ -59,27 +59,11 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
     async fn load_batch_eventually(
         &self,
         number: L1BatchNumber,
-    ) -> anyhow::Result<BatchExecuteData> {
+    ) -> anyhow::Result<(BatchExecuteData, OwnedStorage)> {
         (|| async {
             self.load_batch(number)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Batch #{} is not available yet", number))
-        })
-        .retry(&ExponentialBuilder::default())
-        .await
-    }
-
-    async fn access_storage_eventually(
-        &self,
-        stop_receiver: &watch::Receiver<bool>,
-        number: L1BatchNumber,
-    ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
-        (|| async {
-            self.access_storage(stop_receiver, number)
-                .await?
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Storage for batch #{} is not available yet", number)
-                })
         })
         .retry(&ExponentialBuilder::default())
         .await
@@ -121,11 +105,11 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batches = store_l1_batches(
@@ -144,7 +128,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     let storage = tester.create_storage(io_mock.clone()).await?;
     // Check that existing batches are returned in the exact same order with the exact same data
     for batch in &batches {
-        let batch_data = storage.load_batch_eventually(batch.number).await?;
+        let (batch_data, _) = storage.load_batch_eventually(batch.number).await?;
         let mut conn = connection_pool.connection().await.unwrap();
         let (previous_batch_hash, _) = conn
             .blocks_dal()
@@ -212,11 +196,11 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     let mut tester = StorageTester::new(connection_pool.clone());
     let io_mock = Arc::new(RwLock::new(IoMock::default()));
@@ -235,14 +219,8 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     io_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
-    assert_eq!(
-        storage
-            .load_batch_eventually(L1BatchNumber(1))
-            .await?
-            .l1_batch_env
-            .number,
-        L1BatchNumber(1)
-    );
+    let (batch_data, _) = storage.load_batch_eventually(L1BatchNumber(1)).await?;
+    assert_eq!(batch_data.l1_batch_env.number, L1BatchNumber(1));
     io_mock.write().await.current += 1;
 
     // No more batches after that
@@ -259,15 +237,8 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     io_mock.write().await.max += 1;
 
     // Load batch and mark it as processed
-
-    assert_eq!(
-        storage
-            .load_batch_eventually(L1BatchNumber(2))
-            .await?
-            .l1_batch_env
-            .number,
-        L1BatchNumber(2)
-    );
+    let (batch_data, _) = storage.load_batch_eventually(L1BatchNumber(2)).await?;
+    assert_eq!(batch_data.l1_batch_env.number, L1BatchNumber(2));
     io_mock.write().await.current += 1;
 
     // No more batches after that
@@ -284,11 +255,11 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     insert_genesis_batch(&mut conn, &genesis_params)
         .await
         .unwrap();
-    drop(conn);
     let alice = Account::random();
     let bob = Account::random();
     let mut accounts = vec![alice, bob];
-    fund(&connection_pool, &accounts).await;
+    fund(&mut conn, &accounts).await;
+    drop(conn);
 
     // Generate 10 batches worth of data and persist it in Postgres
     let batch_range = 1..=10;
@@ -311,7 +282,6 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
         .await;
     drop(conn);
 
-    let (_sender, receiver) = watch::channel(false);
     let mut tester = StorageTester::new(connection_pool.clone());
     let io_mock = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
@@ -321,7 +291,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     let handle = tokio::task::spawn_blocking(move || {
         let vm_runner_storage =
             rt_handle.block_on(async { tester.create_storage(io_mock.clone()).await.unwrap() });
-        for i in 1..=10 {
+        for i in 1..=9 {
             let mut conn = rt_handle.block_on(connection_pool.connection()).unwrap();
             let (_, last_l2_block_number) = rt_handle
                 .block_on(
@@ -331,11 +301,9 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
                 .unwrap();
             let mut pg_storage =
                 PostgresStorage::new(rt_handle.clone(), conn, last_l2_block_number, true);
-            let mut vm_storage = rt_handle.block_on(async {
-                vm_runner_storage
-                    .access_storage_eventually(&receiver, L1BatchNumber(i))
-                    .await
-            })?;
+            let (_, mut vm_storage) = rt_handle
+                .block_on(vm_runner_storage.load_batch_eventually(L1BatchNumber(i + 1)))?;
+
             // Check that both storages have identical key-value pairs written in them
             for storage_log in &storage_logs {
                 let storage_key = StorageKey::new(

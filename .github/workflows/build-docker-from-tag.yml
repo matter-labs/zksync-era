@@ -26,7 +26,6 @@ jobs:
     runs-on: [ubuntu-latest]
     outputs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
-      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -104,6 +103,3 @@ jobs:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -11,7 +11,7 @@ services:
         source: ./etc/reth/chaindata
         target: /chaindata
 
-    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545  --dev.block-time 300ms --chain /chaindata/reth_config
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
     ports:
       - 127.0.0.1:8545:8545
 
@@ -30,7 +30,7 @@ services:
 
   # This is specific to runner
   zk:
-    image: "matterlabs/zk-environment:latest2.0-lightweight"
+    image: "ghcr.io/matter-labs/zk-environment:latest2.0-lightweight"
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null

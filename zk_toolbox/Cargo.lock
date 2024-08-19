@@ -552,6 +552,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap-markdown"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ebc67e6266e14f8b31541c2f204724fa2ac7ad5c17d6f5908fbb92a60f42cff"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_builder"
 version = "4.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -872,6 +881,16 @@ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
+]
+
+[[package]]
+name = "ctor"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edb49164822f3ee45b17acd4a208cfc1251410cf0cad9a833234c9890774dd9f"
+dependencies = [
+ "quote",
+ "syn 2.0.68",
 ]
 
 [[package]]
@@ -2563,26 +2582,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linkme"
-version = "0.3.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccb76662d78edc9f9bf56360d6919bdacc8b7761227727e5082f128eeb90bbf5"
-dependencies = [
- "linkme-impl",
-]
-
-[[package]]
-name = "linkme-impl"
-version = "0.3.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8dccda732e04fa3baf2e17cf835bfe2601c7c2edafd64417c627dabae3a8cda"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.68",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3040,6 +3039,18 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "thiserror",
+]
+
+[[package]]
+name = "opentelemetry-appender-tracing"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b84de945cb3a6f1e0d6317cbd998bbd0519ab00f4b790db67e0ff4fdcf7cedb6"
+dependencies = [
+ "opentelemetry",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5721,13 +5732,13 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "vise"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "229baafe01d5177b63c6ee1def80d8e39a2365e64caf69ddb05a57594b15647c"
+checksum = "90ade36f3548b1524396f4de7b36f4f210c8a01dfab568eb2bff466af64eb6e5"
 dependencies = [
  "compile-fmt",
+ "ctor",
  "elsa",
- "linkme",
  "once_cell",
  "prometheus-client",
  "vise-macros",
@@ -5735,9 +5746,9 @@ dependencies = [
 
 [[package]]
 name = "vise-exporter"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23981b18d697026f5430249ab01ba739ef2edc463e400042394331cb2bb63494"
+checksum = "671d3b894d5d0849f0a597f56bf071f42d4f2a1cbcf2f78ca21f870ab7c0cc2b"
 dependencies = [
  "hyper 0.14.29",
  "once_cell",
@@ -5748,9 +5759,9 @@ dependencies = [
 
 [[package]]
 name = "vise-macros"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bb19c33cd5f04dcf4e767635e058a998edbc2b7fca32ade0a4a1cea0f8e9b34"
+checksum = "6a511871dc5de990a3b2a0e715facfbc5da848c0c0395597a1415029fb7c250a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6251,6 +6262,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "clap-markdown",
  "cliclack",
  "common",
  "config",
@@ -6279,6 +6291,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "clap-markdown",
  "common",
  "config",
  "human-panic",
@@ -6324,9 +6337,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50302b77192891256d180ff2551dc0c3bc4144958b49e9a16c50a0dc218958ba"
+checksum = "b0e31a9fc9a390b440cd12bbe040330dc64f64697a8a8ecbc3beb98cd0747909"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6358,9 +6371,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24dc6135abeefa80f617eb2903fe43d137d362bf673f0651b4894b17069d1fb1"
+checksum = "2ff679f8b5f671d887a750b8107f3b5c01fd6085f68eef37ab01de8d2bd0736b"
 dependencies = [
  "anyhow",
  "rand",
@@ -6409,9 +6422,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1e7c7820f290db565a1b4ff73aa1175cd7d31498fca8d859eb5aceebd33468c"
+checksum = "f4f6ba3bf0aac20de18b4ae18a22d8c81b83f8f72e8fdec1c879525ecdacd2f5"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6430,9 +6443,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6cafeec1150ae91f1a37c8f0dce6b71b92b93e0c4153d32b4c37e2fd71bce2f"
+checksum = "7798c248b9a64505f0586bd5fadad6b26c999be4a8dec6b1a86b10b3888169c5"
 dependencies = [
  "anyhow",
  "heck",
@@ -6456,6 +6469,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
+ "tracing",
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
@@ -6534,6 +6548,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "opentelemetry",
+ "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
