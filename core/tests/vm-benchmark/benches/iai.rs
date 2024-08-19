@@ -1,4 +1,4 @@
-use iai_callgrind::{black_box, library_benchmark, library_benchmark_group};
+use iai_callgrind::{black_box, library_benchmark, library_benchmark_group, LibraryBenchmarkConfig};
 use zksync_types::Transaction;
 use zksync_vm_benchmark_harness::{
     cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast,
@@ -64,4 +64,7 @@ library_benchmark_group!(
     benchmarks = access_memory, call_far, decode_shl_sub, deploy_simple_contract, finish_eventful_frames, write_and_decode, event_spam, slot_hash_collision
 );
 
-iai_callgrind::main!(library_benchmark_groups = constructor, execution);
+iai_callgrind::main!(
+    config = LibraryBenchmarkConfig::default().env_clear(false);
+    library_benchmark_groups = constructor, execution,
+);
