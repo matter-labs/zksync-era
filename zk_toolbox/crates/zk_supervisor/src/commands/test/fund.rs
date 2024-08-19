@@ -58,9 +58,9 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
 #[derive(Deserialize)]
 struct TestWallets {
-    #[serde(rename(deserialize = "web3_url"))]
+    #[serde(rename = "web3_url")]
     _web3_url: String,
-    #[serde(rename(deserialize = "test_mnemonic"))]
+    #[serde(rename = "test_mnemonic")]
     _test_mnemonic: String,
     test_mnemonic2: String,
     test_mnemonic3: String,
@@ -71,7 +71,7 @@ struct TestWallets {
     test_mnemonic8: String,
     test_mnemonic9: String,
     test_mnemonic10: String,
-    #[serde(rename(deserialize = "mnemonic"))]
+    #[serde(rename = "mnemonic")]
     _mnemonic: String,
     base_path: String,
 }
