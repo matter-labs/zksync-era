@@ -7,11 +7,11 @@ use zksync_types::{
     api,
     fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
-    vm_trace::Call,
     web3::{BlockHeader, Bytes},
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H2048, H256, U256, U64,
+    Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
 use zksync_utils::bigdecimal_to_u256;
+use zksync_vm_interface::Call;
 
 use crate::{
     models::{
@@ -44,6 +44,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.timestamp,
                 miniblocks.base_fee_per_gas,
                 miniblocks.gas_limit AS "block_gas_limit?",
+                miniblocks.logs_bloom,
                 prev_miniblock.hash AS "parent_hash?",
                 l1_batches.timestamp AS "l1_batch_timestamp?",
                 transactions.gas_limit AS "transaction_gas_limit?",
@@ -87,7 +88,10 @@ impl BlocksWeb3Dal<'_, '_> {
                         .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
                         as u64)
                         .into(),
-                    // TODO: include logs
+                    logs_bloom: row
+                        .logs_bloom
+                        .map(|b| Bloom::from_slice(&b))
+                        .unwrap_or_default(),
                     ..api::Block::default()
                 }
             });
@@ -175,6 +179,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.timestamp AS "block_timestamp",
                 miniblocks.base_fee_per_gas AS "base_fee_per_gas",
                 miniblocks.gas_limit AS "block_gas_limit?",
+                miniblocks.logs_bloom AS "block_logs_bloom?",
                 transactions.gas_limit AS "transaction_gas_limit?",
                 transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
@@ -219,7 +224,11 @@ impl BlocksWeb3Dal<'_, '_> {
                         .into(),
                     base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas.clone())),
                     extra_data: Bytes::default(),
-                    logs_bloom: H2048::default(),
+                    logs_bloom: row
+                        .block_logs_bloom
+                        .as_ref()
+                        .map(|b| Bloom::from_slice(b))
+                        .unwrap_or_default(),
                     timestamp: U256::from(row.block_timestamp),
                     difficulty: U256::zero(),
                     mix_hash: None,
@@ -757,9 +766,9 @@ mod tests {
     use zksync_types::{
         aggregated_operations::AggregatedActionType,
         block::{L2BlockHasher, L2BlockHeader},
-        fee::TransactionExecutionMetrics,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{

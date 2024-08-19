@@ -5,7 +5,6 @@ use zk_evm_1_4_0::{
     aux_structures::{LogQuery, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
@@ -16,15 +15,18 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::vm_boojum_integration::{
-    old_vm::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-            HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+use crate::{
+    interface::storage::{StoragePtr, WriteStorage},
+    vm_boojum_integration::{
+        old_vm::{
+            history_recorder::{
+                AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+                HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+            },
+            oracles::OracleWithHistory,
         },
-        oracles::OracleWithHistory,
+        utils::logs::StorageLogQuery,
     },
-    utils::logs::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the

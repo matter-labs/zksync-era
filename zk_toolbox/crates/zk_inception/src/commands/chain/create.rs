@@ -27,10 +27,12 @@ fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
+    let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
+            tokens,
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 

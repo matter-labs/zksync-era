@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use zksync_multivm::{
-    tracers::CallTracer, vm_latest::HistoryMode, MultiVMTracer, MultiVmTracerPointer,
+    interface::{storage::WriteStorage, Call},
+    tracers::CallTracer,
+    vm_latest::HistoryMode,
+    MultiVMTracer, MultiVmTracerPointer,
 };
-use zksync_state::WriteStorage;
-use zksync_types::vm_trace::Call;
 
 /// Custom tracers supported by our API
 #[derive(Debug)]

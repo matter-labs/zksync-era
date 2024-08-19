@@ -5,6 +5,7 @@
 pub use circuit_sequencer_api_1_5_0 as circuit_sequencer_api_latest;
 pub use zk_evm_1_5_0 as zk_evm_latest;
 pub use zksync_types::vm::VmVersion;
+pub use zksync_vm_interface as interface;
 
 pub use crate::{
     glue::{
@@ -19,7 +20,6 @@ pub use crate::{
 };
 
 mod glue;
-pub mod interface;
 pub mod tracers;
 pub mod utils;
 pub mod versions;

@@ -4,9 +4,8 @@ use zksync_types::{web3::keccak256, Execute, H256, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_fast::tests::tester::VmTesterBuilder,
-    vm_latest::ExecutionResult,
 };
 
 #[test]
