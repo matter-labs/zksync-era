@@ -1,13 +1,12 @@
 use std::{collections::HashMap, path::PathBuf, vec};
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
-use config::{ChainConfig, EcosystemConfig, GeneralConfig};
+use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner, wallets::Wallet};
+use config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
-    signers::{coins_bip39::English, MnemonicBuilder, Signer},
-    types::H160,
-    utils::hex,
+    signers::{coins_bip39::English, MnemonicBuilder},
+    types::H256,
 };
 use serde::Deserialize;
 use xshell::{cmd, Shell};
@@ -39,35 +38,20 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     }
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
-    let test_wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
+    let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
         .context("Impossible to deserialize test wallets")?;
-    let test_wallet_id: String = format!("test_mnemonic{}", chain_config.id + 1);
 
-    let phrase = test_wallets
-        .wallets
-        .get(test_wallet_id.as_str())
-        .unwrap()
-        .as_str();
+    wallets
+        .init_test_wallet(&ecosystem_config, &chain_config)
+        .await?;
 
-    let mnemonic = MnemonicBuilder::<English>::default()
-        .phrase(phrase)
-        .derivation_path(test_wallets.base_path.as_str())
-        .context(format!(
-            "Impossible to parse derivation path: {}",
-            test_wallets.base_path
-        ))?
-        .build()
-        .context(format!("Impossible to parse mnemonic: {}", phrase))?;
+    let private_key = wallets.get_main_wallet()?.private_key.unwrap();
 
-    let secret_key = hex::encode(mnemonic.signer().to_bytes());
-
-    logger::info(format!("MASTER_WALLET_PK: {}", secret_key));
-
-    fund_test_wallet(&ecosystem_config, &chain_config, mnemonic.address()).await?;
+    logger::info(format!("MASTER_WALLET_PK: {}", private_key));
 
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", secret_key);
+        .env("MASTER_WALLET_PK", private_key.to_string());
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
@@ -113,42 +97,61 @@ fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> an
 
 #[derive(Deserialize)]
 struct TestWallets {
+    base_path: String,
     #[serde(rename = "web3_url")]
     _web3_url: String,
     #[serde(rename = "mnemonic")]
     _mnemonic: String,
-    base_path: String,
     #[serde(flatten)]
     wallets: HashMap<String, String>,
 }
 
-async fn fund_test_wallet(
-    ecosystem: &EcosystemConfig,
-    chain: &ChainConfig,
-    address: H160,
-) -> anyhow::Result<()> {
-    let wallets = ecosystem.get_wallets()?;
-    let l1_rpc = chain
-        .get_secrets_config()?
-        .l1
-        .context("No L1 secrets available")?
-        .l1_rpc_url
-        .expose_str()
-        .to_owned();
+impl TestWallets {
+    fn get(&self, id: String) -> anyhow::Result<Wallet> {
+        let mnemonic = self.wallets.get(id.as_str()).unwrap().as_str();
+        let wallet = MnemonicBuilder::<English>::default()
+            .phrase(mnemonic)
+            .derivation_path(&self.base_path)?
+            .build()?;
+        let private_key = H256::from_slice(&wallet.signer().to_bytes());
 
-    let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
-    let balance = provider.get_balance(address, None).await?;
-
-    if balance.is_zero() {
-        common::ethereum::distribute_eth(
-            wallets.operator,
-            vec![address],
-            l1_rpc,
-            ecosystem.l1_network.chain_id(),
-            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-        )
-        .await?
+        Ok(Wallet::new_with_key(private_key))
     }
 
-    Ok(())
+    fn get_main_wallet(&self) -> anyhow::Result<Wallet> {
+        self.get("test_mnemonic".to_string())
+    }
+
+    async fn init_test_wallet(
+        &self,
+        ecosystem_config: &EcosystemConfig,
+        chain_config: &ChainConfig,
+    ) -> anyhow::Result<()> {
+        let test_wallet_id: String = format!("test_mnemonic{}", chain_config.id + 1);
+        let wallet = self.get(test_wallet_id)?;
+
+        let l1_rpc = chain_config
+            .get_secrets_config()?
+            .l1
+            .context("No L1 secrets available")?
+            .l1_rpc_url
+            .expose_str()
+            .to_owned();
+
+        let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
+        let balance = provider.get_balance(wallet.address, None).await?;
+
+        if balance.is_zero() {
+            common::ethereum::distribute_eth(
+                self.get_main_wallet()?,
+                vec![wallet.address],
+                l1_rpc,
+                ecosystem_config.l1_network.chain_id(),
+                AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+            )
+            .await?
+        }
+
+        Ok(())
+    }
 }
