@@ -47,8 +47,6 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     let private_key = wallets.get_main_wallet()?.private_key.unwrap();
 
-    logger::info(format!("MASTER_WALLET_PK: {}", private_key));
-
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 60000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("MASTER_WALLET_PK", private_key.to_string());
