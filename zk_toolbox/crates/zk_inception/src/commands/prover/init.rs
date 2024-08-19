@@ -44,11 +44,11 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
-    let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
 
     let chain_config = ecosystem_config
         .load_chain(Some(ecosystem_config.default_chain.clone()))
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let args = args.fill_values_with_prompt(shell, &setup_key_path, &chain_config)?;
 
     if args.copy_configs {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;

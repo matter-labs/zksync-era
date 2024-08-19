@@ -492,12 +492,13 @@ impl ProverInitArgs {
                 let prover_db_url = Prompt::new(&msg_prover_db_url_prompt(&chain_name))
                     .default(DATABASE_PROVER_URL.as_str())
                     .ask();
-                let prover_db_name = slugify!(
-                    Prompt::new(&msg_prover_db_name_prompt(&chain_name))
-                        .default(&prover_name)
-                        .ask(),
-                    separator = "_"
-                );
+
+                let prover_db_name: String = Prompt::new(&msg_prover_db_name_prompt(&chain_name))
+                    .default(&prover_name)
+                    .ask();
+
+                let prover_db_name = slugify!(&prover_db_name, separator = "_");
+
                 Some(ProverDatabaseConfig {
                     database_config: DatabaseConfig::new(prover_db_url, prover_db_name),
                     dont_drop,
