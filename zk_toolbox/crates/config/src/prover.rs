@@ -41,7 +41,7 @@ pub struct GeneralProverConfigInternal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProverConfig {
+pub struct ProverSubsystemConfig {
     pub postgres_config: PostgresConfig,
     pub observability_config: ObservabilityConfig,
     pub prometheus_config: PrometheusConfig,
@@ -80,7 +80,7 @@ impl ReadConfig for GeneralProverConfig {
     }
 }
 
-impl ReadConfig for ProverConfig {
+impl ReadConfig for ProverSubsystemConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
         let config = decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(
@@ -90,7 +90,7 @@ impl ReadConfig for ProverConfig {
     }
 }
 
-impl SaveConfig for ProverConfig {
+impl SaveConfig for ProverSubsystemConfig {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let general_config = GeneralConfig {
             postgres_config: Some(self.postgres_config.clone()),
@@ -134,7 +134,7 @@ impl SaveConfig for ProverConfig {
     }
 }
 
-impl FileConfigWithDefaultName for ProverConfig {
+impl FileConfigWithDefaultName for ProverSubsystemConfig {
     const FILE_NAME: &'static str = PROVER_FILE;
 }
 
@@ -195,8 +195,8 @@ impl GeneralProverConfig {
         self.config.join(SECRETS_FILE)
     }
 
-    pub fn load_prover_config(&self) -> anyhow::Result<ProverConfig> {
-        ProverConfig::read(self.get_shell(), &self.config.join(PROVER_FILE))
+    pub fn load_prover_config(&self) -> anyhow::Result<ProverSubsystemConfig> {
+        ProverSubsystemConfig::read(self.get_shell(), &self.config.join(PROVER_FILE))
     }
 
     pub fn load_secrets_config(&self) -> anyhow::Result<Secrets> {
@@ -218,7 +218,7 @@ impl GeneralProverConfig {
     }
 }
 
-impl From<GeneralConfig> for ProverConfig {
+impl From<GeneralConfig> for ProverSubsystemConfig {
     fn from(config: GeneralConfig) -> Self {
         Self {
             postgres_config: config.postgres_config.expect("Postgres config not found"),

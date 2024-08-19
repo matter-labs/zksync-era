@@ -4,7 +4,7 @@ use anyhow::Context;
 use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
 use config::{
     copy_prover_configs, is_prover_only_system, traits::SaveConfigWithBasePath, EcosystemConfig,
-    GeneralProverConfig, ProverConfig,
+    GeneralProverConfig, ProverSubsystemConfig,
 };
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
@@ -27,21 +27,18 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     check_prover_prequisites(shell);
 
-    let (link_to_code, configs) = if is_prover_only_system(shell)? {
+    let (link_to_code, configs, mut prover_config) = if is_prover_only_system(shell)? {
         let general_prover_config = GeneralProverConfig::from_file(shell)?;
+        copy_prover_configs(
+            shell,
+            &general_prover_config.link_to_code,
+            &general_prover_config.config,
+        )?;
         (
             general_prover_config.link_to_code,
             general_prover_config.config,
+            general_prover_config.load_prover_config()?,
         )
-    } else {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        (ecosystem_config.link_to_code, ecosystem_config.config)
-    };
-
-    let mut prover_config = if is_prover_only_system(shell)? {
-        let prover_config = GeneralProverConfig::from_file(shell)?;
-        copy_prover_configs(shell, &link_to_code, &configs)?;
-        prover_config.load_prover_config()?
     } else {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let chain_config = ecosystem_config
@@ -50,7 +47,11 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         let general_config = chain_config
             .get_general_config()
             .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
-        ProverConfig::from(general_config)
+        (
+            ecosystem_config.link_to_code,
+            ecosystem_config.config,
+            ProverSubsystemConfig::from(general_config),
+        )
     };
 
     let setup_key_path = get_default_setup_key_path(link_to_code.clone())?;
@@ -109,7 +110,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
 fn download_setup_key(
     shell: &Shell,
-    prover_config: &ProverConfig,
+    prover_config: &ProverSubsystemConfig,
     path: &str,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);

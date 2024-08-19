@@ -115,7 +115,7 @@ pub async fn genesis(
     Ok(())
 }
 
-pub async fn initialize_databases(
+async fn initialize_databases(
     shell: &Shell,
     server_db_config: &DatabaseConfig,
     prover_db_config: &DatabaseConfig,
