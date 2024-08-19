@@ -161,6 +161,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
             false,
+            false,
         )
         .await?;
 
@@ -176,7 +177,10 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
+            .get_inflight_txs(
+                tester.manager.operator_address(OperatorType::NonBlob),
+                false
+            )
             .await
             .unwrap()
             .len(),
@@ -186,7 +190,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     let sent_tx = tester
         .manager
         .l1_interface()
-        .get_tx(hash)
+        .get_tx(hash, OperatorType::NonBlob)
         .await
         .unwrap()
         .expect("no transaction");
@@ -229,7 +233,10 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .storage()
             .await
             .eth_sender_dal()
-            .get_inflight_txs(tester.manager.operator_address(OperatorType::NonBlob))
+            .get_inflight_txs(
+                tester.manager.operator_address(OperatorType::NonBlob),
+                false
+            )
             .await
             .unwrap()
             .len(),
@@ -239,7 +246,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     let resent_tx = tester
         .manager
         .l1_interface()
-        .get_tx(resent_hash)
+        .get_tx(resent_hash, OperatorType::NonBlob)
         .await
         .unwrap()
         .expect("no transaction");
@@ -424,6 +431,67 @@ async fn transactions_are_not_resent_on_the_same_block() {
         .await;
     // third iteration shouldn't resend the transaction as we're in the same block
     tester.assert_just_sent_tx_count_equals(0).await;
+}
+
+#[should_panic(
+    expected = "eth-sender was switched to gateway, but there are still 1 pre-gateway transactions in-flight!"
+)]
+#[test_log::test(tokio::test)]
+async fn switching_to_gateway_while_some_transactions_were_in_flight_should_cause_panic() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
+
+    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_l1_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    // sanity check
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    tester.switch_to_using_gateway();
+    tester.run_eth_sender_tx_manager_iteration().await;
+}
+
+#[test_log::test(tokio::test)]
+async fn switching_to_gateway_works_for_most_basic_scenario() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        true,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
+
+    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_l1_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    first_l1_batch.execute_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // sanity check
+    tester.assert_inflight_txs_count_equals(0).await;
+
+    tester.switch_to_using_gateway();
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    first_l1_batch.save_prove_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    first_l1_batch.execute_prove_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(0).await;
 }
 
 #[test_casing(2, COMMITMENT_MODES)]

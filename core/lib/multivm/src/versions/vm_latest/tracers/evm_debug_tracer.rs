@@ -8,23 +8,16 @@ use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{FatPointer, Opcode, UMAOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::interface::{StoragePtr, WriteStorage};
 use zksync_types::{
-    event::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
-    },
-    writes::StateDiffRecord,
-    AccountTreeId, Address, StorageKey, H256, L1_MESSENGER_ADDRESS, U256,
+    Address, StorageKey, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
-    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
-    vm_latest::{
-        old_vm::utils::{heap_page_from_base, IntoFixedLengthByteIterator},
+    interface::tracer::TracerExecutionStatus, tracers::dynamic::vm_1_5_0::DynTracer, vm_latest::{
+        old_vm::utils::heap_page_from_base,
         BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState,
-    },
+    }
 };
 
 pub(crate) struct EvmDebugTracer<S: WriteStorage, H: HistoryMode> {

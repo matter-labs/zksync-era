@@ -1,12 +1,13 @@
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use once_cell::sync::OnceCell;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     get_code_key, get_nonce_key, web3::keccak256, AccountTreeId, Address, StorageKey, StorageValue,
     H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
+
+use crate::interface::storage::{StoragePtr, WriteStorage};
 
 pub mod vm_1_4_1;
 pub mod vm_1_4_2;

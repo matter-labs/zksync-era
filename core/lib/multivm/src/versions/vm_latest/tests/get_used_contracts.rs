@@ -9,14 +9,13 @@ use zk_evm_1_5_0::{
     aux_structures::{DecommittmentQuery, MemoryPage, Timestamp},
     zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
-use zksync_state::WriteStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
 use zksync_types::{Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{storage::WriteStorage, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         tests::{
             tester::{TxType, VmTesterBuilder},

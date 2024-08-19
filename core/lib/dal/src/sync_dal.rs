@@ -107,9 +107,9 @@ impl SyncDal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
-        fee::TransactionExecutionMetrics,
         Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
     };
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{

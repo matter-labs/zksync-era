@@ -1,9 +1,8 @@
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
-use zksync_types::{circuit::CircuitStatistic, U256};
+use zksync_types::U256;
 
 use crate::{
-    interface::{VmExecutionStatistics, VmMemoryMetrics},
+    interface::{storage::WriteStorage, CircuitStatistic, VmExecutionStatistics, VmMemoryMetrics},
     vm_latest::vm::Vm,
     HistoryMode,
 };

@@ -5,16 +5,15 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
 };
 use zksync_contracts::known_codes_contract;
-use zksync_state::WriteStorage;
+use zksync_state::interface::WriteStorage;
 use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
-    interface::{dyn_tracers::vm_1_5_0::DynTracer, tracer::TracerExecutionStatus},
-    vm_latest::{
+    interface::tracer::TracerExecutionStatus, tracers::dynamic::vm_1_5_0::DynTracer, vm_latest::{
         utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState,
-    },
+    }
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those

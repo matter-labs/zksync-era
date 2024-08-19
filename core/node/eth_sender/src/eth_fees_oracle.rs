@@ -5,30 +5,32 @@ use std::{
 };
 
 use zksync_eth_client::{ClientError, EnrichedClientError};
-use zksync_node_fee_model::l1_gas_price::L1TxParamsProvider;
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::eth_sender::TxHistory;
 
-use crate::EthSenderError;
+use crate::{abstract_l1_interface::OperatorType, EthSenderError};
 
 #[derive(Debug)]
 pub(crate) struct EthFees {
     pub(crate) base_fee_per_gas: u64,
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
+    #[allow(dead_code)]
+    pub(crate) pubdata_price: Option<u64>,
 }
 
 pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        has_blob_sidecar: bool,
         time_in_mempool: u32,
+        operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError>;
 }
 
 #[derive(Debug)]
 pub(crate) struct GasAdjusterFeesOracle {
-    pub gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
 }
 
@@ -53,12 +55,14 @@ impl GasAdjusterFeesOracle {
                     previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
                     blob_base_fee_per_gas,
                 ),
+                pubdata_price: None,
             });
         }
         Ok(EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
+            pubdata_price: None,
         })
     }
 
@@ -105,6 +109,7 @@ impl GasAdjusterFeesOracle {
             base_fee_per_gas,
             blob_base_fee_per_gas: None,
             priority_fee_per_gas,
+            pubdata_price: None,
         })
     }
 
@@ -143,9 +148,10 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        has_blob_sidecar: bool,
         time_in_mempool: u32,
+        operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError> {
+        let has_blob_sidecar = operator_type == OperatorType::Blob;
         if has_blob_sidecar {
             self.calculate_fees_with_blob_sidecar(previous_sent_tx)
         } else {

@@ -1,16 +1,17 @@
-use zksync_state::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{
     vm::{FastVmMode, VmVersion},
     H256,
 };
-use zksync_utils::{be_words_to_bytes, bytecode::CompressedBytecodeInfo, h256_to_u256};
+use zksync_utils::{be_words_to_bytes, h256_to_u256};
 
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     versions::shadow::ShadowVm,
