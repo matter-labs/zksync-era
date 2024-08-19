@@ -26,11 +26,9 @@ pub fn is_prover_only_system(shell: &Shell) -> anyhow::Result<bool> {
             let _dir = shell.push_dir(current_path.clone());
             match GeneralProverConfig::from_file(shell) {
                 Ok(_) => Ok(true),
-                Err(_) => {
-                    return Err(anyhow::anyhow!(
-                        "There was no ecosystem or prover subsystem config found."
-                    ));
-                }
+                Err(_) => Err(anyhow::anyhow!(
+                    "There was no ecosystem or prover subsystem config found."
+                )),
             }
         }
     }

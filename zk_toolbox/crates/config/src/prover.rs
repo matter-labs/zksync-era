@@ -196,11 +196,11 @@ impl GeneralProverConfig {
     }
 
     pub fn load_prover_config(&self) -> anyhow::Result<ProverSubsystemConfig> {
-        ProverSubsystemConfig::read(self.get_shell(), &self.config.join(PROVER_FILE))
+        ProverSubsystemConfig::read(self.get_shell(), self.config.join(PROVER_FILE))
     }
 
     pub fn load_secrets_config(&self) -> anyhow::Result<Secrets> {
-        Secrets::read(self.get_shell(), &self.config.join(SECRETS_FILE))
+        Secrets::read(self.get_shell(), self.config.join(SECRETS_FILE))
     }
 
     pub fn get_internal(&self) -> GeneralProverConfigInternal {
