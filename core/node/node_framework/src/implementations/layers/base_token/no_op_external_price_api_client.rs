@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tokio::sync::Mutex;
 use zksync_external_price_api::NoOpPriceAPIClient;
 
 use crate::{
@@ -36,7 +37,7 @@ impl WiringLayer for NoOpExternalPriceApiClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let no_op_client = Arc::new(NoOpPriceAPIClient {});
+        let no_op_client = Arc::new(Mutex::new(NoOpPriceAPIClient {}));
 
         Ok(Output {
             price_api_client: no_op_client.into(),

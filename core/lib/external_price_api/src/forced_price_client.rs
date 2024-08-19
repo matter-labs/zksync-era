@@ -35,7 +35,7 @@ impl ForcedPriceClient {
 #[async_trait]
 impl PriceAPIClient for ForcedPriceClient {
     // Returns a ratio which is 10% higher or lower than the configured forced ratio.
-    async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
+    async fn fetch_ratio(&mut self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let mut rng = rand::thread_rng();
 
         let numerator_range = (

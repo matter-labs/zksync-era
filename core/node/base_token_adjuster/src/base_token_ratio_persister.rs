@@ -1,7 +1,10 @@
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use tokio::{sync::watch, time::sleep};
+use tokio::{
+    sync::{watch, Mutex},
+    time::sleep,
+};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_external_price_api::PriceAPIClient;
@@ -12,7 +15,7 @@ pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
     base_token_address: Address,
-    price_api_client: Arc<dyn PriceAPIClient>,
+    price_api_client: Arc<Mutex<dyn PriceAPIClient>>,
 }
 
 impl BaseTokenRatioPersister {
@@ -20,7 +23,7 @@ impl BaseTokenRatioPersister {
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
         base_token_address: Address,
-        price_api_client: Arc<dyn PriceAPIClient>,
+        price_api_client: Arc<Mutex<dyn PriceAPIClient>>,
     ) -> Self {
         Self {
             pool,
@@ -67,11 +70,9 @@ impl BaseTokenRatioPersister {
         let mut attempts = 0;
 
         loop {
-            match self
-                .price_api_client
-                .fetch_ratio(self.base_token_address)
-                .await
-            {
+            let mut client = self.price_api_client.lock().await;
+
+            match client.fetch_ratio(self.base_token_address).await {
                 Ok(ratio) => {
                     return Ok(ratio);
                 }

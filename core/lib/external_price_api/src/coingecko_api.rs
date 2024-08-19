@@ -85,15 +85,15 @@ impl CoinGeckoPriceAPIClient {
 
 #[async_trait]
 impl PriceAPIClient for CoinGeckoPriceAPIClient {
-    async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
+    async fn fetch_ratio(&mut self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
         let (numerator, denominator) = get_fraction(base_token_in_eth);
 
-        return Ok(BaseTokenAPIRatio {
+        Ok(BaseTokenAPIRatio {
             numerator,
             denominator,
             ratio_timestamp: Utc::now(),
-        });
+        })
     }
 }
 

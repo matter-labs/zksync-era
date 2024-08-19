@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tokio::sync::Mutex;
 use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_external_price_api::coingecko_api::CoinGeckoPriceAPIClient;
 
@@ -46,7 +47,7 @@ impl WiringLayer for CoingeckoClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let cg_client = Arc::new(CoinGeckoPriceAPIClient::new(self.config));
+        let cg_client = Arc::new(Mutex::new(CoinGeckoPriceAPIClient::new(self.config)));
 
         Ok(Output {
             price_api_client: cg_client.into(),
