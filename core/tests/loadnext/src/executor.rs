@@ -60,16 +60,17 @@ impl Executor {
         let pool = AccountPool::new(&config).await?;
 
         // derive L2 main token address
-        let l2_native_token_vault = pool
+        let l2_shared_default_bridge = pool
             .master_wallet
             .provider
-            .get_native_token_vault_proxy_addr()
+            .get_bridge_contracts()
             .await?
+            .l2_shared_default_bridge
             .unwrap();
         let abi = load_contract(L2_SHARED_BRIDGE_ABI);
         let query_client: Client<L2> = Client::http(config.l2_rpc_address.parse()?)?.build();
         let l2_main_token = CallFunctionArgs::new("l2TokenAddress", (config.main_token,))
-            .for_contract(l2_native_token_vault, &abi)
+            .for_contract(l2_shared_default_bridge, &abi)
             .call(&query_client)
             .await?;
 
@@ -412,6 +413,9 @@ impl Executor {
                     eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
+
+                println!("{:#?} -- ", self.config.main_token);
+                println!("{:#?} -- ", self.l2_main_token);
 
                 let ethereum_erc20_balance = ethereum
                     .erc20_balance(target_address, self.config.main_token)
