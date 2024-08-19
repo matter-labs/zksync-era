@@ -9,6 +9,9 @@ pub struct ProverJobMonitorConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
     /// Maximum number of database connections per pool.
+    /// In a balanced system it should match the number of Tasks ran by ProverJobMonitor.
+    /// If lower, components will wait on one another for a connection.
+    /// If more, database will use more resources for idle connections (which drains DB resources needed for other components in Prover Subsystems).
     pub max_db_connections: u32,
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
     #[serde(default = "ProverJobMonitorConfig::default_graceful_shutdown_timeout_ms")]
