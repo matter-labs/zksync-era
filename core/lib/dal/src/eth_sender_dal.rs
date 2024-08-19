@@ -25,6 +25,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_inflight_txs(
         &mut self,
         operator_address: Option<Address>,
+        is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
@@ -36,6 +37,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
+                AND is_gateway = $2
                 AND id <= (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
@@ -45,15 +47,38 @@ impl EthSenderDal<'_, '_> {
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $1
+                        AND is_gateway = $2
                 )
             ORDER BY
                 id
             "#,
             operator_address.as_ref().map(|h160| h160.as_bytes()),
+            is_gateway
         )
         .fetch_all(self.storage.conn())
         .await?;
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
+    }
+
+    pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
+        &mut self,
+    ) -> sqlx::Result<usize> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+                AND is_gateway = FALSE
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
     }
 
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
@@ -132,6 +157,7 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         limit: u64,
         operator_address: &Option<Address>,
+        is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
             StorageEthTx,
@@ -142,6 +168,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
+                AND is_gateway = $3
                 AND id > (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
@@ -151,6 +178,7 @@ impl EthSenderDal<'_, '_> {
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
+                        AND is_gateway = $3
                 )
             ORDER BY
                 id
@@ -159,6 +187,7 @@ impl EthSenderDal<'_, '_> {
             "#,
             limit as i64,
             operator_address.as_ref().map(|h160| h160.as_bytes()),
+            is_gateway
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -202,6 +231,7 @@ impl EthSenderDal<'_, '_> {
         predicted_gas_cost: u32,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
+        is_gateway: bool,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -217,10 +247,11 @@ impl EthSenderDal<'_, '_> {
                     created_at,
                     updated_at,
                     from_addr,
-                    blob_sidecar
+                    blob_sidecar,
+                    is_gateway
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
             RETURNING
                 *
             "#,
@@ -232,6 +263,7 @@ impl EthSenderDal<'_, '_> {
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
+            is_gateway,
         )
         .fetch_one(self.storage.conn())
         .await?;

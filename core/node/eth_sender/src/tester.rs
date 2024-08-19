@@ -111,6 +111,7 @@ pub(crate) struct EthSenderTester {
     pub conn: ConnectionPool<Core>,
     pub gateway: Box<MockSettlementLayer>,
     pub gateway_blobs: Box<MockSettlementLayer>,
+    pub l2_gateway: Box<MockSettlementLayer>,
     pub manager: MockEthTxManager,
     pub aggregator: EthTxAggregator,
     pub gas_adjuster: Arc<GasAdjuster>,
@@ -120,6 +121,7 @@ pub(crate) struct EthSenderTester {
     next_l1_batch_number_to_prove: L1BatchNumber,
     next_l1_batch_number_to_execute: L1BatchNumber,
     tx_sent_in_last_iteration_count: usize,
+    pub is_l2: bool,
 }
 
 impl EthSenderTester {
@@ -175,6 +177,26 @@ impl EthSenderTester {
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
+
+        let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
+            .with_fee_history(
+                std::iter::repeat_with(|| BaseFees {
+                    base_fee_per_gas: 0,
+                    base_fee_per_blob_gas: 0.into(),
+                    l2_pubdata_price: 0.into(),
+                })
+                .take(Self::WAIT_CONFIRMATIONS as usize)
+                .chain(history.clone())
+                .collect(),
+            )
+            .with_non_ordering_confirmation(non_ordering_confirmations)
+            .with_call_handler(move |call, _| {
+                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                crate::tests::mock_multicall_response()
+            })
+            .build();
+        l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        let l2_gateway = Box::new(l2_gateway);
 
         let gateway_blobs = MockSettlementLayer::builder()
             .with_fee_history(
@@ -249,8 +271,9 @@ impl EthSenderTester {
             connection_pool.clone(),
             eth_sender.clone(),
             gas_adjuster.clone(),
-            gateway.clone(),
+            Some(gateway.clone()),
             Some(gateway_blobs.clone()),
+            None,
         );
 
         let connection_pool_clone = connection_pool.clone();
@@ -264,6 +287,7 @@ impl EthSenderTester {
         Self {
             gateway,
             gateway_blobs,
+            l2_gateway,
             manager,
             aggregator,
             gas_adjuster,
@@ -274,7 +298,21 @@ impl EthSenderTester {
             next_l1_batch_number_to_execute: L1BatchNumber(1),
             next_l1_batch_number_to_prove: L1BatchNumber(1),
             tx_sent_in_last_iteration_count: 0,
+            is_l2: false,
         }
+    }
+
+    pub fn switch_to_using_gateway(&mut self) {
+        self.manager = EthTxManager::new(
+            self.conn.clone(),
+            EthConfig::for_tests().sender.unwrap(),
+            self.gas_adjuster.clone(),
+            None,
+            None,
+            Some(self.l2_gateway.clone()),
+        );
+        self.is_l2 = true;
+        tracing::info!("Switched eth-sender tester to use Gateway!");
     }
 
     pub async fn storage(&self) -> Connection<'_, Core> {
@@ -285,7 +323,7 @@ impl EthSenderTester {
         let latest = self
             .manager
             .l1_interface()
-            .get_l1_block_numbers()
+            .get_l1_block_numbers(OperatorType::NonBlob)
             .await
             .unwrap()
             .latest;
@@ -341,13 +379,18 @@ impl EthSenderTester {
             .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
             .await
             .unwrap();
-        let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
-            (self.gateway_blobs.as_ref(), self.gateway.as_ref())
+        if !self.is_l2 {
+            let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
+                (self.gateway_blobs.as_ref(), self.gateway.as_ref())
+            } else {
+                (self.gateway.as_ref(), self.gateway_blobs.as_ref())
+            };
+            gateway.execute_tx(tx.tx_hash, success, confirmations);
+            other.advance_block_number(confirmations);
         } else {
-            (self.gateway.as_ref(), self.gateway_blobs.as_ref())
-        };
-        gateway.execute_tx(tx.tx_hash, success, confirmations);
-        other.advance_block_number(confirmations);
+            self.l2_gateway
+                .execute_tx(tx.tx_hash, success, confirmations);
+        }
     }
 
     pub async fn seal_l1_batch(&mut self) -> L1BatchHeader {
@@ -407,15 +450,17 @@ impl EthSenderTester {
     pub async fn run_eth_sender_tx_manager_iteration_after_n_blocks(&mut self, n: u64) {
         self.gateway.advance_block_number(n);
         self.gateway_blobs.advance_block_number(n);
-        let tx_sent_before = self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count();
+        self.l2_gateway.advance_block_number(n);
+        let tx_sent_before = self.gateway.sent_tx_count()
+            + self.gateway_blobs.sent_tx_count()
+            + self.l2_gateway.sent_tx_count();
         self.manager
-            .loop_iteration(
-                &mut self.conn.connection().await.unwrap(),
-                self.get_block_numbers().await,
-            )
+            .loop_iteration(&mut self.conn.connection().await.unwrap())
             .await;
-        self.tx_sent_in_last_iteration_count =
-            (self.gateway.sent_tx_count() + self.gateway_blobs.sent_tx_count()) - tx_sent_before;
+        self.tx_sent_in_last_iteration_count = (self.gateway.sent_tx_count()
+            + self.gateway_blobs.sent_tx_count()
+            + self.l2_gateway.sent_tx_count())
+            - tx_sent_before;
     }
 
     pub async fn run_eth_sender_tx_manager_iteration(&mut self) {
@@ -467,6 +512,7 @@ impl EthSenderTester {
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
                 false,
+                self.is_l2,
             )
             .await
             .unwrap()
@@ -491,14 +537,18 @@ impl EthSenderTester {
     }
 
     pub async fn confirm_tx(&mut self, hash: H256, is_blob: bool) {
-        let (gateway, other) = if is_blob {
-            (self.gateway_blobs.as_ref(), self.gateway.as_ref())
+        if !self.is_l2 {
+            let (gateway, other) = if is_blob {
+                (self.gateway_blobs.as_ref(), self.gateway.as_ref())
+            } else {
+                (self.gateway.as_ref(), self.gateway_blobs.as_ref())
+            };
+            gateway.execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+            other.advance_block_number(EthSenderTester::WAIT_CONFIRMATIONS);
         } else {
-            (self.gateway.as_ref(), self.gateway_blobs.as_ref())
-        };
-        gateway.execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
-        other.advance_block_number(EthSenderTester::WAIT_CONFIRMATIONS);
-
+            self.l2_gateway
+                .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+        }
         self.run_eth_sender_tx_manager_iteration().await;
     }
 
@@ -543,13 +593,13 @@ impl EthSenderTester {
     }
 
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
-        //sanity check
-        assert!(self.manager.operator_address(OperatorType::Blob).is_some());
-        assert_eq!(
+        let inflight_count = if !self.is_l2 {
+            //sanity check
+            assert!(self.manager.operator_address(OperatorType::Blob).is_some());
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob))
+                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob), false)
                 .await
                 .unwrap()
                 .len()
@@ -557,11 +607,22 @@ impl EthSenderTester {
                     .storage()
                     .await
                     .eth_sender_dal()
-                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob))
+                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob), false)
                     .await
                     .unwrap()
-                    .len(),
-            value,
+                    .len()
+        } else {
+            self.storage()
+                .await
+                .eth_sender_dal()
+                .get_inflight_txs(None, true)
+                .await
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(
+            inflight_count, value,
             "Unexpected number of in-flight transactions"
         );
     }

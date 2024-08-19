@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_types::vm_trace::Call;
+
+use crate::interface::Call;
 
 /// For backward compatibility with vm before vm with virtual blocks.
 /// These tracers are tightly coupled with the VM implementation and we have to pass only params for them and not tracers by itself.

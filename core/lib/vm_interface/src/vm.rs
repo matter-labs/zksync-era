@@ -12,12 +12,11 @@
 //! where `VmTracer` is a trait implemented for a specific VM version.
 
 use zksync_types::Transaction;
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
-    storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
-    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
-    VmMemoryMetrics,
+    storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+    CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+    VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {

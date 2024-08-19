@@ -17,7 +17,10 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
-use zksync_multivm::zk_evm_latest::ethereum_types::U256;
+use zksync_multivm::interface::{
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+    VmExecutionMetrics,
+};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -26,18 +29,14 @@ use zksync_node_test_utils::{
 use zksync_types::{
     api,
     block::L2BlockHeader,
-    fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
     tokens::{TokenInfo, TokenMetadata},
-    tx::{
-        tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
-        TransactionExecutionResult,
-    },
+    tx::IncludedTxLocation,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog,
-    VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
+    U256, U64,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -273,7 +272,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,

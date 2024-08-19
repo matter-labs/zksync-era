@@ -9,7 +9,6 @@ use zksync_multivm::interface::{
     storage::StorageViewCache, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
     Refunds, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -78,10 +77,10 @@ pub(crate) fn storage_view_cache() -> StorageViewCache {
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-impl BatchExecutor for MockBatchExecutor {
+impl BatchExecutor<()> for MockBatchExecutor {
     fn init_batch(
         &mut self,
-        _storage: OwnedStorage,
+        _storage: (),
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {

@@ -7,10 +7,6 @@ use vm2::{
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
-    event::{
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
-        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
-    },
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
@@ -34,12 +30,13 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CurrentExecutionState,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
-        TxRevertReason, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
-        VmRevertReason,
+        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics, VmRevertReason,
     },
+    utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
         events::merge_events,
@@ -205,7 +202,7 @@ impl<S: ReadStorage> Vm<S> {
                             event.address == L1_MESSENGER_ADDRESS
                                 && !event.indexed_topics.is_empty()
                                 && event.indexed_topics[0]
-                                    == *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+                                    == VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
                         })
                         .map(|event| {
                             let hash = U256::from_big_endian(&event.value[..32]);
@@ -219,7 +216,7 @@ impl<S: ReadStorage> Vm<S> {
 
                     let pubdata_input = PubdataInput {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
-                        l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
+                        l2_to_l1_messages: VmEvent::extract_long_l2_to_l1_messages(&events),
                         published_bytecodes,
                         state_diffs: self
                             .compute_state_diffs()
@@ -533,9 +530,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         self.bootloader_state.bootloader_memory()
     }
 
-    fn get_last_tx_compressed_bytecodes(
-        &self,
-    ) -> Vec<zksync_utils::bytecode::CompressedBytecodeInfo> {
+    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 

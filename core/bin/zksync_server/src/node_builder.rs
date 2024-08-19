@@ -37,6 +37,7 @@ use zksync_node_framework::{
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::L1GasLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
             main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
@@ -441,7 +442,7 @@ impl MainNodeBuilder {
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
         let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
+        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
         let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
         let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
@@ -609,6 +610,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
+
+        Ok(self)
+    }
+
     /// This layer will make sure that the database is initialized correctly,
     /// e.g. genesis will be performed if it's required.
     ///
@@ -679,7 +686,8 @@ impl MainNodeBuilder {
                     self = self
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
-                        .add_state_keeper_layer()?;
+                        .add_state_keeper_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
                 Component::HttpApi => {
                     self = self
