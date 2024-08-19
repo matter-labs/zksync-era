@@ -5,7 +5,13 @@ use zksync_multivm::{
     vm_latest::TransactionVmExt,
 };
 use zksync_types::{
-    block::{BlockGasCount, L2BlockHasher}, event::{convert_vm_events_to_log_queries, extract_bytecodes_marked_as_known}, l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log}, tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult}, vm_trace::Call, L2BlockNumber, ProtocolVersionId, StorageLogKind, StorageLogQuery, StorageLogWithPreviousValue, Transaction, VmEvent, H256
+    block::{BlockGasCount, L2BlockHasher},
+    event::{convert_vm_events_to_log_queries, extract_bytecodes_marked_as_known},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
+    vm_trace::Call,
+    L2BlockNumber, ProtocolVersionId, StorageLogKind, StorageLogQuery, StorageLogWithPreviousValue,
+    Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
@@ -122,9 +128,11 @@ impl L2BlockUpdates {
             .iter()
             .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
             .collect();
-        new_known_factory_deps.into_iter().for_each(|(hash, bytecode)| {
-            tx_factory_deps.insert(hash, bytecode);
-        });
+        new_known_factory_deps
+            .into_iter()
+            .for_each(|(hash, bytecode)| {
+                tx_factory_deps.insert(hash, bytecode);
+            });
 
         // Save all bytecodes that were marked as known on the bootloader
         let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {

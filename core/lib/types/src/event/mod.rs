@@ -10,7 +10,14 @@ use zksync_utils::{
 };
 
 use crate::{
-    api::Log, ethabi, l2_to_l1_log::L2ToL1Log, tokens::{TokenInfo, TokenMetadata}, web3::{Bytes, Index}, zk_evm_types::{LogQuery, Timestamp}, Address, L1BatchNumber, StorageLogQuery, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256, U64
+    api::Log,
+    ethabi,
+    l2_to_l1_log::L2ToL1Log,
+    tokens::{TokenInfo, TokenMetadata},
+    web3::{Bytes, Index},
+    zk_evm_types::{LogQuery, Timestamp},
+    Address, L1BatchNumber, StorageLogQuery, CONTRACT_DEPLOYER_ADDRESS, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256, U64,
 };
 
 #[cfg(test)]
