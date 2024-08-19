@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 
 cd $(dirname $0)
-cd ../zk_toolbox
 
-cargo install --path ./crates/zk_inception --force
-cargo install --path ./crates/zk_supervisor --force
+if which zkup >/dev/null; then
+    zkup -p .. --alias
+else
+    echo zkup does not installed, please install it https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox/zkup
+    cd ../zk_toolbox
+    cargo install --path ./crates/zk_inception --force
+    cargo install --path ./crates/zk_supervisor --force
+fi
+

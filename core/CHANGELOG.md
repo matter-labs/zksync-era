@@ -1,5 +1,29 @@
 # Changelog
 
+## [24.18.0](https://github.com/matter-labs/zksync-era/compare/core-v24.17.0...core-v24.18.0) (2024-08-14)
+
+
+### Features
+
+* add logs bloom ([#2633](https://github.com/matter-labs/zksync-era/issues/2633)) ([1067462](https://github.com/matter-labs/zksync-era/commit/10674620d1a04333507ca17b9a34ab3cb58846cf))
+* **zk_toolbox:** Minting base token ([#2571](https://github.com/matter-labs/zksync-era/issues/2571)) ([ae2dd3b](https://github.com/matter-labs/zksync-era/commit/ae2dd3bbccdffc25b040313b2c7983a936f36aac))
+
+## [24.17.0](https://github.com/matter-labs/zksync-era/compare/core-v24.16.0...core-v24.17.0) (2024-08-13)
+
+
+### Features
+
+* Allow tracking l2 fees for L2-based chains ([#2563](https://github.com/matter-labs/zksync-era/issues/2563)) ([e3f7804](https://github.com/matter-labs/zksync-era/commit/e3f78042b93b25d609e5767e2ba76502ede84415))
+* Remove old EN code ([#2595](https://github.com/matter-labs/zksync-era/issues/2595)) ([8d31ebc](https://github.com/matter-labs/zksync-era/commit/8d31ebceaf958c7147c973243c618c87c42d53d8))
+* **tee:** introduce get_tee_proofs RPC method for TEE proofs ([#2474](https://github.com/matter-labs/zksync-era/issues/2474)) ([d40ff5f](https://github.com/matter-labs/zksync-era/commit/d40ff5f3aa41801c054d0557f9aea11715af9c31))
+* **vm:** Fast VM integration ([#1949](https://github.com/matter-labs/zksync-era/issues/1949)) ([b752a54](https://github.com/matter-labs/zksync-era/commit/b752a54bebe6eb3bf0bea044996f5116cc5dc4e2))
+
+
+### Bug Fixes
+
+* query for prover API ([#2628](https://github.com/matter-labs/zksync-era/issues/2628)) ([b8609eb](https://github.com/matter-labs/zksync-era/commit/b8609eb131ac9ce428cd45a3be9ba4062cd7bbe2))
+* **vm:** Fix missing experimental VM config ([#2629](https://github.com/matter-labs/zksync-era/issues/2629)) ([e07a39d](https://github.com/matter-labs/zksync-era/commit/e07a39daa564d6032ad61a135da78775a4f2c9ce))
+
 ## [24.16.0](https://github.com/matter-labs/zksync-era/compare/core-v24.15.0...core-v24.16.0) (2024-08-08)
 
 

@@ -6,8 +6,8 @@ use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 use crate::{
     glue::{GlueFrom, GlueInto},
     interface::{
-        types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        CurrentExecutionState, ExecutionResult, Refunds, VmExecutionLogs, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
 };
 

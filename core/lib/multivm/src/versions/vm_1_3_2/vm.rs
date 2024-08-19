@@ -1,25 +1,23 @@
 use std::collections::HashSet;
 
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
-use zksync_utils::{
-    bytecode::{hash_bytecode, CompressedBytecodeInfo},
-    h256_to_u256, u256_to_h256,
-};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        storage::{StoragePtr, WriteStorage},
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    tracers::old_tracers::TracerDispatcher,
+    tracers::old::TracerDispatcher,
+    utils::bytecode,
     vm_1_3_2::{events::merge_events, VmInstance},
 };
 
@@ -173,7 +171,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                     None
                 } else {
                     bytecode_hashes.push(bytecode_hash);
-                    CompressedBytecodeInfo::from_original(bytecode.clone()).ok()
+                    bytecode::compress(bytecode.clone()).ok()
                 }
             });
             let compressed_bytecodes: Vec<_> = filtered_deps.collect();
