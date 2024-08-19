@@ -63,12 +63,13 @@ impl EcosystemCreateArgs {
             }
         });
 
-        let l1_network = PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask();
-
+        let l1_network = self
+            .l1_network
+            .unwrap_or_else(|| PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask());
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chain = self.chain.fill_values_with_prompt(0, &l1_network)?;
+        let chain = self.chain.fill_values_with_prompt(0, &l1_network, vec![])?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)

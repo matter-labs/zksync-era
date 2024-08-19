@@ -14,7 +14,7 @@ enum StatsPeriod {
 }
 
 #[derive(Args)]
-pub(crate) struct Options {
+pub struct Options {
     #[clap(
         short = 'p',
         long = "period",
@@ -24,7 +24,7 @@ pub(crate) struct Options {
     period: StatsPeriod,
 }
 
-pub(crate) async fn run(opts: Options, config: ProverCLIConfig) -> anyhow::Result<()> {
+pub async fn run(opts: Options, config: ProverCLIConfig) -> anyhow::Result<()> {
     let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.db_url)
         .build()
         .await

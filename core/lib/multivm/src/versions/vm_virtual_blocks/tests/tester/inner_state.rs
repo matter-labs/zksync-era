@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zk_evm_1_3_3::vm_state::VmLocalState;
-use zksync_state::WriteStorage;
+use crate::interface::storage::WriteStorage;
 
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 

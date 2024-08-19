@@ -1,21 +1,20 @@
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use itertools::Itertools;
 use zk_evm_1_3_1::aux_structures::LogQuery;
-use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
     Transaction,
 };
-use zksync_utils::{bytecode::CompressedBytecodeInfo, h256_to_u256, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
-        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_m5::{
         events::merge_events,

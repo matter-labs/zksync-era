@@ -4,17 +4,17 @@ use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
-    interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::{Call, CallType, ExecutionResult},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    api::{BlockId, BlockNumber, DebugCall, DebugCallType, ResultDebugCall, TracerConfig},
     debug_flat_call::{flatten_debug_calls, DebugCallFlat},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
-    vm_trace::Call,
-    AccountTreeId, H256,
+    web3, AccountTreeId, H256, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -49,6 +49,35 @@ impl DebugNamespace {
             state,
             api_contracts,
         })
+    }
+
+    pub(crate) fn map_call(call: Call, only_top_call: bool) -> DebugCall {
+        let calls = if only_top_call {
+            vec![]
+        } else {
+            call.calls
+                .into_iter()
+                .map(|call| Self::map_call(call, false))
+                .collect()
+        };
+        let debug_type = match call.r#type {
+            CallType::Call(_) => DebugCallType::Call,
+            CallType::Create => DebugCallType::Create,
+            CallType::NearCall => unreachable!("We have to filter our near calls before"),
+        };
+        DebugCall {
+            r#type: debug_type,
+            from: call.from,
+            to: call.to,
+            gas: U256::from(call.gas),
+            gas_used: U256::from(call.gas_used),
+            value: call.value,
+            output: web3::Bytes::from(call.output),
+            input: web3::Bytes::from(call.input),
+            error: call.error,
+            revert_reason: call.revert_reason,
+            calls,
+        }
     }
 
     fn sender_config(&self) -> &TxSenderConfig {
@@ -86,10 +115,7 @@ impl DebugNamespace {
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
-                let mut result: DebugCall = call_trace.into();
-                if only_top_call {
-                    result.calls = vec![];
-                }
+                let result = Self::map_call(call_trace, only_top_call);
                 ResultDebugCall { result }
             })
             .collect();
@@ -120,13 +146,7 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace.map(|call_trace| {
-            let mut result: DebugCall = call_trace.into();
-            if only_top_call {
-                result.calls = vec![];
-            }
-            result
-        }))
+        Ok(call_trace.map(|call_trace| Self::map_call(call_trace, only_top_call)))
     }
 
     pub async fn debug_trace_call_impl(
@@ -226,7 +246,7 @@ impl DebugNamespace {
             revert_reason,
             trace,
         );
-        Ok(call.into())
+        Ok(Self::map_call(call, false))
     }
 
     async fn shared_args(&self) -> TxSharedArgs {
