@@ -47,6 +47,9 @@ impl<I: Iterator<Item = String>> IaiResultParser<I> {
             .unwrap()
             .split_whitespace()
             .next()
+            .unwrap()
+            .split('|')
+            .next()
             .unwrap();
         number.parse().unwrap()
     }
