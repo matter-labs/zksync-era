@@ -1,7 +1,13 @@
-//! Criterion helpers and extensions.
+//! Criterion helpers and extensions used to record benchmark timings as Prometheus metrics.
 
 use std::{
-    cell::RefCell, convert::Infallible, env, fmt, rc::Rc, sync::Once, thread, time::Duration,
+    cell::RefCell,
+    convert::Infallible,
+    env, fmt, mem,
+    rc::Rc,
+    sync::Once,
+    thread,
+    time::{Duration, Instant},
 };
 
 use criterion::{
@@ -10,7 +16,7 @@ use criterion::{
 };
 use once_cell::{sync::OnceCell as SyncOnceCell, unsync::OnceCell};
 use tokio::sync::watch;
-use vise::{Buckets, EncodeLabelSet, Family, Histogram, LatencyObserver, Metrics};
+use vise::{EncodeLabelSet, Family, Gauge, Metrics, Unit};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Checks whether a benchmark binary is running in the test mode (as opposed to benchmarking).
@@ -26,11 +32,25 @@ struct BenchLabels {
     arg: Option<String>,
 }
 
+// We don't use histograms because benchmark results are uploaded in short bursts, which leads to missing zero values.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "vm_benchmark")]
 struct VmBenchmarkMetrics {
-    #[metrics(buckets = Buckets::LATENCIES)]
-    timing: Family<BenchLabels, Histogram<Duration>>,
+    /// Number of samples for a benchmark.
+    sample_count: Family<BenchLabels, Gauge<usize>>,
+
+    /// Mean latency for a benchmark.
+    #[metrics(unit = Unit::Seconds)]
+    mean_timing: Family<BenchLabels, Gauge<Duration>>,
+    /// Minimum latency for a benchmark.
+    #[metrics(unit = Unit::Seconds)]
+    min_timing: Family<BenchLabels, Gauge<Duration>>,
+    /// Maximum latency for a benchmark.
+    #[metrics(unit = Unit::Seconds)]
+    max_timing: Family<BenchLabels, Gauge<Duration>>,
+    /// Median latency for a benchmark.
+    #[metrics(unit = Unit::Seconds)]
+    median_timing: Family<BenchLabels, Gauge<Duration>>,
 }
 
 #[vise::register]
@@ -68,9 +88,77 @@ impl PrometheusRuntime {
     }
 }
 
-thread_local! {
-    static CURRENT_BENCH_LABELS: RefCell<Option<BenchLabels>> = const { RefCell::new(None) };
+/// Guard returned by [`CurrentBenchmark::set()`] that unsets the current benchmark on drop.
+#[must_use = "Will unset the current benchmark when dropped"]
+#[derive(Debug)]
+struct CurrentBenchmarkGuard;
+
+impl Drop for CurrentBenchmarkGuard {
+    fn drop(&mut self) {
+        CURRENT_BENCH.take();
+    }
 }
+
+#[derive(Debug)]
+struct CurrentBenchmark {
+    metrics: &'static VmBenchmarkMetrics,
+    labels: BenchLabels,
+    observations: Vec<Duration>,
+}
+
+impl CurrentBenchmark {
+    fn set(metrics: &'static VmBenchmarkMetrics, labels: BenchLabels) -> CurrentBenchmarkGuard {
+        CURRENT_BENCH.replace(Some(Self {
+            metrics,
+            labels,
+            observations: vec![],
+        }));
+        CurrentBenchmarkGuard
+    }
+
+    fn observe(timing: Duration) {
+        CURRENT_BENCH.with_borrow_mut(|this| {
+            if let Some(this) = this {
+                this.observations.push(timing);
+            }
+        });
+    }
+}
+
+impl Drop for CurrentBenchmark {
+    fn drop(&mut self) {
+        let mut observations = mem::take(&mut self.observations);
+        if observations.is_empty() {
+            return;
+        }
+
+        let len = observations.len();
+        self.metrics.sample_count[&self.labels].set(len);
+        let mean = observations
+            .iter()
+            .copied()
+            .sum::<Duration>()
+            .div_f32(len as f32);
+        self.metrics.mean_timing[&self.labels].set(mean);
+
+        // Could use quick median algorithm, but since there aren't that many observations expected,
+        // sorting looks acceptable.
+        observations.sort_unstable();
+        self.metrics.min_timing[&self.labels].set(observations[0]);
+        self.metrics.max_timing[&self.labels].set(*observations.last().unwrap());
+        let median = if len % 2 == 0 {
+            (observations[len / 2 - 1] + observations[len / 2]) / 2
+        } else {
+            observations[len / 2]
+        };
+        self.metrics.median_timing[&self.labels].set(median);
+    }
+}
+
+thread_local! {
+    static CURRENT_BENCH: RefCell<Option<CurrentBenchmark>> = const { RefCell::new(None) };
+}
+
 static BIN_NAME: SyncOnceCell<&'static str> = SyncOnceCell::new();
 
 /// Measurement for criterion that exports .
@@ -97,21 +185,6 @@ impl MeteredTime {
         Self {
             _prometheus: prometheus,
         }
-    }
-
-    fn start_bench(group: String, benchmark: String, arg: Option<String>) {
-        CURRENT_BENCH_LABELS.replace(Some(BenchLabels {
-            bin: BIN_NAME.get().copied().unwrap_or(""),
-            group,
-            benchmark,
-            arg,
-        }));
-    }
-
-    fn get_bench() -> BenchLabels {
-        CURRENT_BENCH_LABELS
-            .with(|cell| cell.borrow().clone())
-            .expect("current benchmark not set")
     }
 }
 
@@ -186,18 +259,24 @@ impl BenchmarkGroup<'_> {
         self
     }
 
+    fn start_bench(&self, benchmark: String, arg: Option<String>) -> CurrentBenchmarkGuard {
+        let labels = BenchLabels {
+            bin: BIN_NAME.get().copied().unwrap_or(""),
+            group: self.name.clone(),
+            benchmark,
+            arg,
+        };
+        CurrentBenchmark::set(self.metrics, labels)
+    }
+
     pub fn bench_metered<F>(&mut self, id: impl Into<String>, mut bench_fn: F)
     where
         F: FnMut(&mut Bencher<'_, '_>),
     {
         let id = id.into();
-        MeteredTime::start_bench(self.name.clone(), id.clone(), None);
-        self.inner.bench_function(id, |bencher| {
-            bench_fn(&mut Bencher {
-                inner: bencher,
-                metrics: self.metrics,
-            })
-        });
+        let _guard = self.start_bench(id.clone(), None);
+        self.inner
+            .bench_function(id, |bencher| bench_fn(&mut Bencher { inner: bencher }));
     }
 
     pub fn bench_metered_with_input<I, F>(&mut self, id: BenchmarkId, input: &I, mut bench_fn: F)
@@ -205,34 +284,29 @@ impl BenchmarkGroup<'_> {
         I: ?Sized,
         F: FnMut(&mut Bencher<'_, '_>, &I),
     {
-        MeteredTime::start_bench(self.name.clone(), id.benchmark, Some(id.arg));
+        let _guard = self.start_bench(id.benchmark, Some(id.arg));
         self.inner
             .bench_with_input(id.inner, input, |bencher, input| {
-                bench_fn(
-                    &mut Bencher {
-                        inner: bencher,
-                        metrics: self.metrics,
-                    },
-                    input,
-                )
+                bench_fn(&mut Bencher { inner: bencher }, input)
             });
     }
 }
 
 pub struct Bencher<'a, 'r> {
     inner: &'r mut criterion::Bencher<'a, MeteredTime>,
-    metrics: &'static VmBenchmarkMetrics,
 }
 
 impl Bencher<'_, '_> {
     pub fn iter(&mut self, mut routine: impl FnMut(BenchmarkTimer)) {
-        let histogram = &self.metrics.timing[&MeteredTime::get_bench()];
         self.inner.iter_custom(move |iters| {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
-                let (measure, observation) = BenchmarkTimer::new(histogram);
-                routine(measure);
-                total += observation.get().copied().unwrap_or_default();
+                let timer = BenchmarkTimer::new();
+                let observation = timer.observation.clone();
+                routine(timer);
+                let timing = observation.get().copied().unwrap_or_default();
+                CurrentBenchmark::observe(timing);
+                total += timing;
             }
             total
         })
@@ -243,25 +317,21 @@ impl Bencher<'_, '_> {
 #[derive(Debug)]
 #[must_use = "should be started to start measurements"]
 pub struct BenchmarkTimer {
-    histogram: &'static Histogram<Duration>,
     observation: Rc<OnceCell<Duration>>,
 }
 
 impl BenchmarkTimer {
-    fn new(histogram: &'static Histogram<Duration>) -> (Self, Rc<OnceCell<Duration>>) {
-        let observation = Rc::<OnceCell<_>>::default();
-        let this = Self {
-            histogram,
-            observation: observation.clone(),
-        };
-        (this, observation)
+    fn new() -> Self {
+        Self {
+            observation: Rc::default(),
+        }
     }
 
     /// Starts the timer. The timer will remain active until the returned guard is dropped. If you drop the timer implicitly,
     /// be careful with the drop order (inverse to the variable declaration order); when in doubt, drop the guard explicitly.
     pub fn start(self) -> BenchmarkTimerGuard {
         BenchmarkTimerGuard {
-            observer: Some(self.histogram.start()),
+            started_at: Instant::now(),
             observation: self.observation,
         }
     }
@@ -271,16 +341,14 @@ impl BenchmarkTimer {
 #[derive(Debug)]
 #[must_use = "will stop the timer on drop"]
 pub struct BenchmarkTimerGuard {
-    observer: Option<LatencyObserver<'static>>,
+    started_at: Instant,
     observation: Rc<OnceCell<Duration>>,
 }
 
 impl Drop for BenchmarkTimerGuard {
     fn drop(&mut self) {
-        if let Some(observer) = self.observer.take() {
-            let latency = observer.observe();
-            self.observation.set(latency).ok();
-        }
+        let latency = self.started_at.elapsed();
+        self.observation.set(latency).ok();
     }
 }
 
@@ -349,7 +417,7 @@ mod tests {
             .with_measurement(metered_time);
         test_benchmark(&mut criterion, metrics);
 
-        let timing_labels: HashSet<_> = metrics.timing.to_entries().into_keys().collect();
+        let timing_labels: HashSet<_> = metrics.mean_timing.to_entries().into_keys().collect();
         // Check that labels are as expected.
         for bytecode in BYTECODES {
             assert!(timing_labels.contains(&BenchLabels {
@@ -382,5 +450,25 @@ mod tests {
             4 * BYTECODES.len(),
             "{timing_labels:#?}"
         );
+
+        // Sanity-check relations among collected metrics
+        for label in &timing_labels {
+            let mean = metrics.mean_timing[label].get();
+            let min = metrics.min_timing[label].get();
+            let max = metrics.max_timing[label].get();
+            let median = metrics.median_timing[label].get();
+            assert!(
+                min > Duration::ZERO,
+                "min={min:?}, mean={mean:?}, median = {median:?}, max={max:?}"
+            );
+            assert!(
+                min <= mean && min <= median,
+                "min={min:?}, mean={mean:?}, median = {median:?}, max={max:?}"
+            );
+            assert!(
+                mean <= max && median <= max,
+                "min={min:?}, mean={mean:?}, median = {median:?}, max={max:?}"
+            );
+        }
     }
 }
