@@ -12,10 +12,8 @@ fn build_vm<VM: BenchmarkingVmFactory>(_factory: VM) -> BenchmarkingVm<VM> {
     BenchmarkingVm::<VM>::default()
 }
 
-fn prepare_tx(file: &str) -> Transaction {
-    let path: std::path::PathBuf = ["deployment_benchmarks", file].iter().collect();
-    let test_contract = std::fs::read(path).expect("failed to read file");
-    let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
+fn prepare_tx(contract: &[u8]) -> Transaction {
+    let code = cut_to_allowed_bytecode_size(contract).unwrap();
     get_deploy_tx(code)
 }
 
@@ -30,12 +28,18 @@ fn bench_constructor<VM: BenchmarkingVmFactory>(_factory: VM) -> BenchmarkingVm<
     black_box(black_box(BenchmarkingVm::<VM>::default)())
 }
 
+macro_rules! load_file {
+    ($file:ident) => {
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/deployment_benchmarks/", stringify!($file)))
+    }
+}
+
 macro_rules! make_functions_and_main {
     ($($file:ident => $legacy_name:ident,)+) => {
         $(
         #[library_benchmark]
-        #[bench::$file(build_vm(FAST), prepare_tx(stringify!($file)))]
-        #[bench::$legacy_name(build_vm(LEGACY), prepare_tx(stringify!($file)))]
+        #[bench::$file(build_vm(FAST), prepare_tx(load_file!($file)))]
+        #[bench::$legacy_name(build_vm(LEGACY), prepare_tx(load_file!($file)))]
         fn $file<VM: BenchmarkingVmFactory>(vm: BenchmarkingVm::<VM>, tx: Transaction) {
             run_bytecode(vm, tx);
         }
