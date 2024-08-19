@@ -21,8 +21,9 @@ use crate::{
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
-        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
-        MSG_SETUP_KEY_PATH_PROMPT, MSG_USE_DEFAULT_DATABASES_HELP,
+        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_DB_NAME_HELP,
+        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
 
@@ -69,9 +70,9 @@ pub struct ProverInitArgs {
     #[clap(long, help = MSG_PROVER_DB_NAME_HELP)]
     pub prover_db_name: Option<String>,
     #[clap(long, short, help = MSG_USE_DEFAULT_DATABASES_HELP)]
-    pub use_default: bool,
+    pub use_default: Option<bool>,
     #[clap(long, short, action)]
-    pub dont_drop: bool,
+    pub dont_drop: Option<bool>,
 
     #[clap(long)]
     cloud_type: Option<InternalCloudConnectionMode>,
@@ -491,16 +492,17 @@ impl ProverInitArgs {
             let DBNames { prover_name, .. } = generate_db_names(config);
             let chain_name = config.name.clone();
 
-            let dont_drop = self
-                .dont_drop
-                .clone()
-                .unwrap_or_else(|| !PromptConfirm::new("Do you want to drop the database?").ask());
+            let dont_drop = self.dont_drop.clone().unwrap_or_else(|| {
+                !PromptConfirm::new("Do you want to drop the database?")
+                    .default(true)
+                    .ask()
+            });
 
-            if self
-                .use_default
-                .clone()
-                .unwrap_or_else(|| PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP).ask())
-            {
+            if self.use_default.clone().unwrap_or_else(|| {
+                PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
+                    .default(true)
+                    .ask()
+            }) {
                 Some(ProverDatabaseConfig {
                     database_config: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
                     dont_drop,
