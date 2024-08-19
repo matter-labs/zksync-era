@@ -3,12 +3,15 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        eth_interface::{
+            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+            BoundEthInterfaceResource,
+        },
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
@@ -49,8 +52,9 @@ pub struct EthTxAggregatorLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
-    pub eth_client: BoundEthInterfaceResource,
+    pub eth_client: Option<BoundEthInterfaceResource>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub eth_client_l2: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
@@ -93,7 +97,13 @@ impl WiringLayer for EthTxAggregatorLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let eth_client = input.eth_client.0;
+        let (eth_client, settlement_mode) = match (input.eth_client_l2, input.eth_client) {
+            (Some(l1_client), None) => (l1_client.0, SettlementMode::SettlesToL1),
+            (None, Some(l2_client)) => (l2_client.0, SettlementMode::Gateway),
+            (_, _) => Err(WiringError::Configuration(
+                "Aggregator requires either l1 or l2 client to operatate".to_string(),
+            ))?,
+        };
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
 
@@ -120,6 +130,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.contracts_config.diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
+            settlement_mode,
         )
         .await;
 
