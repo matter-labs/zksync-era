@@ -113,6 +113,28 @@ async function migrateToSyncLayer() {
     env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
 }
 
+async function migrateToL1() {
+    await utils.confirmAction();
+
+    await utils.spawn(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer migrate-to-l1 | tee sync-layer-migration-to-l1.log`
+    );
+
+    // TODO: potentially switch `ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS` for local testing
+    const migrationLog = fs
+        .readFileSync('sync-layer-migration-to-l1.log')
+        .toString()
+        .replace(/CONTRACTS/g, 'GATEWAY');
+
+    const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
+    console.log('Writing to', envFile);
+
+    // FIXME: consider creating new sync_layer_* variable.
+    updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR']);
+    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
+    env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
+}
+
 async function prepareValidatorsOnSyncLayer() {
     await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer prepare-validators`);
 }
@@ -237,7 +259,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster = true,
-    localLegacyBridgeTesting,
     deploymentMode
 }: {
     includePaymaster: boolean;
@@ -263,9 +284,7 @@ export async function deployL2ThroughL1({
     );
 
     await utils.spawn(
-        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee -a deployL2.log`
+        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee -a deployL2.log`
     );
 
     if (includePaymaster) {
@@ -491,6 +510,13 @@ command
     .description('prepare the network to server as a synclayer')
     .action(async () => {
         await migrateToSyncLayer();
+    });
+
+command
+    .command('migrate-to-l1')
+    .description('prepare the network to server as a synclayer')
+    .action(async () => {
+        await migrateToL1();
     });
 
 // zk contract recover-from-migration --sync-layer-chain-id 270 --sync-layer-url http://127.0.0.1:3050 --failed-tx-l2-hash 0xcd23ebda8c3805a3ff8fba846a34218cb987cae3402f4150544b74032c9213e2

@@ -260,6 +260,13 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
+      - name: Migrate back to L1
+        run: | 
+          ci_run zk contract migrate-to-l1 
+        
+      # - name: Server integration tests on L1
+      #     run: ci_run zk test i server
+
       # FIXME: restore snapshot test
       # - name: Snapshot recovery test
       #   # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
