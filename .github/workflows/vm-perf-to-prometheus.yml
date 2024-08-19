@@ -26,6 +26,8 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
 
+          cargo install --version 0.12.3 iai-callgrind-runner # For iai benchmarks
+
       - name: init
         run: |
           run_retried docker compose pull zk
