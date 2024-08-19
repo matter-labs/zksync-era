@@ -35,8 +35,8 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
             &general_prover_config.config,
         )?;
         (
-            general_prover_config.link_to_code,
-            general_prover_config.config,
+            general_prover_config.link_to_code.clone(),
+            general_prover_config.config.clone(),
             general_prover_config.load_prover_config()?,
         )
     } else {
@@ -48,7 +48,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
             .get_general_config()
             .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
         (
-            ecosystem_config.link_to_code,
+            ecosystem_config.link_to_code.clone(),
             ecosystem_config.config,
             ProverSubsystemConfig::from(general_config),
         )
