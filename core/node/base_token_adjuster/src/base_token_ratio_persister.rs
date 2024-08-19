@@ -134,7 +134,7 @@ impl BaseTokenRatioPersister {
         prev_priority_fee_per_gas: Option<u64>,
     ) -> (u64, u64) {
         // Use get_blob_tx_base_fee here instead of get_base_fee to optimise for fast inclusion.
-        // get_base_fee will cause the transaction to be stuck in the mempool for 10+ minutes.
+        // get_base_fee might cause the transaction to be stuck in the mempool for 10+ minutes.
         let mut base_fee_per_gas = self.gas_adjuster.as_ref().get_blob_tx_base_fee();
         let mut priority_fee_per_gas = self.gas_adjuster.as_ref().get_priority_fee();
         if let Some(x) = prev_priority_fee_per_gas {
