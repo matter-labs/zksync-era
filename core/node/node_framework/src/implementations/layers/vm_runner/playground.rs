@@ -73,7 +73,7 @@ impl WiringLayer for VmPlaygroundLayer {
 
         let cursor = VmPlaygroundCursorOptions {
             first_processed_batch: self.config.first_processed_batch,
-            window_size: 1_u32.try_into().unwrap(), // FIXME
+            window_size: self.config.window_size,
             reset_state: self.config.reset,
         };
         let (playground, tasks) = VmPlayground::new(

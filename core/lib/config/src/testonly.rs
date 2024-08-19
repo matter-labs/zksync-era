@@ -298,6 +298,7 @@ impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
             fast_vm_mode: gen_fast_vm_mode(rng),
             db_path: self.sample(rng),
             first_processed_batch: L1BatchNumber(rng.gen()),
+            window_size: rng.gen(),
             reset: self.sample(rng),
         }
     }

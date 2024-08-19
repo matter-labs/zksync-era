@@ -40,7 +40,7 @@ impl From<VmPlaygroundHealth> for Health {
 pub struct VmPlaygroundCursorOptions {
     /// First batch to be processed by the playground. Only used if there are no processed batches, or if [`Self.reset_state`] is set.
     pub first_processed_batch: L1BatchNumber,
-    /// Number of L1 batches to process in parallel.
+    /// Maximum number of L1 batches to process in parallel.
     pub window_size: NonZeroU32,
     /// If set, reset processing to [`Self.first_processed_batch`].
     pub reset_state: bool,

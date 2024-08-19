@@ -74,6 +74,9 @@ pub struct ExperimentalVmPlaygroundConfig {
     /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
     #[serde(default)]
     pub first_processed_batch: L1BatchNumber,
+    /// Maximum number of L1 batches to process in parallel.
+    #[serde(default = "ExperimentalVmPlaygroundConfig::default_window_size")]
+    pub window_size: NonZeroU32,
     /// If set to true, processing cursor will reset `first_processed_batch` regardless of the current progress. Beware that this will likely
     /// require to drop the RocksDB cache.
     #[serde(default)]
@@ -86,6 +89,7 @@ impl Default for ExperimentalVmPlaygroundConfig {
             fast_vm_mode: FastVmMode::default(),
             db_path: Self::default_db_path(),
             first_processed_batch: L1BatchNumber(0),
+            window_size: Self::default_window_size(),
             reset: false,
         }
     }
@@ -94,6 +98,10 @@ impl Default for ExperimentalVmPlaygroundConfig {
 impl ExperimentalVmPlaygroundConfig {
     pub fn default_db_path() -> String {
         "./db/vm_playground".to_owned()
+    }
+
+    pub fn default_window_size() -> NonZeroU32 {
+        NonZeroU32::new(1).unwrap()
     }
 }
 
