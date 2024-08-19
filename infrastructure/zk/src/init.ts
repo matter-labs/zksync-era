@@ -268,7 +268,7 @@ export const initCommand = new Command('init')
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
-    .option('--should-check-postgres', 'Whether to perform cargo sqlx prepare --check during database setup', false)
+    .option('--should-check-postgres', 'Whether to perform cargo sqlx prepare --check during database setup', true)
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
