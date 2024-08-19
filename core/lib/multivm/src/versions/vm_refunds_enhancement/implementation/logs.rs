@@ -1,12 +1,9 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_types::{
-    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    VmEvent,
-};
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 
 use crate::{
     glue::GlueInto,
-    interface::{storage::WriteStorage, VmExecutionLogs},
+    interface::{storage::WriteStorage, VmEvent, VmExecutionLogs},
     vm_refunds_enhancement::{
         old_vm::{events::merge_events, utils::precompile_calls_count_after_timestamp},
         vm::Vm,
