@@ -1,15 +1,10 @@
 name: Push main branch VM benchmarks to Prometheus
 
-# FIXME: revert
 on:
-  pull_request:
-    paths:
-      - 'core/**'
-#on:
-#  push:
-#    branches:
-#      - main
-#  workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 # Disable simultaneous deployments into a single environment
 concurrency: vm-benchmarks
