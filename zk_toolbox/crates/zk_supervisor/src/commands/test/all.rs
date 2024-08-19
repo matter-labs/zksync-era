@@ -14,7 +14,7 @@ use super::{
 };
 use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_RUNNING_EXTERNAL_NODE};
 
-pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
         .load_chain(global_config().chain_name.clone())
@@ -27,7 +27,8 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
             external_node: false,
             no_deps: args.no_deps,
         },
-    )?;
+    )
+    .await?;
 
     recovery::run(
         shell,
@@ -71,7 +72,8 @@ pub fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
             external_node: true,
             no_deps: args.no_deps,
         },
-    )?;
+    )
+    .await?;
 
     revert::run(
         shell,

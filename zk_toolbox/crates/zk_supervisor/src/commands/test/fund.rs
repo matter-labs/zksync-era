@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{config::global_config, spinner::Spinner};
-use config::EcosystemConfig;
+use config::{ChainConfig, EcosystemConfig};
 use ethers::{
     signers::{coins_bip39::English, MnemonicBuilder, Signer},
     types::H160,
@@ -28,32 +28,39 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     {
         let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
 
-        let wallets_path: PathBuf = ecosystem.link_to_code.join(TEST_WALLETS_PATH);
-        let test_wallets: TestWallets =
-            serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-                .context("Impossible to deserialize test wallets")?;
-
-        let wallets = ecosystem.get_wallets()?;
-
-        common::ethereum::distribute_eth(
-            wallets.operator,
-            test_wallets.address_list()?,
-            chain
-                .get_secrets_config()?
-                .l1
-                .context("No L1 secrets available")?
-                .l1_rpc_url
-                .expose_str()
-                .to_owned(),
-            ecosystem.l1_network.chain_id(),
-            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-        )
-        .await?;
+        fund_test_wallet(shell, &ecosystem, &chain).await?;
 
         spinner.finish();
     }
 
     Ok(())
+}
+
+pub async fn fund_test_wallet(
+    shell: &Shell,
+    ecosystem: &EcosystemConfig,
+    chain: &ChainConfig,
+) -> anyhow::Result<()> {
+    let wallets_path: PathBuf = ecosystem.link_to_code.join(TEST_WALLETS_PATH);
+    let test_wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
+        .context("Impossible to deserialize test wallets")?;
+
+    let wallets = ecosystem.get_wallets()?;
+
+    common::ethereum::distribute_eth(
+        wallets.operator,
+        test_wallets.address_list()?,
+        chain
+            .get_secrets_config()?
+            .l1
+            .context("No L1 secrets available")?
+            .l1_rpc_url
+            .expose_str()
+            .to_owned(),
+        ecosystem.l1_network.chain_id(),
+        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    )
+    .await
 }
 
 #[derive(Deserialize)]

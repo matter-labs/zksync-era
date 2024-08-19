@@ -46,11 +46,11 @@ pub enum TestCommands {
 
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
     match args {
-        TestCommands::Integration(args) => integration::run(shell, args),
+        TestCommands::Integration(args) => integration::run(shell, args).await,
         TestCommands::Revert(args) => revert::run(shell, args),
         TestCommands::Recovery(args) => recovery::run(shell, args),
         TestCommands::Upgrade(args) => upgrade::run(shell, args),
-        TestCommands::All(args) => all::run(shell, args),
+        TestCommands::All(args) => all::run(shell, args).await,
         TestCommands::Build => build::run(shell),
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell),
