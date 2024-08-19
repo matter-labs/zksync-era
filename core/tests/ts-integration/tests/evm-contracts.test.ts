@@ -68,7 +68,9 @@ describe('EVM equivalence contract', () => {
 
             const counterContract = await deploygasCallerContract(alice, artifacts.counterFallback);
 
-            let result = (await gasCallerContract.getFunction("callAndGetGas").staticCall(counterContract.getAddress())).toString();
+            let result = (
+                await gasCallerContract.getFunction('callAndGetGas').staticCall(counterContract.getAddress())
+            ).toString();
 
             const expected_gas = '3617'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
@@ -79,7 +81,9 @@ describe('EVM equivalence contract', () => {
 
             const creatorContract = await deploygasCallerContract(alice, artifacts.creatorFallback);
 
-            let result = (await gasCallerContract.getFunction("callAndGetGas").staticCall(creatorContract.getAddress())).toString();
+            let result = (
+                await gasCallerContract.getFunction('callAndGetGas').staticCall(creatorContract.getAddress())
+            ).toString();
 
             const expected_gas = '70601'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
@@ -90,7 +94,9 @@ describe('EVM equivalence contract', () => {
 
             const counterContract = await deploygasCallerContract(alice, artifacts.opcodeTestFallback);
 
-            let result = (await gasCallerContract.getFunction("callAndGetGas").staticCall(counterContract.getAddress())).toString();
+            let result = (
+                await gasCallerContract.getFunction('callAndGetGas').staticCall(counterContract.getAddress())
+            ).toString();
 
             const expected_gas = '34763'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
@@ -104,17 +110,22 @@ describe('EVM equivalence contract', () => {
                 const factory = getEVMContractFactory(alice, artifacts.counter);
                 const contract = await factory.deploy(args);
                 await contract.deploymentTransaction()?.wait();
-                const receipt = await alice.provider.getTransactionReceipt(contract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })());
+                const receipt = await alice.provider.getTransactionReceipt(
+                    contract.deploymentTransaction()?.hash ??
+                        (() => {
+                            throw new Error('Deployment transaction has failed');
+                        })()
+                );
 
                 await assertCreatedCorrectly(
                     deployer,
                     await contract.getAddress(),
-                    '0x' + artifacts.counter.evm.deployedBytecode.object,
+                    '0x' + artifacts.counter.evm.deployedBytecode.object
                 );
 
-                expect((await contract.getFunction("get").staticCall()).toString()).toEqual('1');
-                await (await contract.getFunction("increment")(1)).wait();
-                expect((await contract.getFunction("get").staticCall()).toString()).toEqual('2');
+                expect((await contract.getFunction('get').staticCall()).toString()).toEqual('1');
+                await (await contract.getFunction('increment')(1)).wait();
+                expect((await contract.getFunction('get').staticCall()).toString()).toEqual('2');
             });
 
             test('Should create2 evm contract from ZKEVM contract', async () => {
@@ -207,22 +218,38 @@ describe('EVM equivalence contract', () => {
             const counterFactory = getEVMContractFactory(alice, artifacts.counter);
             const counterContract = await counterFactory.deploy(args);
             await counterContract.deploymentTransaction()?.wait();
-            await alice.provider.getTransactionReceipt(counterContract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })());
+            await alice.provider.getTransactionReceipt(
+                counterContract.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })()
+            );
 
             const proxyCallerFactory = getEVMContractFactory(alice, artifacts.proxyCaller);
             const proxyCallerContract = await proxyCallerFactory.deploy();
             await proxyCallerContract.deploymentTransaction()?.wait();
-            await alice.provider.getTransactionReceipt(proxyCallerContract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })());
-
-            expect((await proxyCallerContract.getFunction("proxyGet")(counterContract.getAddress())).toString()).toEqual('1');
-
-            await (await proxyCallerContract.getFunction("executeIncrememt")(counterContract.getAddress(), 1)).wait();
-
-            expect((await proxyCallerContract.getFunction("proxyGet")(counterContract.getAddress())).toString()).toEqual('2');
-
-            expect((await proxyCallerContract.getFunction("proxyGetBytes").staticCall(counterContract.getAddress())).toString()).toEqual(
-                '0x54657374696e67'
+            await alice.provider.getTransactionReceipt(
+                proxyCallerContract.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })()
             );
+
+            expect(
+                (await proxyCallerContract.getFunction('proxyGet')(counterContract.getAddress())).toString()
+            ).toEqual('1');
+
+            await (await proxyCallerContract.getFunction('executeIncrememt')(counterContract.getAddress(), 1)).wait();
+
+            expect(
+                (await proxyCallerContract.getFunction('proxyGet')(counterContract.getAddress())).toString()
+            ).toEqual('2');
+
+            expect(
+                (
+                    await proxyCallerContract.getFunction('proxyGetBytes').staticCall(counterContract.getAddress())
+                ).toString()
+            ).toEqual('0x54657374696e67');
         });
 
         test('Create opcode works correctly', async () => {
@@ -230,18 +257,24 @@ describe('EVM equivalence contract', () => {
             const creatorContract = await creatorFactory.deploy();
             await creatorContract.deploymentTransaction()?.wait();
 
-            dumpOpcodeLogs(creatorContract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })(), alice.provider);
+            dumpOpcodeLogs(
+                creatorContract.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })(),
+                alice.provider
+            );
 
             const nonce = 1;
 
-            const runtimeBytecode = await creatorContract.getFunction("getCreationRuntimeCode")();
+            const runtimeBytecode = await creatorContract.getFunction('getCreationRuntimeCode')();
 
             const expectedAddress = ethers.getCreateAddress({
                 from: await creatorContract.getAddress(),
                 nonce
             });
 
-            const result = await (await creatorContract.getFunction("create")()).wait();
+            const result = await (await creatorContract.getFunction('create')()).wait();
             dumpOpcodeLogs(result.transactionHash, alice.provider);
 
             await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode);
@@ -254,12 +287,18 @@ describe('EVM equivalence contract', () => {
             const counterContract = await counterFactory.deploy(args);
             await counterContract.deploymentTransaction()?.wait();
 
-            dumpOpcodeLogs(counterContract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })(), alice.provider);
+            dumpOpcodeLogs(
+                counterContract.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })(),
+                alice.provider
+            );
 
             let errorString;
 
             try {
-                await counterContract.getFunction("incrementWithRevert").staticCall(1, true);
+                await counterContract.getFunction('incrementWithRevert').staticCall(1, true);
             } catch (e: any) {
                 errorString = e.reason;
             }
@@ -280,22 +319,38 @@ describe('EVM equivalence contract', () => {
             await evmToken.deploymentTransaction()?.wait();
             nativeToken = await deployContract(alice, contracts.erc20, []);
 
-            dumpOpcodeLogs(evmToken.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })(), alice.provider);
+            dumpOpcodeLogs(
+                evmToken.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })(),
+                alice.provider
+            );
             userAccount = testMaster.newEmptyAccount();
             // Only log the first deployment
             if (logGasCosts && !deployLogged) {
-                let native_hash = nativeToken.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let native_transanction_receipt = (await alice.provider.getTransactionReceipt(native_hash)) ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let evm_hash = evmToken.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let evm_transanction_receipt = (await alice.provider.getTransactionReceipt(evm_hash)) ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                console.log(
-                    'ERC20 native deploy gas: ' +
-                    native_transanction_receipt.gasUsed
-                );
-                console.log(
-                    'ERC20 evm deploy gas: ' +
-                        evm_transanction_receipt.gasUsed
-                );
+                let native_hash =
+                    nativeToken.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let native_transanction_receipt =
+                    (await alice.provider.getTransactionReceipt(native_hash)) ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let evm_hash =
+                    evmToken.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let evm_transanction_receipt =
+                    (await alice.provider.getTransactionReceipt(evm_hash)) ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                console.log('ERC20 native deploy gas: ' + native_transanction_receipt.gasUsed);
+                console.log('ERC20 evm deploy gas: ' + evm_transanction_receipt.gasUsed);
                 deployLogged = true;
             }
             await (
@@ -307,20 +362,20 @@ describe('EVM equivalence contract', () => {
         });
 
         test('view functions should work', async () => {
-            const evmBalanceOfCost = await evmToken.getFunction("balanceOf").estimateGas(alice.address);
-            const nativeBalanceOfCost = await nativeToken.getFunction("balanceOf").estimateGas(alice.address);
+            const evmBalanceOfCost = await evmToken.getFunction('balanceOf').estimateGas(alice.address);
+            const nativeBalanceOfCost = await nativeToken.getFunction('balanceOf').estimateGas(alice.address);
             if (logGasCosts) {
                 console.log('ERC20 native balanceOf gas: ' + nativeBalanceOfCost.toString());
                 console.log('ERC20 evm balanceOf gas: ' + evmBalanceOfCost.toString());
             }
-            expect((await evmToken.getFunction("balanceOf")(alice.address)).toString()).toEqual('1000000');
-            expect((await evmToken.getFunction("totalSupply")()).toString()).toEqual('1000000');
-            expect((await evmToken.getFunction("balanceOf")(userAccount.address)).toString()).toEqual('0');
+            expect((await evmToken.getFunction('balanceOf')(alice.address)).toString()).toEqual('1000000');
+            expect((await evmToken.getFunction('totalSupply')()).toString()).toEqual('1000000');
+            expect((await evmToken.getFunction('balanceOf')(userAccount.address)).toString()).toEqual('0');
         });
 
         test('transfer should work', async () => {
-            expect((await evmToken.getFunction("balanceOf")(alice.address)).toString()).toEqual('1000000');
-            const evmTransferTx = await (await evmToken.getFunction("transfer")(userAccount.address, 100000)).wait();
+            expect((await evmToken.getFunction('balanceOf')(alice.address)).toString()).toEqual('1000000');
+            const evmTransferTx = await (await evmToken.getFunction('transfer')(userAccount.address, 100000)).wait();
             const nativeTransferTx = await (await nativeToken.transfer(userAccount.address, 100000)).wait();
             if (logGasCosts) {
                 console.log('ERC20 native transfer gas: ' + nativeTransferTx.gasUsed.toString());
@@ -328,15 +383,17 @@ describe('EVM equivalence contract', () => {
             }
             dumpOpcodeLogs(evmTransferTx.transactionHash, alice.provider);
 
-            expect((await evmToken.getFunction("balanceOf")(alice.address)).toString()).toEqual('900000');
-            expect((await evmToken.getFunction("balanceOf")(userAccount.address)).toString()).toEqual('100000');
+            expect((await evmToken.getFunction('balanceOf')(alice.address)).toString()).toEqual('900000');
+            expect((await evmToken.getFunction('balanceOf')(userAccount.address)).toString()).toEqual('100000');
         });
 
         test('approve & transferFrom should work', async () => {
-            expect((await evmToken.getFunction("balanceOf")(alice.address)).toString()).toEqual('1000000');
-            const evmApproveTx = await (await evmToken.connect(alice).getFunction("approve")(userAccount.getAddress(), 100000)).wait();
+            expect((await evmToken.getFunction('balanceOf')(alice.address)).toString()).toEqual('1000000');
+            const evmApproveTx = await (
+                await evmToken.connect(alice).getFunction('approve')(userAccount.getAddress(), 100000)
+            ).wait();
             const nativeApproveTx = await (
-                await nativeToken.connect(alice).getFunction("approve")(userAccount.address, 100000)
+                await nativeToken.connect(alice).getFunction('approve')(userAccount.address, 100000)
             ).wait();
             if (logGasCosts) {
                 console.log('ERC20 native approve gas: ' + nativeApproveTx.gasUsed.toString());
@@ -345,10 +402,18 @@ describe('EVM equivalence contract', () => {
             dumpOpcodeLogs(evmApproveTx.transactionHash, alice.provider);
 
             const evmTransferFromTx = await (
-                await evmToken.connect(userAccount).getFunction("transferFrom")(alice.address, userAccount.address, 100000)
+                await evmToken.connect(userAccount).getFunction('transferFrom')(
+                    alice.address,
+                    userAccount.address,
+                    100000
+                )
             ).wait();
             const nativeTransferFromTx = await (
-                await nativeToken.connect(userAccount).getFunction("transferFrom")(alice.address, userAccount.address, 100000)
+                await nativeToken.connect(userAccount).getFunction('transferFrom')(
+                    alice.address,
+                    userAccount.address,
+                    100000
+                )
             ).wait();
             if (logGasCosts) {
                 console.log('ERC20 native transferFrom gas: ' + nativeTransferFromTx.gasUsed.toString());
@@ -356,8 +421,8 @@ describe('EVM equivalence contract', () => {
             }
             dumpOpcodeLogs(evmTransferFromTx.transactionHash, alice.provider);
 
-            expect((await evmToken.getFunction("balanceOf")(alice.address)).toString()).toEqual('900000');
-            expect((await evmToken.getFunction("balanceOf")(userAccount.address)).toString()).toEqual('100000');
+            expect((await evmToken.getFunction('balanceOf')(alice.address)).toString()).toEqual('900000');
+            expect((await evmToken.getFunction('balanceOf')(userAccount.address)).toString()).toEqual('100000');
         });
     });
 
@@ -397,13 +462,19 @@ describe('EVM equivalence contract', () => {
             );
 
             const evmPairReceipt = await (
-                await evmUniswapFactory.getFunction("createPair")(evmToken1.getAddress(), evmToken2.getAddress())
+                await evmUniswapFactory.getFunction('createPair')(evmToken1.getAddress(), evmToken2.getAddress())
             ).wait();
 
             const nativePairReceipt = await (
-                await nativeUniswapFactory.getFunction("createPair")(evmToken1.getAddress(), evmToken2.getAddress())
+                await nativeUniswapFactory.getFunction('createPair')(evmToken1.getAddress(), evmToken2.getAddress())
             ).wait();
-            dumpOpcodeLogs(evmUniswapFactory.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })(), alice.provider);
+            dumpOpcodeLogs(
+                evmUniswapFactory.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })(),
+                alice.provider
+            );
             dumpOpcodeLogs(evmPairReceipt.transactionHash, alice.provider);
 
             const evmUniswapPairFactory = getEVMContractFactory(alice, artifacts.uniswapV2Pair);
@@ -424,30 +495,39 @@ describe('EVM equivalence contract', () => {
                     nativePairReceipt.logs.find((log: any) => log.topics[0] === NEW_PAIR_TOPIC).data
                 )[0]
             );
-            const token1IsFirst = (await evmUniswapPair.getFunction("token0")()).toString() === evmToken1.getAddress();
+            const token1IsFirst = (await evmUniswapPair.getFunction('token0')()).toString() === evmToken1.getAddress();
             if (!token1IsFirst) {
                 [evmToken1, evmToken2] = [evmToken2, evmToken1];
             }
-            await (await evmToken1.getFunction("transfer")(evmUniswapPair.getAddress(), 100000)).wait();
-            await (await evmToken1.getFunction("transfer")(nativeUniswapPair.getAddress(), 100000)).wait();
-            await (await evmToken2.getFunction("transfer")(evmUniswapPair.getAddress(), 100000)).wait();
-            await (await evmToken2.getFunction("transfer")(nativeUniswapPair.getAddress(), 100000)).wait();
+            await (await evmToken1.getFunction('transfer')(evmUniswapPair.getAddress(), 100000)).wait();
+            await (await evmToken1.getFunction('transfer')(nativeUniswapPair.getAddress(), 100000)).wait();
+            await (await evmToken2.getFunction('transfer')(evmUniswapPair.getAddress(), 100000)).wait();
+            await (await evmToken2.getFunction('transfer')(nativeUniswapPair.getAddress(), 100000)).wait();
 
             // Only log the first deployment
             if (logGasCosts && !deployLogged) {
-                let native_hash = nativeUniswapFactory.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let native_transanction_receipt = (await alice.provider.getTransactionReceipt(native_hash)) ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let evm_hash = evmUniswapFactory.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                let evm_transanction_receipt = (await alice.provider.getTransactionReceipt(evm_hash)) ?? (() => { throw new Error('Deployment transaction has failed'); })();
-                console.log(
-                    'Uniswap Factory native deploy gas: ' +
-                    native_transanction_receipt
-                            .gasUsed
-                );
-                console.log(
-                    'Uniswap Factory evm deploy gas: ' +
-                    evm_transanction_receipt.gasUsed
-                );
+                let native_hash =
+                    nativeUniswapFactory.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let native_transanction_receipt =
+                    (await alice.provider.getTransactionReceipt(native_hash)) ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let evm_hash =
+                    evmUniswapFactory.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                let evm_transanction_receipt =
+                    (await alice.provider.getTransactionReceipt(evm_hash)) ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })();
+                console.log('Uniswap Factory native deploy gas: ' + native_transanction_receipt.gasUsed);
+                console.log('Uniswap Factory evm deploy gas: ' + evm_transanction_receipt.gasUsed);
                 console.log('Uniswap Pair native create gas: ' + nativePairReceipt.gasUsed);
                 console.log('Uniswap Pair evm create gas: ' + evmPairReceipt.gasUsed);
                 deployLogged = true;
@@ -455,32 +535,40 @@ describe('EVM equivalence contract', () => {
         });
 
         test('mint, swap, and burn should work', async () => {
-            const evmMintReceipt = await (await evmUniswapPair.getFunction("mint")(alice.address)).wait();
-            const nativeMintReceipt = await (await nativeUniswapPair.getFunction("mint")(alice.address)).wait();
+            const evmMintReceipt = await (await evmUniswapPair.getFunction('mint')(alice.address)).wait();
+            const nativeMintReceipt = await (await nativeUniswapPair.getFunction('mint')(alice.address)).wait();
             dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
 
-            await (await evmToken1.getFunction("transfer")(evmUniswapPair.getAddress(), 10000)).wait();
-            await (await evmToken1.getFunction("transfer")(nativeUniswapPair.getAddress(), 10000)).wait();
-            const evmSwapReceipt = await (await evmUniswapPair.getFunction("swap")(0, 5000, alice.address, '0x')).wait();
-            const nativeSwapReceipt = await (await nativeUniswapPair.getFunction("swap")(0, 5000, alice.address, '0x')).wait();
+            await (await evmToken1.getFunction('transfer')(evmUniswapPair.getAddress(), 10000)).wait();
+            await (await evmToken1.getFunction('transfer')(nativeUniswapPair.getAddress(), 10000)).wait();
+            const evmSwapReceipt = await (
+                await evmUniswapPair.getFunction('swap')(0, 5000, alice.address, '0x')
+            ).wait();
+            const nativeSwapReceipt = await (
+                await nativeUniswapPair.getFunction('swap')(0, 5000, alice.address, '0x')
+            ).wait();
             dumpOpcodeLogs(evmSwapReceipt.transactionHash, alice.provider);
 
             const evmLiquidityTransfer = await (
-                await evmUniswapPair.getFunction("transfer")(
+                await evmUniswapPair.getFunction('transfer')(
                     evmUniswapPair.getAddress(),
-                    (await evmUniswapPair.getFunction("balanceOf")(alice.address)).toString()
+                    (await evmUniswapPair.getFunction('balanceOf')(alice.address)).toString()
                 )
             ).wait();
             await (
-                await nativeUniswapPair.getFunction("transfer")(
+                await nativeUniswapPair.getFunction('transfer')(
                     nativeUniswapPair.getAddress(),
-                    (await nativeUniswapPair.getFunction("balanceOf")(alice.address)).toString()
+                    (await nativeUniswapPair.getFunction('balanceOf')(alice.address)).toString()
                 )
             ).wait();
-            const evmBurnReceipt = await (await evmUniswapPair.getFunction("burn")(alice.address)).wait();
-            const nativeBurnReceipt = await (await nativeUniswapPair.getFunction("burn")(alice.address)).wait();
-            expect(Number((await evmToken1.getFunction("balanceOf")(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
-            expect(Number((await evmToken2.getFunction("balanceOf")(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
+            const evmBurnReceipt = await (await evmUniswapPair.getFunction('burn')(alice.address)).wait();
+            const nativeBurnReceipt = await (await nativeUniswapPair.getFunction('burn')(alice.address)).wait();
+            expect(Number((await evmToken1.getFunction('balanceOf')(alice.address)).toString())).toBeGreaterThanOrEqual(
+                990000
+            );
+            expect(Number((await evmToken2.getFunction('balanceOf')(alice.address)).toString())).toBeGreaterThanOrEqual(
+                990000
+            );
 
             if (logGasCosts) {
                 console.log('UniswapV2Pair native mint gas: ' + nativeMintReceipt.gasUsed);
@@ -498,16 +586,23 @@ describe('EVM equivalence contract', () => {
             const gasCallerFactory = getEVMContractFactory(alice, artifacts.gasCaller);
             const gasCallerContract = await gasCallerFactory.deploy();
             await gasCallerContract.deploymentTransaction()?.wait();
-            await alice.provider.getTransactionReceipt(gasCallerContract.deploymentTransaction()?.hash ?? (() => { throw new Error('Deployment transaction has failed'); })());
+            await alice.provider.getTransactionReceipt(
+                gasCallerContract.deploymentTransaction()?.hash ??
+                    (() => {
+                        throw new Error('Deployment transaction has failed');
+                    })()
+            );
 
             const uniswapContract = await deploygasCallerContract(alice, artifacts.uniswapFallback);
-            await (await uniswapContract.getFunction("setUniswapAddress")(evmUniswapPair.getAddress())).wait();
-            await (await uniswapContract.getFunction("setAliceAddress")(alice.address)).wait();
+            await (await uniswapContract.getFunction('setUniswapAddress')(evmUniswapPair.getAddress())).wait();
+            await (await uniswapContract.getFunction('setAliceAddress')(alice.address)).wait();
 
-            await (await evmToken1.getFunction("transfer")(evmUniswapPair.getAddress(), 10000)).wait();
-            await (await evmToken1.getFunction("transfer")(uniswapContract.getAddress(), 10000)).wait();
+            await (await evmToken1.getFunction('transfer')(evmUniswapPair.getAddress(), 10000)).wait();
+            await (await evmToken1.getFunction('transfer')(uniswapContract.getAddress(), 10000)).wait();
 
-            let result = (await gasCallerContract.getFunction("callAndGetGas").staticCall(uniswapContract.getAddress())).toString();
+            let result = (
+                await gasCallerContract.getFunction('callAndGetGas').staticCall(uniswapContract.getAddress())
+            ).toString();
 
             const expected_gas = '165939'; // Gas cost when run with solidity interpreter
             expect(result).toEqual(expected_gas);
@@ -643,8 +738,16 @@ async function assertStoredBytecodeHash(
     expectedStoredHash: string
 ): Promise<void> {
     const ACCOUNT_CODE_STORAGE_ADDRESS = '0x0000000000000000000000000000000000008002';
-    let runner = deployer.runner ?? (() => { throw new Error('Runner get failed'); })();
-    let provider = runner.provider ?? (() => { throw new Error('Provider get failed'); })();
+    let runner =
+        deployer.runner ??
+        (() => {
+            throw new Error('Runner get failed');
+        })();
+    let provider =
+        runner.provider ??
+        (() => {
+            throw new Error('Provider get failed');
+        })();
     const storedCodeHash = await provider.getStorage(
         ACCOUNT_CODE_STORAGE_ADDRESS,
         ethers.zeroPadValue(deployedAddress, 32)
@@ -656,7 +759,7 @@ async function assertStoredBytecodeHash(
 async function assertCreatedCorrectly(
     deployer: zksync.Contract,
     deployedAddress: string,
-    expectedEVMBytecode: string,
+    expectedEVMBytecode: string
 ): Promise<void> {
     const expectedStoredHash = getSha256BlobHash(expectedEVMBytecode);
     await assertStoredBytecodeHash(deployer, deployedAddress, expectedStoredHash);
@@ -886,7 +989,11 @@ const opcodeDataDump: any = {};
 });
 
 async function dumpOpcodeLogs(hash: string, provider: zksync.Provider): Promise<void> {
-    let tx_receipt = (await provider.getTransactionReceipt(hash)) ?? (() => { throw new Error('Get Transaction Receipt has failed'); })();
+    let tx_receipt =
+        (await provider.getTransactionReceipt(hash)) ??
+        (() => {
+            throw new Error('Get Transaction Receipt has failed');
+        })();
     const logs = tx_receipt.logs;
     logs.forEach((log) => {
         if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
