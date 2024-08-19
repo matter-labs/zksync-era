@@ -11,7 +11,7 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
-        wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
+        wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets},
         CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
@@ -147,9 +147,15 @@ impl TempConfigStore {
                         .expect("Must be presented in env variables"),
                 ),
             });
+        let token_multiplier_setter = self.base_token_adjuster_config.as_ref().and_then(|config| {
+            let pk = config.private_key().ok()??;
+            let wallet = Wallet::new(pk);
+            Some(TokenMultiplierSetter { wallet })
+        });
         Wallets {
             eth_sender,
             state_keeper,
+            token_multiplier_setter,
         }
     }
 }
