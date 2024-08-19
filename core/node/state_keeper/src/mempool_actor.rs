@@ -158,13 +158,11 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
+    use zksync_multivm::interface::TransactionExecutionMetrics;
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
-    use zksync_types::{
-        fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-        StorageLog, H256,
-    };
+    use zksync_types::{L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256};
     use zksync_utils::u256_to_h256;
 
     use super::*;
