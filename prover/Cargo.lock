@@ -8222,6 +8222,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_job_monitor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 4.5.4",
+ "ctrlc",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_prover_dal",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_queued_job_processor"
 version = "0.1.0"
 dependencies = [

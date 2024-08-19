@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ca181a7669a6e07b68bce71c8c723efcb8fd2a4e895fc962ca1d33ce5f8188f7 # shrinks to circuit_id = 1
+cc ce71957c410fa7af30e04b3e85423555a8e1bbd26b4682b748fa67162bc5687f # shrinks to circuit_id = 1
+cc 6d3b0c60d8a5e7d7dc3bb4a2a21cce97461827583ae01b2414345175a02a1221 # shrinks to key = ProverServiceDataKey { circuit_id: 1, round: BasicCircuits }
