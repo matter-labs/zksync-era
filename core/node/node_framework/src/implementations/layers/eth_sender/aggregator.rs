@@ -97,7 +97,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let (eth_client, settlement_mode) = match (input.eth_client_l2, input.eth_client) {
+        let (eth_client, settlement_mode) = match (input.eth_client, input.eth_client_l2) {
             (Some(l1_client), None) => (l1_client.0, SettlementMode::SettlesToL1),
             (None, Some(l2_client)) => (l2_client.0, SettlementMode::Gateway),
             (_, _) => Err(WiringError::Configuration(
