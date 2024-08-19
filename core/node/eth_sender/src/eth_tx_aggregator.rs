@@ -365,9 +365,7 @@ impl EthTxAggregator {
                 );
                 return Ok(());
             }
-            if self.config.tx_aggregation_only_prove_and_execute
-                && agg_op.get_action_type() == AggregatedActionType::Commit
-            {
+            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
                 tracing::info!(
                     "Skipping sending commit operation for batches {}-{} \
                 as tx_aggregation_only_prove_and_execute=true",
