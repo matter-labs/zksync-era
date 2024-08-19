@@ -6,9 +6,9 @@ use xshell::{cmd, Shell};
 
 use crate::commands::lint::Extension;
 
-const CONFIG_PATH: &str = "etc/prettier-config";
-
 async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Result<()> {
+    let spinner = Spinner::new(&format!("Running prettier for: {extension:?}"));
+    spinner.freeze();
     let mode = if check { "--check" } else { "--write" };
     let glob = format!("**/*.{extension}");
     let config = format!("etc/prettier-config/{extension}.js");
@@ -20,6 +20,8 @@ async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Re
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
+    let spinner = Spinner::new("Running prettier for contracts");
+    spinner.freeze();
     let prettier_command = cmd!(shell, "yarn --silent --cwd contracts")
         .arg(format!("prettier:{}", if check { "check" } else { "fix" }));
 
@@ -27,12 +29,14 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
 }
 
 async fn rustfmt(shell: Shell, check: bool, link_to_code: PathBuf) -> anyhow::Result<()> {
-    for dir in vec![".", "prover", "zk_toolbox"] {
+    for dir in [".", "prover", "zk_toolbox"] {
+        let spinner = Spinner::new(&format!("Running rustfmt for: {dir:?}"));
         let _dir = shell.push_dir(link_to_code.join(dir));
         let mut cmd = cmd!(shell, "cargo fmt -- --config imports_granularity=Crate --config group_imports=StdExternalCrate");
         if check {
             cmd = cmd.arg("--check");
         }
+        spinner.freeze();
         Cmd::new(cmd).run()?;
     }
     Ok(())
@@ -44,7 +48,6 @@ async fn run_all_rust_formatters(
     link_to_code: PathBuf,
 ) -> anyhow::Result<()> {
     rustfmt(shell.clone(), check, link_to_code).await?;
-    format_sqlx_queries(shell, check).await?;
     Ok(())
 }
 
@@ -74,11 +77,11 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
                 vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
             let spinner =
                 Spinner::new(&format!("Running prettier for: {extensions:?} and rustfmt"));
+            spinner.freeze();
             for ext in extensions {
                 tasks.push(tokio::spawn(prettier(shell.clone(), ext, args.check)));
             }
             tasks.push(tokio::spawn(rustfmt(shell.clone(), args.check, ".".into())));
-            tasks.push(tokio::spawn(format_sqlx_queries(shell.clone(), args.check)));
             tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
             futures::future::join_all(tasks)
@@ -89,7 +92,6 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
                         logger::error(err)
                     }
                 });
-            spinner.finish()
         }
         Some(Formatter::Prettier { mut extensions }) => {
             if extensions.is_empty() {
@@ -106,10 +108,5 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
         }
         Some(Formatter::Contract) => prettier_contracts(shell.clone(), args.check).await?,
     }
-    Ok(())
-}
-
-async fn format_sqlx_queries(shell: Shell, check: bool) -> anyhow::Result<()> {
-    // Implement your SQLx query formatting logic here.
     Ok(())
 }

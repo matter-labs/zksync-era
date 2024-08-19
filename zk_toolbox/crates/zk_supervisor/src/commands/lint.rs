@@ -9,35 +9,6 @@ use crate::messages::{
     MSG_LINT_CONFIG_PATH_ERR, MSG_RUNNING_CONTRACTS_LINTER_SPINNER,
 };
 
-const IGNORED_DIRS: [&str; 18] = [
-    "target",
-    "node_modules",
-    "volumes",
-    "build",
-    "dist",
-    ".git",
-    "generated",
-    "grafonnet-lib",
-    "prettier-config",
-    "lint-config",
-    "cache",
-    "artifacts",
-    "typechain",
-    "binaryen",
-    "system-contracts",
-    "artifacts-zk",
-    "cache-zk",
-    // Ignore directories with OZ and forge submodules.
-    "contracts/l1-contracts/lib",
-];
-
-const IGNORED_FILES: [&str; 4] = [
-    "KeysWithPlonkVerifier.sol",
-    "TokenInit.sol",
-    ".tslintrc.js",
-    ".prettierrc.js",
-];
-
 const CONFIG_PATH: &str = "etc/lint-config";
 
 #[derive(Debug, Parser)]
@@ -98,7 +69,14 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     for path in paths {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
-        let common_args = &["--locked", "--", "-D warnings", "-D unstable_features"];
+        let common_args = &[
+            "--locked",
+            "--",
+            "-D",
+            "warnings",
+            "-D",
+            "unstable_features",
+        ];
         if !check {
             cmd = cmd.args(&["--fix", "--allow-dirty"]);
         }
@@ -127,7 +105,6 @@ fn lint(
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(extension));
     let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
-    let files = get_unignored_files(shell, extension)?;
 
     let cmd = cmd!(shell, "yarn");
     let config_path = ecosystem.link_to_code.join(CONFIG_PATH);
@@ -149,7 +126,6 @@ fn lint(
         linter.as_slice(),
         &fix_option,
         &["--config".to_string(), config_path],
-        files.as_slice(),
     ]
     .concat();
 
@@ -170,21 +146,4 @@ fn lint_contracts(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> an
     spinner.finish();
 
     Ok(())
-}
-
-fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Result<Vec<String>> {
-    let mut files = Vec::new();
-    let output = cmd!(shell, "git ls-files").read()?;
-
-    for line in output.lines() {
-        let path = line.to_string();
-        if !IGNORED_DIRS.iter().any(|dir| path.contains(dir))
-            && !IGNORED_FILES.contains(&path.as_str())
-            && path.ends_with(&format!(".{}", extension))
-        {
-            files.push(path);
-        }
-    }
-
-    Ok(files)
 }
