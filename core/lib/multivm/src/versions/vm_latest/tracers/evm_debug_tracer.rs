@@ -9,15 +9,15 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{FatPointer, Opcode, UMAOpcode},
 };
 use zksync_state::interface::{StoragePtr, WriteStorage};
-use zksync_types::{
-    Address, StorageKey, U256,
-};
+use zksync_types::{Address, StorageKey, U256};
 
 use crate::{
-    interface::tracer::TracerExecutionStatus, tracers::dynamic::vm_1_5_0::DynTracer, vm_latest::{
-        old_vm::utils::heap_page_from_base,
-        BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState,
-    }
+    interface::tracer::TracerExecutionStatus,
+    tracers::dynamic::vm_1_5_0::DynTracer,
+    vm_latest::{
+        old_vm::utils::heap_page_from_base, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
+        ZkSyncVmState,
+    },
 };
 
 pub(crate) struct EvmDebugTracer<S: WriteStorage, H: HistoryMode> {

@@ -14,9 +14,7 @@ use zksync_multivm::{
     MultiVMTracer, VmInstance,
 };
 use zksync_shared_metrics::{InteractionType, TxStage, APP_METRICS};
-use zksync_types::{
-    vm::FastVmMode, Transaction,
-};
+use zksync_types::{vm::FastVmMode, Transaction};
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{

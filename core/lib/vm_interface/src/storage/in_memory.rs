@@ -6,7 +6,6 @@ use zksync_types::{
     system_contracts::{get_evm_interpreter_hash, get_system_smart_contracts},
     L2ChainId, StorageKey, StorageLog, StorageValue, H256, U256,
 };
-
 use zksync_utils::u256_to_h256;
 
 use super::ReadStorage;

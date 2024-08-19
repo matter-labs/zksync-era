@@ -10,7 +10,11 @@ use zksync_multivm::{
 };
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
-    block::{BlockGasCount, L2BlockHasher}, ethabi, l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log}, L2BlockNumber, ProtocolVersionId, StorageLogKind, StorageLogQuery, StorageLogWithPreviousValue, Transaction, H256
+    block::{BlockGasCount, L2BlockHasher},
+    ethabi,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    L2BlockNumber, ProtocolVersionId, StorageLogKind, StorageLogQuery, StorageLogWithPreviousValue,
+    Transaction, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 

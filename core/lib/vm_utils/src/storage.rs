@@ -4,7 +4,9 @@ use anyhow::Context;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, web3::contract, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE
+    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus,
+    web3::contract, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    ZKPORTER_IS_AVAILABLE,
 };
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 

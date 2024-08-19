@@ -7,8 +7,7 @@ use zksync_multivm::{
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput,
-    Address, L1BatchNumber, L2BlockNumber,
+    block::BlockGasCount, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 

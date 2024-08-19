@@ -11,9 +11,11 @@ use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
-    interface::tracer::TracerExecutionStatus, tracers::dynamic::vm_1_5_0::DynTracer, vm_latest::{
+    interface::tracer::TracerExecutionStatus,
+    tracers::dynamic::vm_1_5_0::DynTracer,
+    vm_latest::{
         utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState,
-    }
+    },
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
