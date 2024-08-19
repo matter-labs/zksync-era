@@ -6,10 +6,8 @@ use zksync_basic_types::{
         AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
         ProtocolVersionedCircuitProverStats,
     },
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    prover_dal::{
-        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
-    },
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    prover_dal::{FriProverJobMetadata, ProverJobFriInfo, ProverJobStatus, StuckJobs},
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -434,41 +432,13 @@ impl FriProverDal<'_, '_> {
             .unwrap()
             .iter()
             .map(|row| {
-                let mut queued = 0;
-                let mut in_progress = 0;
-                match row.status.as_ref() {
-                    "queued" => queued = row.count as usize,
-                    "in_progress" => in_progress = row.count as usize,
-                    _ => unreachable!("query filtering for 'queued' and 'in_progress' only"),
-                };
-                let job_count_statistics = JobCountStatistics {
-                    queued,
-                    in_progress,
-                };
-                let protocol_semantic_version = ProtocolSemanticVersion::new(
-                    ProtocolVersionId::try_from(row.protocol_version as u16)
-                        .expect("DB protocol version is broken"),
-                    VersionPatch(row.protocol_version_patch as u32),
-                );
-
-                // BEWARE, HERE BE DRAGONS.
-                // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
-                // not the circuit which is running.
-                // There is a single node level aggregation circuit, which is circuit 2.
-                // This can aggregate multiple leaf nodes (which may belong to different circuits).
-                // This "conversion" is a forced hacky  way to use `circuit_id` 2 for nodes.
-                // A proper fix will be later provided to solve this once new auto-scaler is in place.
-                let circuit_id = if row.aggregation_round == 2 {
-                    2
-                } else {
-                    row.circuit_id as u8
-                };
-                let circuit_round_tuple =
-                    CircuitIdRoundTuple::new(circuit_id, row.aggregation_round as u8);
                 CircuitProverStatsEntry::new(
-                    circuit_round_tuple,
-                    protocol_semantic_version,
-                    job_count_statistics,
+                    row.circuit_id,
+                    row.aggregation_round,
+                    row.protocol_version,
+                    row.protocol_version_patch,
+                    &row.status,
+                    row.count,
                 )
             })
             .collect()
@@ -599,10 +569,8 @@ impl FriProverDal<'_, '_> {
         .ok()?
         .map(|row| row.id as u32)
     }
-
-    pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
-        let archiving_interval_secs =
-            pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
+    pub async fn archive_old_jobs(&mut self, archiving_interval: Duration) -> usize {
+        let archiving_interval_secs = pg_interval_from_duration(archiving_interval);
 
         sqlx::query_scalar!(
             r#"

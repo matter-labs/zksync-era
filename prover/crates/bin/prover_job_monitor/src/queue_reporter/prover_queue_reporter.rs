@@ -1,55 +1,44 @@
 use async_trait::async_trait;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS};
+use crate::{
+    metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS},
+    task_wiring::Task,
+};
 
-/// `ProverQueueReporter` is a task that periodically reports prover jobs status.
+/// `ProverQueueReporter` is a task that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
 pub struct ProverQueueReporter {
-    connection_pool: ConnectionPool<Prover>,
     config: FriProverGroupConfig,
-    /// time between each run
-    run_interval_ms: u64,
 }
 
 impl ProverQueueReporter {
-    pub fn new(
-        connection_pool: ConnectionPool<Prover>,
-        config: FriProverGroupConfig,
-        run_interval_ms: u64,
-    ) -> Self {
-        Self {
-            connection_pool,
-            config,
-            run_interval_ms,
-        }
+    pub fn new(config: FriProverGroupConfig) -> Self {
+        Self { config }
     }
 }
 
 #[async_trait]
-impl PeriodicJob for ProverQueueReporter {
-    const SERVICE_NAME: &'static str = "ProverQueueReporter";
-
-    async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.connection_pool.connection().await.unwrap();
-        let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
+impl Task for ProverQueueReporter {
+    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+        let stats = connection
+            .fri_prover_jobs_dal()
+            .get_prover_jobs_stats()
+            .await;
 
         for (protocol_semantic_version, circuit_prover_stats) in stats {
-            for (
-                CircuitIdRoundTuple {
+            for (tuple, stat) in circuit_prover_stats {
+                let CircuitIdRoundTuple {
                     circuit_id,
                     aggregation_round,
-                },
-                JobCountStatistics {
+                } = tuple;
+                let JobCountStatistics {
                     queued,
                     in_progress,
-                },
-            ) in circuit_prover_stats
-            {
+                } = stat;
                 let group_id = self
                     .config
                     .get_group_id_for_circuit_id_and_aggregation_round(
@@ -78,7 +67,7 @@ impl PeriodicJob for ProverQueueReporter {
             }
         }
 
-        let lag_by_circuit_type = conn
+        let lag_by_circuit_type = connection
             .fri_prover_jobs_dal()
             .min_unproved_l1_batch_number()
             .await;
@@ -90,9 +79,5 @@ impl PeriodicJob for ProverQueueReporter {
         }
 
         Ok(())
-    }
-
-    fn polling_interval_ms(&self) -> u64 {
-        self.run_interval_ms
     }
 }

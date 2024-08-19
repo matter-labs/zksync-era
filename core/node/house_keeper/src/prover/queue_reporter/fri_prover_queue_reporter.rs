@@ -1,12 +1,10 @@
 use async_trait::async_trait;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_periodic_job::PeriodicJob;
 use zksync_prover_dal::{Prover, ProverDal};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::prover::metrics::FRI_PROVER_METRICS;
-
+use crate::{periodic_job::PeriodicJob, prover::metrics::FRI_PROVER_METRICS};
 /// `FriProverQueueReporter` is a task that periodically reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
@@ -42,17 +40,15 @@ impl PeriodicJob for FriProverQueueReporter {
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for (protocol_semantic_version, circuit_prover_stats) in stats {
-            for (
-                CircuitIdRoundTuple {
+            for (tuple, stat) in circuit_prover_stats {
+                let CircuitIdRoundTuple {
                     circuit_id,
                     aggregation_round,
-                },
-                JobCountStatistics {
+                } = tuple;
+                let JobCountStatistics {
                     queued,
                     in_progress,
-                },
-            ) in circuit_prover_stats
-            {
+                } = stat;
                 let group_id = self
                     .config
                     .get_group_id_for_circuit_id_and_aggregation_round(

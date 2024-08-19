@@ -13,50 +13,88 @@ impl ProtoRepr for proto::ProverJobMonitor {
                 .context("prometheus_port")?,
             max_db_connections: *required(&self.max_db_connections)
                 .context("max_db_connections")?,
-            graceful_shutdown_timeout_ms: *required(&self.graceful_shutdown_timeout_ms)
-                .context("graceful_shutdown_timeout_ms")?,
+            graceful_shutdown_timeout_ms: *required(
+                &self
+                    .graceful_shutdown_timeout_ms
+                    .or_else(|| Some(Self::Type::default_graceful_shutdown_timeout_ms())),
+            )
+            .context("graceful_shutdown_timeout_ms")?,
             gpu_prover_archiver_run_interval_ms: *required(
-                &self.gpu_prover_archiver_run_interval_ms,
+                &self
+                    .gpu_prover_archiver_run_interval_ms
+                    .or_else(|| Some(Self::Type::default_gpu_prover_archiver_run_interval_ms())),
             )
             .context("gpu_prover_archiver_run_interval_ms")?,
-            gpu_prover_archiver_archive_prover_after_secs: *required(
-                &self.gpu_prover_archiver_archive_prover_after_secs,
+            gpu_prover_archiver_archive_prover_after_ms: *required(
+                &self
+                    .gpu_prover_archiver_archive_prover_after_ms
+                    .or_else(|| {
+                        Some(Self::Type::default_gpu_prover_archiver_archive_prover_after_ms())
+                    }),
             )
-            .context("gpu_prover_archiver_archive_prover_after_secs")?,
+            .context("gpu_prover_archiver_archive_prover_after_ms")?,
             prover_jobs_archiver_run_interval_ms: *required(
-                &self.prover_jobs_archiver_run_interval_ms,
+                &self
+                    .prover_jobs_archiver_run_interval_ms
+                    .or_else(|| Some(Self::Type::default_prover_jobs_archiver_run_interval_ms())),
             )
             .context("prover_jobs_archiver_run_interval_ms")?,
-            prover_jobs_archiver_archive_jobs_after_secs: *required(
-                &self.prover_jobs_archiver_archive_jobs_after_secs,
+            prover_jobs_archiver_archive_jobs_after_ms: *required(
+                &self.prover_jobs_archiver_archive_jobs_after_ms.or_else(|| {
+                    Some(Self::Type::default_prover_jobs_archiver_archive_jobs_after_ms())
+                }),
             )
-            .context("prover_jobs_archiver_archive_jobs_after_secs")?,
+            .context("prover_jobs_archiver_archive_jobs_after_ms")?,
             proof_compressor_job_requeuer_run_interval_ms: *required(
-                &self.proof_compressor_job_requeuer_run_interval_ms,
+                &self
+                    .proof_compressor_job_requeuer_run_interval_ms
+                    .or_else(|| {
+                        Some(Self::Type::default_proof_compressor_job_requeuer_run_interval_ms())
+                    }),
             )
             .context("proof_compressor_job_requeuer_run_interval_ms")?,
             prover_job_requeuer_run_interval_ms: *required(
-                &self.prover_job_requeuer_run_interval_ms,
+                &self
+                    .prover_job_requeuer_run_interval_ms
+                    .or_else(|| Some(Self::Type::default_prover_job_requeuer_run_interval_ms())),
             )
             .context("prover_job_requeuer_run_interval_ms")?,
             witness_generator_job_requeuer_run_interval_ms: *required(
-                &self.witness_generator_job_requeuer_run_interval_ms,
+                &self
+                    .witness_generator_job_requeuer_run_interval_ms
+                    .or_else(|| {
+                        Some(Self::Type::default_witness_generator_job_requeuer_run_interval_ms())
+                    }),
             )
             .context("witness_generator_job_requeuer_run_interval_ms")?,
             proof_compressor_queue_reporter_run_interval_ms: *required(
-                &self.proof_compressor_queue_reporter_run_interval_ms,
+                &self
+                    .proof_compressor_queue_reporter_run_interval_ms
+                    .or_else(|| {
+                        Some(Self::Type::default_proof_compressor_queue_reporter_run_interval_ms())
+                    }),
             )
             .context("proof_compressor_queue_reporter_run_interval_ms")?,
             prover_queue_reporter_run_interval_ms: *required(
-                &self.prover_queue_reporter_run_interval_ms,
+                &self
+                    .prover_queue_reporter_run_interval_ms
+                    .or_else(|| Some(Self::Type::default_prover_queue_reporter_run_interval_ms())),
             )
             .context("prover_queue_reporter_run_interval_ms")?,
             witness_generator_queue_reporter_run_interval_ms: *required(
-                &self.witness_generator_queue_reporter_run_interval_ms,
+                &self
+                    .witness_generator_queue_reporter_run_interval_ms
+                    .or_else(|| {
+                        Some(Self::Type::default_witness_generator_queue_reporter_run_interval_ms())
+                    }),
             )
             .context("witness_generator_queue_reporter_run_interval_ms")?,
-            witness_job_queuer_run_interval_ms: *required(&self.witness_job_queuer_run_interval_ms)
-                .context("witness_job_queuer_run_interval_ms")?,
+            witness_job_queuer_run_interval_ms: *required(
+                &self
+                    .witness_job_queuer_run_interval_ms
+                    .or_else(|| Some(Self::Type::default_witness_job_queuer_run_interval_ms())),
+            )
+            .context("witness_job_queuer_run_interval_ms")?,
         })
     }
 
@@ -66,12 +104,12 @@ impl ProtoRepr for proto::ProverJobMonitor {
             max_db_connections: Some(this.max_db_connections),
             graceful_shutdown_timeout_ms: Some(this.graceful_shutdown_timeout_ms),
             gpu_prover_archiver_run_interval_ms: Some(this.gpu_prover_archiver_run_interval_ms),
-            gpu_prover_archiver_archive_prover_after_secs: Some(
-                this.gpu_prover_archiver_archive_prover_after_secs,
+            gpu_prover_archiver_archive_prover_after_ms: Some(
+                this.gpu_prover_archiver_archive_prover_after_ms,
             ),
             prover_jobs_archiver_run_interval_ms: Some(this.prover_jobs_archiver_run_interval_ms),
-            prover_jobs_archiver_archive_jobs_after_secs: Some(
-                this.prover_jobs_archiver_archive_jobs_after_secs,
+            prover_jobs_archiver_archive_jobs_after_ms: Some(
+                this.prover_jobs_archiver_archive_jobs_after_ms,
             ),
             proof_compressor_job_requeuer_run_interval_ms: Some(
                 this.proof_compressor_job_requeuer_run_interval_ms,

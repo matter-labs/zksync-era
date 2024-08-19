@@ -1,8 +1,9 @@
+use std::time::Duration;
+
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
 use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::HOUSE_KEEPER_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::HOUSE_KEEPER_METRICS};
 
 /// `FriGpuProverArchiver` is a task that periodically archives old fri GPU prover records.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
@@ -39,7 +40,7 @@ impl PeriodicJob for FriGpuProverArchiver {
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
-            .archive_old_provers(self.archive_prover_after_secs)
+            .archive_old_provers(Duration::from_secs(self.archive_prover_after_secs))
             .await;
         tracing::info!("Archived {:?} fri gpu prover records", archived_provers);
         HOUSE_KEEPER_METRICS

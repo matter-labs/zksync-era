@@ -1,9 +1,8 @@
 use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
-use zksync_periodic_job::PeriodicJob;
 use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::prover::metrics::SERVER_METRICS;
+use crate::{periodic_job::PeriodicJob, prover::metrics::SERVER_METRICS};
 
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {

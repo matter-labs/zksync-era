@@ -17,7 +17,6 @@ zksync_shared_metrics.workspace = true
 zksync_prover_dal.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true
-zksync_periodic_job.workspace = true
 
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }

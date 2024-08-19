@@ -4,6 +4,7 @@ use zksync_config::configs::{
 };
 use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter,
+    periodic_job::PeriodicJob,
     prover::{
         FriGpuProverArchiver, FriProofCompressorJobRetryManager, FriProofCompressorQueueReporter,
         FriProverJobRetryManager, FriProverJobsArchiver, FriProverQueueReporter,
@@ -11,7 +12,6 @@ use zksync_house_keeper::{
         WaitingToQueuedFriWitnessJobMover,
     },
 };
-use zksync_periodic_job::PeriodicJob;
 
 use crate::{
     implementations::resources::pools::{PoolResource, ProverPool, ReplicaPool},

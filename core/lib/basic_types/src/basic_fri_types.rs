@@ -206,6 +206,7 @@ impl TryFrom<i32> for AggregationRound {
 }
 
 /// Wrapper for mapping from protocol version to prover circuits job stats
+#[derive(Debug)]
 pub struct ProtocolVersionedCircuitProverStats {
     protocol_versioned_circuit_stats: HashMap<ProtocolSemanticVersion, CircuitProverStats>,
 }
@@ -235,6 +236,7 @@ impl IntoIterator for ProtocolVersionedCircuitProverStats {
 }
 
 /// Wrapper for mapping between circuit/aggregation round to number of such jobs (queued and in progress)
+#[derive(Debug)]
 pub struct CircuitProverStats {
     circuits_prover_stats: HashMap<CircuitIdRoundTuple, JobCountStatistics>,
 }
@@ -298,6 +300,7 @@ impl Default for CircuitProverStats {
 
 /// DTO for communication between DAL and prover_job_monitor.
 /// Represents an entry -- count (queued & in progress) of jobs (circuit_id, aggregation_round) for a given protocol version.
+#[derive(Debug)]
 pub struct CircuitProverStatsEntry {
     circuit_id_round_tuple: CircuitIdRoundTuple,
     protocol_semantic_version: ProtocolSemanticVersion,
@@ -306,10 +309,44 @@ pub struct CircuitProverStatsEntry {
 
 impl CircuitProverStatsEntry {
     pub fn new(
-        circuit_id_round_tuple: CircuitIdRoundTuple,
-        protocol_semantic_version: ProtocolSemanticVersion,
-        job_count_statistics: JobCountStatistics,
+        circuit_id: i16,
+        aggregation_round: i16,
+        protocol_version: i32,
+        protocol_version_patch: i32,
+        status: &str,
+        count: i64,
     ) -> Self {
+        let mut queued = 0;
+        let mut in_progress = 0;
+        match status {
+            "queued" => queued = count as usize,
+            "in_progress" => in_progress = count as usize,
+            _ => unreachable!("received {:?}, expected only 'queued'/'in_progress' from DB as part of query filter", status),
+        };
+
+        let job_count_statistics = JobCountStatistics {
+            queued,
+            in_progress,
+        };
+        let protocol_semantic_version = ProtocolSemanticVersion::new(
+            ProtocolVersionId::try_from(protocol_version as u16)
+                .expect("received protocol version is broken"),
+            VersionPatch(protocol_version_patch as u32),
+        );
+
+        // BEWARE, HERE BE DRAGONS.
+        // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
+        // not the circuit which is running.
+        // There is a single node level aggregation circuit, which is circuit 2.
+        // This can aggregate multiple leaf nodes (which may belong to different circuits).
+        // This "conversion" is a forced hacky  way to use `circuit_id` 2 for nodes.
+        // A proper fix will be later provided to solve this once new auto-scaler is in place.
+        let circuit_id = if aggregation_round == 2 {
+            2
+        } else {
+            circuit_id as u8
+        };
+        let circuit_id_round_tuple = CircuitIdRoundTuple::new(circuit_id, aggregation_round as u8);
         CircuitProverStatsEntry {
             circuit_id_round_tuple,
             protocol_semantic_version,

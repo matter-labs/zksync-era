@@ -7949,16 +7949,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_periodic_job"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "zksync_proof_fri_compressor"
 version = "0.1.0"
 dependencies = [
@@ -8173,7 +8163,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_periodic_job",
  "zksync_prover_dal",
  "zksync_types",
  "zksync_utils",

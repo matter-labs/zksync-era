@@ -1,46 +1,32 @@
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use std::time::Duration;
 
-use crate::metrics::PROVER_JOB_MONITOR_METRICS;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 
-/// `GpuProverArchiver` is a task that periodically archives old fri GPU provers.
+use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
+
+/// `GpuProverArchiver` is a task that archives old fri GPU provers.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
-/// Note: These components speed up provers, in their absence, queries would slow down due to state growth.
+/// Note: This component speeds up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]
 pub struct GpuProverArchiver {
-    pool: ConnectionPool<Prover>,
-    /// time between each run
-    run_interval_ms: u64,
-    /// time after which a prover can be archived
-    archive_prover_after_secs: u64,
+    /// duration after which a prover can be archived
+    archive_prover_after: Duration,
 }
 
 impl GpuProverArchiver {
-    pub fn new(
-        pool: ConnectionPool<Prover>,
-        run_interval_ms: u64,
-        archive_prover_after_secs: u64,
-    ) -> Self {
+    pub fn new(archive_prover_after: Duration) -> Self {
         Self {
-            pool,
-            run_interval_ms,
-            archive_prover_after_secs,
+            archive_prover_after,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl PeriodicJob for GpuProverArchiver {
-    const SERVICE_NAME: &'static str = "GpuProverArchiver";
-
-    async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let archived_provers = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+impl Task for GpuProverArchiver {
+    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+        let archived_provers = connection
             .fri_gpu_prover_queue_dal()
-            .archive_old_provers(self.archive_prover_after_secs)
+            .archive_old_provers(self.archive_prover_after)
             .await;
         if archived_provers > 0 {
             tracing::info!("Archived {:?} gpu provers", archived_provers);
@@ -49,9 +35,5 @@ impl PeriodicJob for GpuProverArchiver {
             .archived_gpu_provers
             .inc_by(archived_provers as u64);
         Ok(())
-    }
-
-    fn polling_interval_ms(&self) -> u64 {
-        self.run_interval_ms
     }
 }

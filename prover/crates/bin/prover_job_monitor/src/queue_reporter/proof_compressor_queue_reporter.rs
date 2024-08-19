@@ -1,47 +1,31 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_periodic_job::PeriodicJob;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
-use crate::metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS};
+use crate::{
+    metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS},
+    task_wiring::Task,
+};
 
-/// `ProofCompressorQueueReporter` is a task that periodically reports compression jobs status.
-/// Note: these values will be used for auto-scaling proof compressor
+/// `ProofCompressorQueueReporter` is a task that reports compression jobs status.
+/// Note: these values will be used for auto-scaling proof compressor.
 #[derive(Debug)]
-pub struct ProofCompressorQueueReporter {
-    pool: ConnectionPool<Prover>,
-    /// time between each run
-    run_interval_ms: u64,
-}
+pub struct ProofCompressorQueueReporter {}
 
 impl ProofCompressorQueueReporter {
-    pub fn new(pool: ConnectionPool<Prover>, run_interval_ms: u64) -> Self {
-        Self {
-            pool,
-            run_interval_ms,
-        }
-    }
-
     async fn get_job_statistics(
-        pool: &ConnectionPool<Prover>,
+        connection: &mut Connection<'_, Prover>,
     ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
-        pool.connection()
-            .await
-            .unwrap()
-            .fri_proof_compressor_dal()
-            .get_jobs_stats()
-            .await
+        connection.fri_proof_compressor_dal().get_jobs_stats().await
     }
 }
 
 #[async_trait]
-impl PeriodicJob for ProofCompressorQueueReporter {
-    const SERVICE_NAME: &'static str = "ProofCompressorQueueReporter";
-
-    async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let stats = Self::get_job_statistics(&self.pool).await;
+impl Task for ProofCompressorQueueReporter {
+    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+        let stats = Self::get_job_statistics(connection).await;
 
         for (protocol_version, stats) in &stats {
             if stats.queued > 0 {
@@ -68,11 +52,7 @@ impl PeriodicJob for ProofCompressorQueueReporter {
                 .set(stats.in_progress as u64);
         }
 
-        let oldest_not_compressed_batch = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
+        let oldest_not_compressed_batch = connection
             .fri_proof_compressor_dal()
             .get_oldest_not_compressed_batch()
             .await;
@@ -84,9 +64,5 @@ impl PeriodicJob for ProofCompressorQueueReporter {
         }
 
         Ok(())
-    }
-
-    fn polling_interval_ms(&self) -> u64 {
-        self.run_interval_ms
     }
 }
