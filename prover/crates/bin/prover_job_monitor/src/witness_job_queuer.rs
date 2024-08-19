@@ -9,7 +9,7 @@ use crate::{
 /// `WitnessJobQueuer` is a task that moves witness generator jobs from 'waiting_for_proofs' to 'queued'.
 /// Note: this task is the backbone of scheduling/getting ready witness jobs to execute.
 #[derive(Debug)]
-pub struct WitnessJobQueuer {}
+pub struct WitnessJobQueuer;
 
 impl WitnessJobQueuer {
     /// Marks leaf witness jobs as queued.

@@ -135,6 +135,14 @@ impl From<u8> for AggregationRound {
 }
 
 impl AggregationRound {
+    pub const ALL_ROUNDS: [AggregationRound; 5] = [
+        AggregationRound::BasicCircuits,
+        AggregationRound::LeafAggregation,
+        AggregationRound::NodeAggregation,
+        AggregationRound::RecursionTip,
+        AggregationRound::Scheduler,
+    ];
+
     pub fn next(&self) -> Option<AggregationRound> {
         match self {
             AggregationRound::BasicCircuits => Some(AggregationRound::LeafAggregation),
@@ -143,16 +151,6 @@ impl AggregationRound {
             AggregationRound::RecursionTip => Some(AggregationRound::Scheduler),
             AggregationRound::Scheduler => None,
         }
-    }
-
-    pub fn all_rounds() -> Vec<AggregationRound> {
-        vec![
-            AggregationRound::BasicCircuits,
-            AggregationRound::LeafAggregation,
-            AggregationRound::NodeAggregation,
-            AggregationRound::RecursionTip,
-            AggregationRound::Scheduler,
-        ]
     }
 }
 

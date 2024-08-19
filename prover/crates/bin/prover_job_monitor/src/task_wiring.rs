@@ -28,7 +28,11 @@ impl PeriodicTask {
             self.name,
             self.interval
         );
+
+        let mut interval = tokio::time::interval(self.interval);
+
         while !*stop_receiver.borrow_and_update() {
+            interval.tick().await;
             let mut connection = connection_pool
                 .connection()
                 .await
@@ -38,10 +42,6 @@ impl PeriodicTask {
                 .instrument(tracing::info_span!("run", service_name = %self.name))
                 .await
                 .context("failed to invoke task")?;
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(self.interval, stop_receiver.changed())
-                .await
-                .ok();
         }
         tracing::info!("Stop signal received; Task {} is shut down", self.name);
         Ok(())

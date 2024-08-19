@@ -13,7 +13,7 @@ use crate::{
 /// `WitnessGeneratorQueueReporter` is a task that reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
-pub struct WitnessGeneratorQueueReporter {}
+pub struct WitnessGeneratorQueueReporter;
 
 impl WitnessGeneratorQueueReporter {
     fn emit_metrics_for_round(
@@ -56,7 +56,7 @@ impl WitnessGeneratorQueueReporter {
 #[async_trait]
 impl Task for WitnessGeneratorQueueReporter {
     async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
-        for round in AggregationRound::all_rounds() {
+        for round in AggregationRound::ALL_ROUNDS {
             let stats = connection
                 .fri_witness_generator_dal()
                 .get_witness_jobs_stats(round)
