@@ -5,17 +5,20 @@ use era_vm::{
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    event::extract_l2tol1logs_from_l1_messenger,
+    event::{
+        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
+        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
+    },
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
     writes::{
-        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
+        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
-    U256,
+    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, CompressedBytecodeInfo},
@@ -23,7 +26,10 @@ use zksync_utils::{
 };
 
 use super::{
-    bootloader_state::{utils::apply_l2_block, BootloaderState},
+    bootloader_state::{
+        utils::{apply_l2_block, apply_pubdata_to_memory, PubdataInput},
+        BootloaderState,
+    },
     event::merge_events,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
@@ -267,6 +273,48 @@ impl<S: ReadStorage + 'static> Vm<S> {
                         return tx_result;
                     }
                 }
+                Hook::PubdataRequested => {
+                    if !matches!(execution_mode, VmExecutionMode::Batch) {
+                        unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
+                    }
+
+                    let events = merge_events(self.inner.state.events(), self.batch_env.number);
+
+                    let published_bytecodes: Vec<Vec<u8>> = events
+                        .iter()
+                        .filter(|event| {
+                            // Filter events from the l1 messenger contract that match the expected signature.
+                            event.address == L1_MESSENGER_ADDRESS
+                                && !event.indexed_topics.is_empty()
+                                && event.indexed_topics[0]
+                                    == *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+                        })
+                        .map(|event| {
+                            let hash = U256::from_big_endian(&event.value[..32]);
+                            self.storage
+                                .load_factory_dep(u256_to_h256(hash))
+                                .expect("published unknown bytecode")
+                                .clone()
+                        })
+                        .collect();
+
+                    let pubdata_input = PubdataInput {
+                        user_logs: extract_l2tol1logs_from_l1_messenger(&events),
+                        l2_to_l1_messages: extract_long_l2_to_l1_messages(&events),
+                        published_bytecodes,
+                        state_diffs: self.get_storage_diff(),
+                    };
+
+                    // Save the pubdata for the future initial bootloader memory building
+                    self.bootloader_state
+                        .set_pubdata_input(pubdata_input.clone());
+
+                    // Apply the pubdata to the current memory
+                    let mut memory_to_apply = vec![];
+
+                    apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+                    self.write_to_bootloader_heap(memory_to_apply);
+                }
             }
         }
     }
@@ -334,6 +382,44 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 heap.store((slot * 32) as u32, value);
             }
         }
+    }
+
+    fn get_storage_diff(&mut self) -> Vec<StateDiffRecord> {
+        self.inner
+            .state
+            .get_storage_changes()
+            .iter()
+            .filter_map(|(storage_key, initial_value, value)| {
+                let address = storage_key.address;
+
+                if address == L1_MESSENGER_ADDRESS {
+                    return None;
+                }
+
+                let key = storage_key.key;
+
+                let diff = StateDiffRecord {
+                    key,
+                    address,
+                    derived_key:
+                        zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
+                            &address, &key,
+                        ),
+                    enumeration_index: self
+                        .storage
+                        .borrow_mut()
+                        .get_enumeration_index(&StorageKey::new(
+                            AccountTreeId::new(address),
+                            u256_to_h256(key),
+                        ))
+                        .unwrap_or_default(),
+                    initial_value: initial_value.unwrap_or_default(),
+                    final_value: value.clone(),
+                };
+
+                Some(diff)
+            })
+            .collect()
     }
 }
 
