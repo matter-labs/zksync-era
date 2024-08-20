@@ -32,7 +32,8 @@ use crate::{
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -129,7 +130,9 @@ pub async fn init(
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
-    let _ = create_and_save_portal_config(ecosystem_config, shell).await;
+    create_and_save_portal_config(ecosystem_config, shell)
+        .await
+        .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
     Ok(())
 }

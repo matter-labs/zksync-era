@@ -8,7 +8,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::types::Address;
-use types::{BaseToken, L1Network, TokenInfo};
+use types::{BaseToken, TokenInfo};
 use xshell::Shell;
 
 use crate::{
@@ -23,43 +23,33 @@ use crate::{
 async fn create_hyperchain_config(chain_config: &ChainConfig) -> anyhow::Result<HyperchainConfig> {
     // Get L2 RPC URL from general config
     let general_config = chain_config.get_general_config()?;
-    let rpc_url = &general_config
+    let rpc_url = general_config
         .api_config
         .as_ref()
-        .context("api_config")?
-        .web3_json_rpc
-        .http_url;
-    // Check if L1 network is public
-    let public_l1_network_id = match chain_config.l1_network {
-        L1Network::Sepolia | L1Network::Mainnet => Some(chain_config.l1_network.chain_id()),
-        _ => None,
-    };
+        .map(|api_config| &api_config.web3_json_rpc.http_url)
+        .context("api_config")?;
+    // Get L1 RPC URL from secrects config
     let secrets_config = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets_config
         .l1
         .as_ref()
-        .context("l1")?
-        .l1_rpc_url
-        .expose_str();
-    let l1_network = if public_l1_network_id.is_none() {
-        // Initialize non-public L1 network
-        Some(L1NetworkConfig {
-            id: chain_config.l1_network.chain_id(),
-            name: chain_config.l1_network.to_string(),
-            network: chain_config.l1_network.to_string().to_lowercase(),
-            native_currency: TokenInfo::eth(),
-            rpc_urls: RpcUrls {
-                default: RpcUrlConfig {
-                    http: vec![l1_rpc_url.to_string()],
-                },
-                public: RpcUrlConfig {
-                    http: vec![l1_rpc_url.to_string()],
-                },
+        .map(|l1| l1.l1_rpc_url.expose_str())
+        .context("l1")?;
+    // Build L1 network config
+    let l1_network = Some(L1NetworkConfig {
+        id: chain_config.l1_network.chain_id(),
+        name: chain_config.l1_network.to_string(),
+        network: chain_config.l1_network.to_string().to_lowercase(),
+        native_currency: TokenInfo::eth(),
+        rpc_urls: RpcUrls {
+            default: RpcUrlConfig {
+                http: vec![l1_rpc_url.to_string()],
             },
-        })
-    } else {
-        None
-    };
+            public: RpcUrlConfig {
+                http: vec![l1_rpc_url.to_string()],
+            },
+        },
+    });
     // Base token:
     let (base_token_addr, base_token_info) = if chain_config.base_token == BaseToken::eth() {
         (format!("{:?}", Address::zero()), TokenInfo::eth())
@@ -84,8 +74,8 @@ async fn create_hyperchain_config(chain_config: &ChainConfig) -> anyhow::Result<
             key: chain_config.name.clone(),
             name: chain_config.name.clone(),
             rpc_url: rpc_url.to_string(),
-            public_l1_network_id,
             l1_network,
+            public_l1_network_id: None,
             block_explorer_url: None,
             block_explorer_api: None,
         },
@@ -117,7 +107,7 @@ pub async fn create_portal_config(
     }
     let hyperchains_config = create_hyperchains_config(&chain_configs).await?;
     if hyperchains_config.is_empty() {
-        return Err(anyhow!("Failed to create any valid hyperchain config"));
+        anyhow::bail!("Failed to create any valid hyperchain config")
     }
     let runtime_config = PortalRuntimeConfig {
         node_type: "hyperchain".to_string(),
