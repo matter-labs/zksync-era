@@ -66,7 +66,7 @@ async fn run_test(
         .context("Impossible to deserialize test wallets")?;
 
     wallets
-        .init_test_wallet(&ecosystem_config, &chain_config)
+        .init_test_wallet(ecosystem_config, &chain_config)
         .await?;
 
     let private_key = wallets.get_test_wallet(&chain_config)?.private_key.unwrap();
