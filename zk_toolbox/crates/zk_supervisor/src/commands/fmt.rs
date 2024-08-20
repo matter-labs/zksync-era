@@ -5,7 +5,7 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 
 use crate::{
-    commands::lint_utils::Extension,
+    commands::lint_utils::{get_unignored_files, Extension},
     messages::{
         msg_running_fmt_for_extension_spinner, msg_running_fmt_for_extensions_spinner,
         msg_running_rustfmt_for_dir_spinner, MSG_RUNNING_CONTRACTS_FMT_SPINNER,
@@ -14,15 +14,20 @@ use crate::{
 
 async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_fmt_for_extension_spinner(extension));
+    let files = get_unignored_files(&shell, &extension)?;
+
     spinner.freeze();
     let mode = if check { "--check" } else { "--write" };
     let glob = format!("**/*.{extension}");
     let config = format!("etc/prettier-config/{extension}.js");
-    Ok(Cmd::new(cmd!(
-        shell,
-        "yarn --silent prettier {glob} {mode} --config {config}"
-    ))
-        .run()?)
+    Ok(Cmd::new(
+        cmd!(
+            shell,
+            "yarn --silent prettier {glob} {mode} --config {config}"
+        )
+        .args(files),
+    )
+    .run()?)
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {

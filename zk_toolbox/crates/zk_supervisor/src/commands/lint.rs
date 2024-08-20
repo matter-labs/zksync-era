@@ -1,12 +1,14 @@
-use crate::commands::lint_utils::{get_unignored_files, Extension};
 use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::messages::{
-    msg_running_linter_for_extension_spinner, msg_running_linters_for_files,
-    MSG_LINT_CONFIG_PATH_ERR, MSG_RUNNING_CONTRACTS_LINTER_SPINNER,
+use crate::{
+    commands::lint_utils::{get_unignored_files, Extension},
+    messages::{
+        msg_running_linter_for_extension_spinner, msg_running_linters_for_files,
+        MSG_LINT_CONFIG_PATH_ERR, MSG_RUNNING_CONTRACTS_LINTER_SPINNER,
+    },
 };
 
 const CONFIG_PATH: &str = "etc/lint-config";
@@ -118,7 +120,7 @@ fn lint(
         &["--config".to_string(), config_path],
         files.as_slice(),
     ]
-        .concat();
+    .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();
