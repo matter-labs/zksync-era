@@ -76,7 +76,7 @@ impl From<VerifierParams> for abi::VerifierParams {
     fn from(x: VerifierParams) -> Self {
         Self {
             recursion_node_level_vk_hash: x.recursion_node_level_vk_hash.into(),
-            recursion_leaf_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_leaf_level_vk_hash: x.recursion_leaf_level_vk_hash.into(),
             recursion_circuits_set_vks_hash: x.recursion_circuits_set_vks_hash.into(),
         }
     }
@@ -86,7 +86,7 @@ impl From<abi::VerifierParams> for VerifierParams {
     fn from(x: abi::VerifierParams) -> Self {
         Self {
             recursion_node_level_vk_hash: x.recursion_node_level_vk_hash.into(),
-            recursion_leaf_level_vk_hash: x.recursion_node_level_vk_hash.into(),
+            recursion_leaf_level_vk_hash: x.recursion_leaf_level_vk_hash.into(),
             recursion_circuits_set_vks_hash: x.recursion_circuits_set_vks_hash.into(),
         }
     }
