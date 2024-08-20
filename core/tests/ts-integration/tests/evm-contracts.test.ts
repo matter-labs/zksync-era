@@ -203,7 +203,9 @@ describe('EVM equivalence contract', () => {
                 (await proxyCallerContract.getFunction('proxyGet')(await counterContract.getAddress())).toString()
             ).toEqual('1');
 
-            await (await proxyCallerContract.getFunction('executeIncrememt')(await counterContract.getAddress(), 1)).wait();
+            await (
+                await proxyCallerContract.getFunction('executeIncrememt')(await counterContract.getAddress(), 1)
+            ).wait();
 
             expect(
                 (await proxyCallerContract.getFunction('proxyGet')(await counterContract.getAddress())).toString()
@@ -211,7 +213,9 @@ describe('EVM equivalence contract', () => {
 
             expect(
                 (
-                    await proxyCallerContract.getFunction('proxyGetBytes').staticCall(await counterContract.getAddress())
+                    await proxyCallerContract
+                        .getFunction('proxyGetBytes')
+                        .staticCall(await counterContract.getAddress())
                 ).toString()
             ).toEqual('0x54657374696e67');
         });
