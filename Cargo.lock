@@ -2984,10 +2984,38 @@ dependencies = [
 ]
 
 [[package]]
-name = "iai"
-version = "0.1.1"
+name = "iai-callgrind"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a816c97c42258aa5834d07590b718b4c9a598944cd39a52dc25b351185d678"
+checksum = "283f598a969822c70af13aae1272ba09c97014c7344d3b24652e5b1d7b771c36"
+dependencies = [
+ "bincode",
+ "iai-callgrind-macros",
+ "iai-callgrind-runner",
+]
+
+[[package]]
+name = "iai-callgrind-macros"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04e2ff2e86bdba764b66d94b65f2caa03da60d971a6930fdc2e67f12582c5bb8"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "serde",
+ "serde_json",
+ "syn 2.0.72",
+]
+
+[[package]]
+name = "iai-callgrind-runner"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb92a65def0d3a0ef41029c411dc2ecdd3518708c062f8bd576fd4143be1c56b"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "iana-time-zone"
@@ -7271,7 +7299,7 @@ name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "iai",
+ "iai-callgrind",
  "rand 0.8.5",
  "tokio",
  "vise",
