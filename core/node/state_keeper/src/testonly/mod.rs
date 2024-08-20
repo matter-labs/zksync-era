@@ -7,9 +7,8 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    executor::BatchExecutorHandle, storage::StorageViewCache, CurrentExecutionState,
-    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, VmExecutionLogs,
-    VmExecutionResultAndLogs, VmExecutionStatistics,
+    executor::BatchExecutorHandle, storage::StorageViewCache, ExecutionResult, FinishedL1Batch,
+    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -28,29 +27,6 @@ pub mod test_batch_executor;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
-
-pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
-    FinishedL1Batch {
-        block_tip_execution_result: VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: VmExecutionLogs::default(),
-            statistics: VmExecutionStatistics::default(),
-            refunds: Refunds::default(),
-        },
-        final_execution_state: CurrentExecutionState {
-            events: vec![],
-            deduplicated_storage_logs: vec![],
-            used_contract_hashes: vec![],
-            user_l2_to_l1_logs: vec![],
-            system_logs: vec![],
-            storage_refunds: Vec::new(),
-            pubdata_costs: Vec::new(),
-        },
-        final_bootloader_memory: Some(vec![]),
-        pubdata_input: Some(vec![]),
-        state_diffs: Some(vec![]),
-    }
-}
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
@@ -102,7 +78,7 @@ impl BatchExecutorHandle<TxExecutionResult> for MockBatchExecutor {
     }
 
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
-        Ok((default_vm_batch_result(), StorageViewCache::default()))
+        Ok((FinishedL1Batch::mock(), StorageViewCache::default()))
     }
 }
 

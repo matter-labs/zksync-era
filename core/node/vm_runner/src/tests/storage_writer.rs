@@ -1,6 +1,7 @@
 use tokio::sync::watch;
 use zksync_multivm::interface::executor;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_types::StorageLogWithPreviousValue;
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use super::*;
@@ -8,6 +9,7 @@ use crate::{ConcurrentOutputHandlerFactory, VmRunner};
 
 #[derive(Debug, Clone)]
 struct StorageWriterIo {
+    last_processed_block: L2BlockNumber,
     last_processed_batch: Arc<watch::Sender<L1BatchNumber>>,
     pool: ConnectionPool<Core>,
 }
@@ -65,43 +67,43 @@ impl VmRunnerIo for StorageWriterIo {
 impl StorageWriterIo {
     async fn write_storage_logs(
         conn: &mut Connection<'_, Core>,
-        updates_manager: &UpdatesManager,
+        block_number: L2BlockNumber,
+        storage_logs: impl Iterator<Item = &StorageLogWithPreviousValue>,
     ) -> anyhow::Result<()> {
-        let storage_logs = updates_manager
-            .l2_block
-            .storage_logs
-            .iter()
-            .filter_map(|log| log.log.is_write().then_some(log.log));
+        let storage_logs = storage_logs.filter_map(|log| log.log.is_write().then_some(log.log));
         let storage_logs: Vec<_> = storage_logs.collect();
         conn.storage_logs_dal()
-            .append_storage_logs(updates_manager.l2_block.number, &storage_logs)
+            .append_storage_logs(block_number, &storage_logs)
             .await?;
         Ok(())
     }
 }
 
 #[async_trait]
-impl StateKeeperOutputHandler for StorageWriterIo {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+impl OutputHandler for StorageWriterIo {
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
         let mut conn = self.pool.connection().await?;
-        Self::write_storage_logs(&mut conn, updates_manager).await?;
+        let storage_logs = output
+            .transactions
+            .iter()
+            .flat_map(|(_, exec_result)| &exec_result.tx_result.logs.storage_logs);
+        let block_number = L2BlockNumber(env.number);
+        Self::write_storage_logs(&mut conn, block_number, storage_logs).await?;
+        self.last_processed_block = block_number;
         Ok(())
     }
 
-    async fn handle_l1_batch(
-        &mut self,
-        updates_manager: Arc<UpdatesManager>,
-    ) -> anyhow::Result<()> {
+    async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
         let mut conn = self.pool.connection().await?;
         // Storage logs are added to the fictive block *after* `handle_l2_block()` is called for it, so we need to call it again here.
-        Self::write_storage_logs(&mut conn, &updates_manager).await?;
+        let storage_logs = &output.batch.block_tip_execution_result.logs.storage_logs;
+        Self::write_storage_logs(&mut conn, self.last_processed_block, storage_logs.iter()).await?;
 
-        let finished_batch = updates_manager
-            .l1_batch
-            .finished
-            .as_ref()
-            .expect("L1 batch is not finished");
-        let state_diffs = finished_batch.state_diffs.as_ref().expect("no state diffs");
+        let state_diffs = output.batch.state_diffs.as_ref().expect("no state diffs");
         let initial_writes: Vec<_> = state_diffs
             .iter()
             .filter(|diff| diff.is_write_initial())
@@ -112,12 +114,12 @@ impl StateKeeperOutputHandler for StorageWriterIo {
                 ))
             })
             .collect();
+        let l1_batch_number = *self.last_processed_batch.borrow() + 1;
         conn.storage_logs_dedup_dal()
-            .insert_initial_writes(updates_manager.l1_batch.number, &initial_writes)
+            .insert_initial_writes(l1_batch_number, &initial_writes)
             .await?;
 
-        self.last_processed_batch
-            .send_replace(updates_manager.l1_batch.number);
+        self.last_processed_batch.send_replace(l1_batch_number);
         Ok(())
     }
 }
@@ -126,9 +128,10 @@ impl StateKeeperOutputHandler for StorageWriterIo {
 impl OutputHandlerFactory for StorageWriterIo {
     async fn create_handler(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
-        assert_eq!(l1_batch_number, self.batch() + 1);
+        _system_env: SystemEnv,
+        l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
+        assert_eq!(l1_batch_env.number, self.batch() + 1);
         Ok(Box::new(self.clone()))
     }
 }
@@ -146,6 +149,7 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
     drop(conn);
     let io = Box::new(StorageWriterIo {
         last_processed_batch: Arc::new(watch::channel(L1BatchNumber(0)).0),
+        last_processed_block: L2BlockNumber(0),
         pool: pool.clone(),
     });
     let mut processed_batch = io.last_processed_batch.subscribe();

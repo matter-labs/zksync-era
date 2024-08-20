@@ -11,17 +11,16 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_multivm.workspace = true
+zksync_multivm.workspace = true # FIXME: replace with vm_interface
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
-zksync_state_keeper.workspace = true
 zksync_utils.workspace = true
 zksync_prover_interface.workspace = true
 zksync_object_store.workspace = true
-zksync_vm_utils.workspace = true
+zksync_vm_utils.workspace = true # FIXME: remove in favor of injecting boxed executor
 zksync_health_check.workspace = true
 
 serde.workspace = true

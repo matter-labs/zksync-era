@@ -13,15 +13,15 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_multivm::interface::executor;
+use zksync_multivm::interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use crate::{
-    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
-    StorageSyncTask, VmRunner, VmRunnerIo, VmRunnerStorage,
+    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
+    L2BlockOutput, OutputHandler, OutputHandlerFactory, StorageSyncTask, VmRunner, VmRunnerIo,
+    VmRunnerStorage,
 };
 
 #[derive(Debug, Serialize)]
@@ -317,9 +317,17 @@ impl VmRunnerIo for VmPlaygroundIo {
 struct VmPlaygroundOutputHandler;
 
 #[async_trait]
-impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        tracing::trace!("Processed L2 block #{}", updates_manager.l2_block.number);
+impl OutputHandler for VmPlaygroundOutputHandler {
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        _output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
+        tracing::trace!("Processed L2 block #{}", env.number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(self: Box<Self>, _output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -328,8 +336,9 @@ impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
 impl OutputHandlerFactory for VmPlaygroundOutputHandler {
     async fn create_handler(
         &mut self,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        _system_env: SystemEnv,
+        _l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
         Ok(Box::new(Self))
     }
 }
