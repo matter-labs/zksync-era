@@ -35,7 +35,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
     Ok(())
 }
 
-async fn reset_database(
+pub async fn reset_database(
     shell: &Shell,
     link_to_code: impl AsRef<Path>,
     dal: Dal,
