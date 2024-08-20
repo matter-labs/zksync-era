@@ -50,6 +50,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
+      WITNESS_GENERATOR_RUST_FLAGS: ${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
     runs-on: [ matterlabs-ci-runner ]
     strategy:
       matrix:
@@ -73,11 +74,6 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-
-      - name: setup-rust-flags-env
-        if: matrix.component == 'witness-generator'
-        run: |
-          echo RUST_FLAGS=$WITNESS_GENERATOR_RUST_FLAGS >> $GITHUB_ENV
 
       - name: start-services
         run: |
@@ -159,6 +155,11 @@ jobs:
           echo Protocol version is ${PPV}
           echo "protocol_version=${PPV}" >> $GITHUB_OUTPUT
           echo "PROTOCOL_VERSION=${PPV}" >> $GITHUB_ENV
+
+      - name: setup-rust-flags-env
+        if: matrix.component == 'witness-generator'
+        run: |
+          echo RUST_FLAGS="${{ env.WITNESS_GENERATOR_RUST_FLAGS }}" >> $GITHUB_ENV
 
       - name: update-images
         env:

@@ -118,7 +118,9 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
     }
     if (image === 'witness-generator') {
         const rustFlags = process.env.RUST_FLAGS;
-        buildArgs += `--build-arg RUST_FLAGS='${rustFlags}' `;
+        if (rustFlags) {
+            buildArgs += `--build-arg RUST_FLAGS='${rustFlags}' `;
+        }
     }
     buildArgs += extraArgs;
 
