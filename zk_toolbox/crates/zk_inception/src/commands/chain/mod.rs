@@ -15,6 +15,7 @@ pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub(crate) mod init;
+mod set_token_multiplier_setter;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -35,6 +36,9 @@ pub enum ChainCommands {
     /// Deploy paymaster smart contract
     #[command(alias = "paymaster")]
     DeployPaymaster(ForgeScriptArgs),
+    /// Update Token Multiplier Setter address on L1
+    #[command(alias = "updateTokenMultiplierSetter")]
+    UpdateTokenMultiplierSetter(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -52,5 +56,8 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::IntiailizeBridges).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
+        ChainCommands::UpdateTokenMultiplierSetter(args) => {
+            set_token_multiplier_setter::run(args, shell).await
+        }
     }
 }

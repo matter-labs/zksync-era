@@ -18,6 +18,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-l2-contracts`↴](#zk_inception-chain-deploy-l2-contracts)
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
+- [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
@@ -198,6 +199,7 @@ Chain related commands
 - `deploy-l2-contracts` — Deploy all l2 contracts
 - `upgrader` — Deploy Default Upgrader
 - `deploy-paymaster` — Deploy paymaster smart contract
+- `update-token-multiplier-setter` — Update Token Multiplier Setter address on l1
 
 ## `zk_inception chain create`
 
@@ -388,6 +390,14 @@ Deploy paymaster smart contract
 - `-a`, `--additional-args <ADDITIONAL_ARGS>` — List of additional arguments that can be passed through the CLI.
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
+
+## `zk_inception chain update-token-multiplier-setter`
+
+Update Token Multiplier Setter address on l1. Token Multiplier Setter is used by chains with custom base token to
+propagate the changes to numerator / denominator to the l1. Address of the Token Multiplier Setter is taken from the wallets
+configuration.
+
+**Usage:** `zk_inception chain update-token-multiplier-setter`
 
 ## `zk_inception prover`
 
