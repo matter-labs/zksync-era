@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    executor::{BatchExecutorHandle, InspectStorageFn},
+    executor::{BatchExecutorHandle, InspectStorage, InspectStorageFn},
     ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_test_account::Account;
@@ -64,6 +64,15 @@ impl StateKeeperExecutor for MockBatchExecutor {
 }
 
 #[async_trait]
+impl<S: 'static> InspectStorage<S> for MockBatchExecutor {
+    async fn inspect_storage(&mut self, _f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        // The inspection hook is not called; this could be a problem in the general case,
+        // but in the state keeper context it's fine.
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for MockBatchExecutor {
     async fn execute_tx(&mut self, _tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         Ok(successful_exec())
@@ -77,14 +86,10 @@ impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for MockBatchExecutor
         Ok(())
     }
 
-    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
-        Ok(FinishedL1Batch::mock())
-    }
-
-    async fn inspect_storage(&mut self, _f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        // The inspection hook is not called; this could be a problem in the general case,
-        // but in the state keeper context it's fine.
-        Ok(())
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
+        Ok((FinishedL1Batch::mock(), self))
     }
 }
 

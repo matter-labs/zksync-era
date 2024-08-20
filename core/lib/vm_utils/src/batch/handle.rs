@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    executor::{BatchExecutorHandle, InspectStorageFn},
+    executor::{BatchExecutorHandle, InspectStorage, InspectStorageFn},
     storage::ReadStorage,
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
@@ -67,6 +67,34 @@ impl<S: ReadStorage> MainBatchExecutorHandle<S> {
             handle: HandleOrError::Handle(handle),
             commands,
         }
+    }
+}
+
+#[async_trait]
+impl<S> InspectStorage<S> for MainBatchExecutorHandle<S>
+where
+    S: ReadStorage + 'static,
+{
+    #[tracing::instrument(skip_all)]
+    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::InspectStorage(f, response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::InspectStorage]
+            .start();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
+        latency.observe();
+        Ok(())
     }
 }
 
@@ -167,7 +195,9 @@ where
     }
 
     #[tracing::instrument(skip_all)]
-    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
+    async fn finish_batch(
+        mut self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -186,28 +216,7 @@ where
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
         latency.observe();
-        Ok(finished_batch)
-    }
-
-    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self
-            .commands
-            .send(Command::InspectStorage(f, response_sender))
-            .await
-            .is_err();
-        if send_failed {
-            return Err(self.handle.wait_for_error().await);
-        }
-
-        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::InspectStorage]
-            .start();
-        if response_receiver.await.is_err() {
-            return Err(self.handle.wait_for_error().await);
-        }
-        latency.observe();
-        Ok(())
+        Ok((finished_batch, self))
     }
 }
 

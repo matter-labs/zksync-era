@@ -17,7 +17,7 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
-        executor::{BatchExecutorHandle, InspectStorageFn},
+        executor::{BatchExecutorHandle, InspectStorage, InspectStorageFn},
         ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionResultAndLogs,
     },
@@ -451,6 +451,15 @@ impl TestBatchExecutor {
 }
 
 #[async_trait]
+impl<S: 'static> InspectStorage<S> for TestBatchExecutor {
+    async fn inspect_storage(&mut self, _f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        // The inspection hook is not called; this could be a problem in the general case,
+        // but in the state keeper context it's fine.
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for TestBatchExecutor {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let result = self
@@ -488,14 +497,10 @@ impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for TestBatchExecutor
         Ok(())
     }
 
-    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
-        Ok(FinishedL1Batch::mock())
-    }
-
-    async fn inspect_storage(&mut self, _f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        // The inspection hook is not called; this could be a problem in the general case,
-        // but in the state keeper context it's fine.
-        Ok(())
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
+        Ok((FinishedL1Batch::mock(), self))
     }
 }
 

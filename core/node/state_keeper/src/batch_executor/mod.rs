@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_multivm::interface::{
-    executor::{BatchExecutor, BatchExecutorHandle, InspectStorageFn},
+    executor::{BatchExecutor, BatchExecutorHandle, InspectStorage, InspectStorageFn},
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult,
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
@@ -114,6 +114,17 @@ impl<E: BatchExecutor<OwnedStorage>> MainStateKeeperExecutor<E> {
 struct MappedHandle<H: ?Sized>(Box<H>);
 
 #[async_trait]
+impl<S, H> InspectStorage<S> for MappedHandle<H>
+where
+    S: 'static,
+    H: BatchExecutorHandle<S> + ?Sized,
+{
+    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        self.0.inspect_storage(f).await
+    }
+}
+
+#[async_trait]
 impl<S, H> BatchExecutorHandle<S, TxExecutionResult> for MappedHandle<H>
 where
     S: 'static,
@@ -132,12 +143,10 @@ where
         self.0.start_next_l2_block(env).await
     }
 
-    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
         self.0.finish_batch().await
-    }
-
-    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        self.0.inspect_storage(f).await
     }
 }
 

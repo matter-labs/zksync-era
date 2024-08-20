@@ -21,10 +21,6 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
     ) -> Box<Self::Handle>;
 }
 
-/// Hook allowing to inspect / modify VM storage after finishing the batch.
-/// Necessary because the storage is `!Send` and cannot be sent to the calling thread.
-pub type InspectStorageFn<S> = Box<dyn FnOnce(&mut StorageView<S>) + Send>;
-
 impl<S, T: BatchExecutor<S> + ?Sized> BatchExecutor<S> for Box<T> {
     type Handle = T::Handle;
 
@@ -38,25 +34,36 @@ impl<S, T: BatchExecutor<S> + ?Sized> BatchExecutor<S> for Box<T> {
     }
 }
 
+/// Hook allowing to inspect / modify VM storage during or after batch execution. Used in [`InspectStorage`].
+pub type InspectStorageFn<S> = Box<dyn FnOnce(&mut StorageView<S>) + Send>;
+
+/// Allows to inspect / modify VM storage during or after batch execution.
+///
+/// `async` and the `Send` constraint on the hook are necessary because the storage and VM are `!Send`
+/// and cannot be sent to the calling thread.
+#[async_trait]
+pub trait InspectStorage<S>: 'static + Send + fmt::Debug {
+    /// Inspects the current storage state.
+    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()>;
+}
+
 /// Handle for executing a single L1 batch.
 ///
 /// The handle is parametric by the transaction execution output in order to be able to represent different
 /// levels of abstraction. The default value is intended to be most generic.
 #[async_trait]
-pub trait BatchExecutorHandle<S, R = BatchTransactionExecutionResult>:
-    'static + Send + fmt::Debug
-{
+pub trait BatchExecutorHandle<S, R = BatchTransactionExecutionResult>: InspectStorage<S> {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<R>;
 
     async fn rollback_last_tx(&mut self) -> anyhow::Result<()>;
 
     async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()>;
 
-    /// Logically, this is the last operation, but it doesn't consume `self` to allow inspecting storage afterward.
-    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch>;
-
-    /// Inspects the current storage state.
-    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()>;
+    /// Returns finished batch info and a handle allowing to inspect the VM storage after the batch is finished.
+    /// Note that it's always possible to return `self` as this storage handle.
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)>;
 }
 
 /// Boxed [`BatchExecutor`]. Can be constructed from any executor using [`box_batch_executor()`].

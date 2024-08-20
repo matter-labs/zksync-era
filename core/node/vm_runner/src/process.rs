@@ -97,12 +97,12 @@ impl VmRunner {
                 .context("VM runner failed to handle L2 block")?;
         }
 
-        let (storage_sender, storage_receiver) = oneshot::channel();
-        let batch = batch_executor
+        let (batch, mut storage_handle) = batch_executor
             .finish_batch()
             .await
             .context("VM runner failed to execute batch tip")?;
-        batch_executor
+        let (storage_sender, storage_receiver) = oneshot::channel();
+        storage_handle
             .inspect_storage(Box::new(|storage_view| {
                 storage_sender.send(storage_view.cache()).ok();
             }))
