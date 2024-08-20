@@ -394,8 +394,8 @@ Deploy paymaster smart contract
 ## `zk_inception chain update-token-multiplier-setter`
 
 Update Token Multiplier Setter address on l1. Token Multiplier Setter is used by chains with custom base token to
-propagate the changes to numerator / denominator to the l1. Address of the Token Multiplier Setter is taken from the wallets
-configuration.
+propagate the changes to numerator / denominator to the l1. Address of the Token Multiplier Setter is taken from the
+wallets configuration.
 
 **Usage:** `zk_inception chain update-token-multiplier-setter`
 
