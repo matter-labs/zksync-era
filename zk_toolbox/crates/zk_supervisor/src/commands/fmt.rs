@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
+use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -81,6 +82,7 @@ pub struct FmtArgs {
 }
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
+    let ecosystem = EcosystemConfig::from_file(&shell)?;
     match args.formatter {
         None => {
             let mut tasks = vec![];
@@ -91,7 +93,11 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             for ext in extensions {
                 tasks.push(tokio::spawn(prettier(shell.clone(), ext, args.check)));
             }
-            tasks.push(tokio::spawn(rustfmt(shell.clone(), args.check, ".".into())));
+            tasks.push(tokio::spawn(rustfmt(
+                shell.clone(),
+                args.check,
+                ecosystem.link_to_code,
+            )));
             tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
             futures::future::join_all(tasks)
