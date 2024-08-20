@@ -313,7 +313,6 @@ impl MainNodeBuilder {
             TxSenderConfig::new(
                 &sk_config,
                 &rpc_config,
-                &self.contracts_config,
                 try_load_config!(self.wallets.state_keeper)
                     .fee_account
                     .address(),

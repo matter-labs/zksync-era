@@ -4,10 +4,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
-use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig},
-    ContractsConfig,
-};
+use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
@@ -26,7 +23,6 @@ use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer, SealData},
     SequencerSealer,
 };
-use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 use zksync_types::{
     api::state_override::StateOverride,
     fee::Fee,
@@ -286,14 +282,12 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    pub is_eth_based_chain: bool,
 }
 
 impl TxSenderConfig {
     pub fn new(
         state_keeper_config: &StateKeeperConfig,
         web3_json_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
     ) -> Self {
@@ -307,8 +301,6 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
-            is_eth_based_chain: contracts_config.base_token_addr
-                == Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
         }
     }
 }

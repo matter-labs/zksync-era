@@ -32,7 +32,6 @@ use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
     L1BatchNumber, L1ChainId, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -1419,7 +1418,6 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            is_eth_based_chain: config.remote.base_token_addr == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
         }
     }
 }
