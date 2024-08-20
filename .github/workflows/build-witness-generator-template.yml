@@ -1,4 +1,4 @@
-name: Build Prover images with avx512
+name: Build witness generator image with custom compiler flags
 on:
   workflow_call:
     secrets:

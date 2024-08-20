@@ -94,10 +94,10 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-push-prover-images-avx512:
+  build-push-witness-generator-image-avx512:
     name: Build and push image
     needs: [setup]
-    uses: ./.github/workflows/build-prover-template.yml
+    uses: ./.github/workflows/build-witness-generator-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
