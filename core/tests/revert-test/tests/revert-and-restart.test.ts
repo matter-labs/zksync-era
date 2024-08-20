@@ -80,7 +80,7 @@ describe('Block reverting test', function () {
     const pathToHome = path.join(__dirname, '../../../..');
 
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
         components += ',consensus';
     }
@@ -237,7 +237,7 @@ describe('Block reverting test', function () {
 
         console.log('Rolling back DB..');
         await utils.spawn(
-            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache ${fileConfigFlags}`
+            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache --rollback-vm-runners-cache ${fileConfigFlags}`
         );
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();

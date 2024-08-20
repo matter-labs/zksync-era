@@ -24,6 +24,7 @@ enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
   CUSTOM = 2;
+  RELAYED_L2_CALLDATA = 3;
 }
 
 message Sender {
@@ -45,6 +46,8 @@ message Sender {
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
   optional PubdataSendingMode pubdata_sending_mode = 18; // required
   reserved 19; reserved "proof_loading_mode";
+  optional bool tx_aggregation_paused = 20; // required
+  optional bool tx_aggregation_only_prove_and_execute = 21; // required
 }
 
 message GasAdjuster {

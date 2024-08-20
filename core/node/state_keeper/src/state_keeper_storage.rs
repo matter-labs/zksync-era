@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, PgOrRocksdbStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
+    AsyncCatchupTask, OwnedStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
 };
 use zksync_types::L1BatchNumber;
 
@@ -41,7 +41,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
+    ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
         let rocksdb = if initial_state.l1_batch_number >= Some(l1_batch_number) {
             tracing::info!(
@@ -57,25 +57,20 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             self.rocksdb_cell.get()
         };
 
-        if let Some(rocksdb) = rocksdb {
-            let mut connection = self
-                .pool
-                .connection_tagged("state_keeper")
-                .await
-                .context("Failed getting a Postgres connection")?;
-            PgOrRocksdbStorage::access_storage_rocksdb(
-                &mut connection,
-                rocksdb,
-                stop_receiver,
-                l1_batch_number,
-            )
+        let mut connection = self
+            .pool
+            .connection_tagged("state_keeper")
             .await
-            .context("Failed accessing RocksDB storage")
+            .context("Failed getting a Postgres connection")?;
+        if let Some(rocksdb) = rocksdb {
+            let storage =
+                OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number)
+                    .await
+                    .context("Failed accessing RocksDB storage")?;
+            Ok(storage)
         } else {
             Ok(Some(
-                PgOrRocksdbStorage::access_storage_pg(&self.pool, l1_batch_number)
-                    .await
-                    .context("Failed accessing Postgres storage")?,
+                OwnedStorage::postgres(connection, l1_batch_number).await?,
             ))
         }
     }

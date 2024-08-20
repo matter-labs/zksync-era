@@ -7,6 +7,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::{AttestationStatus, Payload};
@@ -48,9 +49,20 @@ impl ConsensusDal<'_, '_> {
             let Some(genesis) = row.genesis else {
                 return Ok(None);
             };
-            let genesis: validator::GenesisRaw =
-                zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")?;
-            Ok(Some(genesis.with_hash()))
+            // Deserialize the json, but don't allow for unknown fields.
+            // We might encounter an unknown fields here in case if support for the previous
+            // consensus protocol version is removed before the migration to a new version
+            // is performed. The node should NOT operate in such a state.
+            Ok(Some(
+                validator::GenesisRaw::read(
+                    &zksync_protobuf::serde::deserialize_proto_with_options(
+                        &genesis, /*deny_unknown_fields=*/ true,
+                    )
+                    .decode_column("genesis")?,
+                )
+                .decode_column("genesis")?
+                .with_hash(),
+            ))
         })
         .instrument("genesis")
         .fetch_optional(self.storage)
@@ -442,7 +454,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
     /// depending on the order in which votes have been collected over gossip by consensus.
-    pub async fn get_last_batch_certificate_number(
+    pub async fn last_batch_certificate_number(
         &mut self,
     ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let row = sqlx::query!(
@@ -453,7 +465,7 @@ impl ConsensusDal<'_, '_> {
                 l1_batches_consensus
             "#
         )
-        .instrument("get_last_batch_certificate_number")
+        .instrument("last_batch_certificate_number")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -468,7 +480,7 @@ impl ConsensusDal<'_, '_> {
 
     /// Number of L1 batch that the L2 block belongs to.
     /// None if the L2 block doesn't exist.
-    async fn batch_of_block(
+    pub async fn batch_of_block(
         &mut self,
         block: validator::BlockNumber,
     ) -> anyhow::Result<Option<attester::BatchNumber>> {
@@ -523,9 +535,9 @@ impl ConsensusDal<'_, '_> {
         let Some(next_batch_to_attest) = async {
             // First batch that we don't have a certificate for.
             if let Some(last) = self
-                .get_last_batch_certificate_number()
+                .last_batch_certificate_number()
                 .await
-                .context("get_last_batch_certificate_number()")?
+                .context("last_batch_certificate_number()")?
             {
                 return Ok(Some(last + 1));
             }
@@ -657,7 +669,7 @@ mod tests {
         // Retrieve the latest certificate.
         let number = conn
             .consensus_dal()
-            .get_last_batch_certificate_number()
+            .last_batch_certificate_number()
             .await
             .unwrap()
             .unwrap();

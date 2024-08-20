@@ -1,17 +1,15 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use async_trait::async_trait;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_executor::{
-    self as executor,
-    attestation::{AttestationStatusClient, AttestationStatusRunner},
-};
-use zksync_consensus_network::gossip;
-use zksync_consensus_roles::validator;
+use zksync_consensus_executor::{self as executor, attestation};
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
@@ -38,9 +36,7 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
-        let attester = config::attester_key(&secrets)
-            .context("attester_key")?
-            .map(|key| executor::Attester { key });
+        let attester = config::attester_key(&secrets).context("attester_key")?;
 
         tracing::debug!(
             is_attester = attester.is_some(),
@@ -53,7 +49,6 @@ impl EN {
 
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let genesis_hash = genesis.hash();
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
 
             conn.try_update_genesis(ctx, &genesis)
@@ -74,18 +69,21 @@ impl EN {
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
-            s.spawn_bg::<()>(async {
-                let old = genesis;
-                loop {
-                    if let Ok(new) = self.fetch_genesis(ctx).await {
-                        if new != old {
-                            return Err(anyhow::format_err!(
-                                "genesis changed: old {old:?}, new {new:?}"
-                            )
-                            .into());
+            s.spawn_bg::<()>({
+                let old = genesis.clone();
+                async {
+                    let old = old;
+                    loop {
+                        if let Ok(new) = self.fetch_genesis(ctx).await {
+                            if new != old {
+                                return Err(anyhow::format_err!(
+                                    "genesis changed: old {old:?}, new {new:?}"
+                                )
+                                .into());
+                            }
                         }
+                        ctx.sleep(time::Duration::seconds(5)).await?;
                     }
-                    ctx.sleep(time::Duration::seconds(5)).await?;
                 }
             });
 
@@ -106,17 +104,8 @@ impl EN {
                 .wrap("BatchStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
-            let (attestation_status, runner) = {
-                AttestationStatusRunner::init(
-                    ctx,
-                    Box::new(MainNodeAttestationStatus(self.client.clone())),
-                    time::Duration::seconds(5),
-                    genesis_hash,
-                )
-                .await
-                .wrap("AttestationStatusRunner::init()")?
-            };
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            let attestation = Arc::new(attestation::Controller::new(attester));
+            s.spawn_bg(self.run_attestation_updater(ctx, genesis.clone(), attestation.clone()));
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
@@ -129,8 +118,7 @@ impl EN {
                         replica_store: Box::new(store.clone()),
                         payload_manager: Box::new(store.clone()),
                     }),
-                attester,
-                attestation_status,
+                attestation,
             };
             tracing::info!("running the external node executor");
             executor.run(ctx).await?;
@@ -174,6 +162,62 @@ impl EN {
         }
     }
 
+    /// Monitors the `AttestationStatus` on the main node,
+    /// and updates the attestation config accordingly.
+    async fn run_attestation_updater(
+        &self,
+        ctx: &ctx::Ctx,
+        genesis: validator::Genesis,
+        attestation: Arc<attestation::Controller>,
+    ) -> ctx::Result<()> {
+        const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+        let Some(committee) = &genesis.attesters else {
+            return Ok(());
+        };
+        let committee = Arc::new(committee.clone());
+        let mut next = attester::BatchNumber(0);
+        loop {
+            let status = loop {
+                match self.fetch_attestation_status(ctx).await {
+                    Err(err) => tracing::warn!("{err:#}"),
+                    Ok(status) => {
+                        if status.genesis != genesis.hash() {
+                            return Err(anyhow::format_err!("genesis mismatch").into());
+                        }
+                        if status.next_batch_to_attest >= next {
+                            break status;
+                        }
+                    }
+                }
+                ctx.sleep(POLL_INTERVAL).await?;
+            };
+            tracing::info!(
+                "waiting for hash of batch {:?}",
+                status.next_batch_to_attest
+            );
+            let hash = self
+                .pool
+                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+                .await?;
+            tracing::info!(
+                "attesting batch {:?} with hash {hash:?}",
+                status.next_batch_to_attest
+            );
+            attestation
+                .start_attestation(Arc::new(attestation::Info {
+                    batch_to_attest: attester::Batch {
+                        genesis: status.genesis,
+                        hash,
+                        number: status.next_batch_to_attest,
+                    },
+                    committee: committee.clone(),
+                }))
+                .await
+                .context("start_attestation()")?;
+            next = status.next_batch_to_attest.next();
+        }
+    }
+
     /// Periodically fetches the head of the main node
     /// and updates `SyncState` accordingly.
     async fn fetch_state_loop(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
@@ -201,7 +245,32 @@ impl EN {
             .await?
             .context("fetch_consensus_genesis()")?
             .context("main node is not running consensus component")?;
-        Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
+        // Deserialize the json, but don't allow for unknown fields.
+        // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
+        // do.
+        Ok(validator::GenesisRaw::read(
+            &zksync_protobuf::serde::deserialize_proto_with_options(
+                &genesis.0, /*deny_unknown_fields=*/ true,
+            )
+            .context("deserialize")?,
+        )?
+        .with_hash())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn fetch_attestation_status(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<consensus_dal::AttestationStatus> {
+        match ctx.wait(self.client.fetch_attestation_status()).await? {
+            Ok(Some(status)) => Ok(zksync_protobuf::serde::deserialize(&status.0)
+                .context("deserialize(AttestationStatus")?),
+            Ok(None) => Err(anyhow::format_err!("empty response").into()),
+            Err(err) => Err(anyhow::format_err!(
+                "AttestationStatus call to main node HTTP RPC failed: {err:#}"
+            )
+            .into()),
+        }
     }
 
     /// Fetches (with retries) the given block from the main node.
@@ -213,7 +282,7 @@ impl EN {
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if err.is_transient() => {}
+                Err(err) if err.is_retriable() => {}
                 Err(err) => {
                     return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}", n).into());
                 }
@@ -258,36 +327,5 @@ impl EN {
                 .await?;
         }
         Ok(())
-    }
-}
-
-/// Wrapper to call [MainNodeClient::fetch_attestation_status] and adapt the return value to [AttestationStatusClient].
-struct MainNodeAttestationStatus(Box<DynClient<L2>>);
-
-#[async_trait]
-impl AttestationStatusClient for MainNodeAttestationStatus {
-    async fn attestation_status(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<gossip::AttestationStatus>> {
-        match ctx.wait(self.0.fetch_attestation_status()).await? {
-            Ok(Some(status)) => {
-                // If this fails the AttestationStatusRunner will log it an retry it later,
-                // but it won't stop the whole node.
-                let status: consensus_dal::AttestationStatus =
-                    zksync_protobuf::serde::deserialize(&status.0)
-                        .context("deserialize(AttestationStatus")?;
-                let status = gossip::AttestationStatus {
-                    genesis: status.genesis,
-                    next_batch_to_attest: status.next_batch_to_attest,
-                };
-                Ok(Some(status))
-            }
-            Ok(None) => Ok(None),
-            Err(err) => {
-                tracing::warn!("AttestationStatus call to main node HTTP RPC failed: {err}");
-                Ok(None)
-            }
-        }
     }
 }

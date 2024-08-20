@@ -4,9 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use circuit_definitions::circuit_definitions::{
-    base_layer::ZkSyncBaseLayerCircuit,
-    recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
+use circuit_definitions::{
+    circuit_definitions::{
+        base_layer::ZkSyncBaseLayerCircuit,
+        recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
+    },
+    encodings::memory_query::MemoryQueueStateWitnesses,
 };
 use once_cell::sync::Lazy;
 use zkevm_test_harness::{
@@ -28,8 +31,8 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
     },
-    keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper,
+    keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey, RamPermutationQueueWitnessKey},
+    CircuitAuxData, CircuitWrapper, FriProofWrapper, RamPermutationQueueWitness,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
@@ -79,13 +82,7 @@ impl StoredObject for ClosedFormInputWrapper {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct AggregationWrapper(
-    pub  Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
-);
+pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
 
 impl StoredObject for AggregationWrapper {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
@@ -131,6 +128,7 @@ pub async fn save_circuit(
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
+    aux_data_for_partial_circuit: Option<CircuitAuxData>,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
@@ -141,11 +139,44 @@ pub async fn save_circuit(
         aggregation_round: AggregationRound::BasicCircuits,
         depth: 0,
     };
-    let blob_url = object_store
-        .put(circuit_key, &CircuitWrapper::Base(circuit))
-        .await
-        .unwrap();
+
+    let blob_url = if let Some(aux_data_for_partial_circuit) = aux_data_for_partial_circuit {
+        object_store
+            .put(
+                circuit_key,
+                &CircuitWrapper::BasePartial((circuit, aux_data_for_partial_circuit)),
+            )
+            .await
+            .unwrap()
+    } else {
+        object_store
+            .put(circuit_key, &CircuitWrapper::Base(circuit))
+            .await
+            .unwrap()
+    };
     (circuit_id, blob_url)
+}
+
+#[tracing::instrument(
+    skip_all,
+    fields(l1_batch = %block_number)
+)]
+pub async fn save_ram_premutation_queue_witness(
+    block_number: L1BatchNumber,
+    circuit_subsequence_number: usize,
+    is_sorted: bool,
+    witness: MemoryQueueStateWitnesses<GoldilocksField>,
+    object_store: Arc<dyn ObjectStore>,
+) -> String {
+    let witness_key = RamPermutationQueueWitnessKey {
+        block_number,
+        circuit_subsequence_number,
+        is_sorted,
+    };
+    object_store
+        .put(witness_key, &RamPermutationQueueWitness { witness })
+        .await
+        .unwrap()
 }
 
 #[tracing::instrument(
@@ -154,22 +185,19 @@ pub async fn save_circuit(
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
     block_number: L1BatchNumber,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    sequence_number_offset: usize,
+    recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
     depth: u16,
     object_store: &dyn ObjectStore,
     base_layer_circuit_id: Option<u8>,
 ) -> Vec<(u8, String)> {
-    let mut ids_and_urls = Vec::with_capacity(aggregations.len());
-    for (sequence_number, (_, _, circuit)) in aggregations.into_iter().enumerate() {
+    let mut ids_and_urls = Vec::with_capacity(recursive_circuits.len());
+    for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
             block_number,
-            sequence_number,
+            sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,
             depth,
@@ -191,11 +219,7 @@ pub async fn save_node_aggregations_artifacts(
     block_number: L1BatchNumber,
     circuit_id: u8,
     depth: u16,
-    aggregations: Vec<(
-        u64,
-        RecursionQueueSimulator<GoldilocksField>,
-        ZkSyncRecursiveLayerCircuit,
-    )>,
+    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     object_store: &dyn ObjectStore,
 ) -> String {
     let key = AggregationsKey {
@@ -214,11 +238,15 @@ pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
-    let mut proofs = Vec::with_capacity(job_ids.len());
-    for &job_id in job_ids {
-        proofs.push(object_store.get(job_id).await.unwrap());
+    let mut handles = Vec::with_capacity(job_ids.len());
+    for job_id in job_ids {
+        handles.push(object_store.get(*job_id));
     }
-    proofs
+    futures::future::join_all(handles)
+        .await
+        .into_iter()
+        .map(|x| x.unwrap())
+        .collect()
 }
 
 /// Loads all proofs for a given recursion tip's job ids.

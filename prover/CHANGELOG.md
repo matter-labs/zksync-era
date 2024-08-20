@@ -1,5 +1,65 @@
 # Changelog
 
+## [16.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.3.0...prover-v16.4.0) (2024-08-16)
+
+
+### Features
+
+* Bump harness & gpu deps ([#2634](https://github.com/matter-labs/zksync-era/issues/2634)) ([2a7d566](https://github.com/matter-labs/zksync-era/commit/2a7d566ffeb63dc0a038d6b38cbda6bef7c7b105))
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+* **vlog:** Report observability config, flush, and shutdown ([#2622](https://github.com/matter-labs/zksync-era/issues/2622)) ([e23e661](https://github.com/matter-labs/zksync-era/commit/e23e6611731835ef3abd34f3f9867f9dc533eb21))
+* **vm:** Extract VM interface to separate crate ([#2638](https://github.com/matter-labs/zksync-era/issues/2638)) ([cb9ac4e](https://github.com/matter-labs/zksync-era/commit/cb9ac4e59fd16e6c125586bc02ef90e3b97ff80b))
+* **vm:** Fast VM integration ([#1949](https://github.com/matter-labs/zksync-era/issues/1949)) ([b752a54](https://github.com/matter-labs/zksync-era/commit/b752a54bebe6eb3bf0bea044996f5116cc5dc4e2))
+
+
+### Bug Fixes
+
+* Bump prover dependencies & rust toolchain ([#2600](https://github.com/matter-labs/zksync-era/issues/2600)) ([849c6a5](https://github.com/matter-labs/zksync-era/commit/849c6a5dcd095e8fead0630a2a403f282c26a2aa))
+* **prover:** Fix NWG ([#2590](https://github.com/matter-labs/zksync-era/issues/2590)) ([9b58ae9](https://github.com/matter-labs/zksync-era/commit/9b58ae97875455d58d42fe203cfb1f51cb270f62))
+* **prover:** Updated README.md ([#2604](https://github.com/matter-labs/zksync-era/issues/2604)) ([be9f357](https://github.com/matter-labs/zksync-era/commit/be9f357099ed281892c1ff4618514fc7c25f9b59))
+
+## [16.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.2.0...prover-v16.3.0) (2024-08-07)
+
+
+### Features
+
+* Poll the main node API for attestation status - relaxed (BFT-496) ([#2583](https://github.com/matter-labs/zksync-era/issues/2583)) ([b45aa91](https://github.com/matter-labs/zksync-era/commit/b45aa9168dd66d07ca61c8bb4c01f73dda822040))
+
+
+### Bug Fixes
+
+* **prover:** Fix NWG ([#2590](https://github.com/matter-labs/zksync-era/issues/2590)) ([9b58ae9](https://github.com/matter-labs/zksync-era/commit/9b58ae97875455d58d42fe203cfb1f51cb270f62))
+
+## [16.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.1.0...prover-v16.2.0) (2024-08-02)
+
+
+### Features
+
+* **configs:** Do not panic if config is only partially filled ([#2545](https://github.com/matter-labs/zksync-era/issues/2545)) ([db13fe3](https://github.com/matter-labs/zksync-era/commit/db13fe3550598c69f59cd66b4bb9618ebea041ca))
+* Introduce more tracing instrumentation ([#2523](https://github.com/matter-labs/zksync-era/issues/2523)) ([79d407a](https://github.com/matter-labs/zksync-era/commit/79d407ac47ac51667196aa2cd028d05b1622130f))
+* New prover documentation ([#2466](https://github.com/matter-labs/zksync-era/issues/2466)) ([1b61d07](https://github.com/matter-labs/zksync-era/commit/1b61d0797062ab8b0aa2c1e92b23a3a0d8fd2c61))
+* optimize LWG and NWG ([#2512](https://github.com/matter-labs/zksync-era/issues/2512)) ([0d00650](https://github.com/matter-labs/zksync-era/commit/0d00650f3e97248617b88a7e082c515ac48d5d5b))
+* Poll the main node for the next batch to sign (BFT-496) ([#2544](https://github.com/matter-labs/zksync-era/issues/2544)) ([22cf820](https://github.com/matter-labs/zksync-era/commit/22cf820abbd14b852dffe60f6b564713fe4c8919))
+* Remove CI and docker images for CPU prover & compressor ([#2540](https://github.com/matter-labs/zksync-era/issues/2540)) ([0dda805](https://github.com/matter-labs/zksync-era/commit/0dda80532baa77f6ac8b8d9cb7e3712c2eca22f6))
+* Remove unused VKs, add docs for BWG ([#2468](https://github.com/matter-labs/zksync-era/issues/2468)) ([2fa6bf0](https://github.com/matter-labs/zksync-era/commit/2fa6bf0ffa5d7a5ff62d595a0efeff9dcd9e5a1a))
+* Support sending logs via OTLP ([#2556](https://github.com/matter-labs/zksync-era/issues/2556)) ([1d206c0](https://github.com/matter-labs/zksync-era/commit/1d206c0af8f28eb00eb1498d6f2cdbb45ffef72a))
+* Update to consensus 0.1.0-rc.4 (BFT-486) ([#2475](https://github.com/matter-labs/zksync-era/issues/2475)) ([ff6b10c](https://github.com/matter-labs/zksync-era/commit/ff6b10c4a994cf70297a034202bcb55152748cba))
+* **vlog:** New vlog interface + opentelemtry improvements ([#2472](https://github.com/matter-labs/zksync-era/issues/2472)) ([c0815cd](https://github.com/matter-labs/zksync-era/commit/c0815cdaf878afcd9c41dddd9fe56bcf8d910633))
+* **witness_vector_generator:** Make it possible to run multiple wvg instances in one binary ([#2493](https://github.com/matter-labs/zksync-era/issues/2493)) ([572ad40](https://github.com/matter-labs/zksync-era/commit/572ad40175784b62d61aa46dcf901a7e2f6ff8f5))
+* **zk_toolbox:** use configs from the main repo ([#2470](https://github.com/matter-labs/zksync-era/issues/2470)) ([4222d13](https://github.com/matter-labs/zksync-era/commit/4222d135b62eb4de103c4aebb35e9c302d94ad63))
+
+
+### Bug Fixes
+
+* **prover:** Parallelize circuit metadata uploading for BWG ([#2520](https://github.com/matter-labs/zksync-era/issues/2520)) ([f49720f](https://github.com/matter-labs/zksync-era/commit/f49720fbafdab8f102d908b2be3fa869482a92fa))
+* **prover:** Reduce database connection overhead for BWG ([#2543](https://github.com/matter-labs/zksync-era/issues/2543)) ([c2439e9](https://github.com/matter-labs/zksync-era/commit/c2439e904e2520d22d9ed58b4dd6583da91fb4e3))
+* **witness_generator:** Only spawn 1 prometheus exporter per witness generator ([#2492](https://github.com/matter-labs/zksync-era/issues/2492)) ([b9cb222](https://github.com/matter-labs/zksync-era/commit/b9cb222ed7c27daa73ce20b8911afd94106e70a6))
+
+
+### Reverts
+
+* "feat: Poll the main node for the next batch to sign (BFT-496)" ([#2574](https://github.com/matter-labs/zksync-era/issues/2574)) ([72d3be8](https://github.com/matter-labs/zksync-era/commit/72d3be87efcb059f70b4633cddd707346612c4db))
+
 ## [16.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.0.0...prover-v16.1.0) (2024-07-24)
 
 

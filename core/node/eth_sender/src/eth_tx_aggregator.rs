@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -355,8 +355,27 @@ impl EthTxAggregator {
             )
             .await
         {
+            if self.config.tx_aggregation_paused {
+                tracing::info!(
+                    "Skipping sending operation of type {} for batches {}-{} \
+                as tx_aggregation_paused=true",
+                    agg_op.get_action_type(),
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
+                tracing::info!(
+                    "Skipping sending commit operation for batches {}-{} \
+                as tx_aggregation_only_prove_and_execute=true",
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
+                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge, false)
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
@@ -521,6 +540,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
+        is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
@@ -553,6 +573,7 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                is_gateway,
             )
             .await
             .unwrap();

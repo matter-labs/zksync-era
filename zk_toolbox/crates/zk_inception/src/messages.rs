@@ -9,6 +9,7 @@ use ethers::{
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
     "Chain not initialized. Please create a chain first";
+pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
@@ -50,6 +51,7 @@ pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
+pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
@@ -65,12 +67,18 @@ pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
+pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
+    "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
+    "Updating token multiplier setter...";
+pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
+    "Token multiplier setter updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
@@ -103,6 +111,7 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
+pub(super) const MSG_CHAIN_ID_HELP: &str = "Chain ID";
 pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
 pub(super) const MSG_WALLET_PATH_HELP: &str = "Wallet path";
 pub(super) const MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP: &str = "Commit data generation mode";
@@ -132,6 +141,10 @@ pub(super) const MSG_CREATING_CHAIN: &str = "Creating chain";
 pub(super) const MSG_CHAIN_CREATED: &str = "Chain created successfully";
 pub(super) const MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER: &str =
     "Creating chain configurations...";
+pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
+pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
+pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
+    "Localhost wallet is not supported for external networks";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
@@ -150,6 +163,8 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+/// Chain update related messages
+pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
 
 pub(super) fn msg_server_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide server database url for chain {chain_name}")
@@ -199,6 +214,7 @@ pub(super) const MSG_CONTAINERS_STARTED: &str = "Containers started successfully
 pub(super) const MSG_RETRY_START_CONTAINERS_PROMPT: &str =
     "Failed to start containers. Make sure there is nothing running on default ports for Ethereum node l1 and postgres. Want to try again?";
 pub(super) const MSG_FAILED_TO_FIND_ECOSYSTEM_ERR: &str = "Failed to find ecosystem folder.";
+pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observability?";
 
 /// Server related messages
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
@@ -288,7 +304,7 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
-pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud type:";
+pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
 pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {

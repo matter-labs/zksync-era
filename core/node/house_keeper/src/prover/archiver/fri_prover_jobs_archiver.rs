@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use zksync_dal::ConnectionPool;
 use zksync_prover_dal::{Prover, ProverDal};
 
@@ -38,7 +40,7 @@ impl PeriodicJob for FriProverJobsArchiver {
             .await
             .unwrap()
             .fri_prover_jobs_dal()
-            .archive_old_jobs(self.archiving_interval_secs)
+            .archive_old_jobs(Duration::from_secs(self.archiving_interval_secs))
             .await;
         tracing::info!("Archived {:?} fri prover jobs", archived_jobs);
         HOUSE_KEEPER_METRICS

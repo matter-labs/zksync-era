@@ -42,6 +42,7 @@ impl ObservabilityGuard {
 
         if let Some(sentry_guard) = &self.sentry_guard {
             sentry_guard.flush(Some(FLUSH_TIMEOUT));
+            tracing::info!("Sentry events are flushed");
         }
 
         if let Some(provider) = &self.otlp_tracing_provider {
@@ -50,34 +51,42 @@ impl ObservabilityGuard {
                     tracing::warn!("Flushing the spans failed: {err:?}");
                 }
             }
+            tracing::info!("Spans are flushed");
         }
 
         if let Some(provider) = &self.otlp_logging_provider {
             for result in provider.force_flush() {
                 if let Err(err) = result {
-                    tracing::warn!("Flushing the spans failed: {err:?}");
+                    tracing::warn!("Flushing the logs failed: {err:?}");
                 }
             }
+            tracing::info!("Logs are flushed");
         }
     }
 
     /// Shutdown the observability subsystem.
-    /// It will stop the background tasks like collec
-    pub fn shutdown(&self) {
+    /// It will stop any background tasks and release resources.
+    pub fn shutdown(&mut self) {
         // We don't want to wait for too long.
         const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
-        if let Some(sentry_guard) = &self.sentry_guard {
+        // `take` here and below ensures that we don't have any access to the deinitialized resources.
+        if let Some(sentry_guard) = self.sentry_guard.take() {
             sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
+            tracing::info!("Sentry client is shut down");
         }
-        if let Some(provider) = &self.otlp_tracing_provider {
+        if let Some(provider) = self.otlp_tracing_provider.take() {
             if let Err(err) = provider.shutdown() {
-                tracing::warn!("Shutting down the provider failed: {err:?}");
+                tracing::warn!("Shutting down the OTLP tracing provider failed: {err:?}");
+            } else {
+                tracing::info!("OTLP tracing provider is shut down");
             }
         }
-        if let Some(provider) = &self.otlp_logging_provider {
+        if let Some(provider) = self.otlp_logging_provider.take() {
             if let Err(err) = provider.shutdown() {
-                tracing::warn!("Shutting down the provider failed: {err:?}");
+                tracing::warn!("Shutting down the OTLP logs provider failed: {err:?}");
+            } else {
+                tracing::info!("OTLP logs provider is shut down");
             }
         }
     }
