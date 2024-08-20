@@ -56,7 +56,7 @@ impl MainBatchExecutor {
 }
 
 impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
-    type Handle = MainBatchExecutorHandle;
+    type Handle = MainBatchExecutorHandle<S>;
 
     fn init_batch(
         &mut self,
@@ -87,15 +87,15 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
 /// be constructed.
 #[derive(Debug)]
-struct CommandReceiver {
+struct CommandReceiver<S> {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    commands: mpsc::Receiver<Command>,
+    commands: mpsc::Receiver<Command<S>>,
 }
 
-impl CommandReceiver {
-    pub(super) fn run<S: ReadStorage>(
+impl<S: ReadStorage + 'static> CommandReceiver<S> {
+    pub(super) fn run(
         mut self,
         storage: S,
         l1_batch_params: L1BatchEnv,
@@ -110,6 +110,7 @@ impl CommandReceiver {
             storage_view.clone(),
             self.fast_vm_mode,
         );
+        let mut batch_finished = false;
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
@@ -136,22 +137,28 @@ impl CommandReceiver {
                 }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm)?;
-                    let cache = (*storage_view).borrow().cache();
-                    if resp.send((vm_block_result, cache)).is_err() {
+                    if resp.send(vm_block_result).is_err() {
                         break;
                     }
-
-                    // FIXME: work around metrics (+ cache?)
-                    return Ok(());
+                    batch_finished = true;
+                }
+                Command::InspectStorage(f, resp) => {
+                    f(&mut storage_view.borrow_mut());
+                    if resp.send(()).is_err() {
+                        break;
+                    }
                 }
             }
         }
-        // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
-        tracing::info!("State keeper exited with an unfinished L1 batch");
+
+        if !batch_finished {
+            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
+            tracing::info!("State keeper exited with an unfinished L1 batch");
+        }
         Ok(())
     }
 
-    fn execute_tx<S: ReadStorage>(
+    fn execute_tx(
         &self,
         transaction: Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -174,13 +181,13 @@ impl CommandReceiver {
         Ok(result)
     }
 
-    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
+    fn rollback_last_tx(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
         latency.observe();
     }
 
-    fn start_next_l2_block<S: ReadStorage>(
+    fn start_next_l2_block(
         &self,
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -188,7 +195,7 @@ impl CommandReceiver {
         vm.start_new_l2_block(l2_block_env);
     }
 
-    fn finish_batch<S: ReadStorage>(
+    fn finish_batch(
         &self,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> anyhow::Result<FinishedL1Batch> {
@@ -207,7 +214,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with or without bytecode compression.
     /// If compression fails, the transaction will be re-executed without compression.
-    fn execute_tx_in_vm_with_optional_compression<S: ReadStorage>(
+    fn execute_tx_in_vm_with_optional_compression(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
@@ -278,7 +285,7 @@ impl CommandReceiver {
 
     /// Attempts to execute transaction with mandatory bytecode compression.
     /// If bytecode compression fails, the transaction will be rejected.
-    fn execute_tx_in_vm<S: ReadStorage>(
+    fn execute_tx_in_vm(
         &self,
         tx: &Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,

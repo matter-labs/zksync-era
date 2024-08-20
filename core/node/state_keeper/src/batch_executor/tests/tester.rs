@@ -18,7 +18,7 @@ use zksync_multivm::{
 };
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
-use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher,
@@ -100,7 +100,7 @@ impl Tester {
     pub(super) async fn create_batch_executor(
         &mut self,
         storage_type: StorageType,
-    ) -> Box<MainBatchExecutorHandle> {
+    ) -> Box<MainBatchExecutorHandle<OwnedStorage>> {
         let (l1_batch_env, system_env) = self.default_batch_params();
         match storage_type {
             StorageType::AsyncRocksdbCache => {
@@ -145,7 +145,7 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Box<MainBatchExecutorHandle> {
+    ) -> Box<MainBatchExecutorHandle<OwnedStorage>> {
         let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
         batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
 
@@ -161,7 +161,7 @@ impl Tester {
     pub(super) async fn recover_batch_executor(
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutorHandle> {
+    ) -> Box<MainBatchExecutorHandle<OwnedStorage>> {
         let (storage_factory, task) = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
@@ -178,7 +178,7 @@ impl Tester {
         &mut self,
         storage_type: &StorageType,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutorHandle> {
+    ) -> Box<MainBatchExecutorHandle<OwnedStorage>> {
         match storage_type {
             StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
             StorageType::Rocksdb => {
@@ -202,7 +202,7 @@ impl Tester {
         &self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutorHandle> {
+    ) -> Box<MainBatchExecutorHandle<OwnedStorage>> {
         let current_timestamp = snapshot.l2_block_timestamp + 1;
         let (mut l1_batch_env, system_env) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
@@ -506,7 +506,7 @@ impl StorageSnapshot {
             executor.start_next_l2_block(l2_block_env).await.unwrap();
         }
 
-        let (finished_batch, _) = executor.finish_batch().await.unwrap();
+        let finished_batch = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

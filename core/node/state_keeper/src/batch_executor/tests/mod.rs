@@ -445,7 +445,7 @@ async fn bootloader_tip_out_of_gas() {
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
-    let (finished_batch, _) = executor.finish_batch().await.unwrap();
+    let finished_batch = executor.finish_batch().await.unwrap();
 
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.

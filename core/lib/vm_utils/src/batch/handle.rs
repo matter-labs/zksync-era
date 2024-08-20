@@ -7,8 +7,9 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    executor::BatchExecutorHandle, storage::StorageViewCache, BatchTransactionExecutionResult,
-    FinishedL1Batch, L2BlockEnv,
+    executor::{BatchExecutorHandle, InspectStorageFn},
+    storage::ReadStorage,
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
 use zksync_types::Transaction;
 
@@ -39,6 +40,7 @@ impl HandleOrError {
         anyhow::Error::new(err_arc)
     }
 
+    #[allow(dead_code)] // FIXME: is it OK to not wait for handle?
     async fn wait(self) -> anyhow::Result<()> {
         match self {
             Self::Handle(handle) => handle.await.context("batch executor panicked")?,
@@ -51,15 +53,15 @@ impl HandleOrError {
 /// `BatchExecutorHandle` is stored in the state keeper and is used to invoke or rollback transactions, and also seal
 /// the batches.
 #[derive(Debug)]
-pub struct MainBatchExecutorHandle {
+pub struct MainBatchExecutorHandle<S> {
     handle: HandleOrError,
-    commands: mpsc::Sender<Command>,
+    commands: mpsc::Sender<Command<S>>,
 }
 
-impl MainBatchExecutorHandle {
+impl<S: ReadStorage> MainBatchExecutorHandle<S> {
     pub(super) fn new(
         handle: JoinHandle<anyhow::Result<()>>,
-        commands: mpsc::Sender<Command>,
+        commands: mpsc::Sender<Command<S>>,
     ) -> Self {
         Self {
             handle: HandleOrError::Handle(handle),
@@ -69,7 +71,10 @@ impl MainBatchExecutorHandle {
 }
 
 #[async_trait]
-impl BatchExecutorHandle for MainBatchExecutorHandle {
+impl<S> BatchExecutorHandle<S> for MainBatchExecutorHandle<S>
+where
+    S: ReadStorage + 'static,
+{
     #[tracing::instrument(skip_all)]
     async fn execute_tx(
         &mut self,
@@ -162,9 +167,7 @@ impl BatchExecutorHandle for MainBatchExecutorHandle {
     }
 
     #[tracing::instrument(skip_all)]
-    async fn finish_batch(
-        mut self: Box<Self>,
-    ) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
+    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -182,19 +185,39 @@ impl BatchExecutorHandle for MainBatchExecutorHandle {
             Ok(batch) => batch,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
-        self.handle.wait().await?;
         latency.observe();
         Ok(finished_batch)
     }
+
+    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::InspectStorage(f, response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::InspectStorage]
+            .start();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
+        latency.observe();
+        Ok(())
+    }
 }
 
-#[derive(Debug)]
-pub(super) enum Command {
+pub(super) enum Command<S> {
     ExecuteTx(
         Box<Transaction>,
         oneshot::Sender<BatchTransactionExecutionResult>,
     ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(oneshot::Sender<(FinishedL1Batch, StorageViewCache)>),
+    FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    InspectStorage(InspectStorageFn<S>, oneshot::Sender<()>),
 }

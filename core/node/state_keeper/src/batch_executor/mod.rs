@@ -4,12 +4,11 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_multivm::interface::{
-    executor::{BatchExecutor, BatchExecutorHandle},
-    storage::StorageViewCache,
+    executor::{BatchExecutor, BatchExecutorHandle, InspectStorageFn},
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult,
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
-use zksync_state::{interface::ReadStorage, OwnedStorage, ReadStorageFactory};
+use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::Transaction;
 use zksync_vm_utils::batch::MainBatchExecutor;
 
@@ -65,7 +64,7 @@ impl TxExecutionResult {
     }
 }
 
-pub type StateKeeperExecutorHandle = dyn BatchExecutorHandle<TxExecutionResult>;
+pub type StateKeeperExecutorHandle = dyn BatchExecutorHandle<OwnedStorage, TxExecutionResult>;
 
 /// Functionality of [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
 /// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
@@ -81,12 +80,12 @@ pub trait StateKeeperExecutor: fmt::Debug + Send {
 
 /// The only [`crate::keeper::ErasedBatchExecutor`] implementation.
 #[derive(Debug)]
-pub struct MainStateKeeperExecutor<S, E> {
+pub struct MainStateKeeperExecutor<E> {
     batch_executor: E,
-    storage_factory: Arc<dyn ReadStorageFactory<S>>,
+    storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
 }
 
-impl MainStateKeeperExecutor<OwnedStorage, MainBatchExecutor> {
+impl MainStateKeeperExecutor<MainBatchExecutor> {
     pub fn new(
         save_call_traces: bool,
         optional_bytecode_compression: bool,
@@ -99,8 +98,11 @@ impl MainStateKeeperExecutor<OwnedStorage, MainBatchExecutor> {
     }
 }
 
-impl<S: ReadStorage, E: BatchExecutor<S>> MainStateKeeperExecutor<S, E> {
-    pub fn custom(batch_executor: E, storage_factory: Arc<dyn ReadStorageFactory<S>>) -> Self {
+impl<E: BatchExecutor<OwnedStorage>> MainStateKeeperExecutor<E> {
+    pub fn custom(
+        batch_executor: E,
+        storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
+    ) -> Self {
         Self {
             batch_executor,
             storage_factory,
@@ -112,9 +114,10 @@ impl<S: ReadStorage, E: BatchExecutor<S>> MainStateKeeperExecutor<S, E> {
 struct MappedHandle<H: ?Sized>(Box<H>);
 
 #[async_trait]
-impl<H> BatchExecutorHandle<TxExecutionResult> for MappedHandle<H>
+impl<S, H> BatchExecutorHandle<S, TxExecutionResult> for MappedHandle<H>
 where
-    H: BatchExecutorHandle + ?Sized,
+    S: 'static,
+    H: BatchExecutorHandle<S> + ?Sized,
 {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let res = self.0.execute_tx(tx.clone()).await?;
@@ -129,16 +132,19 @@ where
         self.0.start_next_l2_block(env).await
     }
 
-    async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
+    async fn finish_batch(&mut self) -> anyhow::Result<FinishedL1Batch> {
         self.0.finish_batch().await
+    }
+
+    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
+        self.0.inspect_storage(f).await
     }
 }
 
 #[async_trait]
-impl<S, E> StateKeeperExecutor for MainStateKeeperExecutor<S, E>
+impl<E> StateKeeperExecutor for MainStateKeeperExecutor<E>
 where
-    S: ReadStorage + 'static,
-    E: BatchExecutor<S>,
+    E: BatchExecutor<OwnedStorage>,
 {
     async fn init_batch(
         &mut self,
