@@ -515,17 +515,6 @@ impl TxSender {
             .get_batch_fee_input()
             .await?;
 
-        // If the chain uses a custom base token (CBT), we need to reduce fair l2 gas price.
-        // This is because CBT quote fluctuates independently of the l1 gas price.
-        // Let's say when the transaction was created the CBT/ETH ratio was 1/10. By the time the transaction
-        // has reached server it got to 2/10. As the gas price was estimated using the former quote and fair l2 gas price
-        // using the latter, the transaction would fail validation without even getting to the mempool.
-        // We want to avoid mass validation failures for volatile tokens and let them into mempool under more relaxed conditions.
-        let mut fair_l2_gas_price = fee_input.fair_l2_gas_price();
-        if !self.0.sender_config.is_eth_based_chain {
-            fair_l2_gas_price /= 2;
-        }
-
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
         if tx.common_data.fee.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
@@ -536,7 +525,12 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fair_l2_gas_price.into() {
+
+        // At the moment fair_l2_gas_price is rarely changed for ETH-based chains. But for CBT
+        // chains it gets changed every few blocks because of token price change. We want to avoid
+        // situations when transactions with low gas price gets into mempool and sit there for a
+        // long time, so we require max_fee_per_gas to be at least current_l2_fair_gas_price / 2
+        if tx.common_data.fee.max_fee_per_gas < (fee_input.fair_l2_gas_price() / 2).into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
