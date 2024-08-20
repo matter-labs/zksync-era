@@ -466,9 +466,11 @@ impl ProverInitArgs {
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
         let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
-            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudConnectionMode::iter())
-                .default(InternalCloudConnectionMode::Local)
-                .ask()
+            PromptSelect::new(
+                MSG_CLOUD_TYPE_PROMPT,
+                InternalCloudConnectionMode::iter().rev(),
+            )
+            .ask()
         });
 
         cloud_type.into()
