@@ -1845,7 +1845,7 @@ dependencies = [
 [[package]]
 name = "eravm-stable-interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=36522b64c68e2fb35e4d661f432d904d6d0d799b#36522b64c68e2fb35e4d661f432d904d6d0d799b"
+source = "git+https://github.com/matter-labs/vm2.git?rev=438233e14928c9c06ce14863739a2a9831067594#438233e14928c9c06ce14863739a2a9831067594"
 dependencies = [
  "primitive-types",
 ]
@@ -6785,7 +6785,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=36522b64c68e2fb35e4d661f432d904d6d0d799b#36522b64c68e2fb35e4d661f432d904d6d0d799b"
+source = "git+https://github.com/matter-labs/vm2.git?rev=438233e14928c9c06ce14863739a2a9831067594#438233e14928c9c06ce14863739a2a9831067594"
 dependencies = [
  "enum_dispatch",
  "eravm-stable-interface",
