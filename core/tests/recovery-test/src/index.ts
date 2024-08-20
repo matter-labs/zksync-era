@@ -202,7 +202,12 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
 export class FundedWallet {
     static async create(mainNode: zksync.Provider, eth: ethers.Provider): Promise<FundedWallet> {
         if (!process.env.MASTER_WALLET_PK) {
-            throw new Error('MASTER_WALLET_PK is not defined in the env');
+            const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
+            const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
+            const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
+            const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
+
+            process.env.MASTER_WALLET_PK = walletHD.privateKey;
         }
 
         const wallet = new zksync.Wallet(process.env.MASTER_WALLET_PK, mainNode, eth);
