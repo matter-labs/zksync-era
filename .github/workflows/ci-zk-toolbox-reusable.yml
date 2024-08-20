@@ -115,17 +115,52 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_rollup \
           --chain chain_rollup
-      
-      - name: Run server on Rollup chain
+
+      - name: Run server
         run: |
-          ci_run zk_inception server --ignore-prerequisites --chain chain_rollup &>server_rollup.log &
+          ci_run zk_inception server --ignore-prerequisites --chain chain_rollup &> server_rollup.log &
           ci_run sleep 5
 
-      - name: Init external node (Rollup)
+      - name: Run integration tests
+        run: |
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_rollup
+
+      - name: Init external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_rollup
+            
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_rollup
+  
+      - name: Run external node server
+        run: |
+          ci_run zk_inception external-node run --ignore-prerequisites --chain chain_rollup &> external_node_rollup.log &
+          ci_run sleep 5
+
+      - name: Run integration tests en
+        run: |
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_rollup
+
+      - name: Run revert tests
+        run: |
+          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_rollup
+
+      - name: Run revert tests (external node)
+        run: |
+          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_rollup
+
+      # This test should be the last one as soon as it
+      # finished bootloader will be different
+      - name: Run upgrade test
+        run: |
+          ci_run zk_supervisor test upgrade --chain chain_rollup
 
       - name: Create and initialize Validium chain
         run: |
@@ -151,48 +186,64 @@ jobs:
           --port-offset 2000 \
           --chain chain_validium
 
-      - name: Init external node (Validium)
+      - name: Run server
+        run: |
+          ci_run zk_inception server --ignore-prerequisites --chain chain_validium &> server_validium.log &
+          ci_run sleep 5
+  
+      - name: Run integration tests
+        run: |
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_validium
+
+      - name: Init external node server
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
-      - name: Run server on Validium chain
+      - name: Run recovery tests (from snapshot)
         run: |
-          ci_run zk_inception server --ignore-prerequisites --chain chain_validium &>server_validium.log &
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_validium
+            
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_validium
+  
+      - name: Run external node server
+        run: |
+          ci_run zk_inception external-node run --ignore-prerequisites --chain chain_validium &> external_node_validium.log &
           ci_run sleep 5
 
-      - name: Run tests on all chains
+      - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test build
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_validium
 
-          sudo ss -ltnp
+      - name: Run revert tests
+        run: |
+          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_validium
 
-          ci_run zk_supervisor test all --no-deps --chain chain_rollup &>rollup.log &
-          PID1=$!
+      - name: Run revert tests (external node)
+        run: |
+          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_validium
 
-          ci_run zk_supervisor test all --no-deps --chain chain_validium &>validium.log &
-          PID2=$!
+      # This test should be the last one as soon as it
+      # finished bootloader will be different
+      - name: Run upgrade test
+        run: |
+          ci_run zk_supervisor test upgrade --chain chain_validium
   
-          wait $PID1
-          wait $PID2
-            
       - name: Show server_rollup.log logs
         if: always()
         run: ci_run cat server_rollup.log || true
 
-      - name: Show rollup.log logs
+      - name: Show external_node_rollup.log logs
         if: always()
-        run: ci_run cat rollup.log || true
+        run: ci_run cat external_node_rollup.log || true
 
       - name: Show server_validium.log logs
         if: always()
         run: ci_run cat server_validium.log || true
 
-      - name: Show validium.log logs
+      - name: Show external_node_validium.log logs
         if: always()
-        run: ci_run cat validium.log || true
-
-      - name: Show revert.log logs
-        if: always()
-        run: ci_run cat ./core/tests/revert-test/revert.log || true
+        run: ci_run cat external_node_validium.log || true
