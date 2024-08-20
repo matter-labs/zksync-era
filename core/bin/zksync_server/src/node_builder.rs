@@ -442,7 +442,7 @@ impl MainNodeBuilder {
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
         let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
+        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
         let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
         let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
@@ -594,8 +594,14 @@ impl MainNodeBuilder {
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
-        self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
+        let wallets = self.wallets.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self.node.add_layer(BaseTokenRatioPersisterLayer::new(
+            config,
+            contracts_config,
+            wallets,
+            l1_chain_id,
+        ));
 
         Ok(self)
     }

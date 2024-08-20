@@ -521,7 +521,7 @@ impl TxSender {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx.common_data.fee.max_fee_per_gas,
             );
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }
