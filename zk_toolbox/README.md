@@ -342,12 +342,11 @@ Lint code:
 zks lint
 ```
 
-By default, this command runs the linter on all files. To target specific file types, use the `--extension` option. Supported extensions include:
+By default, this command runs the linter on all files. To target specific file types, use the `--extension` option.
+Supported extensions include:
 
 - `rs`: Rust files.
 - `md`: Markdown files.
 - `sol`: Solidity files.
 - `js`: JavaScript files.
 - `ts`: TypeScript files.
-
-
