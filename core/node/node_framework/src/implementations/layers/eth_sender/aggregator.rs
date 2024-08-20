@@ -101,9 +101,9 @@ impl WiringLayer for EthTxAggregatorLayer {
         let replica_pool = input.replica_pool.get().await.unwrap();
 
         let eth_client = if self.settlement_mode.is_gateway() {
-            input.eth_client.context("l1_client")?.0
+            input.eth_client.context("l1_client must be provided")?.0
         } else {
-            input.eth_client_l2.context("l1_client")?.0
+            input.eth_client_l2.context("l2_client must be provided")?.0
         };
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
