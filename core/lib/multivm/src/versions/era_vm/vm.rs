@@ -34,6 +34,7 @@ use super::{
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     logs::IntoSystemLog,
+    refunds::compute_refund,
     snapshot::VmSnapshot,
 };
 use crate::{
@@ -43,7 +44,8 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_vm_hook_position, get_vm_hook_start_position_latest, VM_HOOK_PARAMS_COUNT,
+            get_vm_hook_position, get_vm_hook_start_position_latest, OPERATOR_REFUNDS_OFFSET,
+            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
         BootloaderMemory, CurrentExecutionState, ExecutionResult, L1BatchEnv, L2BlockEnv, Refunds,
         SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
@@ -132,7 +134,6 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
             inner: vm,
             suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            last_tx_result: None,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode.clone(),
                 bootloader_initial_memory(&batch_env),
@@ -151,26 +152,44 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
 }
 
 impl<S: ReadStorage + 'static> Vm<S> {
-    pub fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
+    pub fn run(
+        &mut self,
+        execution_mode: VmExecutionMode,
+        track_refunds: bool,
+    ) -> (ExecutionResult, Refunds) {
+        let mut refunds = Refunds {
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        };
+        let mut pubdata_before = self.inner.state.pubdata() as u32;
         let mut last_tx_result = None;
+
         loop {
-            let (result, blob_tracer) = self.inner.run_program_with_custom_bytecode();
+            let (result, _blob_tracer) = self.inner.run_program_with_custom_bytecode();
+
             let result = match result {
-                ExecutionOutput::Ok(output) => return ExecutionResult::Success { output },
+                ExecutionOutput::Ok(output) => {
+                    return (ExecutionResult::Success { output }, refunds)
+                }
                 ExecutionOutput::Revert(output) => match TxRevertReason::parse_error(&output) {
                     TxRevertReason::TxReverted(output) => {
-                        return ExecutionResult::Revert { output }
+                        return (ExecutionResult::Revert { output }, refunds)
                     }
-                    TxRevertReason::Halt(reason) => return ExecutionResult::Halt { reason },
+                    TxRevertReason::Halt(reason) => {
+                        return (ExecutionResult::Halt { reason }, refunds)
+                    }
                 },
                 ExecutionOutput::Panic => {
-                    return ExecutionResult::Halt {
-                        reason: if self.inner.execution.gas_left().unwrap() == 0 {
-                            Halt::BootloaderOutOfGas
-                        } else {
-                            Halt::VMPanic
+                    return (
+                        ExecutionResult::Halt {
+                            reason: if self.inner.execution.gas_left().unwrap() == 0 {
+                                Halt::BootloaderOutOfGas
+                            } else {
+                                Halt::VMPanic
+                            },
                         },
-                    }
+                        refunds,
+                    )
                 }
                 ExecutionOutput::SuspendedOnHook {
                     hook,
@@ -183,8 +202,10 @@ impl<S: ReadStorage + 'static> Vm<S> {
             };
 
             match Hook::from_u32(result) {
+                Hook::PaymasterValidationEntered => {
+                    // unused
+                }
                 Hook::FinalBatchInfo => {
-                    // println!("FINAL BATCH INFO");
                     // set fictive l2 block
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
@@ -233,44 +254,54 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     });
                 }
                 Hook::NotifyAboutRefund => {
-                    // println!("NOTIFY ABOUT REFUND");
+                    if track_refunds {
+                        refunds.gas_refunded = self.get_hook_params()[0].low_u64()
+                    }
                 }
                 Hook::AskOperatorForRefund => {
-                    // println!("ASK OPERATOR FOR REFUND");
+                    if track_refunds {
+                        let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
+                            self.get_hook_params();
+                        let current_tx_index = self.bootloader_state.current_tx();
+                        let tx_description_offset = self
+                            .bootloader_state
+                            .get_tx_description_offset(current_tx_index);
+                        let tx_gas_limit = self
+                            .read_heap_word(tx_description_offset + TX_GAS_LIMIT_OFFSET)
+                            .as_u64();
+
+                        let pubdata_published = self.inner.state.pubdata() as u32;
+
+                        refunds.operator_suggested_refund = compute_refund(
+                            &self.batch_env,
+                            bootloader_refund.as_u64(),
+                            gas_spent_on_pubdata.as_u64(),
+                            tx_gas_limit,
+                            gas_per_pubdata_byte.low_u32(),
+                            pubdata_published.saturating_sub(pubdata_before),
+                            self.bootloader_state
+                                .last_l2_block()
+                                .txs
+                                .last()
+                                .unwrap()
+                                .hash,
+                        );
+
+                        pubdata_before = pubdata_published;
+                        let refund_value = refunds.operator_suggested_refund;
+                        self.write_to_bootloader_heap([(
+                            OPERATOR_REFUNDS_OFFSET + current_tx_index,
+                            refund_value.into(),
+                        )]);
+                        self.bootloader_state
+                            .set_refund_for_current_tx(refund_value);
+                    }
                 }
-                Hook::DebugLog => {
-                    let heap = self
-                        .inner
-                        .execution
-                        .heaps
-                        .get(self.inner.execution.current_context().unwrap().heap_id)
-                        .unwrap();
-                    let vm_hook_params: Vec<_> = self
-                        .get_vm_hook_params(heap)
-                        .into_iter()
-                        .map(u256_to_h256)
-                        .collect();
-                    let msg = vm_hook_params[0].as_bytes().to_vec();
-                    let data = vm_hook_params[1].as_bytes().to_vec();
-
-                    let msg = String::from_utf8(msg).expect("Invalid debug message");
-                    let data = U256::from_big_endian(&data);
-
-                    // For long data, it is better to use hex-encoding for greater readability
-                    let data_str = if data > U256::from(u64::max_value()) {
-                        let mut bytes = [0u8; 32];
-                        data.to_big_endian(&mut bytes);
-                        format!("0x{}", hex::encode(bytes))
-                    } else {
-                        data.to_string()
-                    };
-
-                    //println!("BOOTLOADER: {} {}", msg, data_str)
-                }
+                Hook::DebugLog => {}
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         let tx_result = last_tx_result.take().unwrap();
-                        return tx_result;
+                        return (tx_result, refunds);
                     }
                 }
                 Hook::PubdataRequested => {
@@ -476,7 +507,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
         }
 
         let snapshot = self.inner.state.snapshot();
-        let result = self.run(execution_mode);
+        let (result, refunds) = self.run(execution_mode, enable_refund_tracer);
 
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
@@ -548,7 +579,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
                 pubdata_published: (self.inner.state.pubdata() - snapshot.pubdata).max(0) as u32,
                 circuit_statistic: Default::default(),
             },
-            refunds: Refunds::default(),
+            refunds,
         }
     }
 
