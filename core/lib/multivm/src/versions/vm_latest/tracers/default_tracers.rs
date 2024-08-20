@@ -13,7 +13,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 
-use super::{EvmDebugTracer, EvmDeployTracer, PubdataTracer};
+use super::{EvmDeployTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
@@ -64,7 +64,7 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
 
-    pub(crate) evm_tracer: Option<EvmDebugTracer<S, H>>,
+    // This tracer is responsible for handling EVM deployments and providing the data to the code decommitter.
     pub(crate) evm_deploy_tracer: EvmDeployTracer<S>,
 
     subversion: MultiVMSubversion,
@@ -98,7 +98,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             circuits_tracer: CircuitsTracer::new(),
             evm_deploy_tracer: EvmDeployTracer::new(),
             storage,
-            evm_tracer: None,
             _phantom: PhantomData,
         }
     }
@@ -175,9 +174,6 @@ macro_rules! dispatch_tracers {
             tracer.$function($( $params ),*);
         }
         if let Some(tracer) = &mut $self.pubdata_tracer {
-            tracer.$function($( $params ),*);
-        }
-        if let Some(tracer) = &mut $self.evm_tracer {
             tracer.$function($( $params ),*);
         }
         $self.circuits_tracer.$function($( $params ),*);

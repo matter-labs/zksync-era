@@ -1,6 +1,5 @@
 pub(crate) use circuits_tracer::CircuitsTracer;
 pub(crate) use default_tracers::DefaultExecutionTracer;
-pub(crate) use evm_debug_tracer::EvmDebugTracer;
 pub(crate) use evm_deploy_tracer::EvmDeployTracer;
 pub(crate) use pubdata_tracer::PubdataTracer;
 pub(crate) use refunds::RefundsTracer;
@@ -8,7 +7,6 @@ pub(crate) use result_tracer::ResultTracer;
 
 pub(crate) mod circuits_tracer;
 pub(crate) mod default_tracers;
-pub(crate) mod evm_debug_tracer;
 pub(crate) mod evm_deploy_tracer;
 pub(crate) mod pubdata_tracer;
 pub(crate) mod refunds;
