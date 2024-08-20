@@ -5,7 +5,7 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use xshell::{cmd, Shell};
 
 use crate::{
-    commands::lint::Extension,
+    commands::lint_utils::Extension,
     messages::{
         msg_running_fmt_for_extension_spinner, msg_running_fmt_for_extensions_spinner,
         msg_running_rustfmt_for_dir_spinner, MSG_RUNNING_CONTRACTS_FMT_SPINNER,
@@ -22,7 +22,7 @@ async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Re
         shell,
         "yarn --silent prettier {glob} {mode} --config {config}"
     ))
-    .run()?)
+        .run()?)
 }
 
 async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {

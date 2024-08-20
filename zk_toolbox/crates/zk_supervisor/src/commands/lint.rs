@@ -1,7 +1,7 @@
-use clap::{Parser, ValueEnum};
+use crate::commands::lint_utils::{get_unignored_files, Extension};
+use clap::Parser;
 use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
-use strum::EnumIter;
 use xshell::{cmd, Shell};
 
 use crate::messages::{
@@ -17,16 +17,6 @@ pub struct LintArgs {
     pub check: bool,
     #[clap(long, short = 'e')]
     pub extensions: Vec<Extension>,
-}
-
-#[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
-#[strum(serialize_all = "lowercase")]
-pub enum Extension {
-    Md,
-    Sol,
-    Js,
-    Ts,
-    Rs,
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
@@ -105,7 +95,7 @@ fn lint(
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(extension));
     let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
-
+    let files = get_unignored_files(shell, extension)?;
     let cmd = cmd!(shell, "yarn");
     let config_path = ecosystem.link_to_code.join(CONFIG_PATH);
     let config_path = config_path.join(format!("{}.js", extension));
@@ -126,8 +116,9 @@ fn lint(
         linter.as_slice(),
         &fix_option,
         &["--config".to_string(), config_path],
+        files.as_slice(),
     ]
-    .concat();
+        .concat();
 
     Cmd::new(cmd.args(&args)).run()?;
     spinner.finish();

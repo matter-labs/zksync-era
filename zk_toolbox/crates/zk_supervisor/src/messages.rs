@@ -1,4 +1,4 @@
-use crate::commands::lint::Extension;
+use crate::commands::lint_utils::Extension;
 
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
