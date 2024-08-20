@@ -101,7 +101,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             (Some(l1_client), None) => (l1_client.0, SettlementMode::SettlesToL1),
             (None, Some(l2_client)) => (l2_client.0, SettlementMode::Gateway),
             (_, _) => Err(WiringError::Configuration(
-                "Aggregator requires either l1 or l2 client to operatate".to_string(),
+                "Aggregator requires either l1 or l2 client to operate".to_string(),
             ))?,
         };
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
