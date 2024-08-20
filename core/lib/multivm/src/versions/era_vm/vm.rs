@@ -1,21 +1,17 @@
-use era_vm::{
-    state::{L2ToL1Log, VMState},
-    store::{StorageError, StorageKey as EraStorageKey},
-    vm::ExecutionOutput,
-    EraVM, Execution,
-};
+use era_vm::{store::StorageKey as EraStorageKey, vm::ExecutionOutput, EraVM, Execution};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
-    dd,
+    event::extract_l2tol1logs_from_l1_messenger,
     l1::is_l1_tx_type,
+    l2_to_l1_log::UserL2ToL1Log,
     utils::key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction, BOOTLOADER_ADDRESS, H160,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, CompressedBytecodeInfo},
@@ -27,6 +23,7 @@ use super::{
     event::merge_events,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
+    logs::IntoSystemLog,
     snapshot::VmSnapshot,
 };
 use crate::{
@@ -409,7 +406,39 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
-        todo!()
+        let state = &self.inner.state;
+        let events = merge_events(state.events(), self.batch_env.number);
+
+        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+            .into_iter()
+            .map(Into::into)
+            .map(UserL2ToL1Log)
+            .collect();
+
+        CurrentExecutionState {
+            events,
+            deduplicated_storage_logs: state
+                .get_storage_changes()
+                .iter()
+                .map(|(storage_key, _, value)| StorageLog {
+                    key: StorageKey::new(
+                        AccountTreeId::new(storage_key.address),
+                        u256_to_h256(storage_key.key),
+                    ),
+                    value: u256_to_h256(*value),
+                    kind: StorageLogKind::RepeatedWrite,
+                })
+                .collect(),
+            used_contract_hashes: state.decommitted_hashes().iter().cloned().collect(),
+            system_logs: state
+                .l2_to_l1_logs()
+                .iter()
+                .map(|log| log.into_system_log())
+                .collect(),
+            user_l2_to_l1_logs,
+            storage_refunds: state.refunds().clone(),
+            pubdata_costs: state.pubdata_costs().clone(),
+        }
     }
 
     fn inspect_transaction_with_bytecode_compression(
