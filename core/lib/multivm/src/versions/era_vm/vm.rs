@@ -1,3 +1,31 @@
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+use era_vm::{
+    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
+    vm::ExecutionOutput, EraVM, Execution,
+};
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_types::{
+    event::{
+        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
+        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
+    },
+    l1::is_l1_tx_type,
+    l2_to_l1_log::UserL2ToL1Log,
+    utils::key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, U256,
+};
+use zksync_utils::{
+    bytecode::{hash_bytecode, CompressedBytecodeInfo},
+    h256_to_u256, u256_to_h256,
+};
+
 use super::{
     bootloader_state::{
         utils::{apply_l2_block, apply_pubdata_to_memory, PubdataInput},
@@ -24,32 +52,6 @@ use crate::{
         SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
         VmExecutionStatistics,
     },
-};
-use era_vm::{
-    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
-    vm::ExecutionOutput, EraVM, Execution,
-};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::{
-    event::{
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
-        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
-    },
-    l1::is_l1_tx_type,
-    l2_to_l1_log::UserL2ToL1Log,
-    utils::key_for_eth_balance,
-    writes::{
-        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
-        BYTES_PER_ENUMERATION_INDEX,
-    },
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256,
-};
-use zksync_utils::{
-    bytecode::{hash_bytecode, CompressedBytecodeInfo},
-    h256_to_u256, u256_to_h256,
 };
 
 pub struct Vm<S: ReadStorage> {

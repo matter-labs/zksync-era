@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::vm_latest::CurrentExecutionState;
 use era_vm::{store::StorageKey, Execution};
 use ethabi::Contract;
 use once_cell::sync::Lazy;
@@ -14,6 +13,8 @@ use zksync_types::{
     StorageKey as ZKStorageKey, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+
+use crate::vm_latest::CurrentExecutionState;
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);

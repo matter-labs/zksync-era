@@ -10,6 +10,7 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
+use super::utils::zk_storage_key_to_lambda;
 use crate::{
     era_vm::tests::{
         tester::{Account, VmTester, VmTesterBuilder},
@@ -17,8 +18,6 @@ use crate::{
     },
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
 };
-
-use super::utils::zk_storage_key_to_lambda;
 
 impl VmTester {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {

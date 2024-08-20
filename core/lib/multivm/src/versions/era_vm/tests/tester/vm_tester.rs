@@ -1,4 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
+
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr};
 use zksync_test_account::{Account, TxType};
