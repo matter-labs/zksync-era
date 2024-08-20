@@ -95,15 +95,10 @@ impl BaseTokenRatioPersister {
 
         for attempt in 0..max_attempts {
             let (base_fee_per_gas, priority_fee_per_gas) =
-                self.get_eth_fees(&l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
+                self.get_eth_fees(l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
 
             result = self
-                .send_ratio_to_l1(
-                    &l1_params,
-                    new_ratio,
-                    base_fee_per_gas,
-                    priority_fee_per_gas,
-                )
+                .send_ratio_to_l1(l1_params, new_ratio, base_fee_per_gas, priority_fee_per_gas)
                 .await;
             if let Some(err) = result.as_ref().err() {
                 tracing::info!(
