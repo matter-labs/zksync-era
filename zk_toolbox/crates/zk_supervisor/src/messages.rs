@@ -1,4 +1,4 @@
-use crate::commands::lint::Extension;
+use crate::commands::lint_utils::Extension;
 
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
@@ -12,6 +12,10 @@ pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related command
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
+
+pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
+
+pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
 
 // Database related messages
 pub(super) const MSG_NO_DATABASES_SELECTED: &str = "No databases selected";
@@ -159,5 +163,18 @@ pub(super) fn msg_running_linter_for_extension_spinner(extension: &Extension) ->
     format!("Running linter for files with extension: .{}", extension)
 }
 
+pub(super) fn msg_running_fmt_for_extension_spinner(extension: Extension) -> String {
+    format!("Running prettier for: {extension:?}")
+}
+
+pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
+    format!("Running rustfmt for: {dir:?}")
+}
+
+pub(super) fn msg_running_fmt_for_extensions_spinner(extensions: &[Extension]) -> String {
+    format!("Running prettier for: {extensions:?} and rustfmt")
+}
+
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
+pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
