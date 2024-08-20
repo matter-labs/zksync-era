@@ -37,7 +37,6 @@ pub enum ChainCommands {
     #[command(alias = "paymaster")]
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
-    #[command(alias = "updateTokenMultiplierSetter")]
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
 }
 
