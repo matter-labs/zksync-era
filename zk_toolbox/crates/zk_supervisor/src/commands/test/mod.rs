@@ -19,6 +19,7 @@ mod prover;
 mod recovery;
 mod revert;
 mod upgrade;
+mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum TestCommands {
