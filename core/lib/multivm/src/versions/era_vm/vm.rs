@@ -1,6 +1,6 @@
 use era_vm::{
-    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, vm::ExecutionOutput, EraVM,
-    Execution,
+    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
+    vm::ExecutionOutput, EraVM, Execution,
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use zksync_state::{ReadStorage, StoragePtr};
@@ -49,7 +49,6 @@ pub struct Vm<S: ReadStorage> {
     pub(crate) inner: EraVM,
     suspended_at: u16,
     gas_for_account_validation: u32,
-    last_tx_result: Option<ExecutionResult>,
 
     bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
@@ -147,6 +146,7 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
 
 impl<S: ReadStorage + 'static> Vm<S> {
     pub fn run(&mut self, execution_mode: VmExecutionMode) -> ExecutionResult {
+        let mut last_tx_result = None;
         loop {
             let (result, blob_tracer) = self.inner.run_program_with_custom_bytecode();
             let result = match result {
@@ -171,6 +171,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     pc_to_resume_from,
                 } => {
                     self.suspended_at = pc_to_resume_from;
+                    self.inner.execution.current_frame_mut().unwrap().pc = self.suspended_at as u64;
                     hook
                 }
             };
@@ -197,16 +198,25 @@ impl<S: ReadStorage + 'static> Vm<S> {
                 Hook::DebugReturnData => {
                     // println!("DEBUG RETURN DATA");
                 }
+                Hook::NearCallCatch => {
+                    // println!("NOTIFY ABOUT NEAR CALL CATCH");
+                }
                 Hook::PostResult => {
-                    // println!("POST RESULT");
                     let result = self.get_hook_params()[0];
-                    // println!("RESULT: {:?}", result);
+                    let value = self.get_hook_params()[1];
+                    let pointer = FatPointer::decode(value);
+                    assert_eq!(pointer.offset, 0);
 
-                    // TODO get latest return data
-                    let return_data = vec![];
+                    let return_data = self
+                        .inner
+                        .execution
+                        .heaps
+                        .get(pointer.page)
+                        .unwrap()
+                        .read_unaligned_from_pointer(&pointer)
+                        .unwrap();
 
-                    self.last_tx_result = Some(if result.is_zero() {
-                        // println!("Reverted");
+                    last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
                             output: VmRevertReason::from(return_data.as_slice()),
                         }
@@ -252,15 +262,12 @@ impl<S: ReadStorage + 'static> Vm<S> {
                     //println!("BOOTLOADER: {} {}", msg, data_str)
                 }
                 Hook::TxHasEnded => {
-                    // println!("TX HAS ENDED");
-                    if let (VmExecutionMode::OneTx, Some(result)) =
-                        (execution_mode, self.last_tx_result.take())
-                    {
-                        return result;
+                    if let VmExecutionMode::OneTx = execution_mode {
+                        let tx_result = last_tx_result.take().unwrap();
+                        return tx_result;
                     }
                 }
             }
-            self.inner.execution.current_frame_mut().unwrap().pc = self.suspended_at as u64;
         }
     }
 
