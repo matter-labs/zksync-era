@@ -256,7 +256,6 @@ impl CircuitsTracer {
 pub struct Vm<S> {
     pub(crate) world: World<S, CircuitsTracer>,
     pub(crate) inner: VirtualMachine<CircuitsTracer>,
-    suspended_at: u16,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -584,7 +583,6 @@ impl<S: ReadStorage> Vm<S> {
         let mut me = Self {
             world: World::new(storage, program_cache),
             inner,
-            suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
@@ -802,7 +800,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 struct VmSnapshot {
     vm_snapshot: vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
-    suspended_at: u16,
     gas_for_account_validation: u32,
 }
 
@@ -817,7 +814,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         self.snapshot = Some(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
-            suspended_at: self.suspended_at,
             gas_for_account_validation: self.gas_for_account_validation,
         });
     }
@@ -826,13 +822,11 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         let VmSnapshot {
             vm_snapshot,
             bootloader_snapshot,
-            suspended_at,
             gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback(vm_snapshot);
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
-        self.suspended_at = suspended_at;
         self.gas_for_account_validation = gas_for_account_validation;
 
         self.delete_history_if_appropriate();
@@ -847,7 +841,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
-            .field("suspended_at", &self.suspended_at)
             .field(
                 "gas_for_account_validation",
                 &self.gas_for_account_validation,
