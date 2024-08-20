@@ -43,7 +43,7 @@ pub enum Extension {
 
 pub fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Result<Vec<String>> {
     let mut files = Vec::new();
-    let output = cmd!(shell, "git ls-files").read()?;
+    let output = cmd!(shell, "git ls-files --recurse-submodules").read()?;
 
     for line in output.lines() {
         let path = line.to_string();
