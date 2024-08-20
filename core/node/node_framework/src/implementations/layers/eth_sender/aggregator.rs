@@ -45,6 +45,7 @@ pub struct EthTxAggregatorLayer {
     contracts_config: ContractsConfig,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    settlement_mode: SettlementMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -73,12 +74,14 @@ impl EthTxAggregatorLayer {
         contracts_config: ContractsConfig,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+        settlement_mode: SettlementMode,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
+            settlement_mode,
         }
     }
 }
@@ -97,12 +100,10 @@ impl WiringLayer for EthTxAggregatorLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let (eth_client, settlement_mode) = match (input.eth_client, input.eth_client_l2) {
-            (Some(l1_client), None) => (l1_client.0, SettlementMode::SettlesToL1),
-            (None, Some(l2_client)) => (l2_client.0, SettlementMode::Gateway),
-            (_, _) => Err(WiringError::Configuration(
-                "Aggregator requires either l1 or l2 client to operate".to_string(),
-            ))?,
+        let eth_client = if self.settlement_mode.is_gateway() {
+            input.eth_client.context("l1_client")?.0
+        } else {
+            input.eth_client_l2.context("l1_client")?.0
         };
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
@@ -130,7 +131,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.contracts_config.diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
-            settlement_mode,
+            self.settlement_mode,
         )
         .await;
 

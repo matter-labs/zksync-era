@@ -434,6 +434,11 @@ impl MainNodeBuilder {
             self.contracts_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
         ));
 
         Ok(self)
