@@ -19,7 +19,7 @@ use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
 
 use crate::{
-    accept_ownership::accept_admin,
+    accept_ownership::{accept_admin, set_token_multiplier_setter},
     commands::{
         chain::{
             args::init::{InitArgs, InitArgsFinal},
@@ -34,6 +34,7 @@ use crate::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
         MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -99,6 +100,23 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+    spinner.finish();
+
+    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+    set_token_multiplier_setter(
+        shell,
+        ecosystem_config,
+        chain_config.get_wallets_config()?.governor_private_key(),
+        contracts_config.l1.chain_admin_addr,
+        ecosystem_config
+            .get_wallets()
+            .unwrap()
+            .token_multiplier_setter
+            .address,
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )
