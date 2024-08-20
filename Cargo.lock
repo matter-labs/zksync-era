@@ -9766,6 +9766,8 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "hex",
  "serde",
  "thiserror",
@@ -9814,12 +9816,15 @@ name = "zksync_vm_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "once_cell",
  "tokio",
  "tracing",
+ "vise",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_multivm",
  "zksync_types",
- "zksync_vm_interface",
 ]
 
 [[package]]

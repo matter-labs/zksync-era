@@ -297,6 +297,45 @@ impl Call {
     }
 }
 
+/// Mid-level transaction execution output returned by a batch executor.
+#[derive(Debug)]
+pub struct BatchTransactionExecutionResult {
+    pub tx_result: Box<VmExecutionResultAndLogs>,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub gas_remaining: u32,
+}
+
+impl BatchTransactionExecutionResult {
+    pub fn into_high_level(self, transaction: Transaction) -> TransactionExecutionResult {
+        let Self {
+            tx_result,
+            call_traces,
+            compressed_bytecodes,
+            ..
+        } = self;
+
+        let revert_reason = match &tx_result.result {
+            ExecutionResult::Success { .. } => None,
+            ExecutionResult::Revert { output } => Some(output.to_string()),
+            ExecutionResult::Halt { reason } => Some(reason.to_string()),
+        };
+
+        TransactionExecutionResult {
+            hash: transaction.hash(),
+            execution_info: tx_result.get_execution_metrics(Some(&transaction)),
+            transaction,
+            execution_status: TxExecutionStatus::from_has_failed(tx_result.result.is_failed()),
+            refunded_gas: tx_result.refunds.gas_refunded,
+            operator_suggested_refund: tx_result.refunds.operator_suggested_refund,
+            compressed_bytecodes,
+            call_traces,
+            revert_reason,
+        }
+    }
+}
+
+/// High-level transaction execution result used by the API server sandbox etc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
     pub transaction: Transaction,
