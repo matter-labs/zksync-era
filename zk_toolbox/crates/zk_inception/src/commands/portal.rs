@@ -13,7 +13,7 @@ use xshell::Shell;
 
 use crate::{
     commands::args::PortalArgs,
-    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_IMAGE, PORTAL_DOCKER_CONTAINER_PORT},
+    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONTAINER_PORT, PORTAL_DOCKER_IMAGE},
     messages::{
         msg_portal_starting_on, MSG_PORTAL_CONFIG_IS_EMPTY_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR,
