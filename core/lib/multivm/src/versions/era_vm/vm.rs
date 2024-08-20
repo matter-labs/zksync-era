@@ -452,18 +452,14 @@ impl<S: ReadStorage + 'static> Vm<S> {
             })
             .collect()
     }
-}
 
-impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
-    type TracerDispatcher = ();
-
-    fn push_transaction(&mut self, tx: Transaction) {
+    pub fn push_transaction_inner(&mut self, tx: Transaction, refund: u64, with_compression: bool) {
         let tx: TransactionData = tx.into();
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
 
-        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) {
+        let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) || !with_compression {
             // L1 transactions do not need compression
             vec![]
         } else {
@@ -485,13 +481,21 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
         let memory = self.bootloader_state.push_tx(
             tx,
             overhead,
-            0, //TODO: Is this correct?
+            refund,
             compressed_bytecodes,
             trusted_ergs_limit,
             self.system_env.chain_id,
         );
 
         self.write_to_bootloader_heap(memory);
+    }
+}
+
+impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
+    type TracerDispatcher = ();
+
+    fn push_transaction(&mut self, tx: Transaction) {
+        self.push_transaction_inner(tx, 0, true);
     }
 
     fn inspect(
