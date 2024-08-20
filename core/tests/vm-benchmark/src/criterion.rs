@@ -144,14 +144,17 @@ impl Drop for CurrentBenchmark {
         // Could use quick median algorithm, but since there aren't that many observations expected,
         // sorting looks acceptable.
         observations.sort_unstable();
-        self.metrics.min_timing[&self.labels].set(observations[0]);
-        self.metrics.max_timing[&self.labels].set(*observations.last().unwrap());
+        let (min, max) = (observations[0], *observations.last().unwrap());
+        self.metrics.min_timing[&self.labels].set(min);
+        self.metrics.max_timing[&self.labels].set(max);
         let median = if len % 2 == 0 {
             (observations[len / 2 - 1] + observations[len / 2]) / 2
         } else {
             observations[len / 2]
         };
         self.metrics.median_timing[&self.labels].set(median);
+
+        println!("Exported timings: min={min:?}, max={max:?}, mean={mean:?}, median={median:?}");
     }
 }
 
