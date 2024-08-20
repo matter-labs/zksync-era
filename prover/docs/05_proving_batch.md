@@ -18,7 +18,8 @@ for installation [here](../crates/bin/prover_cli/README.md).
 
 ## Initializing system
 
-After you have installed the tool, you can run the prover subsystem by running:
+After you have installed the tool, you can create ecosystem(you need to run only if you are outside of `zksync-era`) by
+running:
 
 ```shell
 zk_inception ecosystem create
@@ -72,19 +73,19 @@ Now, with the use of `prover_cli` tool, you can insert the data about the batch 
 First, let the tool know which database it should connect to((for local DB you can find the url in `secrets.yaml` file):
 
 ```shell
-pli config --db-url <DATABASE_URL>
+prover_cli config --db-url <DATABASE_URL>
 ```
 
 Now, insert the information about protocol version in the database:
 
 ```shell
-pli insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
+prover_cli insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
 ```
 
 And finally, provide the data about the batch:
 
 ```shell
-pli insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
+prover_cli insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
 ```
 
 ## Running prover subsystem

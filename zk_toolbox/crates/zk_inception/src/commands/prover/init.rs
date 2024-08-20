@@ -45,7 +45,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &setup_key_path, &chain_config)?;
 
-    if args.copy_configs {
+    if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 

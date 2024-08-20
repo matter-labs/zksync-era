@@ -61,9 +61,6 @@ pub struct ProverInitArgs {
     pub setup_key_config: SetupKeyConfigTmp,
 
     #[clap(long)]
-    pub copy_configs: Option<bool>,
-
-    #[clap(long)]
     pub setup_database: Option<bool>,
     #[clap(long, help = MSG_PROVER_DB_URL_HELP)]
     pub prover_db_url: Option<Url>,
@@ -193,7 +190,6 @@ pub struct ProverInitArgsFinal {
     pub setup_key_config: SetupKeyConfig,
     pub bellman_cuda_config: InitBellmanCudaArgs,
     pub cloud_type: CloudConnectionMode,
-    pub copy_configs: bool,
     pub database_config: Option<ProverDatabaseConfig>,
 }
 
@@ -209,7 +205,6 @@ impl ProverInitArgs {
         let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
         let cloud_type = self.get_cloud_type_with_prompt();
-        let copy_configs = self.ask_copy_configs();
         let database_config = self.fill_database_values_with_prompt(chain_config);
 
         Ok(ProverInitArgsFinal {
@@ -218,7 +213,6 @@ impl ProverInitArgs {
             setup_key_config,
             bellman_cuda_config,
             cloud_type,
-            copy_configs,
             database_config,
         })
     }
@@ -474,31 +468,25 @@ impl ProverInitArgs {
         cloud_type.into()
     }
 
-    fn ask_copy_configs(&self) -> bool {
-        self.copy_configs
-            .unwrap_or_else(|| PromptConfirm::new(MSG_COPY_CONFIGS_PROMPT).ask())
-    }
-
     fn fill_database_values_with_prompt(
         &self,
         config: &ChainConfig,
     ) -> Option<ProverDatabaseConfig> {
         let setup_database = self
             .setup_database
-            .clone()
             .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
 
         if setup_database {
             let DBNames { prover_name, .. } = generate_db_names(config);
             let chain_name = config.name.clone();
 
-            let dont_drop = self.dont_drop.clone().unwrap_or_else(|| {
+            let dont_drop = self.dont_drop.unwrap_or_else(|| {
                 !PromptConfirm::new("Do you want to drop the database?")
                     .default(true)
                     .ask()
             });
 
-            if self.use_default.clone().unwrap_or_else(|| {
+            if self.use_default.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
                     .default(true)
                     .ask()

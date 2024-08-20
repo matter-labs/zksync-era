@@ -5,8 +5,7 @@ CLI tool for performing maintenance of a ZKsync Prover
 ## Installation
 
 ```
-git clone git@github.com:matter-labs/zksync-era.git
-cargo install -p prover_cli
+cargo install --git https://github.com/matter-labs/zksync-era.git prover_cli
 ```
 
 > This should be `cargo install zksync-prover-cli` or something similar ideally.
