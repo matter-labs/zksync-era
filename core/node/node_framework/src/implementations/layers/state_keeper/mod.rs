@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_state::{AsyncCatchupTask, ReadStorageFactory};
+use zksync_state::{AsyncCatchupTask, OwnedStorage, ReadStorageFactory};
 use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, MainStateKeeperExecutor, OutputHandler,
     StateKeeperIO, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
@@ -15,6 +15,7 @@ pub mod output_handler;
 
 // Public re-export to not require the user to directly depend on `zksync_state`.
 pub use zksync_state::RocksdbStorageOptions;
+use zksync_vm_utils::interface::BoxBatchExecutor;
 
 use crate::{
     implementations::resources::{
@@ -125,7 +126,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor: Box<dyn BatchExecutor>,
+    batch_executor: BoxBatchExecutor<OwnedStorage>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
@@ -138,13 +139,13 @@ impl Task for StateKeeperTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        let executor = MainStateKeeperExecutor::custom(self.batch_executor, self.storage_factory);
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver.0,
             self.io,
-            self.batch_executor,
+            Box::new(executor),
             self.output_handler,
             self.sealer,
-            self.storage_factory,
         );
         state_keeper.run().await
     }

@@ -13,9 +13,11 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_multivm::interface::executor;
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
+use zksync_vm_utils::batch::MainBatchExecutor;
 
 use crate::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
@@ -172,7 +174,7 @@ impl VmPlayground {
             Box::new(self.io),
             Arc::new(loader),
             Box::new(self.output_handler_factory),
-            Box::new(self.batch_executor),
+            executor::box_batch_executor(self.batch_executor),
         );
         vm_runner.run(stop_receiver).await
     }

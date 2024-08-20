@@ -4,9 +4,11 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::interface::executor::BoxBatchExecutor;
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
-use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_state::OwnedStorage;
+use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
     block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
     H256,
@@ -30,7 +32,7 @@ impl BasicWitnessInputProducer {
     pub async fn new(
         pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
-        batch_executor: Box<dyn BatchExecutor>,
+        batch_executor: BoxBatchExecutor<OwnedStorage>,
         rocksdb_path: String,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,

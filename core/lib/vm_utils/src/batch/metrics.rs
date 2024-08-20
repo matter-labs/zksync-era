@@ -37,6 +37,12 @@ pub(super) struct ExecutorMetrics {
     pub computational_gas_per_nanosecond: Histogram<f64>,
     #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
     pub failed_tx_gas_limit_per_nanosecond: Histogram<f64>,
+    /* FIXME
+    /// Cumulative latency of interacting with the storage when executing a transaction
+    /// in the batch executor.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub batch_storage_interaction_duration: Family<InteractionType, Histogram<Duration>>,
+     */
 }
 
 #[vise::register]

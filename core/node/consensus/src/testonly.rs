@@ -32,11 +32,8 @@ use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_comm
 use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
-    },
-    AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
+    testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
+    AsyncRocksdbCache, MainStateKeeperExecutor, OutputHandler, StateKeeperPersistence,
     TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_test_account::Account;
@@ -592,16 +589,16 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
+                let executor = MainStateKeeperExecutor::new(false, false, Arc::new(async_cache));
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(MainBatchExecutor::new(false, false)),
+                        Box::new(executor),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(async_cache),
                     )
                     .run()
                     .await
@@ -683,7 +680,6 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(MockReadStorageFactory),
                     )
                     .run()
                     .await

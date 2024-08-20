@@ -1,6 +1,7 @@
 use tokio::sync::watch;
+use zksync_multivm::interface::executor;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state_keeper::MainBatchExecutor;
+use zksync_vm_utils::batch::MainBatchExecutor;
 
 use super::*;
 use crate::{ConcurrentOutputHandlerFactory, VmRunner};
@@ -150,8 +151,14 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
     let mut processed_batch = io.last_processed_batch.subscribe();
 
     let loader = Arc::new(PostgresLoader(pool.clone()));
-    let batch_executor = Box::new(MainBatchExecutor::new(false, false));
-    let vm_runner = VmRunner::new(pool, io.clone(), loader, io, batch_executor);
+    let batch_executor = MainBatchExecutor::new(false, false);
+    let vm_runner = VmRunner::new(
+        pool,
+        io.clone(),
+        loader,
+        io,
+        executor::box_batch_executor(batch_executor),
+    );
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
 
@@ -196,13 +203,13 @@ async fn storage_writer_works() {
     let (output_factory, output_factory_task) =
         ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), TestOutputFactory::default());
     let output_factory_handle = tokio::spawn(output_factory_task.run(stop_receiver.clone()));
-    let batch_executor = Box::new(MainBatchExecutor::new(false, false));
+    let batch_executor = MainBatchExecutor::new(false, false);
     let vm_runner = VmRunner::new(
         pool,
         Box::new(io.clone()),
         loader,
         Box::new(output_factory),
-        batch_executor,
+        executor::box_batch_executor(batch_executor),
     );
 
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });

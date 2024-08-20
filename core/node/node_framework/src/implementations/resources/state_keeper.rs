@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
-};
+use zksync_state::OwnedStorage;
+use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
+use zksync_vm_utils::interface::{box_batch_executor, BatchExecutor, BoxBatchExecutor};
 
 use crate::resource::{Resource, Unique};
 
@@ -26,7 +26,7 @@ impl<T: StateKeeperIO> From<T> for StateKeeperIOResource {
 /// A resource that provides [`BatchExecutor`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.
 #[derive(Debug, Clone)]
-pub struct BatchExecutorResource(pub Unique<Box<dyn BatchExecutor>>);
+pub struct BatchExecutorResource(pub Unique<BoxBatchExecutor<OwnedStorage>>);
 
 impl Resource for BatchExecutorResource {
     fn name() -> String {
@@ -34,9 +34,12 @@ impl Resource for BatchExecutorResource {
     }
 }
 
-impl<T: BatchExecutor> From<T> for BatchExecutorResource {
+impl<T> From<T> for BatchExecutorResource
+where
+    T: BatchExecutor<OwnedStorage, Handle: Sized>,
+{
     fn from(executor: T) -> Self {
-        Self(Unique::new(Box::new(executor)))
+        Self(Unique::new(box_batch_executor(executor)))
     }
 }
 

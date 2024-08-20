@@ -1,5 +1,5 @@
-use zksync_state_keeper::MainBatchExecutor;
 use zksync_types::vm::FastVmMode;
+use zksync_vm_utils::batch::MainBatchExecutor;
 
 use crate::{
     implementations::resources::state_keeper::BatchExecutorResource,

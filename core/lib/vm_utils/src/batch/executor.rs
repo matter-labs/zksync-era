@@ -63,7 +63,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Self::Handle {
+    ) -> Box<Self::Handle> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
@@ -76,7 +76,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
 
         let handle =
             tokio::task::spawn_blocking(move || executor.run(storage, l1_batch_params, system_env));
-        MainBatchExecutorHandle::new(handle, commands_sender)
+        Box::new(MainBatchExecutorHandle::new(handle, commands_sender))
     }
 }
 

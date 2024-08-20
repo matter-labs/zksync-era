@@ -1,34 +1,34 @@
 use std::{
     convert::Infallible,
-    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
 use zksync_multivm::{
     interface::{Halt, L1BatchEnv, SystemEnv},
     utils::StorageWritesDeduplicator,
 };
-use zksync_state::ReadStorageFactory;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use super::{
-    batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::gas_count_from_writes,
+    StateKeeperExecutorHandle,
 };
-use crate::seal_criteria::UnexecutableReason;
+use crate::{
+    batch_executor::{StateKeeperExecutor, TxExecutionResult},
+    seal_criteria::UnexecutableReason,
+};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -52,45 +52,6 @@ impl Error {
     }
 }
 
-/// Functionality [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
-/// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
-#[async_trait]
-trait ErasedBatchExecutor: fmt::Debug + Send {
-    async fn init_batch(
-        &mut self,
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<BatchExecutorHandle, Error>;
-}
-
-/// The only [`ErasedBatchExecutor`] implementation.
-#[derive(Debug)]
-struct ErasedBatchExecutorImpl<S> {
-    batch_executor: Box<dyn BatchExecutor<S>>,
-    storage_factory: Arc<dyn ReadStorageFactory<S>>,
-}
-
-#[async_trait]
-impl<S: 'static + fmt::Debug> ErasedBatchExecutor for ErasedBatchExecutorImpl<S> {
-    async fn init_batch(
-        &mut self,
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<BatchExecutorHandle, Error> {
-        let storage = self
-            .storage_factory
-            .access_storage(stop_receiver, l1_batch_env.number - 1)
-            .await
-            .context("failed creating VM storage")?
-            .ok_or(Error::Canceled)?;
-        Ok(self
-            .batch_executor
-            .init_batch(storage, l1_batch_env, system_env))
-    }
-}
-
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
@@ -105,26 +66,22 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    batch_executor: Box<dyn ErasedBatchExecutor>,
+    batch_executor: Box<dyn StateKeeperExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
-    pub fn new<S: 'static + fmt::Debug>(
+    pub fn new(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor: Box<dyn BatchExecutor<S>>,
+        batch_executor: Box<dyn StateKeeperExecutor>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
-        storage_factory: Arc<dyn ReadStorageFactory<S>>,
     ) -> Self {
         Self {
             stop_receiver,
             io: sequencer,
-            batch_executor: Box::new(ErasedBatchExecutorImpl {
-                batch_executor,
-                storage_factory,
-            }),
+            batch_executor,
             output_handler,
             sealer,
         }
@@ -196,15 +153,20 @@ impl ZkSyncStateKeeper {
                 system_env.clone(),
                 &self.stop_receiver,
             )
-            .await?;
-        self.restore_state(&mut batch_executor, &mut updates_manager, pending_l2_blocks)
-            .await?;
+            .await?
+            .ok_or(Error::Canceled)?;
+        self.restore_state(
+            &mut *batch_executor,
+            &mut updates_manager,
+            pending_l2_blocks,
+        )
+        .await?;
 
         let mut l1_batch_seal_delta: Option<Instant> = None;
         while !self.is_canceled() {
             // This function will run until the batch can be sealed.
             self.process_l1_batch(
-                &mut batch_executor,
+                &mut *batch_executor,
                 &mut updates_manager,
                 protocol_upgrade_tx,
             )
@@ -220,12 +182,12 @@ impl ZkSyncStateKeeper {
                 Self::start_next_l2_block(
                     new_l2_block_params,
                     &mut updates_manager,
-                    &mut batch_executor,
+                    &mut *batch_executor,
                 )
                 .await?;
             }
 
-            let finished_batch = batch_executor.finish_batch().await?;
+            let (finished_batch, _) = batch_executor.finish_batch().await?;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
@@ -250,7 +212,8 @@ impl ZkSyncStateKeeper {
                     system_env.clone(),
                     &self.stop_receiver,
                 )
-                .await?;
+                .await?
+                .ok_or(Error::Canceled)?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
             protocol_upgrade_tx = if version_changed {
@@ -418,7 +381,7 @@ impl ZkSyncStateKeeper {
     async fn start_next_l2_block(
         params: L2BlockParams,
         updates_manager: &mut UpdatesManager,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut StateKeeperExecutorHandle,
     ) -> anyhow::Result<()> {
         updates_manager.push_l2_block(params);
         let block_env = updates_manager.l2_block.get_env();
@@ -460,7 +423,7 @@ impl ZkSyncStateKeeper {
     )]
     async fn restore_state(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut StateKeeperExecutorHandle,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
     ) -> Result<(), Error> {
@@ -564,7 +527,7 @@ impl ZkSyncStateKeeper {
     )]
     async fn process_l1_batch(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut StateKeeperExecutorHandle,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
     ) -> Result<(), Error> {
@@ -692,7 +655,7 @@ impl ZkSyncStateKeeper {
 
     async fn process_upgrade_tx(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut StateKeeperExecutorHandle,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: ProtocolUpgradeTx,
     ) -> anyhow::Result<()> {
@@ -759,7 +722,7 @@ impl ZkSyncStateKeeper {
     #[tracing::instrument(skip_all)]
     async fn process_one_tx(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut StateKeeperExecutorHandle,
         updates_manager: &mut UpdatesManager,
         tx: Transaction,
     ) -> anyhow::Result<(SealResolution, TxExecutionResult)> {

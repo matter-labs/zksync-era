@@ -307,6 +307,10 @@ pub struct BatchTransactionExecutionResult {
 }
 
 impl BatchTransactionExecutionResult {
+    pub fn was_halted(&self) -> bool {
+        matches!(self.tx_result.result, ExecutionResult::Halt { .. })
+    }
+
     pub fn into_high_level(self, transaction: Transaction) -> TransactionExecutionResult {
         let Self {
             tx_result,

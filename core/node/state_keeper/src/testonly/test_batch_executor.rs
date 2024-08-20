@@ -13,10 +13,13 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
-    interface::{ExecutionResult, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
+    interface::{
+        executor::BatchExecutorHandle, storage::StorageViewCache, ExecutionResult, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
@@ -27,15 +30,14 @@ use zksync_types::{
 };
 
 use crate::{
-    batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
+    batch_executor::TxExecutionResult,
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
-    testonly::{
-        default_vm_batch_result, storage_view_cache, successful_exec, BASE_SYSTEM_CONTRACTS,
-    },
+    testonly::{default_vm_batch_result, successful_exec, BASE_SYSTEM_CONTRACTS},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
+    OutputHandler, StateKeeperExecutor, StateKeeperExecutorHandle, StateKeeperOutputHandler,
+    ZkSyncStateKeeper,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -207,7 +209,6 @@ impl TestScenario {
             Box::new(batch_executor_base),
             output_handler,
             Arc::new(sealer),
-            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -410,31 +411,22 @@ impl TestBatchExecutorBuilder {
     }
 }
 
-impl BatchExecutor<()> for TestBatchExecutorBuilder {
-    fn init_batch(
+#[async_trait]
+impl StateKeeperExecutor for TestBatchExecutorBuilder {
+    async fn init_batch(
         &mut self,
-        _storage: (),
-        _l1_batch_params: L1BatchEnv,
+        _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
-        let (commands_sender, commands_receiver) = mpsc::channel(1);
-
-        let executor = TestBatchExecutor::new(
-            commands_receiver,
-            self.txs.pop_front().unwrap(),
-            self.rollback_set.clone(),
-        );
-        let handle = tokio::task::spawn_blocking(move || {
-            executor.run();
-            Ok(())
-        });
-        BatchExecutorHandle::from_raw(handle, commands_sender)
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<Box<StateKeeperExecutorHandle>>> {
+        let handle =
+            TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
+        Ok(Some(Box::new(handle)))
     }
 }
 
 #[derive(Debug)]
 pub(super) struct TestBatchExecutor {
-    commands: mpsc::Receiver<Command>,
     /// Mapping tx -> response.
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
     txs: HashMap<H256, VecDeque<TxExecutionResult>>,
@@ -446,64 +438,57 @@ pub(super) struct TestBatchExecutor {
 
 impl TestBatchExecutor {
     pub(super) fn new(
-        commands: mpsc::Receiver<Command>,
         txs: HashMap<H256, VecDeque<TxExecutionResult>>,
         rollback_set: HashSet<H256>,
     ) -> Self {
         Self {
-            commands,
             txs,
             rollback_set,
             last_tx: H256::default(), // We don't expect rollbacks until the first tx is executed.
         }
     }
+}
 
-    pub(super) fn run(mut self) {
-        while let Some(cmd) = self.commands.blocking_recv() {
-            match cmd {
-                Command::ExecuteTx(tx, resp) => {
-                    let result = self
-                        .txs
-                        .get_mut(&tx.hash())
-                        .unwrap()
-                        .pop_front()
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "Received a request to execute an unknown transaction: {:?}",
-                                tx
-                            )
-                        });
-                    resp.send(result).unwrap();
-                    self.last_tx = tx.hash();
-                }
-                Command::StartNextL2Block(_, resp) => {
-                    resp.send(()).unwrap();
-                }
-                Command::RollbackLastTx(resp) => {
-                    // This is an additional safety check: IO would check that every rollback is included in the
-                    // test scenario, but here we want to additionally check that each such request goes to the
-                    // the batch executor as well.
-                    if !self.rollback_set.contains(&self.last_tx) {
-                        // Request to rollback an unexpected tx.
-                        panic!(
-                            "Received a request to rollback an unexpected tx. Last executed tx: {:?}",
-                            self.last_tx
-                        )
-                    }
-                    resp.send(()).unwrap();
-                    // It's OK to not update `last_executed_tx`, since state keeper never should rollback more than 1
-                    // tx in a row, and it's going to cause a panic anyway.
-                }
-                Command::FinishBatch(resp) => {
-                    // Blanket result, it doesn't really matter.
-                    resp.send(default_vm_batch_result()).unwrap();
-                    return;
-                }
-                Command::FinishBatchWithCache(resp) => resp
-                    .send((default_vm_batch_result(), storage_view_cache()))
-                    .unwrap(),
-            }
+#[async_trait]
+impl BatchExecutorHandle<TxExecutionResult> for TestBatchExecutor {
+    async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
+        let result = self
+            .txs
+            .get_mut(&tx.hash())
+            .unwrap()
+            .pop_front()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Received a request to execute an unknown transaction: {:?}",
+                    tx
+                )
+            });
+        self.last_tx = tx.hash();
+        Ok(result)
+    }
+
+    async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
+        // This is an additional safety check: IO would check that every rollback is included in the
+        // test scenario, but here we want to additionally check that each such request goes to the
+        // the batch executor as well.
+        if !self.rollback_set.contains(&self.last_tx) {
+            // Request to rollback an unexpected tx.
+            panic!(
+                "Received a request to rollback an unexpected tx. Last executed tx: {:?}",
+                self.last_tx
+            )
         }
+        // It's OK to not update `last_executed_tx`, since state keeper never should rollback more than 1
+        // tx in a row, and it's going to cause a panic anyway.
+        Ok(())
+    }
+
+    async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
+        Ok((default_vm_batch_result(), StorageViewCache::default()))
     }
 }
 

@@ -3,10 +3,13 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::L2BlockEnv;
+use zksync_multivm::interface::{
+    executor::{BatchExecutorHandle, BoxBatchExecutor},
+    BatchTransactionExecutionResult, L2BlockEnv,
+};
+use zksync_state::OwnedStorage;
 use zksync_state_keeper::{
-    BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
-    StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
+    ExecutionMetricsForCriteria, L2BlockParams, StateKeeperOutputHandler, UpdatesManager,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 
@@ -29,7 +32,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_processor: Box<dyn BatchExecutor>,
+    batch_processor: BoxBatchExecutor<OwnedStorage>,
 }
 
 impl VmRunner {
@@ -44,7 +47,7 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_processor: Box<dyn BatchExecutor>,
+        batch_processor: BoxBatchExecutor<OwnedStorage>,
     ) -> Self {
         Self {
             pool,
@@ -56,7 +59,7 @@ impl VmRunner {
     }
 
     async fn process_batch(
-        mut batch_executor: BatchExecutorHandle,
+        mut batch_executor: Box<dyn BatchExecutorHandle>,
         l2_blocks: Vec<L2BlockExecutionData>,
         mut updates_manager: UpdatesManager,
         mut output_handler: Box<dyn StateKeeperOutputHandler>,
@@ -82,27 +85,28 @@ impl VmRunner {
                     .execute_tx(tx.clone())
                     .await
                     .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
-                let TxExecutionResult::Success {
+                anyhow::ensure!(
+                    !exec_result.was_halted(),
+                    "Unexpected non-successful transaction"
+                );
+
+                let BatchTransactionExecutionResult {
                     tx_result,
-                    tx_metrics,
-                    call_tracer_result,
                     compressed_bytecodes,
+                    call_traces,
                     ..
-                } = exec_result
-                else {
-                    anyhow::bail!("Unexpected non-successful transaction");
-                };
-                let ExecutionMetricsForCriteria {
-                    l1_gas: tx_l1_gas_this_tx,
-                    execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
+                } = exec_result;
+                let tx_execution_metrics = tx_result.get_execution_metrics(Some(&tx));
+                // FIXME: try removing dependency on `UpdatesManager`
+                let tx_l1_gas_this_tx =
+                    ExecutionMetricsForCriteria::new(Some(&tx), &tx_result).l1_gas;
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
                     compressed_bytecodes,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
-                    call_tracer_result,
+                    call_traces,
                 );
             }
             output_handler
@@ -112,7 +116,7 @@ impl VmRunner {
         }
 
         let (finished_batch, storage_view_cache) = batch_executor
-            .finish_batch_with_cache()
+            .finish_batch()
             .await
             .context("Failed getting storage view cache")?;
         updates_manager.finish_batch(finished_batch);

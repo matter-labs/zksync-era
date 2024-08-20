@@ -38,7 +38,7 @@ use crate::{
         successful_exec,
         test_batch_executor::{
             random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_metrics,
-            MockReadStorageFactory, TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
+            TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
         },
         BASE_SYSTEM_CONTRACTS,
     },
@@ -437,7 +437,6 @@ async fn load_upgrade_tx() {
         Box::new(batch_executor_base),
         output_handler,
         Arc::new(sealer),
-        Arc::new(MockReadStorageFactory),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

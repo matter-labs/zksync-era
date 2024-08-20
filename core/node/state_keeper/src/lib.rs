@@ -10,9 +10,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::L2ChainId;
 
 pub use self::{
-    batch_executor::{
-        main_executor::MainBatchExecutor, BatchExecutor, BatchExecutorHandle, TxExecutionResult,
-    },
+    batch_executor::{MainStateKeeperExecutor, StateKeeperExecutor, StateKeeperExecutorHandle},
     io::{
         mempool::MempoolIO, L2BlockParams, L2BlockSealerTask, OutputHandler, StateKeeperIO,
         StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
@@ -52,8 +50,11 @@ pub async fn create_state_keeper(
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(state_keeper_config.save_call_traces, false);
-
+    let executor = MainStateKeeperExecutor::new(
+        state_keeper_config.save_call_traces,
+        false,
+        Arc::new(async_cache),
+    );
     let io = MempoolIO::new(
         mempool,
         batch_fee_input_provider,
@@ -70,9 +71,8 @@ pub async fn create_state_keeper(
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
-        Box::new(batch_executor_base),
+        Box::new(executor),
         output_handler,
         Arc::new(sealer),
-        Arc::new(async_cache),
     )
 }
