@@ -4,12 +4,12 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
-    Connection, PgConnection,
+    ConnectOptions, Connection, PgConnection,
 };
 use url::Url;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
-use crate::{cmd::Cmd, config::global_config, logger};
+use crate::{config::global_config, logger};
 
 /// Database configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,13 +148,10 @@ pub async fn migrate_db(
     Ok(())
 }
 
-pub async fn wait_for_db(shell: &Shell, db_url: &Url, tries: u32) -> anyhow::Result<()> {
-    let url = db_url.as_str();
+pub async fn wait_for_db(db_url: &Url, tries: u32) -> anyhow::Result<()> {
     for i in 0..tries {
-        if let Ok(out) = Cmd::new(cmd!(shell, "pg_isready -d {url}")).run_with_output() {
-            if out.status.success() {
-                return Ok(());
-            }
+        if PgConnection::connect(db_url.as_str()).await.is_ok() {
+            return Ok(());
         }
         if i < tries - 1 {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;

@@ -45,7 +45,7 @@ pub fn get_dals(shell: &Shell, selected_dals: &SelectedDals) -> anyhow::Result<V
 
 pub fn get_test_dals(shell: &Shell) -> anyhow::Result<Vec<Dal>> {
     let mut dals = vec![];
-    dals.push(get_test_prover_dal(shell)?);
+    //dals.push(get_test_prover_dal(shell)?);
     dals.push(get_test_core_dal(shell)?);
 
     Ok(dals)

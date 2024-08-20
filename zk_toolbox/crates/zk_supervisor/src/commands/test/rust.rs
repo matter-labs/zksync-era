@@ -86,7 +86,9 @@ async fn reset_test_databases(shell: &Shell) -> anyhow::Result<()> {
     .run()?;
 
     for dal in get_test_dals(shell)? {
-        wait_for_db(shell, &dal.url.clone(), 3).await?;
+        let mut url = dal.url.clone();
+        url.set_path("");
+        wait_for_db(&url, 3).await?;
         database::reset::reset_database(shell, ecosystem.link_to_code.clone(), dal.clone()).await?;
     }
 
