@@ -11,11 +11,12 @@ use common::{
 use config::EcosystemConfig;
 use messages::{
     msg_global_chain_does_not_exist, MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT,
-    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT,
+    MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
-use crate::commands::clean::CleanCommands;
+use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod dals;
@@ -38,10 +39,12 @@ enum SupervisorSubcommands {
     Test(TestCommands),
     #[command(subcommand, about = MSG_SUBCOMMAND_CLEAN)]
     Clean(CleanCommands),
-    #[command(subcommand, about = "Snapshots creator")]
+    #[command(subcommand, about = MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT)]
     Snapshot(SnapshotCommands),
     #[command(about = MSG_SUBCOMMAND_LINT_ABOUT, alias = "l")]
     Lint(LintArgs),
+    #[command(about = MSG_SUBCOMMAND_FMT_ABOUT)]
+    Fmt(FmtArgs),
     #[command(hide = true)]
     Markdown,
 }
@@ -99,6 +102,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
             clap_markdown::print_help_markdown::<Supervisor>();
         }
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
+        SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
     }
     Ok(())
 }

@@ -12,8 +12,8 @@ use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_ar
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataDA, Address,
-    L1BatchNumber, ProtocolVersion, H256,
+    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataDA,
+    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
 };
 
 use crate::{
@@ -264,6 +264,7 @@ impl EthSenderTester {
             Address::random(),
             Default::default(),
             custom_commit_sender_addr,
+            SettlementMode::SettlesToL1,
         )
         .await;
 

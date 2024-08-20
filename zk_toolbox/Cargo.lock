@@ -6295,6 +6295,7 @@ dependencies = [
  "clap-markdown",
  "common",
  "config",
+ "futures",
  "human-panic",
  "serde",
  "strum",
