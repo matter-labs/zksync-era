@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
@@ -178,7 +178,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     ),
 ];
 
-static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
+static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
     hash_bytecode(&read_sys_contract_bytecode(
         "",
         "EvmInterpreter",
@@ -186,8 +186,8 @@ static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
     ))
 });
 
-pub fn get_evm_interpreter_hash() -> H256 {
-    EVM_INTERPRETER_HASH.clone()
+pub fn get_evm_simulator_hash() -> H256 {
+    EVM_SIMULATOR_HASH.clone()
 }
 
 static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {

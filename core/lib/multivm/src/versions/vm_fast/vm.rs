@@ -357,6 +357,12 @@ impl<S: ReadStorage> Vm<S> {
             .hash
             .into();
 
+        let evm_simulator_code_hash = system_env
+            .base_system_smart_contracts
+            .evm_simulator
+            .hash
+            .into();
+
         let program_cache = HashMap::from([convert_system_contract_code(
             &system_env.base_system_smart_contracts.default_aa,
             false,
@@ -375,7 +381,7 @@ impl<S: ReadStorage> Vm<S> {
             Settings {
                 default_aa_code_hash,
                 // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
+                evm_interpreter_code_hash: evm_simulator_code_hash,
                 hook_address: get_vm_hook_position(VM_VERSION) * 32,
             },
         );
