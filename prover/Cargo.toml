@@ -81,6 +81,7 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
+zksync_periodic_job = { path = "../core/lib/periodic_job" }
 
 # Prover workspace dependencies
 zksync_prover_dal = { path = "crates/lib/prover_dal" }
