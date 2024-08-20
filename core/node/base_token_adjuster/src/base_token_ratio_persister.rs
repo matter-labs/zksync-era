@@ -83,51 +83,51 @@ impl BaseTokenRatioPersister {
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;
 
-        if let Some(l1_params) = &self.l1_params {
-            let max_attempts = self.config.l1_tx_sending_max_attempts;
-            let sleep_duration = self.config.l1_tx_sending_sleep_duration();
-            let mut result: anyhow::Result<()> = Ok(());
-            let mut prev_base_fee_per_gas: Option<u64> = None;
-            let mut prev_priority_fee_per_gas: Option<u64> = None;
+        let Some(l1_params) = &self.l1_params else {
+            return Ok(());
+        };
 
-            for attempt in 0..max_attempts {
-                let (base_fee_per_gas, priority_fee_per_gas) =
-                    self.get_eth_fees(&l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
+        let max_attempts = self.config.l1_tx_sending_max_attempts;
+        let sleep_duration = self.config.l1_tx_sending_sleep_duration();
+        let mut result: anyhow::Result<()> = Ok(());
+        let mut prev_base_fee_per_gas: Option<u64> = None;
+        let mut prev_priority_fee_per_gas: Option<u64> = None;
 
-                result = self
-                    .send_ratio_to_l1(
-                        &l1_params,
-                        new_ratio,
-                        base_fee_per_gas,
-                        priority_fee_per_gas,
-                    )
-                    .await;
-                if let Some(err) = result.as_ref().err() {
-                    tracing::info!(
-                    "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
-                    attempt + 1,
+        for attempt in 0..max_attempts {
+            let (base_fee_per_gas, priority_fee_per_gas) =
+                self.get_eth_fees(&l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
+
+            result = self
+                .send_ratio_to_l1(
+                    &l1_params,
+                    new_ratio,
                     base_fee_per_gas,
                     priority_fee_per_gas,
-                    err
-                );
-                    tokio::time::sleep(sleep_duration).await;
-                    prev_base_fee_per_gas = Some(base_fee_per_gas);
-                    prev_priority_fee_per_gas = Some(priority_fee_per_gas);
-                } else {
-                    tracing::info!(
-                    "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
-                    new_ratio.numerator.get(),
-                    new_ratio.denominator.get(),
-                    base_fee_per_gas,
-                    priority_fee_per_gas
-                );
-                    return result;
-                }
+                )
+                .await;
+            if let Some(err) = result.as_ref().err() {
+                tracing::info!(
+                "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                attempt + 1,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                err
+            );
+                tokio::time::sleep(sleep_duration).await;
+                prev_base_fee_per_gas = Some(base_fee_per_gas);
+                prev_priority_fee_per_gas = Some(priority_fee_per_gas);
+            } else {
+                tracing::info!(
+                "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                new_ratio.numerator.get(),
+                new_ratio.denominator.get(),
+                base_fee_per_gas,
+                priority_fee_per_gas
+            );
+                return result;
             }
-            result
-        } else {
-            Ok(())
         }
+        result
     }
 
     fn get_eth_fees(

@@ -83,29 +83,31 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             .base_token_addr
             .expect("base token address is not set");
 
-        let mut l1_params: Option<BaseTokenRatioPersisterL1Params> = None;
-        if let Some(token_multiplier_setter) = self.wallets_config.token_multiplier_setter {
-            let tms_private_key = token_multiplier_setter.wallet.private_key();
-            let tms_address = token_multiplier_setter.wallet.address();
-            let EthInterfaceResource(query_client) = input.eth_client;
+        let l1_params =
+            self.wallets_config
+                .token_multiplier_setter
+                .map(|token_multiplier_setter| {
+                    let tms_private_key = token_multiplier_setter.wallet.private_key();
+                    let tms_address = token_multiplier_setter.wallet.address();
+                    let EthInterfaceResource(query_client) = input.eth_client;
 
-            let signing_client = PKSigningClient::new_raw(
-                tms_private_key.clone(),
-                self.contracts_config.diamond_proxy_addr,
-                self.config.default_priority_fee_per_gas,
-                #[allow(clippy::useless_conversion)]
-                self.l1_chain_id.into(),
-                query_client.clone().for_component("base_token_adjuster"),
-            );
-            l1_params = Some(BaseTokenRatioPersisterL1Params {
-                eth_client: Box::new(signing_client),
-                gas_adjuster: input.tx_params.0,
-                token_multiplier_setter_account_address: tms_address,
-                chain_admin_contract: chain_admin_contract(),
-                diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
-                chain_admin_contract_address: self.contracts_config.chain_admin_addr,
-            });
-        }
+                    let signing_client = PKSigningClient::new_raw(
+                        tms_private_key.clone(),
+                        self.contracts_config.diamond_proxy_addr,
+                        self.config.default_priority_fee_per_gas,
+                        #[allow(clippy::useless_conversion)]
+                        self.l1_chain_id.into(),
+                        query_client.clone().for_component("base_token_adjuster"),
+                    );
+                    BaseTokenRatioPersisterL1Params {
+                        eth_client: Box::new(signing_client),
+                        gas_adjuster: input.tx_params.0,
+                        token_multiplier_setter_account_address: tms_address,
+                        chain_admin_contract: chain_admin_contract(),
+                        diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
+                        chain_admin_contract_address: self.contracts_config.chain_admin_addr,
+                    }
+                });
 
         let persister = BaseTokenRatioPersister::new(
             master_pool,
