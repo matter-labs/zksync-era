@@ -1,13 +1,9 @@
-use zksync_basic_types::{
-    ethabi::{Address, Token},
-    L1BatchNumber,
-};
+use zksync_basic_types::{ethabi, L1BatchNumber};
 use zksync_concurrency::ctx::Ctx;
 use zksync_contracts::{consensus_l2_contracts, TestContract};
 use zksync_state_keeper::testonly::fee;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{Execute, Transaction};
-
 use crate::{storage::ConnectionPool, testonly::StateKeeper};
 
 /// A struct for writing to consensus L2 contracts.
@@ -26,12 +22,12 @@ impl VMWriter {
         pool: ConnectionPool,
         node: StateKeeper,
         mut account: Account,
-        owner: Address,
+        owner: ethabi::Address,
     ) -> Self {
         let registry_contract = consensus_l2_contracts::load_consensus_registry_contract_in_test();
         let deploy_tx = account.get_deploy_tx_with_factory_deps(
             &registry_contract.bytecode,
-            Some(&[Token::Address(owner)]),
+            Some(&owner.into_tokens()),
             vec![],
             TxType::L2,
         );
@@ -52,28 +48,20 @@ impl VMWriter {
         self.node.push_block(&txs).await
     }
 
-    pub async fn add_nodes(&mut self, nodes: &[&[Token]]) {
-        let mut txs: Vec<Transaction> = vec![];
-        for node in nodes {
-            let tx = self.gen_tx_add(node);
-            txs.push(tx);
-        }
+    pub async fn add_nodes(&mut self, nodes: &[&[ethabi::Token]]) {
+        let txs: Vec<_> = nodes.iter().map(|n|self.gen_tx_add(n)).collect();
         self.node.push_block(&txs).await
     }
 
     pub async fn set_committees(&mut self) {
-        let mut txs: Vec<Transaction> = vec![];
-        txs.push(self.gen_tx_set_validator_committee());
-        txs.push(self.gen_tx_set_attester_committee());
-        self.node.push_block(&txs).await
+        self.node.push_block(&[
+            self.gen_tx_set_validator_committee(),
+            self.gen_tx_set_attester_committee(),
+        ]).await
     }
 
-    pub async fn remove_nodes(&mut self, nodes: &[&[Token]]) {
-        let mut txs: Vec<Transaction> = vec![];
-        for node in nodes {
-            let tx = self.gen_tx_remove(&vec![node[0].clone()]);
-            txs.push(tx);
-        }
+    pub async fn remove_nodes(&mut self, nodes: &[&[ethabi::Token]]) {
+        let txs: Vec<_> = nodes.iter().map(|n|self.gen_tx_remove(n)).collect();
         self.node.push_block(&txs).await
     }
 
@@ -86,7 +74,7 @@ impl VMWriter {
             .l1_batch_number
     }
 
-    fn gen_tx_add(&mut self, input: &[Token]) -> Transaction {
+    fn gen_tx_add(&mut self, input: &[ethabi::Token]) -> Transaction {
         let calldata = self
             .registry_contract
             .contract
@@ -97,7 +85,7 @@ impl VMWriter {
         self.gen_tx(self.deploy_tx.address, calldata)
     }
 
-    fn gen_tx_remove(&mut self, input: &[Token]) -> Transaction {
+    fn gen_tx_remove(&mut self, input: &[ethabi::Token]) -> Transaction {
         let calldata = self
             .registry_contract
             .contract
@@ -120,17 +108,17 @@ impl VMWriter {
     }
 
     fn gen_tx_set_attester_committee(&mut self) -> Transaction {
-        let calldata = self
+        let input = self
             .registry_contract
             .contract
             .function("setAttesterCommittee")
             .unwrap()
-            .short_signature()
-            .to_vec();
-        self.gen_tx(self.deploy_tx.address, calldata)
+            .encode_input(&[])
+            .unwrap();
+        self.gen_tx(self.deploy_tx.address, input)
     }
 
-    fn gen_tx(&mut self, contract_address: Address, calldata: Vec<u8>) -> Transaction {
+    fn gen_tx(&mut self, contract_address: ethabi::Address, calldata: Vec<u8>) -> Transaction {
         self.account.get_l2_tx_for_execute(
             Execute {
                 contract_address,

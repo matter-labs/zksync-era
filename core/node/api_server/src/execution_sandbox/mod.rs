@@ -166,7 +166,7 @@ async fn get_pending_state(
 
 /// Arguments for VM execution not specific to a particular transaction.
 #[derive(Debug, Clone)]
-pub(crate) struct TxSharedArgs {
+pub struct TxSharedArgs {
     pub operator_account: AccountTreeId,
     pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,

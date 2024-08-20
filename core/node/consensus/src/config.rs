@@ -10,7 +10,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
-use zksync_consensus_roles::{attester, node, validator, validator::Signature};
+use zksync_consensus_roles::{attester, node, validator};
 
 fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())

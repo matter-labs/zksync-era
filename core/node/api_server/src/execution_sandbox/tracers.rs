@@ -10,7 +10,7 @@ use zksync_multivm::{
 
 /// Custom tracers supported by our API
 #[derive(Debug)]
-pub(crate) enum ApiTracer {
+pub enum ApiTracer {
     CallTracer(Arc<OnceCell<Vec<Call>>>),
 }
 

@@ -164,17 +164,17 @@ impl<'a> Connection<'a> {
             .map_err(E::Other)?)
     }
 
-    /// Wrapper for `consensus_dal().insert_batch_committee()`.
+    /// Wrapper for `consensus_dal().insert_attester_committee()`.
     pub async fn insert_batch_committee(
         &mut self,
         ctx: &ctx::Ctx,
         number: BatchNumber,
-        committee: consensus_dal::AttesterCommittee,
+        committee: &attester::Committee,
     ) -> ctx::Result<()> {
         ctx.wait(
             self.0
                 .consensus_dal()
-                .insert_batch_committee(number, committee),
+                .insert_attester_committee(number, committee),
         )
         .await??;
         Ok(())

@@ -4,14 +4,15 @@ use anyhow::Context;
 use zksync_basic_types::web3::contract::{Detokenize, Tokenize};
 use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
 use zksync_contracts::consensus_l2_contracts;
+use zksync_consensus_roles::attester;
 use zksync_node_api_server::{
     execution_sandbox::{BlockArgs, BlockStartInfo},
     tx_sender::TxSender,
 };
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    api::BlockId,
-    ethabi::{Address, Contract},
+    api,
+    ethabi,
     fee::Fee,
     l2::L2Tx,
     transaction_request::CallOverrides,
@@ -19,7 +20,7 @@ use zksync_types::{
 };
 
 use crate::storage::{
-    registry_contract::abi::{CommitteeAttester, CommitteeValidator},
+    registry_contract::abi,
     ConnectionPool,
 };
 
@@ -28,52 +29,52 @@ use crate::storage::{
 pub struct VMReader {
     pool: ConnectionPool,
     tx_sender: TxSender,
-    registry_contract: Contract,
-    registry_address: Address,
+    registry_contract: ethabi::Contract,
+    registry_address: ethabi::Address,
+    // contract functions:
+    attester_committee_size: ethabi::Function,
+    attester_committee: ethabi::Function,
 }
 
 #[allow(dead_code)]
 impl VMReader {
     /// Constructs a new `VMReader` instance.
-    pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: Address) -> Self {
-        let registry_contract = consensus_l2_contracts::load_consensus_registry_contract();
+    pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: ethabi::Address) -> Self {
+        let c = consensus_l2_contracts::load_consensus_registry_contract();
         Self {
             pool,
             tx_sender,
-            registry_contract,
+            attester_committee_size: c.function("attesterCommitteeSize").context("attesterCommitteeSize")?.clone(),
+            attester_committee : c.function("attesterCommittee").context("attesterCommittee")?.clone(),
+            registry_contract: c,
             registry_address,
         }
     }
 
-    /// Reads validator and attester committees from the registry contract.
+    /// Reads attester committee from the registry contract.
     /// It's implemented by dispatching multiple read transactions (a.k.a. `eth_call` requests),
     /// each one carries an instantiation of a separate VM execution sandbox.
     // TODO(moshababo|BFT-493): optimize this process to reuse a single execution sandbox
     // across one or multiple read sessions.
-    pub async fn read_committees(
+    pub async fn read_attester_committee(
         &self,
         ctx: &Ctx,
-        block_id: BlockId,
-    ) -> anyhow::Result<(Vec<CommitteeValidator>, Vec<CommitteeAttester>)> {
+        // wtf is this?
+        block_id: api::BlockId,
+    ) -> anyhow::Result<attester::Committee> {
         let block_args = self
             .block_args(ctx, block_id)
             .await
             .context("block_args()")?;
-        let validator_committee = self
-            .read_validator_committee(block_args)
-            .await
-            .context("read_validator_committee()")?;
-        let attester_committee = self
+        self
             .read_attester_committee(block_args)
             .await
-            .context("read_attester_committee()")?;
-
-        Ok((validator_committee, attester_committee))
+            .context("read_attester_committee()")
     }
 
-    pub async fn block_args(&self, ctx: &Ctx, block_id: BlockId) -> anyhow::Result<BlockArgs> {
+    pub async fn block_args(&self, ctx: &Ctx, block_id: api::BlockId) -> anyhow::Result<BlockArgs> {
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
-        let start_info = BlockStartInfo::new(&mut conn, Duration::from_secs(10))
+        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ Duration::from_secs(10))
             .await
             .unwrap();
 
@@ -82,146 +83,34 @@ impl VMReader {
             .context("BlockArgs::new")
     }
 
-    pub async fn contract_deployed(&self, block_args: BlockArgs) -> bool {
-        let func = self
-            .registry_contract
-            .function("attesterCommitteeSize")
-            .unwrap()
-            .clone();
-
-        let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
-
-        let res = self.eth_call(block_args, tx).await;
-        res.len() > 0
-    }
-
-    pub async fn read_validator_committee(
-        &self,
-        block_args: BlockArgs,
-    ) -> anyhow::Result<Vec<CommitteeValidator>> {
-        let mut committee = vec![];
-        let validator_committee_size = self
-            .read_validator_committee_size(block_args)
-            .await
-            .context("read_validator_committee_size()")?;
-        for i in 0..validator_committee_size {
-            let committee_validator = self
-                .read_committee_validator(block_args, i)
-                .await
-                .context("read_committee_validator()")?;
-            committee.push(committee_validator)
-        }
-        Ok(committee)
+    pub async fn contract_deployed(&self, args: BlockArgs) -> bool {
+        self.read_attester_committee_size(args).await.is_ok()
     }
 
     pub async fn read_attester_committee(
         &self,
-        block_args: BlockArgs,
-    ) -> anyhow::Result<Vec<CommitteeAttester>> {
+        args: BlockArgs,
+    ) -> anyhow::Result<attester::Committee> {
+        let n = self.read_attester_committee_size(args).await.context("read_attester_committee_size()")?;
         let mut committee = vec![];
-        let attester_committee_size = self
-            .read_attester_committee_size(block_args)
-            .await
-            .context("read_attester_committee_size()")?;
-        for i in 0..attester_committee_size {
-            let committee_validator = self
-                .read_committee_attester(block_args, i)
-                .await
-                .context("read_committee_attester()")?;
-            committee.push(committee_validator)
+        for i in 0..n {
+            committee.push(self.read_attester(args, i).await.with_context(||format!("read_attester({i})"))?);
         }
-        Ok(committee)
+        attester::Committee::new(committee.into_iter()).context("attester::Committee::new()")
     }
 
-    async fn read_validator_committee_size(&self, block_args: BlockArgs) -> anyhow::Result<usize> {
-        let func = self
-            .registry_contract
-            .function("validatorCommitteeSize")
-            .unwrap()
-            .clone();
-
-        let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
-
-        let res = self.eth_call(block_args, tx).await;
-
-        let tokens = func.decode_output(&res).context("decode_output()")?;
-        U256::from_tokens(tokens)
-            .context("U256::from_tokens()")
-            .map(|t| t.as_usize())
+    async fn read_attester_committee_size(&self, args: BlockArgs) -> anyhow::Result<usize> {
+        self.call::<U256>(args, &self.attester_committee_size, ())?.try_into().context("overflow")
     }
 
-    async fn read_attester_committee_size(&self, block_args: BlockArgs) -> anyhow::Result<usize> {
-        let func = self
-            .registry_contract
-            .function("attesterCommitteeSize")
-            .unwrap()
-            .clone();
-        let tx = self.gen_l2_call_tx(self.registry_address, func.short_signature().to_vec());
-
-        let res = self.eth_call(block_args, tx).await;
-        let tokens = func.decode_output(&res).context("decode_output()")?;
-        U256::from_tokens(tokens)
-            .context("U256::from_tokens()")
-            .map(|t| t.as_usize())
+    async fn read_attester(&self, args: BlockArgs, i: usize) -> anyhow::Result<attester::WeightedAttester> {
+        self.call::<abi::Attester>(args, &self.attester_committee, U256::from(i))?.parse()
     }
 
-    async fn read_committee_validator(
-        &self,
-        block_args: BlockArgs,
-        idx: usize,
-    ) -> anyhow::Result<CommitteeValidator> {
-        let func = self
-            .registry_contract
-            .function("validatorCommittee")
-            .unwrap()
-            .clone();
-        let tx = self.gen_l2_call_tx(
+    async fn call<Output: Detokenize>(&self, args: BlockArgs, func: &ethabi::Function, input: impl Tokenize) -> anyhow::Result<Output> {
+        let tx = L2Tx::new(
             self.registry_address,
-            func.encode_input(&zksync_types::U256::from(idx).into_tokens())
-                .unwrap(),
-        );
-
-        let res = self.eth_call(block_args, tx).await;
-        let tokens = func.decode_output(&res).context("decode_output()")?;
-        CommitteeValidator::from_tokens(tokens).context("CommitteeValidator::from_tokens()")
-    }
-
-    async fn read_committee_attester(
-        &self,
-        block_args: BlockArgs,
-        idx: usize,
-    ) -> anyhow::Result<CommitteeAttester> {
-        let func = self
-            .registry_contract
-            .function("attesterCommittee")
-            .unwrap()
-            .clone();
-
-        let tx = self.gen_l2_call_tx(
-            self.registry_address,
-            func.encode_input(&zksync_types::U256::from(idx).into_tokens())
-                .unwrap(),
-        );
-
-        let res = self.eth_call(block_args, tx).await;
-        let tokens = func.decode_output(&res).context("decode_output()")?;
-        CommitteeAttester::from_tokens(tokens).context("CommitteeAttester::from_tokens()")
-    }
-
-    async fn eth_call(&self, block_args: BlockArgs, tx: L2Tx) -> Vec<u8> {
-        let call_overrides = CallOverrides {
-            enforced_base_fee: None,
-        };
-        self.tx_sender
-            .eth_call(block_args, call_overrides, tx, None)
-            .await
-            .unwrap()
-    }
-
-    fn gen_l2_call_tx(&self, contract_address: Address, calldata: Vec<u8>) -> L2Tx {
-        L2Tx::new(
-            contract_address,
-            calldata,
+            func.encode_input(&input.into_tokens()),
             Nonce(0),
             Fee {
                 gas_limit: U256::from(2000000000u32),
@@ -229,10 +118,13 @@ impl VMReader {
                 max_priority_fee_per_gas: U256::zero(),
                 gas_per_pubdata_limit: U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE),
             },
-            Address::zero(),
+            ethabi::Address::zero(),
             U256::zero(),
             vec![],
             Default::default(),
-        )
+        );
+        let overrides = CallOverrides { enforced_base_fee: None };
+        let output = self.tx_sender.eth_call(args, overrides, tx, None).await.context("tx_sender.eth_call()");
+        Output::from_tokens(func.decode_output(&output).context("decode_output()")?).context("Output::from_tokens()")
     }
 }

@@ -1,21 +1,16 @@
 //! Storage test helpers.
-
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, ctx::Ctx, error::Wrap as _, time};
+use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, validator};
-use zksync_contracts::{consensus_l2_contracts, BaseSystemContracts, TestContract};
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts};
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
-use zksync_state_keeper::testonly::fee;
-use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
-    ethabi::{Address, Contract, Token},
     protocol_version::ProtocolSemanticVersion,
     system_contracts::get_system_smart_contracts,
-    Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
 use super::{Connection, ConnectionPool};

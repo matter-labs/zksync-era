@@ -1,11 +1,11 @@
 use anyhow::Context;
-use zksync_concurrency::{ctx, ctx::Ctx, scope, time};
+use zksync_concurrency::{ctx, ctx::Ctx, scope};
 use zksync_consensus_roles::{attester, validator};
-use zksync_dal::consensus_dal;
 use zksync_node_api_server::execution_sandbox::BlockArgs;
+use zksync_types::api;
 
 use crate::storage::{
-    registry_contract::{abi::CommitteeAttester, vm_reader::VMReader},
+    registry_contract::{vm_reader::VMReader},
     ConnectionPool,
 };
 
@@ -37,54 +37,24 @@ impl CommitteeExtractor {
         }
     }
 
-    async fn batch_max_l2_block_args(
-        &mut self,
-        ctx: &Ctx,
-        batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<BlockArgs> {
-        let max_l2_block = self
-            .get_max_l2_block_of_l1_batch(ctx, batch_number)
-            .await?
-            .unwrap();
-
-        let block_number =
-            zksync_types::api::BlockNumber::Number(zksync_types::U64::from(max_l2_block.0));
-        let block_id = zksync_types::api::BlockId::Number(block_number);
-
-        self.reader
-            .block_args(ctx, block_id)
-            .await
-            .context("block_args()")
+    async fn batch_max_l2_block_args(&self, ctx: &Ctx, n: attester::BatchNumber) -> anyhow::Result<BlockArgs> {
+        let max_l2_block = self.get_max_l2_block_of_l1_batch(ctx, n).await?.unwrap();
+        let block_id = api::BlockId::Number(api::BlockNumber::Number(max_l2_block.0.into()));
+        self.reader.block_args(ctx, block_id).await.context("block_args()")
     }
 
-    async fn extract_batch_committee(
+    async fn extract_attester_committee(
         &mut self,
         ctx: &Ctx,
         batch_number: attester::BatchNumber,
     ) -> ctx::Result<()> {
         let block_args = self.batch_max_l2_block_args(ctx, batch_number).await?;
-        let contract_attester_committee = match self.reader.contract_deployed(block_args).await {
-            false => vec![],
-            true => self
-                .reader
-                .read_attester_committee(block_args)
-                .await
-                .context("read_attester_committee()")?,
-        };
-
-        let db_attester_committee = consensus_dal::AttesterCommittee {
-            members: contract_attester_committee
-                .into_iter()
-                .map(CommitteeAttester::try_into)
-                .collect::<Result<Vec<consensus_dal::Attester>, _>>()?,
-        };
-
-        self.pool
-            .connection(ctx)
-            .await?
-            .insert_batch_committee(ctx, batch_number, db_attester_committee)
-            .await?;
-
+        let committee = self
+            .reader
+            .read_attester_committee(block_args)
+            .await
+            .context("read_attester_committee()")?;
+        self.pool.connection(ctx).await.context("connection")?.insert_attester_committee(ctx, batch_number + 1, committee).await?;
         Ok(())
     }
 
@@ -94,27 +64,6 @@ impl CommitteeExtractor {
     ) -> ctx::Result<attester::BatchNumber> {
         let mut conn = self.pool.connection(ctx).await?;
         conn.next_batch_to_extract_committee(ctx).await
-    }
-
-    async fn wait_batch(
-        &mut self,
-        ctx: &Ctx,
-        batch_number: attester::BatchNumber,
-    ) -> ctx::Result<()> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(200);
-        loop {
-            let mut conn = self.pool.connection(ctx).await?;
-            if let Some(last_batch_number) = conn
-                .get_last_batch_number(ctx)
-                .await
-                .context("get_last_batch_number()")?
-            {
-                if last_batch_number >= batch_number {
-                    return Ok(());
-                }
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
     }
 
     async fn get_max_l2_block_of_l1_batch(
