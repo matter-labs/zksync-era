@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::vm_latest::CurrentExecutionState;
 use era_vm::{store::StorageKey, Execution};
 use ethabi::Contract;
 use once_cell::sync::Lazy;
@@ -26,6 +27,37 @@ pub fn zk_storage_key_to_lambda(key: &ZKStorageKey) -> StorageKey {
         address: key.address().clone(),
         key: h256_to_u256(key.key().clone()),
     }
+}
+
+pub fn sort_execution_state(state: &mut CurrentExecutionState) {
+    // sort events
+    state.events.sort_by(|a, b| a.address.cmp(&b.address));
+
+    // sort user_l2_to_l1_logs
+    state.user_l2_to_l1_logs.sort_by(|a, b| {
+        a.0.key
+            .cmp(&b.0.key)
+            .then_with(|| a.0.sender.cmp(&b.0.sender))
+    });
+
+    // sort system_logs
+    state.system_logs.sort_by(|a, b| {
+        a.0.key
+            .cmp(&b.0.key)
+            .then_with(|| a.0.sender.cmp(&b.0.sender))
+    });
+
+    // sort deduplicated_storage_logs
+    state.deduplicated_storage_logs.sort_by(|a, b| {
+        a.key
+            .account()
+            .address()
+            .cmp(&b.key.account().address())
+            .then_with(|| a.key.key().cmp(b.key.key()))
+    });
+
+    // sort used_contract_hashes
+    state.used_contract_hashes.sort();
 }
 
 pub(crate) fn verify_required_memory(vm: &Execution, required_values: Vec<(U256, HeapId, u32)>) {
