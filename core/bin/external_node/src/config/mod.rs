@@ -440,6 +440,7 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
     /// Gateway RPC URL, needed for operating during migration.
+    #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
 }
 
