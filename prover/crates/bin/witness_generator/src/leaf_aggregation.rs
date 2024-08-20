@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
-use tokio::{runtime::Handle, sync::Semaphore};
+use tokio::sync::Semaphore;
 use zkevm_test_harness::{
     witness::recursive_aggregation::{
         compute_leaf_params, create_leaf_witness, split_recursion_queue,
@@ -298,48 +298,44 @@ pub async fn process_leaf_aggregation_job(
         let base_vk = job.base_vk.clone();
         let leaf_params = (circuit_id, job.leaf_params.clone());
 
-        let handle = tokio::task::spawn_blocking(move || {
-            let async_task = async {
-                let _permit = semaphore
-                    .acquire()
-                    .await
-                    .expect("failed to get permit to process queues chunk");
-
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
-                let base_proofs = proofs
-                    .into_iter()
-                    .map(|wrapper| match wrapper {
-                        FriProofWrapper::Base(base_proof) => base_proof,
-                        FriProofWrapper::Recursive(_) => {
-                            panic!(
-                                "Expected only base proofs for leaf agg {} {}",
-                                job.circuit_id, job.block_number
-                            );
-                        }
-                    })
-                    .collect();
-
-                let (_, circuit) = create_leaf_witness(
-                    circuit_id.into(),
-                    queue,
-                    base_proofs,
-                    &base_vk,
-                    &leaf_params,
-                );
-
-                save_recursive_layer_prover_input_artifacts(
-                    job.block_number,
-                    circuit_idx,
-                    vec![circuit],
-                    AggregationRound::LeafAggregation,
-                    0,
-                    &*object_store,
-                    None,
-                )
+        let handle = tokio::task::spawn(async move {
+            let _permit = semaphore
+                .acquire()
                 .await
-            };
+                .expect("failed to get permit to process queues chunk");
 
-            Handle::current().block_on(async_task)
+            let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
+            let base_proofs = proofs
+                .into_iter()
+                .map(|wrapper| match wrapper {
+                    FriProofWrapper::Base(base_proof) => base_proof,
+                    FriProofWrapper::Recursive(_) => {
+                        panic!(
+                            "Expected only base proofs for leaf agg {} {}",
+                            job.circuit_id, job.block_number
+                        );
+                    }
+                })
+                .collect();
+
+            let (_, circuit) = create_leaf_witness(
+                circuit_id.into(),
+                queue,
+                base_proofs,
+                &base_vk,
+                &leaf_params,
+            );
+
+            save_recursive_layer_prover_input_artifacts(
+                job.block_number,
+                circuit_idx,
+                vec![circuit],
+                AggregationRound::LeafAggregation,
+                0,
+                &*object_store,
+                None,
+            )
+            .await
         });
 
         handles.push(handle);
