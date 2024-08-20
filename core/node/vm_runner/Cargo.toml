@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_multivm.workspace = true # FIXME: replace with vm_interface
+zksync_vm_interface.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true

@@ -8,11 +8,11 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{
-    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-};
 use zksync_state::interface::StorageViewCache;
 use zksync_types::{L1BatchNumber, Transaction};
+use zksync_vm_interface::{
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 
 use crate::{metrics::METRICS, VmRunnerIo};
 

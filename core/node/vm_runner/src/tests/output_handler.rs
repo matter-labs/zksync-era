@@ -6,11 +6,9 @@ use tokio::{
 };
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{
-    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-};
 use zksync_state::interface::StorageViewCache;
 use zksync_types::L1BatchNumber;
+use zksync_vm_interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
 use crate::{
     tests::{wait, IoMock, TestOutputFactory},

@@ -5,7 +5,6 @@ use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
@@ -22,6 +21,7 @@ use zksync_types::{
     StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use super::{

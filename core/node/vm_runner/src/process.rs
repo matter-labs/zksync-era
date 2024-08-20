@@ -3,12 +3,12 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{
+use zksync_state::OwnedStorage;
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
+use zksync_vm_interface::{
     executor::{BatchExecutorHandle, BoxBatchExecutor},
     L2BlockEnv,
 };
-use zksync_state::OwnedStorage;
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 
 use crate::{
     metrics::METRICS, output_handler::OutputHandler, storage::StorageLoader, L1BatchOutput,

@@ -13,9 +13,9 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_multivm::interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_state::RocksdbStorage;
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
+use zksync_vm_interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use crate::{

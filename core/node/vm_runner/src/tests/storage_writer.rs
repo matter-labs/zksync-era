@@ -1,7 +1,7 @@
 use tokio::sync::watch;
-use zksync_multivm::interface::executor;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::StorageLogWithPreviousValue;
+use zksync_vm_interface::executor;
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use super::*;

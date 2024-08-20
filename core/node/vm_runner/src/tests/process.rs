@@ -4,10 +4,10 @@ use tempfile::TempDir;
 use test_casing::test_casing;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::executor;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_vm_interface::executor;
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use super::*;

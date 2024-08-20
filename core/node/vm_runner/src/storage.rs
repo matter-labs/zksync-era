@@ -9,12 +9,12 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
     RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use crate::{metrics::METRICS, VmRunnerIo};

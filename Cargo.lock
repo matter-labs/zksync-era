@@ -9798,7 +9798,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_health_check",
- "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_object_store",
@@ -9808,6 +9807,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
  "zksync_vm_utils",
 ]
 

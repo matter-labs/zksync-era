@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::{executor::BoxBatchExecutor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state::OwnedStorage;
@@ -13,6 +12,7 @@ use zksync_types::{
     H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{executor::BoxBatchExecutor, L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,

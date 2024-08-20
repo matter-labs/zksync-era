@@ -3,8 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
+use zksync_vm_interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_vm_utils::batch::MainBatchExecutor;
 
 use crate::{
