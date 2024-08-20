@@ -36,7 +36,8 @@ pub async fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
             snapshot: true,
             no_deps: args.no_deps,
         },
-    )?;
+    )
+    .await?;
 
     recovery::run(
         shell,
@@ -44,7 +45,8 @@ pub async fn run(shell: &Shell, args: AllArgs) -> anyhow::Result<()> {
             snapshot: false,
             no_deps: args.no_deps,
         },
-    )?;
+    )
+    .await?;
 
     logger::info(MSG_RUNNING_EXTERNAL_NODE);
     let en_shell = shell.clone();
