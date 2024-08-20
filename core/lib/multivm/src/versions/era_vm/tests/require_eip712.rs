@@ -1,4 +1,3 @@
-use era_vm::store::StorageKey;
 use ethabi::Token;
 use zksync_eth_signer::{EthereumSigner, TransactionParameters};
 use zksync_state::ReadStorage;

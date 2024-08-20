@@ -74,6 +74,5 @@ fn simple_execute() {
     let tx = vm.execute(VmExecutionMode::OneTx);
     assert!(matches!(tx.result, ExecutionResult::Success { .. }));
     let block_tip = vm.execute(VmExecutionMode::Batch);
-    println!("BLOCK TIP RESULT {:?}", block_tip);
     assert!(matches!(block_tip.result, ExecutionResult::Success { .. }));
 }
