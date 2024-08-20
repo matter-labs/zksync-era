@@ -163,7 +163,6 @@ describe('EVM equivalence contract', () => {
                     chainId: alice.provider._network.chainId,
                     data
                 };
-                console.log(dep_transaction);
                 const result = await (await alice.sendTransaction(dep_transaction)).wait();
                 const expectedAddressCreate = ethers.getCreateAddress({
                     from: alice.address,
