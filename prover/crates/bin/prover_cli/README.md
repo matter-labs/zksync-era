@@ -33,7 +33,9 @@ Options:
   -V, --version  Print version
 ```
 
-Warning: If this tool is being used outside the directory where the zksync-era repository is located, the configuration is not persistent, so the database URL needs to be set each time a new command that requires it is called!. Work is being done to improve this.
+Warning: If this tool is being used outside the directory where the zksync-era repository is located, the configuration
+is not persistent, so the database URL needs to be set each time a new command that requires it is called!. Work is
+being done to improve this.
 
 ### `prover_cli file-info`
 
@@ -134,7 +136,6 @@ NOTE: With the --verbose flag, much more detailed information about each stage o
 Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
 in the prover database.
 
-
 #### Example Output
 
 ```
@@ -188,7 +189,8 @@ Options:
 
 ### `prover_cli config`
 
-It allows you to change the CLI configuration; currently, it only lets you change the database URL, but work is being done to also include information about the L1 contracts for when they are not set in the environment variables.
+It allows you to change the CLI configuration; currently, it only lets you change the database URL, but work is being
+done to also include information about the L1 contracts for when they are not set in the environment variables.
 
 ```
 Usage: prover_cli config [DB_URL]
@@ -236,25 +238,25 @@ TODO
 
 ## Development Status
 
-| **Command**  | **Subcommand** | **Flags**                         | **Status** |
-| -----------  | -------------- | --------------------------------- | ---------- |
-| `status`     | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
-|              |                | `-v, --verbose`                   | ✅️         |
-|              | `l1`           |                                   | ✅️         |
-| `restart`    | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
-|              | `jobs`         | `-n <BATCH_NUMBER>`               | ️🏗️         |
-|              |                | `-bwg, --basic-witness-generator` | 🏗️         |
-|              |                | `-lwg, --leaf-witness-generator`  | 🏗️         |
-|              |                | `-nwg, --node-witness-generator`  | 🏗️         |
-|              |                | `-rt, --recursion-tip`            | 🏗️         |
-|              |                | `-s, --scheduler`                 | 🏗️         |
-|              |                | `-c, --compressor`                | 🏗️         |
-|              |                | `-f, --failed`                    | 🏗         |
-| `delete`     |                | `-n <BATCH_NUMBER>`               | ✅️️         |
-|              |                | `-a, --all`                       | ️️✅️️️️️️         |
-| `requeue`    |                | `—b, --batch <BATCH_NUMBER>`      | ✅️         |
-|              |                | `-a, --all`                       | ✅️️         |
-| `config`     |                | `--db-url <DB_URL>`               | 🏗         |
-| `debug-proof`|                | `--file <FILE>`                   | ✅️         |
-| `file-info`  |                | `--file-path <FILE_PATH>`         | ✅️         | 
-| `stats`      |                | `--period <PERIOD>`               | ✅️         | 
+| **Command**   | **Subcommand** | **Flags**                         | **Status** |
+| ------------- | -------------- | --------------------------------- | ---------- |
+| `status`      | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               |                | `-v, --verbose`                   | ✅️        |
+|               | `l1`           |                                   | ✅️        |
+| `restart`     | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               | `jobs`         | `-n <BATCH_NUMBER>`               | ️🏗️        |
+|               |                | `-bwg, --basic-witness-generator` | 🏗️         |
+|               |                | `-lwg, --leaf-witness-generator`  | 🏗️         |
+|               |                | `-nwg, --node-witness-generator`  | 🏗️         |
+|               |                | `-rt, --recursion-tip`            | 🏗️         |
+|               |                | `-s, --scheduler`                 | 🏗️         |
+|               |                | `-c, --compressor`                | 🏗️         |
+|               |                | `-f, --failed`                    | 🏗          |
+| `delete`      |                | `-n <BATCH_NUMBER>`               | ✅️️       |
+|               |                | `-a, --all`                       | ️️✅️️️️️️ |
+| `requeue`     |                | `—b, --batch <BATCH_NUMBER>`      | ✅️        |
+|               |                | `-a, --all`                       | ✅️️       |
+| `config`      |                | `--db-url <DB_URL>`               | 🏗          |
+| `debug-proof` |                | `--file <FILE>`                   | ✅️        |
+| `file-info`   |                | `--file-path <FILE_PATH>`         | ✅️        |
+| `stats`       |                | `--period <PERIOD>`               | ✅️        |
