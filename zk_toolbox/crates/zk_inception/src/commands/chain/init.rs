@@ -20,11 +20,12 @@ use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
 
 use crate::{
-    accept_ownership::{accept_admin, set_token_multiplier_setter},
+    accept_ownership::accept_admin,
     commands::chain::{
         args::init::{InitArgs, InitArgsFinal},
         deploy_l2_contracts, deploy_paymaster,
         genesis::genesis,
+        set_token_multiplier_setter::set_token_multiplier_setter,
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
