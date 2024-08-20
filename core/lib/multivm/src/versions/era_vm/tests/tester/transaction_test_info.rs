@@ -1,5 +1,4 @@
-use era_vm::state::Event;
-use zksync_state::{InMemoryStorage, WriteStorage};
+use zksync_state::ReadStorage;
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
@@ -187,24 +186,23 @@ impl TransactionTestInfo {
 // TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug, PartialEq)]
 struct VmStateDump {
-    state: era_vm::Execution,
+    state: era_vm::execution::ExecutionSnapshot,
     storage_writes: Vec<((H160, U256), U256)>,
-    events: Vec<Event>,
+    events: Vec<era_vm::state::Event>,
 }
 
-impl Vm<InMemoryStorage> {
+impl<S: ReadStorage> Vm<S> {
     fn dump_state(&self) -> VmStateDump {
         VmStateDump {
-            state: self.inner.execution.clone(),
+            state: self.inner.execution.snapshot(),
             storage_writes: self
                 .inner
                 .state
-                .storage_changes
-                .clone()
-                .into_iter()
-                .map(|(k, v)| ((k.address, k.key), v))
+                .storage_changes()
+                .iter()
+                .map(|(k, v)| ((k.address, k.key), *v))
                 .collect(),
-            events: self.inner.state.events.clone().entries,
+            events: self.inner.state.events().clone(),
         }
     }
 }
@@ -235,9 +233,8 @@ impl VmTester {
         if tx_test_info.should_rollback() {
             self.vm.rollback_to_the_latest_snapshot();
             let inner_state_after = self.vm.dump_state();
-            pretty_assertions::assert_eq!(
-                inner_state_before,
-                inner_state_after,
+            assert_eq!(
+                inner_state_before, inner_state_after,
                 "Inner state before and after rollback should be equal"
             );
         } else {

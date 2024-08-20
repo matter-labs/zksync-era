@@ -1,6 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
-
-use era_vm::rollbacks::{RollbackableHashMap, RollbackableVec};
+use std::{cell::RefCell, rc::Rc};
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr};
 use zksync_test_account::{Account, TxType};
@@ -16,7 +14,10 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
-    era_vm::{tests::utils::read_test_contract, vm::Vm},
+    era_vm::{
+        tests::utils::read_test_contract,
+        vm::{Vm, World},
+    },
     interface::{
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
         VmInterface,
@@ -45,16 +46,19 @@ impl VmTester {
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.run(VmExecutionMode::OneTx);
+        self.vm.execute(VmExecutionMode::OneTx);
         let deployed_address =
             deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
         self.test_contract = Some(deployed_address);
     }
     pub(crate) fn reset_with_empty_storage(&mut self) {
         self.storage = Rc::new(RefCell::new(get_empty_storage()));
-        self.vm.inner.state.storage_changes = RollbackableHashMap::default();
-        self.vm.inner.state.transient_storage = RollbackableHashMap::default();
-        self.vm.inner.state.events = RollbackableVec::default();
+        let world_storage = Rc::new(RefCell::new(World::new(
+            self.storage.clone(),
+            self.vm.program_cache.clone(),
+        )));
+        self.vm.inner.state.storage = world_storage;
+        self.vm.inner.state.reset();
         self.reset_state(false);
     }
 
@@ -72,19 +76,16 @@ impl VmTester {
 
         if !self.custom_contracts.is_empty() {
             println!("Inserting custom contracts is not yet supported")
-            // `insert_contracts(&mut self.storage, &self.custom_contracts);`
+            // insert_contracts(&mut self.storage, &self.custom_contracts);
         }
 
-        let mut storage = self.storage.clone();
+        let storage = self.storage.clone();
         {
-            let mut storage = storage.borrow_mut();
             // Commit pending storage changes (old VM versions commit them on successful execution)
-            for (key, value) in self.vm.inner.state.storage_changes.clone() {
+            let mut storage = storage.borrow_mut();
+            for (key, value) in self.vm.inner.state.storage_changes() {
                 let key = StorageKey::new(AccountTreeId::new(key.address), u256_to_h256(key.key));
-                storage
-                    .as_ref()
-                    .borrow_mut()
-                    .set_value(key, u256_to_h256(value));
+                storage.set_value(key, u256_to_h256(*value));
             }
         }
 
@@ -224,9 +225,9 @@ impl VmTesterBuilder {
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
-        let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
-        insert_contracts(&mut raw_storage, &self.custom_contracts);
-        let storage_ptr = Rc::new(RefCell::new(raw_storage));
+        let raw_storage = self.storage.unwrap_or_else(get_empty_storage);
+        let mut storage_ptr = Rc::new(RefCell::new(raw_storage));
+        insert_contracts(&mut storage_ptr, &self.custom_contracts);
         for account in self.rich_accounts.iter() {
             make_account_rich(storage_ptr.clone(), account);
         }
@@ -286,16 +287,25 @@ pub(crate) fn get_empty_storage() -> InMemoryStorage {
 // deployer system contract. Besides the reference to storage
 // it accepts a `contracts` tuple of information about the contract
 // and whether or not it is an account.
-fn insert_contracts(raw_storage: &mut InMemoryStorage, contracts: &[ContractsToDeploy]) {
+fn insert_contracts(
+    raw_storage: &mut StoragePtr<InMemoryStorage>,
+    contracts: &[ContractsToDeploy],
+) {
     for (contract, address, is_account) in contracts {
         let deployer_code_key = get_code_key(address);
-        raw_storage.set_value(deployer_code_key, hash_bytecode(contract));
+        raw_storage
+            .borrow_mut()
+            .set_value(deployer_code_key, hash_bytecode(contract));
 
         if *is_account {
             let is_account_key = get_is_account_key(address);
-            raw_storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
+            raw_storage
+                .borrow_mut()
+                .set_value(is_account_key, u256_to_h256(1_u32.into()));
         }
 
-        raw_storage.store_factory_dep(hash_bytecode(contract), contract.clone());
+        raw_storage
+            .borrow_mut()
+            .store_factory_dep(hash_bytecode(contract), contract.clone());
     }
 }
