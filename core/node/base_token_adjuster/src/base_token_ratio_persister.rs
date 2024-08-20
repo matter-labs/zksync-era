@@ -126,7 +126,6 @@ impl BaseTokenRatioPersister {
             }
             result
         } else {
-            tracing::info!("Skipped setting base token multiplier on l1");
             Ok(())
         }
     }
