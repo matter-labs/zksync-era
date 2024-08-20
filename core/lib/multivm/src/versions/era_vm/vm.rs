@@ -544,7 +544,7 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
                 .state
                 .get_storage_changes_from_snapshot(snapshot.storage_changes)
                 .iter()
-                .map(|(storage_key, (previos_value, value, is_initial))| {
+                .map(|(storage_key, previos_value, value, is_initial)| {
                     let key = StorageKey::new(
                         AccountTreeId::new(storage_key.address),
                         u256_to_h256(storage_key.key),
