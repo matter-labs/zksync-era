@@ -7,13 +7,13 @@ async fn main() {
         .with_max_level(tracing::Level::ERROR)
         .init();
 
-    config::get_envfile()
-        .and_then(config::load_envfile)
-        .inspect_err(|err| {
-            tracing::error!("{err:?}");
-            std::process::exit(1);
-        })
-        .unwrap();
+    // config::get_envfile()
+    //     .and_then(config::load_envfile)
+    //     .inspect_err(|err| {
+    //         tracing::error!("{err:?}");
+    //         std::process::exit(1);
+    //     })
+    //     .unwrap();
 
     let prover = ProverCLI::parse();
 
