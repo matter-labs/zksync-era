@@ -3,7 +3,10 @@
 use std::{pin::Pin, time::Instant};
 
 use tokio::sync::watch;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
+use zksync_config::{
+    configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets},
+    ContractsConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
@@ -26,10 +29,12 @@ pub(crate) async fn create_test_tx_sender(
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
+    let contracts_config = ContractsConfig::for_tests();
     let wallets = Wallets::for_tests();
     let tx_sender_config = TxSenderConfig::new(
         &state_keeper_config,
         &web3_config,
+        &contracts_config,
         wallets.state_keeper.unwrap().fee_account.address(),
         l2_chain_id,
     );
