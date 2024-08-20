@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct PortalArgs {
     #[clap(
         long,
-        default_value = "3000",
+        default_value = "3030",
         help = "The port number for the portal app"
     )]
     pub port: u16,

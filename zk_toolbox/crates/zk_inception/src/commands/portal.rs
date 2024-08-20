@@ -13,7 +13,7 @@ use xshell::Shell;
 
 use crate::{
     commands::args::PortalArgs,
-    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_IMAGE, PORTAL_DOCKER_PORT},
+    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_IMAGE, PORTAL_DOCKER_CONTAINER_PORT},
     messages::{
         msg_portal_starting_on, MSG_PORTAL_CONFIG_IS_EMPTY_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR,
@@ -150,7 +150,7 @@ pub async fn run(shell: &Shell, args: PortalArgs) -> anyhow::Result<()> {
 }
 
 fn run_portal(shell: &Shell, config_file_path: &Path, port: u16) -> anyhow::Result<()> {
-    let port_mapping = format!("{}:{}", port, PORTAL_DOCKER_PORT);
+    let port_mapping = format!("{}:{}", port, PORTAL_DOCKER_CONTAINER_PORT);
     let volume_mapping = format!("{}:/usr/src/app/dist/config.js", config_file_path.display());
 
     let mut docker_args: HashMap<String, String> = HashMap::new();
