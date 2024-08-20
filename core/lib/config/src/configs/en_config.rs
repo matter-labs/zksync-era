@@ -17,4 +17,6 @@ pub struct ENConfig {
     // Main node configuration
     pub main_node_url: SensitiveUrl,
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
+
+    pub gateway_url: Option<SensitiveUrl>,
 }

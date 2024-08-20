@@ -927,6 +927,8 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
+            gateway_url: self
+                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }

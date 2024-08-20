@@ -439,6 +439,8 @@ pub(crate) struct OptionalENConfig {
     /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
+    /// Gateway RPC URL, needed for operating during migration.
+    pub gateway_url: Option<SensitiveUrl>,
 }
 
 impl OptionalENConfig {
@@ -663,6 +665,7 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
+            gateway_url: enconfig.gateway_url.clone(),
         })
     }
 
