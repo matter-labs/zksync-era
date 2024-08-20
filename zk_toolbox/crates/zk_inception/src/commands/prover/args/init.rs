@@ -15,8 +15,8 @@ use crate::{
     defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL},
     messages::{
         msg_prover_db_name_prompt, msg_prover_db_url_prompt, MSG_CLOUD_TYPE_PROMPT,
-        MSG_COPY_CONFIGS_PROMPT, MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT,
-        MSG_CREATE_GCS_BUCKET_NAME_PROMTP, MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
+        MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
+        MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
@@ -341,7 +341,11 @@ impl ProverInitArgs {
             .clone()
             .setup_key_config
             .download_key
-            .unwrap_or_else(|| PromptConfirm::new(MSG_DOWNLOAD_SETUP_KEY_PROMPT).ask());
+            .unwrap_or_else(|| {
+                PromptConfirm::new(MSG_DOWNLOAD_SETUP_KEY_PROMPT)
+                    .default(true)
+                    .ask()
+            });
         let setup_key_path = self
             .clone()
             .setup_key_config
@@ -462,7 +466,9 @@ impl ProverInitArgs {
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
         let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
-            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudConnectionMode::iter()).ask()
+            PromptSelect::new(MSG_CLOUD_TYPE_PROMPT, InternalCloudConnectionMode::iter())
+                .default(InternalCloudConnectionMode::Local)
+                .ask()
         });
 
         cloud_type.into()

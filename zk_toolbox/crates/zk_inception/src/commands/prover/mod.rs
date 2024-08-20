@@ -7,6 +7,7 @@ mod gcs;
 mod generate_sk;
 mod init;
 mod init_bellman_cuda;
+mod protocol_version;
 mod run;
 mod utils;
 
@@ -22,6 +23,7 @@ pub enum ProverCommands {
     /// Initialize bellman-cuda
     #[command(alias = "cuda")]
     InitBellmanCuda(Box<InitBellmanCudaArgs>),
+    ProtocolVersion,
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -30,5 +32,6 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::GenerateSK => generate_sk::run(shell).await,
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
+        ProverCommands::ProtocolVersion => protocol_version::run(shell).await,
     }
 }

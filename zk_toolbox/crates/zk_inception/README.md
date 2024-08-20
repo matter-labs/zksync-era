@@ -430,7 +430,6 @@ Possible values: `true`, `false`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
 - `--setup-database`
-- `--copy-configs`
 
 Possible values: `true`, `false`
 
@@ -444,6 +443,12 @@ Possible values: `true`, `false`
 Generate setup keys
 
 **Usage:** `zk_inception prover generate-sk`
+
+## `zk_inception prover protocol-version`
+
+Gets information about current protocol version of provers in `zksync-era` and snark wrapper hash.
+
+**Usage:** `zk_inception prover protocol-version`
 
 ## `zk_inception prover run`
 
