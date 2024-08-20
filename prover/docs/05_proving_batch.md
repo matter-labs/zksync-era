@@ -14,11 +14,11 @@ Install the prerequisites, which you can find
 [here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md). Note, that if you are not using
 Google VM instance, you also need to install [gcloud](https://cloud.google.com/sdk/docs/install#deb).
 
-Now, you can use `zk_inception` tool for setting up the env and running prover subsystem. Check the steps for
-installation in [this guide](../../zk_toolbox/README.md). And don't forget to install the prerequisites!
+Now, you can use `zk_inception` and `prover_cli` tools for setting up the env and running prover subsystem.
 
-Also, to assure that you are working with database securely, you need to use `prover_cli` tool. You can find the guide
-for installation [here](../crates/bin/prover_cli/README.md).
+```shell
+cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor prover_cli --force
+```
 
 ## Initializing system
 
@@ -35,6 +35,8 @@ values for all the prompts you will see Now, you need to initialize the prover s
 ```shell
 zk_inception prover init --shall-save-to-public-bucket=false --setup-database=true --use-default=true --dont-drop=false
 ```
+
+For prompts you can leave default values as well.
 
 ## Proving the batch
 

@@ -20,8 +20,11 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
 async fn get_protocol_version(shell: &Shell, link_to_code: &PathBuf) -> anyhow::Result<String> {
     let path = link_to_code.join("prover/crates/bin/prover_version/Cargo.toml");
-
-    let protocol_version = cmd!(shell, "cargo run --manifest-path {path}").read()?;
+    let protocol_version = cmd!(
+        shell,
+        "cargo +nightly-2024-08-01 run --manifest-path {path}"
+    )
+    .read()?;
 
     Ok(protocol_version)
 }
