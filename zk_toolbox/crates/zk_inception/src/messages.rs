@@ -221,6 +221,15 @@ pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
+/// Portal related messages
+pub(super) const MSG_PORTAL_CONFIG_IS_EMPTY_ERR: &str = "Hyperchains config is empty";
+pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
+pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run portal docker container";
+pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
+    format!("Starting portal on http://{host}:{port}")
+}
+
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
 
