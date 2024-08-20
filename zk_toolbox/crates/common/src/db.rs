@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
-    ConnectOptions, Connection, PgConnection,
+    Connection, PgConnection,
 };
 use url::Url;
 use xshell::Shell;
