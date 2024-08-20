@@ -4,6 +4,7 @@ use era_vm::{
     rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
     vm::ExecutionOutput, EraVM, Execution,
 };
+use itertools::Itertools;
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
     event::{
@@ -451,6 +452,8 @@ impl<S: ReadStorage + 'static> Vm<S> {
 
                 Some(diff)
             })
+            // the compressor expects the storage diff to be sorted
+            .sorted_by(|a, b| a.address.cmp(&b.address).then_with(|| a.key.cmp(&b.key)))
             .collect()
     }
 
@@ -613,9 +616,9 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
         CurrentExecutionState {
             events,
             deduplicated_storage_logs: state
-                .get_storage_changes()
+                .storage_changes()
                 .iter()
-                .map(|(storage_key, _, value)| StorageLog {
+                .map(|(storage_key, value)| StorageLog {
                     key: StorageKey::new(
                         AccountTreeId::new(storage_key.address),
                         u256_to_h256(storage_key.key),
