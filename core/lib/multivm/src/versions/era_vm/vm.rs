@@ -1,30 +1,3 @@
-use era_vm::{
-    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
-    vm::ExecutionOutput, EraVM, Execution,
-};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::{
-    event::{
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
-        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
-    },
-    l1::is_l1_tx_type,
-    l2_to_l1_log::UserL2ToL1Log,
-    utils::key_for_eth_balance,
-    writes::{
-        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
-        BYTES_PER_ENUMERATION_INDEX,
-    },
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256,
-};
-use zksync_utils::{
-    bytecode::{hash_bytecode, CompressedBytecodeInfo},
-    h256_to_u256, u256_to_h256,
-};
-
 use super::{
     bootloader_state::{
         utils::{apply_l2_block, apply_pubdata_to_memory, PubdataInput},
@@ -52,23 +25,49 @@ use crate::{
         VmExecutionStatistics,
     },
 };
+use era_vm::{
+    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, value::FatPointer,
+    vm::ExecutionOutput, EraVM, Execution,
+};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_types::{
+    event::{
+        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages,
+        L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
+    },
+    l1::is_l1_tx_type,
+    l2_to_l1_log::UserL2ToL1Log,
+    utils::key_for_eth_balance,
+    writes::{
+        compression::compress_with_best_strategy, StateDiffRecord, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, U256,
+};
+use zksync_utils::{
+    bytecode::{hash_bytecode, CompressedBytecodeInfo},
+    h256_to_u256, u256_to_h256,
+};
 
 pub struct Vm<S: ReadStorage> {
     pub(crate) inner: EraVM,
-    suspended_at: u16,
-    gas_for_account_validation: u32,
+    pub suspended_at: u16,
+    pub gas_for_account_validation: u32,
 
-    bootloader_state: BootloaderState,
+    pub bootloader_state: BootloaderState,
     pub(crate) storage: StoragePtr<S>,
 
     // TODO: Maybe not necessary, check
-    program_cache: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
+    pub(crate) program_cache: Rc<RefCell<HashMap<U256, Vec<U256>>>>,
 
     // these two are only needed for tests so far
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
 
-    snapshot: Option<VmSnapshot>,
+    pub snapshot: Option<VmSnapshot>,
 }
 
 /// Encapsulates creating VM instance based on the provided environment.
@@ -389,7 +388,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
 
     /// Typically used to read the bootloader heap. We know that we're in the bootloader
     /// when a hook occurs, as they are only enabled when preprocessing bootloader code.
-    fn read_heap_word(&self, word: usize) -> U256 {
+    pub fn read_heap_word(&self, word: usize) -> U256 {
         let heap = self
             .inner
             .execution
@@ -399,7 +398,7 @@ impl<S: ReadStorage + 'static> Vm<S> {
         heap.read((word * 32) as u32)
     }
 
-    fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
+    pub fn write_to_bootloader_heap(&mut self, memory: impl IntoIterator<Item = (usize, U256)>) {
         assert!(self.inner.execution.running_contexts.len() == 1); // No on-going far calls
         if let Some(heap) = &mut self
             .inner
