@@ -307,6 +307,10 @@ Possible commands:
 - `integration`: Run integration tests.
 - `revert`: Run revert tests.
 - `recovery`: Run recovery tests.
+- `upgrade`: Run upgrade tests.
+- `rust`: Run unit tests.
+- `l1-contracts`: Run L1 contracts tests.
+- `prover`: Run prover tests.
 
 ### Snapshot Commands
 
@@ -315,3 +319,35 @@ Create a snapshot of the current chain:
 ```bash
 zks snapshot create
 ```
+
+### Format
+
+Format code:
+
+```bash
+zks fmt
+```
+
+By default, this command runs all formatters. To run a specific fomatter use the following subcommands:
+
+- `rustfmt`: Runs `cargo fmt`.
+- `prettier`: Runs `prettier`.
+- `contract`: Runs `prettier` on contracts.
+
+### Lint
+
+Lint code:
+
+```bash
+zks lint
+```
+
+By default, this command runs the linter on all files. To target specific file types, use the `--extension` option. Supported extensions include:
+
+- `rs`: Rust files.
+- `md`: Markdown files.
+- `sol`: Solidity files.
+- `js`: JavaScript files.
+- `ts`: TypeScript files.
+
+
