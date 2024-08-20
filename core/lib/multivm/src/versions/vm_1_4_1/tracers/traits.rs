@@ -1,10 +1,9 @@
-use zksync_state::WriteStorage;
-
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_1::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},

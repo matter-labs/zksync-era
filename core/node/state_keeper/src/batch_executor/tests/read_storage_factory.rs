@@ -2,7 +2,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state::{OwnedStorage, PgOrRocksdbStorage, ReadStorageFactory, RocksdbStorage};
+use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorage};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,7 @@ impl ReadStorageFactory for RocksdbStorageFactory {
         else {
             return Ok(None);
         };
-        Ok(Some(PgOrRocksdbStorage::Rocksdb(rocksdb_storage).into()))
+        Ok(Some(OwnedStorage::Rocksdb(rocksdb_storage)))
     }
 }
 

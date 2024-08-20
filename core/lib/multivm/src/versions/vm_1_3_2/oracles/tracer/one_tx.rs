@@ -4,18 +4,20 @@ use zk_evm_1_3_3::{
     },
     vm_state::VmLocalState,
 };
-use zksync_types::vm_trace::Call;
 
 use super::utils::{computational_gas_price, print_debug_if_needed};
-use crate::vm_1_3_2::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
-        BootloaderTracer, CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-        StorageInvocationTracer,
+use crate::{
+    interface::Call,
+    vm_1_3_2::{
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        oracles::tracer::{
+            utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
+            BootloaderTracer, CallTracer, ExecutionEndTracer, PendingRefundTracer,
+            PubdataSpentTracer, StorageInvocationTracer,
+        },
+        vm_instance::get_vm_hook_params,
     },
-    vm_instance::get_vm_hook_params,
 };
 
 /// Allows any opcodes, but tells the VM to end the execution once the tx is over.

@@ -8,7 +8,6 @@
 use std::{fmt, fmt::Debug};
 
 use anyhow::Context as _;
-pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
@@ -34,11 +33,9 @@ pub mod abi;
 pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
-pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
 pub mod debug_flat_call;
-pub mod event;
 pub mod fee;
 pub mod fee_model;
 pub mod l1;
@@ -49,11 +46,9 @@ pub mod protocol_upgrade;
 pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
-pub mod storage_writes_deduplicator;
 pub mod system_contracts;
 pub mod tokens;
 pub mod tx;
-pub mod vm_trace;
 pub mod zk_evm_types;
 
 pub mod api;

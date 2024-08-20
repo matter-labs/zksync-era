@@ -4,13 +4,13 @@ use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
     Execute, ExecuteTransactionCommon, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    utils::StorageWritesDeduplicator,
     vm_fast::{
         tests::{
             tester::{TxType, VmTesterBuilder},

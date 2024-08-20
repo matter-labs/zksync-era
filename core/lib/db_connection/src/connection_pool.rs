@@ -158,6 +158,14 @@ impl TestTemplate {
         Ok(Self(db_url.parse()?))
     }
 
+    pub fn prover_empty() -> anyhow::Result<Self> {
+        let db_url = env::var("TEST_DATABASE_PROVER_URL").context(
+            "TEST_DATABASE_PROVER_URL must be set. Normally, this is done by the 'zk' tool. \
+            Make sure that you are running the tests with 'zk test rust' command or equivalent.",
+        )?;
+        Ok(Self(db_url.parse()?))
+    }
+
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
     pub async fn freeze<DB: DbMarker>(pool: ConnectionPool<DB>) -> anyhow::Result<Self> {
@@ -291,11 +299,32 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
+    pub async fn prover_test_pool() -> ConnectionPool<DB> {
+        const DEFAULT_CONNECTIONS: u32 = 100; // Expected to be enough for any unit test.
+        Self::constrained_prover_test_pool(DEFAULT_CONNECTIONS).await
+    }
+
     /// Same as [`Self::test_pool()`], but with a configurable number of connections. This is useful to test
     /// behavior of components that rely on singleton / constrained pools in production.
     pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<DB> {
         assert!(connections > 0, "Number of connections must be positive");
         let mut builder = TestTemplate::empty()
+            .expect("failed creating test template")
+            .create_db(connections)
+            .await
+            .expect("failed creating database for tests");
+        let mut pool = builder
+            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT))
+            .build()
+            .await
+            .expect("cannot build connection pool");
+        pool.traced_connections = Some(Arc::default());
+        pool
+    }
+
+    pub async fn constrained_prover_test_pool(connections: u32) -> ConnectionPool<DB> {
+        assert!(connections > 0, "Number of connections must be positive");
+        let mut builder = TestTemplate::prover_empty()
             .expect("failed creating test template")
             .create_db(connections)
             .await
@@ -347,7 +376,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn connection(&self) -> DalResult<Connection<'_, DB>> {
+    pub async fn connection(&self) -> DalResult<Connection<'static, DB>> {
         self.connection_inner(None).await
     }
 
@@ -361,7 +390,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     pub fn connection_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = DalResult<Connection<'_, DB>>> + '_ {
+    ) -> impl Future<Output = DalResult<Connection<'static, DB>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = ConnectionTags {
@@ -375,7 +404,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     async fn connection_inner(
         &self,
         tags: Option<ConnectionTags>,
-    ) -> DalResult<Connection<'_, DB>> {
+    ) -> DalResult<Connection<'static, DB>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self.acquire_connection_retried(tags.as_ref()).await?;
         let elapsed = acquire_latency.observe();
@@ -386,7 +415,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         Ok(Connection::<DB>::from_pool(
             conn,
             tags,
-            self.traced_connections.as_deref(),
+            self.traced_connections.as_ref(),
         ))
     }
 

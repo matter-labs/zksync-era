@@ -2,7 +2,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use vm2::WorldDiff;
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr};
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
     block::L2BlockHasher,
@@ -17,6 +16,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
+        storage::{InMemoryStorage, StoragePtr},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     versions::vm_fast::{tests::utils::read_test_contract, vm::Vm},

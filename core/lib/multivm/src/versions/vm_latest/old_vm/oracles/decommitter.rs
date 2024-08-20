@@ -9,13 +9,15 @@ use zk_evm_1_5_0::{
         ContractCodeSha256, VersionedHashDef, VersionedHashHeader, VersionedHashNormalizedPreimage,
     },
 };
-use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{H256, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::OracleWithHistory;
-use crate::vm_latest::old_vm::history_recorder::{
-    HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+use crate::{
+    interface::storage::{ReadStorage, StoragePtr},
+    vm_latest::old_vm::history_recorder::{
+        HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+    },
 };
 
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is

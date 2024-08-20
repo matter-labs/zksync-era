@@ -10,6 +10,7 @@ use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractEx
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
@@ -21,7 +22,6 @@ use zksync_types::{
     ethabi::Token,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts,
     utils::storage_key_for_standard_token_balance,
     vm::FastVmMode,

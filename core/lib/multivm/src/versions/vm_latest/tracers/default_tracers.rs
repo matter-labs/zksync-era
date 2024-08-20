@@ -12,17 +12,16 @@ use zk_evm_1_5_0::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 
 use super::{EvmDebugTracer, EvmDeployTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
-        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        types::tracer::TracerExecutionStatus,
+        storage::{StoragePtr, WriteStorage},
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,

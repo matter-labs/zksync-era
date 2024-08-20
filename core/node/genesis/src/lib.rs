@@ -20,8 +20,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
-    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, H256,
+    AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -105,7 +105,6 @@ impl GenesisParams {
                 .evm_simulator_hash
                 .ok_or(GenesisError::MalformedConfig("evm_simulator_hash"))?,
         };
-        // FIXME: uncomment this and update hashes.
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -311,7 +310,6 @@ pub async fn ensure_genesis_state(
                 "expected_rollup_last_leaf_index",
             ))?;
 
-    // FIXME: uncomment this and update hashes.
     if expected_root_hash != root_hash {
         return Err(GenesisError::RootHash(expected_root_hash, root_hash));
     }
@@ -369,6 +367,7 @@ pub async fn create_genesis_l1_batch(
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
+        logs_bloom: Bloom::zero(),
     };
 
     let mut transaction = storage.start_transaction().await?;

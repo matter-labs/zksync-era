@@ -1,8 +1,8 @@
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-
 use crate::{
     glue::{GlueFrom, GlueInto},
-    interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs},
+    interface::{
+        ExecutionResult, Refunds, TxExecutionStatus, TxRevertReason, VmExecutionResultAndLogs,
+    },
 };
 
 impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {

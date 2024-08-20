@@ -1,8 +1,7 @@
-use zksync_state::ReadStorage;
 use zksync_types::get_nonce_key;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
     vm_fast::tests::{
         tester::{Account, TxType, VmTesterBuilder},
         utils::read_test_contract,

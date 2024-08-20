@@ -1,8 +1,6 @@
-use zksync_multivm::interface::FinishedL1Batch;
+use zksync_multivm::interface::{FinishedL1Batch, TransactionExecutionResult, VmExecutionMetrics};
 use zksync_types::{
-    block::BlockGasCount,
-    priority_op_onchain_data::PriorityOpOnchainData,
-    tx::{tx_execution_info::ExecutionMetrics, TransactionExecutionResult},
+    block::BlockGasCount, priority_op_onchain_data::PriorityOpOnchainData,
     ExecuteTransactionCommon, L1BatchNumber,
 };
 
@@ -13,7 +11,7 @@ pub struct L1BatchUpdates {
     pub number: L1BatchNumber,
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
-    pub block_execution_metrics: ExecutionMetrics,
+    pub block_execution_metrics: VmExecutionMetrics,
     // how much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
     pub txs_encoding_size: usize,
@@ -76,7 +74,7 @@ mod tests {
             tx,
             create_execution_result([]),
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
             vec![],
             vec![],

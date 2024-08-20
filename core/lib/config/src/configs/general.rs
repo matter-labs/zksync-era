@@ -6,6 +6,7 @@ use crate::{
         da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
@@ -33,7 +34,7 @@ pub struct GeneralConfig {
     pub prover_gateway: Option<FriProverGatewayConfig>,
     pub witness_vector_generator: Option<FriWitnessVectorGeneratorConfig>,
     pub prover_group_config: Option<FriProverGroupConfig>,
-    pub witness_generator: Option<FriWitnessGeneratorConfig>,
+    pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub db_config: Option<DBConfig>,
@@ -52,4 +53,5 @@ pub struct GeneralConfig {
     pub consensus_config: Option<ConsensusConfig>,
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
 }
