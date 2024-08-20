@@ -33,6 +33,9 @@ pub const ERA_OBSERBAVILITY_GIT_REPO: &str = "https://github.com/matter-labs/era
 pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
 
+/// Name of portal config file
+pub const PORTAL_CONFIG_FILE: &str = "portal.config.js";
+
 /// Path to ecosystem contacts
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
 
