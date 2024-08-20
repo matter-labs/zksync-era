@@ -68,7 +68,7 @@ pub struct Vm<S: ReadStorage> {
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
 
-    snapshots: Vec<VmSnapshot>, // TODO: Implement snapshots logic
+    snapshot: Option<VmSnapshot>,
 }
 
 /// Encapsulates creating VM instance based on the provided environment.
@@ -143,7 +143,7 @@ impl<S: ReadStorage + 'static> VmFactory<S> for Vm<S> {
             storage,
             batch_env,
             system_env,
-            snapshots: Vec::new(),
+            snapshot: None,
         };
 
         mv.write_to_bootloader_heap(bootloader_memory);
@@ -658,15 +658,35 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
 
 impl<S: ReadStorage + 'static> VmInterfaceHistoryEnabled for Vm<S> {
     fn make_snapshot(&mut self) {
-        todo!()
+        assert!(
+            self.snapshot.is_none(),
+            "cannot create a VM snapshot until a previous snapshot is rolled back to or popped"
+        );
+
+        self.snapshot = Some(VmSnapshot {
+            vm_snapshot: self.inner.snapshot(),
+            suspended_at: self.suspended_at,
+            gas_for_account_validation: self.gas_for_account_validation,
+            bootloader_snapshot: self.bootloader_state.get_snapshot(),
+        });
     }
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        todo!()
+        let VmSnapshot {
+            vm_snapshot,
+            suspended_at,
+            gas_for_account_validation,
+            bootloader_snapshot,
+        } = self.snapshot.take().expect("no snapshots to rollback to");
+
+        self.inner.rollback(vm_snapshot);
+        self.bootloader_state.apply_snapshot(bootloader_snapshot);
+        self.suspended_at = suspended_at;
+        self.gas_for_account_validation = gas_for_account_validation;
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        todo!()
+        self.snapshot = None;
     }
 }
 
