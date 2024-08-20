@@ -4,6 +4,7 @@ use zksync_contracts::{l1_messenger_contract, mailbox_contract};
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_test_account::Account;
 use zksync_types::{
+    fee::Fee,
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     mailbox::BridgeHubRequestL2TransactionOnGateway,
@@ -12,7 +13,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface},
     utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{
@@ -79,7 +80,7 @@ fn test_l1_l2_tx_execution_large_factory_deps() {
     let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
     // Generate a large number of vectors
-    let vector_size: usize = 95899345880; // Size of each vector
+    let vector_size: usize = 95_899_345_880; // Size of each vector
     let num_vectors = 1; // Number of vectors
 
     let factory_deps: Vec<Vec<u8>> = (0..num_vectors).map(|_| vec![0u8; vector_size]).collect();
@@ -94,6 +95,14 @@ fn test_l1_l2_tx_execution_large_factory_deps() {
         .encode_input(&request_params.to_tokens())
         .unwrap();
 
+    // Creating a Fee instance with the specified gas limit
+    let fee = Fee {
+        gas_limit: U256::from(72000000),
+        max_fee_per_gas: U256::from(1000000000),
+        max_priority_fee_per_gas: U256::from(1000000000),
+        gas_per_pubdata_limit: U256::from(1000000000),
+    };
+
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: mailbox_address,
@@ -101,11 +110,28 @@ fn test_l1_l2_tx_execution_large_factory_deps() {
             value: U256::zero(),
             factory_deps: vec![],
         },
-        None,
+        Some(fee),
     );
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "Transaction wasn't successful");
+    // Check if the transaction failed
+    match result.result {
+        ExecutionResult::Success { output } => {
+            println!("Transaction was successful. Output: {:?}", output);
+        }
+        ExecutionResult::Revert { output } => {
+            println!("Transaction reverted. Reason: {:?}", output);
+            panic!("Transaction wasn't successful: {:?}", output);
+        }
+        ExecutionResult::Halt { reason } => {
+            println!("Transaction halted. Reason: {:?}", reason);
+            panic!("Transaction wasn't successful: {:?}", reason);
+        }
+    }
+
+    // println!("Transaction failed: {:?}", result.result.error_message());
+
+    // assert!(!result.result.is_failed(), "Transaction wasn't successful");
 }
 
 #[test]
@@ -180,6 +206,14 @@ fn test_l1_l2_tx_execution_many_small_factory_deps() {
         .encode_input(&request_params.to_tokens())
         .unwrap();
 
+    // Creating a Fee instance with the specified gas limit
+    let fee = Fee {
+        gas_limit: U256::from(72000000),
+        max_fee_per_gas: U256::from(1000000000),
+        max_priority_fee_per_gas: U256::from(1000000000),
+        gas_per_pubdata_limit: U256::from(1000000000),
+    };
+
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: mailbox_address,
@@ -187,7 +221,7 @@ fn test_l1_l2_tx_execution_many_small_factory_deps() {
             value: U256::zero(),
             factory_deps: vec![],
         },
-        None,
+        Some(fee),
     );
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
