@@ -3,8 +3,8 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    CallframeInterface, ExecutionEnd, OpcodeType, Program, Settings, StateInterface, Tracer,
-    VirtualMachine,
+    CallframeInterface, ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface,
+    Tracer, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::{
     system_params::{
@@ -135,6 +135,90 @@ pub struct CircuitsTracer {
 impl Tracer for CircuitsTracer {
     fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
+
+        match OP::VALUE {
+            Opcode::Nop
+            | Opcode::Add
+            | Opcode::Sub
+            | Opcode::Mul
+            | Opcode::Div
+            | Opcode::Jump
+            | Opcode::Xor
+            | Opcode::And
+            | Opcode::Or
+            | Opcode::ShiftLeft
+            | Opcode::ShiftRight
+            | Opcode::RotateLeft
+            | Opcode::RotateRight
+            | Opcode::PointerAdd
+            | Opcode::PointerSub
+            | Opcode::PointerPack
+            | Opcode::PointerShrink => {
+                self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+            }
+            Opcode::This
+            | Opcode::Caller
+            | Opcode::CodeAddress
+            | Opcode::ContextMeta
+            | Opcode::ErgsLeft
+            | Opcode::SP
+            | Opcode::ContextU128
+            | Opcode::SetContextU128
+            | Opcode::AuxMutating0
+            | Opcode::IncrementTxNumber
+            | Opcode::Ret(_)
+            | Opcode::NearCall => {
+                self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+            }
+            Opcode::StorageRead => {
+                self.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
+                self.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::TransientStorageRead => {
+                self.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
+                self.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.transient_storage_checker_cycles +=
+                    TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
+            }
+            Opcode::StorageWrite => {
+                self.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
+                self.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::TransientStorageWrite => {
+                self.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
+                self.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.transient_storage_checker_cycles +=
+                    TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
+            }
+            Opcode::L2ToL1Message | Opcode::Event => {
+                self.ram_permutation_cycles += EVENT_RAM_CYCLES;
+                self.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
+                self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
+            }
+            Opcode::PrecompileCall => {
+                self.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+                self.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
+            }
+            Opcode::Decommit => {
+                // Note, that for decommit the log demuxer circuit is not used.
+                self.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
+                self.code_decommitter_sorter_cycles += LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+            }
+            Opcode::FarCall(_) => {
+                self.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
+                self.code_decommitter_sorter_cycles += FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
+                self.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
+                self.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
+            }
+            Opcode::AuxHeapWrite | Opcode::HeapWrite /* StaticMemoryWrite */ => {
+                self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+            }
+            Opcode::AuxHeapRead | Opcode::HeapRead | Opcode::PointerRead /* StaticMemoryRead */ => {
+                self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+            }
+        }
     }
 }
 
