@@ -1,4 +1,7 @@
-use era_vm::{store::StorageKey as EraStorageKey, vm::ExecutionOutput, EraVM, Execution};
+use era_vm::{
+    rollbacks::Rollbackable, store::StorageKey as EraStorageKey, vm::ExecutionOutput, EraVM,
+    Execution,
+};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{
@@ -10,8 +13,9 @@ use zksync_types::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction, BOOTLOADER_ADDRESS, H160,
-    KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
+    Transaction, BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    U256,
 };
 use zksync_utils::{
     bytecode::{hash_bytecode, CompressedBytecodeInfo},
@@ -35,8 +39,9 @@ use crate::{
         constants::{
             get_vm_hook_position, get_vm_hook_start_position_latest, VM_HOOK_PARAMS_COUNT,
         },
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, L1BatchEnv, L2BlockEnv,
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, L1BatchEnv, L2BlockEnv, Refunds,
         SystemEnv, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
 };
 
@@ -377,19 +382,80 @@ impl<S: ReadStorage + 'static> VmInterface for Vm<S> {
             enable_refund_tracer = true;
         }
 
+        let snapshot = self.inner.state.snapshot();
         let result = self.run(execution_mode);
+
+        let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
+            && matches!(result, ExecutionResult::Halt { .. });
+
+        let logs = if ignore_world_diff {
+            VmExecutionLogs::default()
+        } else {
+            let events = merge_events(
+                self.inner.state.get_events_after_snapshot(snapshot.events),
+                self.batch_env.number,
+            );
+            let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+                .into_iter()
+                .map(Into::into)
+                .map(UserL2ToL1Log)
+                .collect();
+            let system_l2_to_l1_logs = self
+                .inner
+                .state
+                .get_l2_to_l1_logs_after_snapshot(snapshot.l2_to_l1_logs)
+                .iter()
+                .map(|log| log.into_system_log())
+                .collect();
+            let storage_logs: Vec<StorageLogWithPreviousValue> = self
+                .inner
+                .state
+                .get_storage_changes_from_snapshot(snapshot.storage_changes)
+                .iter()
+                .map(|(storage_key, (previos_value, value, is_initial))| {
+                    let key = StorageKey::new(
+                        AccountTreeId::new(storage_key.address),
+                        u256_to_h256(storage_key.key),
+                    );
+
+                    StorageLogWithPreviousValue {
+                        log: StorageLog {
+                            key,
+                            value: u256_to_h256(*value),
+                            kind: if *is_initial {
+                                StorageLogKind::InitialWrite
+                            } else {
+                                StorageLogKind::RepeatedWrite
+                            },
+                        },
+                        previous_value: u256_to_h256(previos_value.unwrap_or_default()),
+                    }
+                })
+                .collect();
+
+            VmExecutionLogs {
+                storage_logs,
+                events,
+                user_l2_to_l1_logs,
+                system_l2_to_l1_logs,
+                total_log_queries_count: 0, // This field is unused
+            }
+        };
 
         VmExecutionResultAndLogs {
             result,
-            logs: VmExecutionLogs {
-                storage_logs: Default::default(),
-                events: merge_events(self.inner.state.events(), self.batch_env.number),
-                user_l2_to_l1_logs: Default::default(),
-                system_l2_to_l1_logs: Default::default(),
-                total_log_queries_count: 0, // This field is unused
+            logs,
+            statistics: VmExecutionStatistics {
+                contracts_used: 0,
+                cycles_used: 0,
+                gas_used: 0,
+                gas_remaining: 0,
+                computational_gas_used: 0,
+                total_log_queries: 0,
+                pubdata_published: (self.inner.state.pubdata() - snapshot.pubdata).max(0) as u32,
+                circuit_statistic: Default::default(),
             },
-            statistics: Default::default(),
-            refunds: Default::default(),
+            refunds: Refunds::default(),
         }
     }
 
