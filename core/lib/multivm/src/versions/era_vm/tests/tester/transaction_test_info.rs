@@ -1,3 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
+use era_vm::{
+    state::{Event, L2ToL1Log},
+    store::StorageKey,
+};
 use zksync_state::ReadStorage;
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
@@ -183,26 +189,37 @@ impl TransactionTestInfo {
     }
 }
 
-// TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug, PartialEq)]
 struct VmStateDump {
-    state: era_vm::execution::ExecutionSnapshot,
-    storage_writes: Vec<((H160, U256), U256)>,
-    events: Vec<era_vm::state::Event>,
+    storage_changes: HashMap<StorageKey, U256>,
+    transient_storage: HashMap<StorageKey, U256>,
+    l2_to_l1_logs: Vec<L2ToL1Log>,
+    events: Vec<Event>,
+    pubdata: i32,
+    pubdata_costs: Vec<i32>,
+    refunds: Vec<u32>,
+    decommitted_hashes: HashSet<U256>,
+}
+#[derive(Debug, PartialEq)]
+struct VmDump {
+    execution: era_vm::execution::Execution,
+    state: VmStateDump,
 }
 
 impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump {
-        VmStateDump {
-            state: self.inner.execution.snapshot(),
-            storage_writes: self
-                .inner
-                .state
-                .storage_changes()
-                .iter()
-                .map(|(k, v)| ((k.address, k.key), *v))
-                .collect(),
-            events: self.inner.state.events().clone(),
+    fn dump_state(&self) -> VmDump {
+        VmDump {
+            execution: self.inner.execution.clone(),
+            state: VmStateDump {
+                storage_changes: self.inner.state.storage_changes().clone(),
+                transient_storage: self.inner.state.transient_storage().clone(),
+                l2_to_l1_logs: self.inner.state.l2_to_l1_logs().clone(),
+                events: self.inner.state.events().clone(),
+                pubdata: self.inner.state.pubdata().clone(),
+                pubdata_costs: self.inner.state.pubdata_costs().clone(),
+                refunds: self.inner.state.refunds().clone(),
+                decommitted_hashes: self.inner.state.decommitted_hashes().clone(),
+            },
         }
     }
 }
