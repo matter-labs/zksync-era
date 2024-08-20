@@ -31,7 +31,7 @@ on:
         description: "CUDA Arch to build"
         type: string
         default: "89"
-        required: false    
+        required: false
     outputs:
       protocol_version:
         description: "Protocol version of the binary"
