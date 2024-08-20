@@ -1,15 +1,14 @@
 use args::{
-    
-    all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs, rust::RustArgs,
-,
-    upgrade::UpgradeArgs,
+    all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
+    rust::RustArgs, upgrade::UpgradeArgs,
 };
 use clap::Subcommand;
 use xshell::Shell;
 
 use crate::messages::{
     MSG_ALL_TEST_ABOUT, MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT,
-    MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT, MSG_UPGRADE_TEST_ABOUT,
+    MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT,
+    MSG_UPGRADE_TEST_ABOUT,
 };
 
 mod all;
