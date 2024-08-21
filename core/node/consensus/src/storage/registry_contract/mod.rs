@@ -23,10 +23,10 @@ mod tests;
 
 /// A struct for reading data from consensus L2 contracts.
 #[derive(Debug)]
-pub(crate) struct VMReader {
-    tx_sender: TxSender,
+pub(crate) struct VM {
     contract: contracts::ConsensusRegistry,
     address: ethabi::Address,
+    sender: TxSender,
 }
 
 pub(crate) struct AddInputs {
@@ -107,8 +107,9 @@ fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester:
     })
 }
 
-#[allow(dead_code)]
-impl VMReader {
+type Calldata = Vec<u8>;
+
+impl VM {
     /// Constructs a new `VMReader` instance.
     pub fn new(tx_sender: TxSender, address: ethabi::Address) -> Self {
         Self {
@@ -116,17 +117,6 @@ impl VMReader {
             contract: contracts::ConsensusRegistry::load(),
             address,
         }
-    }
-
-    async fn block_args(&self, ctx: &ctx::Ctx, conn: &mut Connection<'_>, batch: attester::BatchNumber) -> anyhow::Result<BlockArgs> {
-        let (_, block) = conn.get_l2_block_range_of_l1_batch(ctx, batch).await.context("get_l2_block_range_of_l1_batch()")?.context("batch not sealed")?;
-        let block = api::BlockId::Number(api::BlockNumber::Number(block.0.into()));
-        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ std::time::Duration::from_secs(10)).await.unwrap();
-        BlockArgs::new(&mut conn, block, &start_info).await.context("BlockArgs::new")
-    }
-
-    pub async fn contract_deployed(&self, block: api::BlockId) -> bool {
-        self.call(block, self.contract.get_attester_commitee(), ()).is_ok()
     }
 
     /// Reads attester committee from the registry contract.
@@ -141,8 +131,9 @@ impl VMReader {
         attester::Committee::new(attesters.into_iter()).context("Committee::new()")
     }
 
-    async fn call<Sig: contracts::FunctionSig>(&self, ctx: &ctx::Ctx, conn: &mut Connection<'_>, batch: attester::BatchNumber, f: contracts::Function<'_, Sig>, input: Sig::Inputs) -> anyhow::Result<Sig::Outputs> {
-        let tx = L2Tx::new(
+    async fn eth_call<Sig: contracts::FunctionSig>(&self, f: contracts::Function<'_, Sig>, input: Sig::Inputs) -> anyhow::Result<L2Tx> {
+    fn eth_call(ctx: &ctx::Ctx, conn: &mut Connection<'_>, batch: attester::BatchNumber, tx: L2Tx) -> Bytes {
+        L2Tx::new(
             self.address,
             f.encode_input(input).context("encode_input")?,
             Nonce(0),
@@ -156,10 +147,13 @@ impl VMReader {
             U256::zero(),
             vec![],
             Default::default(),
-        );
+        )
         let overrides = CallOverrides { enforced_base_fee: None };
-        let args = self.block_args(ctx, conn, batch).await.context("block_args()")?;
+        let (_, block) = conn.get_l2_block_range_of_l1_batch(ctx, batch).await.context("get_l2_block_range_of_l1_batch()")?.context("batch not sealed")?;
+        let block = api::BlockId::Number(api::BlockNumber::Number(block.0.into()));
+        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ std::time::Duration::from_secs(10)).await.unwrap();
+        let args = BlockArgs::new(&mut conn, block, &start_info).await.context("BlockArgs::new")
         let output = self.tx_sender.eth_call(args, overrides, tx, None).await.context("tx_sender.eth_call()");
-        f.decode_output(&output).context("decode_output()")
+        output.parse()
     }
 }

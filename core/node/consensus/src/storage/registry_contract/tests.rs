@@ -15,33 +15,37 @@ use zksync_state_keeper::testonly::fee;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{Execute, Transaction};
 
-fn make_deploy_tx(account: &mut Account, owner: ethabi::Address) -> DeployContractsTx {
-    account.get_deploy_tx(
-        &contracts::ConsensusRegistry::bytecode(),
-        Some(&owner.into_tokens()),
-        TxType::L2,
-    )
-}
+impl VM {
+    fn deploy(pool: ConnectionPool, account: &mut Account, owner: ethabi::Address) -> (Self, Transaction) {
+        let deploy_tx = account.get_deploy_tx(
+            &contracts::ConsensusRegistry::bytecode(),
+            Some(&owner.into_tokens()),
+            TxType::L2,
+        );
+        let tx_sender = zksync_node_api_server::web3::testonly::create_test_tx_sender(
+            pool,
+            L2ChainId::default(),
+            zksync_node_api_server::execution_sandbox::TransactionExecutor::Real,
+        )
+        .await.0;
+        (VM::new(tx_sender,deploy_tx.address),deploy_tx.tx)
+    }
 
-fn make_tx(account: &mut Account, address: ethabi::Address, calldata: Vec<u8>) -> Transaction {
-    account.get_l2_tx_for_execute(
-        Execute {
-            address,
-            calldata,
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        Some(fee(10_000_000)),
-    )
-}
+    fn add(&self, account: &mut Account, inputs: AddInputs) -> Transaction {
+        self.make_tx(account,self.contract.add().encode_inputs(inputs.encode()))
+    }
 
-async fn make_tx_sender(pool: ConnectionPool) -> zksync_node_api_server::tx_sender::TxSender {
-    zksync_node_api_server::web3::testonly::create_test_tx_sender(
-        pool,
-        L2ChainId::default(),
-        zksync_node_api_server::execution_sandbox::TransactionExecutor::Real,
-    )
-    .await.0
+    fn make_tx(&self, account: &mut Account, calldata: Vec<u8>) -> Transaction {
+        account.get_l2_tx_for_execute(
+            Execute {
+                address: self.address,
+                calldata,
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            Some(fee(10_000_000)),
+        )
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -56,17 +60,16 @@ async fn test_vm_reader() {
         s.spawn_bg(runner.run_real(ctx));
 
         let mut account = Account::random();
-        let deploy_tx = make_deploy_tx(&mut account, account.address);
-        let vm = VMReader::new(make_tx_sender(&pool).await, deploy_tx.address);
+        let (vm, deploy_tx) = VM::deploy(pool, &mut account, account.address);
         
-        let mut txs = vec![deploy_tx.tx];
+        let mut txs = vec![deploy_tx];
         let mut attesters = vec![];
         for _ in 0..5 {
             let input = gen_add_inputs(rng);
             attesters.push(input.attester);
-            txs.push(gen_tx(&mut account, vm.add().encode_input(input))); 
+            txs.push(make_tx(&mut account, vm.add().encode_input(input))); 
         }
-        txs.push(gen_tx(&mut account, vm.set_committees().encode_input(()))).await;
+        txs.push(make_tx(&mut account, vm.set_committees().encode_input(()))).await;
         node.push_block(txs).await;
         node.seal_batch().await;
         node.wait_for_batch(node.last_batch()).await;
