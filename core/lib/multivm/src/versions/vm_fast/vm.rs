@@ -686,6 +686,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
         self.tracer.sha256_cycles = self.inner.state.sha256_cycles as u32;
         self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
+        self.tracer.code_decommitter_cycles = self.inner.state.code_decommitter_cycles as u32;
 
         let circuit_statistic = self.tracer.circuit_statistic();
 
