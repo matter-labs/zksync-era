@@ -146,7 +146,6 @@ where
 
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
         let (finished_batch, _) = self.0.finish_batch().await?;
-        // FIXME: metrics
         Ok(finished_batch)
     }
 }

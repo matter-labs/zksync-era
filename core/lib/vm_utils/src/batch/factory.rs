@@ -20,6 +20,7 @@ use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, KEEPER_METRICS},
 };
+use crate::batch::metrics::{InteractionType, EXECUTOR_METRICS};
 
 /// The default implementation of [`BatchExecutorFactory`].
 /// Creates real batch executors which maintain the VM (as opposed to the test factories which don't use the VM).
@@ -149,14 +150,20 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             }
         }
 
-        if !batch_finished {
-            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
-            tracing::info!("State keeper exited with an unfinished L1 batch");
-        }
         drop(vm);
         let storage_view = Rc::into_inner(storage_view)
             .context("storage view leaked")?
             .into_inner();
+        if batch_finished {
+            let metrics = storage_view.metrics();
+            EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
+                .observe(metrics.time_spent_on_get_value);
+            EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
+                .observe(metrics.time_spent_on_set_value);
+        } else {
+            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
+            tracing::info!("State keeper exited with an unfinished L1 batch");
+        }
         Ok(storage_view)
     }
 
