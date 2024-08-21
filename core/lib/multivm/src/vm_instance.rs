@@ -263,8 +263,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     let storage = ImmutableStorageView::new(storage_view);
                     Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
                 }
-                FastVmMode::Shadow => {
-                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
+                FastVmMode::Shadow | FastVmMode::ShadowLenient => {
+                    let mut vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
+                    vm.set_panic_on_divergence(matches!(mode, FastVmMode::Shadow));
+                    Self::ShadowedVmFast(vm)
                 }
             },
             _ => Self::new(l1_batch_env, system_env, storage_view),

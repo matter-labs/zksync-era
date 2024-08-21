@@ -1,10 +1,13 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashSet},
-    fmt,
+    collections::{BTreeMap, HashMap, HashSet},
+    fmt, fs, io,
+    path::PathBuf,
+    time::SystemTime,
 };
 
-use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
+use serde::Serialize;
+use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H256};
 
 use crate::{
     interface::{
@@ -17,9 +20,42 @@ use crate::{
     vm_fast,
 };
 
+#[derive(Debug, Serialize)]
+enum BlockOrTransaction {
+    Block(L2BlockEnv),
+    Transaction(Box<Transaction>),
+}
+
+#[derive(Debug, Serialize)]
+struct VmStateDump {
+    l1_batch_env: L1BatchEnv,
+    system_env: SystemEnv,
+    blocks_and_transactions: Vec<BlockOrTransaction>,
+    read_storage_keys: HashMap<H256, H256>,
+}
+
+impl VmStateDump {
+    fn new(l1_batch_env: L1BatchEnv, system_env: SystemEnv) -> Self {
+        Self {
+            l1_batch_env,
+            system_env,
+            blocks_and_transactions: vec![],
+            read_storage_keys: HashMap::new(),
+        }
+    }
+
+    fn push_transaction(&mut self, tx: Transaction) {
+        let tx = BlockOrTransaction::Transaction(Box::new(tx));
+        self.blocks_and_transactions.push(tx);
+    }
+}
+
 struct VmWithReporting<S> {
     vm: vm_fast::Vm<ImmutableStorageView<S>>,
-    reporter: Box<dyn FnMut(anyhow::Error)>,
+    storage: StoragePtr<StorageView<S>>,
+    partial_dump: VmStateDump,
+    dumps_directory: Option<PathBuf>,
+    panic_on_divergence: bool,
 }
 
 impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
@@ -27,13 +63,50 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
         formatter
             .debug_struct("VmWithReporting")
             .field("vm", &self.vm)
+            .field("dumps_directory", &self.dumps_directory)
+            .field("panic_on_divergence", &self.panic_on_divergence)
             .finish_non_exhaustive()
     }
 }
 
 impl<S> VmWithReporting<S> {
-    fn report(mut self, err: anyhow::Error) {
-        (self.reporter)(err);
+    fn report(self, err: anyhow::Error) {
+        let mut dump = self.partial_dump;
+        let batch_number = dump.l1_batch_env.number.0;
+        tracing::error!("VM execution diverged on batch #{batch_number}!");
+
+        let read_keys = self.storage.borrow().cache().read_storage_keys();
+        dump.read_storage_keys = read_keys
+            .into_iter()
+            .filter(|(_, value)| !value.is_zero())
+            .map(|(key, value)| (key.hashed_key(), value))
+            .collect();
+
+        if let Some(dumps_directory) = self.dumps_directory {
+            let timestamp = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("bogus clock");
+            let timestamp = timestamp.as_millis();
+            let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
+            let dump_filename = dumps_directory.join(dump_filename);
+            tracing::info!("Dumping VM state to file `{}`", dump_filename.display());
+
+            let writer = fs::File::create(&dump_filename).expect("failed creating dump file");
+            let writer = io::BufWriter::new(writer);
+            serde_json::to_writer(writer, &dump).expect("failed dumping VM state to file");
+        } else {
+            let json = serde_json::to_string(&dump).expect("failed dumping VM state to string");
+            tracing::error!("VM state: {json}");
+        }
+
+        if self.panic_on_divergence {
+            panic!("{err:?}");
+        } else {
+            tracing::error!("{err:?}");
+            tracing::warn!(
+                "New VM is dropped; following VM actions will be executed on the main VM only"
+            );
+        }
     }
 }
 
@@ -41,6 +114,24 @@ impl<S> VmWithReporting<S> {
 pub struct ShadowVm<S, T> {
     main: T,
     shadow: RefCell<Option<VmWithReporting<S>>>,
+}
+
+impl<S, T> ShadowVm<S, T>
+where
+    S: ReadStorage,
+    T: VmInterface,
+{
+    pub fn set_dumps_directory(&mut self, dir: PathBuf) {
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.dumps_directory = Some(dir);
+        }
+    }
+
+    pub(crate) fn set_panic_on_divergence(&mut self, panic: bool) {
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.panic_on_divergence = panic;
+        }
+    }
 }
 
 impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
@@ -54,13 +145,21 @@ where
         storage: StoragePtr<StorageView<S>>,
     ) -> Self {
         let main = T::new(batch_env.clone(), system_env.clone(), storage.clone());
-        let shadow = vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage));
+        let shadow = vm_fast::Vm::new(
+            batch_env.clone(),
+            system_env.clone(),
+            ImmutableStorageView::new(storage.clone()),
+        );
+        let shadow = VmWithReporting {
+            vm: shadow,
+            storage,
+            partial_dump: VmStateDump::new(batch_env, system_env),
+            dumps_directory: None,
+            panic_on_divergence: true,
+        };
         Self {
             main,
-            shadow: RefCell::new(Some(VmWithReporting {
-                vm: shadow,
-                reporter: Box::new(|err| panic!("{err:?}")),
-            })),
+            shadow: RefCell::new(Some(shadow)),
         }
     }
 }
@@ -74,6 +173,7 @@ where
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
+            shadow.partial_dump.push_transaction(tx.clone());
             shadow.vm.push_transaction(tx.clone());
         }
         self.main.push_transaction(tx);
@@ -146,6 +246,10 @@ where
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.main.start_new_l2_block(l2_block_env);
         if let Some(shadow) = self.shadow.get_mut() {
+            shadow
+                .partial_dump
+                .blocks_and_transactions
+                .push(BlockOrTransaction::Block(l2_block_env));
             shadow.vm.start_new_l2_block(l2_block_env);
         }
     }
@@ -176,6 +280,7 @@ where
             .main
             .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
         if let Some(shadow) = self.shadow.get_mut() {
+            shadow.partial_dump.push_transaction(tx.clone());
             let shadow_result = shadow
                 .vm
                 .execute_transaction_with_bytecode_compression(tx, with_compression);
@@ -207,6 +312,7 @@ where
             with_compression,
         );
         if let Some(shadow) = self.shadow.get_mut() {
+            shadow.partial_dump.push_transaction(tx.clone());
             let shadow_result =
                 shadow
                     .vm

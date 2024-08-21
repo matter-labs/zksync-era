@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -35,6 +35,7 @@ pub struct MainBatchExecutor {
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    dumps_directory: Option<PathBuf>,
 }
 
 impl MainBatchExecutor {
@@ -43,6 +44,7 @@ impl MainBatchExecutor {
             save_call_traces,
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
+            dumps_directory: None,
         }
     }
 
@@ -53,6 +55,11 @@ impl MainBatchExecutor {
             );
         }
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    pub fn set_dumps_directory(&mut self, dir: PathBuf) {
+        tracing::info!("Set VM dumps directory: {}", dir.display());
+        self.dumps_directory = Some(dir);
     }
 }
 
@@ -70,6 +77,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
+            dumps_directory: self.dumps_directory.clone(),
             commands: commands_receiver,
         };
 
@@ -97,6 +105,7 @@ struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    dumps_directory: Option<PathBuf>,
     commands: mpsc::Receiver<Command>,
 }
 
@@ -116,6 +125,12 @@ impl CommandReceiver {
             storage_view.clone(),
             self.fast_vm_mode,
         );
+
+        if let VmInstance::ShadowedVmFast(vm) = &mut vm {
+            if let Some(dir) = self.dumps_directory.take() {
+                vm.set_dumps_directory(dir);
+            }
+        }
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {

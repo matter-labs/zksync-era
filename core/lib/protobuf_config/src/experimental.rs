@@ -57,6 +57,7 @@ impl proto::FastVmMode {
             FastVmMode::Old => Self::Old,
             FastVmMode::New => Self::New,
             FastVmMode::Shadow => Self::Shadow,
+            FastVmMode::ShadowLenient => Self::ShadowLenient,
         }
     }
 
@@ -65,6 +66,7 @@ impl proto::FastVmMode {
             Self::Old => FastVmMode::Old,
             Self::New => FastVmMode::New,
             Self::Shadow => FastVmMode::Shadow,
+            Self::ShadowLenient => FastVmMode::ShadowLenient,
         }
     }
 }
