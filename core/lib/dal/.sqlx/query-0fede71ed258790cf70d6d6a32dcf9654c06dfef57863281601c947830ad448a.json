@@ -77,6 +77,11 @@
         "ordinal": 14,
         "name": "is_gateway",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -106,7 +111,8 @@
       false,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
   "hash": "0fede71ed258790cf70d6d6a32dcf9654c06dfef57863281601c947830ad448a"
