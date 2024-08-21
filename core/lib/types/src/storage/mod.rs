@@ -153,10 +153,10 @@ fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
 /// and so for now the correctness of those values is tested in a unit tests within the multivm crate.
 pub fn get_l2_message_root_init_logs() -> Vec<StorageLog> {
     let slots_values = vec![
-        (
-            "8e94fed44239eb2314ab7a406345e6c5a8f0ccedf3b600de3d004e672c33abf4",
-            "0000000000000000000000000000000000000000000000000000000000000001",
-        ),
+        // (
+        //     "8e94fed44239eb2314ab7a406345e6c5a8f0ccedf3b600de3d004e672c33abf4",
+        //     "0000000000000000000000000000000000000000000000000000000000000001",
+        // ),
         (
             "0000000000000000000000000000000000000000000000000000000000000007",
             "0000000000000000000000000000000000000000000000000000000000000001",
