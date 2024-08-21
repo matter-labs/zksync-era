@@ -6,10 +6,9 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
-
 use crate::{
     config,
-    storage::{ConnectionPool, InsertCertificateError, Store},
+    storage::{registry_contract::VMReader, ConnectionPool, InsertCertificateError, Store},
 };
 
 /// Task running a consensus validator for the main node.
@@ -100,6 +99,7 @@ async fn run_attestation_updater(
     attestation: Arc<attestation::Controller>,
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+    let vm_reader = VMReader::new(tx_sender,address);
     let res = async {
         let Some(committee) = &genesis.attesters else {
             return Ok(());
@@ -129,6 +129,8 @@ async fn run_attestation_updater(
             let hash = pool
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
+            let committee = vm_reader.get_attester_committee(ctx, status.next_batch_to_attest-1).await?;
+            pool.connection(ctx).await.context("connection")?.insert_attester_committee(ctx, status.next_batch_to_attest, committee).await?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest

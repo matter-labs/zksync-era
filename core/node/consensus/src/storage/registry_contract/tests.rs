@@ -1,6 +1,5 @@
 use rand::Rng;
-use super::committee_extractor::CommitteeExtractor;
-use super::{testonly::VMWriter, vm_reader::VMReader};
+use super::{AddInputs,WeightedValidator,VMReader};
 use zksync_basic_types::{web3::contract::Tokenize, L1BatchNumber};
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_crypto::ByteFmt;
@@ -10,12 +9,35 @@ use zksync_types::{
     ethabi,
     L2ChainId, ProtocolVersionId, U256,
 };
-
 use crate::storage::ConnectionPool;
+use zksync_basic_types::{ethabi};
+use zksync_state_keeper::testonly::fee;
+use zksync_test_account::{Account, DeployContractsTx, TxType};
+use zksync_types::{Execute, Transaction};
 
-async fn make_tx_sender(pool: &ConnectionPool) -> zksync_node_api_server::tx_sender::TxSender {
+fn make_deploy_tx(account: &mut Account, owner: ethabi::Address) -> DeployContractsTx {
+    account.get_deploy_tx(
+        &contracts::ConsensusRegistry::bytecode(),
+        Some(&owner.into_tokens()),
+        TxType::L2,
+    )
+}
+
+fn make_tx(account: &mut Account, address: ethabi::Address, calldata: Vec<u8>) -> Transaction {
+    account.get_l2_tx_for_execute(
+        Execute {
+            address,
+            calldata,
+            value: Default::default(),
+            factory_deps: vec![],
+        },
+        Some(fee(10_000_000)),
+    )
+}
+
+async fn make_tx_sender(pool: ConnectionPool) -> zksync_node_api_server::tx_sender::TxSender {
     zksync_node_api_server::web3::testonly::create_test_tx_sender(
-        pool.0.clone(),
+        pool,
         L2ChainId::default(),
         zksync_node_api_server::execution_sandbox::TransactionExecutor::Real,
     )
@@ -31,22 +53,27 @@ async fn test_vm_reader() {
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
         let (node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
-        let account = runner.account.clone();
         s.spawn_bg(runner.run_real(ctx));
 
-        let mut writer =
-            super::testonly::VMWriter::new(pool.clone(), node, account.clone(), account.address);
+        let mut account = Account::random();
+        let deploy_tx = make_deploy_tx(&mut account, account.address);
+        let vm = VMReader::new(make_tx_sender(&pool).await, deploy_tx.address);
+        
+        let mut txs = vec![deploy_tx.tx];
+        let mut attesters = vec![];
+        for _ in 0..5 {
+            let input = gen_add_inputs(rng);
+            attesters.push(input.attester);
+            txs.push(gen_tx(&mut account, vm.add().encode_input(input))); 
+        }
+        txs.push(gen_tx(&mut account, vm.set_committees().encode_input(()))).await;
+        node.push_block(txs).await;
+        node.seal_batch().await;
+        node.wait_for_batch(node.last_batch()).await;
 
-        let mut want = gen_random_abi_nodes(ctx, 5);
-        writer.deploy().await;
-        writer.add_nodes(want).await;
-        writer.set_committees().await;
-        writer.seal_batch_and_wait(ctx).await;
-
-        let tx_sender = make_tx_sender(&pool).await;
-        let block_id = BlockId::Number(BlockNumber::Pending);
-        let reader = super::vm_reader::VMReader::new(pool.clone(), tx_sender, writer.deploy_tx.address);
-        assert_eq!(want, reader.read_attester_committee(ctx, block_id).await.unwrap());
+        let want = attester::Committee::new(attesters.into_iter()).unwrap();
+        let conn = &mut pool.connection().await.unwrap();
+        assert_eq!(want, vm.get_attester_committee(ctx, conn, node.last_batch()).await.unwrap());
         Ok(())
     })
     .await
@@ -123,23 +150,18 @@ async fn test_committee_extractor() {
     .unwrap();
 }
 
-fn gen_random_abi_nodes(ctx: &ctx::Ctx, num_nodes: usize) -> Vec<Vec<ethabi::Token>> {
-    let rng = &mut ctx.rng();
-    (0..num_nodes).map(|_|(
-        ethabi::Address::random(),
-        U256::from(rng.gen::<usize>()),
-        rng.gen::<validator::PublicKey>().encode(),
-        rng.gen::<validator::Signature>().encode(),
-        U256::from(rng.gen::<usize>()),
-        rng.gen::<attester::PublicKey>().encode(),
-    ).into_tokens()).collect()
-}
-
-fn abi_node_to_attester(node: &Vec<ethabi::Token>) -> attester::WeightedAttester {
-    let pub_key = &node[5].clone().into_bytes().unwrap();
-    let weight = node[4].clone().into_uint().unwrap();
-    attester::WeightedAttester {
-        key: attester::PublicKey::decode(pub_key).unwrap(),
-        weight: weight.try_into().unwrap(),
+fn gen_add_inputs(rng: &mut impl Rng) -> AddInputs {
+    AddInputs {
+        node_owner: ethabi::Address::random(),
+        // TODO: generate valid pop.
+        validator: WeightedValidator {
+            key: rng.gen(),
+            weight: rng.gen_range(1..100),
+            pop: rng.gen(),
+        },
+        attester: attester::WeightedAttester {
+            key: rng.gen(),
+            weight: rng.gen_range(1..100),
+        },
     }
 }

@@ -16,7 +16,7 @@ mod store;
 pub(crate) use connection::*;
 pub(crate) use store::*;
 
-mod registry_contract;
+pub(crate) mod registry_contract;
 #[cfg(test)]
 pub(crate) mod testonly;
 
