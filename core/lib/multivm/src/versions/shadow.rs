@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt, fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -8,7 +8,8 @@ use std::{
 
 use anyhow::Context as _;
 use serde::Serialize;
-use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H256};
+use zksync_types::{web3, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H256};
+use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{
@@ -30,10 +31,15 @@ enum BlockOrTransaction {
 
 #[derive(Debug, Serialize)]
 struct VmStateDump {
+    // VM inputs
     l1_batch_env: L1BatchEnv,
     system_env: SystemEnv,
     blocks_and_transactions: Vec<BlockOrTransaction>,
+    // Storage information (read slots and factory deps, `is_initial_write` oracle)
     read_storage_keys: HashMap<H256, H256>,
+    initial_writes: HashSet<H256>,
+    repeated_writes: HashSet<H256>,
+    factory_deps: HashMap<H256, web3::Bytes>,
 }
 
 impl VmStateDump {
@@ -43,6 +49,9 @@ impl VmStateDump {
             system_env,
             blocks_and_transactions: vec![],
             read_storage_keys: HashMap::new(),
+            initial_writes: HashSet::new(),
+            repeated_writes: HashSet::new(),
+            factory_deps: HashMap::new(),
         }
     }
 
@@ -71,18 +80,37 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
     }
 }
 
-impl<S> VmWithReporting<S> {
-    fn report(self, err: anyhow::Error) {
+impl<S: ReadStorage> VmWithReporting<S> {
+    fn report(self, main_vm: &impl VmInterface, err: anyhow::Error) {
         let mut dump = self.partial_dump;
         let batch_number = dump.l1_batch_env.number;
         tracing::error!("VM execution diverged on batch #{batch_number}!");
 
-        let read_keys = self.storage.borrow().cache().read_storage_keys();
-        dump.read_storage_keys = read_keys
+        let storage_cache = self.storage.borrow().cache();
+        dump.read_storage_keys = storage_cache
+            .read_storage_keys()
             .into_iter()
             .filter(|(_, value)| !value.is_zero())
             .map(|(key, value)| (key.hashed_key(), value))
             .collect();
+        for (key, is_initial) in storage_cache.initial_writes() {
+            if is_initial {
+                dump.initial_writes.insert(key.hashed_key());
+            } else {
+                dump.repeated_writes.insert(key.hashed_key());
+            }
+        }
+
+        let used_contract_hashes = main_vm.get_current_execution_state().used_contract_hashes;
+        let mut storage = self.storage.borrow_mut();
+        dump.factory_deps = used_contract_hashes
+            .into_iter()
+            .filter_map(|hash| {
+                let hash = u256_to_h256(hash);
+                Some((hash, web3::Bytes(storage.load_factory_dep(hash)?)))
+            })
+            .collect();
+        drop(storage);
 
         if let Some(dumps_directory) = self.dumps_directory {
             if let Err(err) = Self::dump_to_file(&dumps_directory, &dump) {
@@ -198,7 +226,10 @@ where
             errors.check_results_match(&main_result, &shadow_result);
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.shadow.take().unwrap().report(err.context(ctx));
+                self.shadow
+                    .take()
+                    .unwrap()
+                    .report(&self.main, err.context(ctx));
             }
         }
         main_result
@@ -216,10 +247,11 @@ where
             errors.check_results_match(&main_result, &shadow_result);
 
             if let Err(err) = errors.into_result() {
+                let ctx = format!("executing VM with mode {execution_mode:?}");
                 self.shadow
                     .take()
                     .unwrap()
-                    .report(err.context(format!("executing VM with mode {execution_mode:?}")));
+                    .report(&self.main, err.context(ctx));
             }
         }
         main_result
@@ -232,7 +264,7 @@ where
             let result =
                 DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(err);
+                self.shadow.take().unwrap().report(&self.main, err);
             }
         }
         main_memory
@@ -248,7 +280,7 @@ where
                 &shadow_bytecodes,
             );
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(err);
+                self.shadow.take().unwrap().report(&self.main, err);
             }
         }
         main_bytecodes
@@ -272,7 +304,7 @@ where
             let result =
                 DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(err);
+                self.shadow.take().unwrap().report(&self.main, err);
             }
         }
         main_state
@@ -301,7 +333,10 @@ where
                 let ctx = format!(
                     "executing transaction {tx_hash:?}, with_compression={with_compression:?}"
                 );
-                self.shadow.take().unwrap().report(err.context(ctx));
+                self.shadow
+                    .take()
+                    .unwrap()
+                    .report(&self.main, err.context(ctx));
             }
         }
         main_result
@@ -334,7 +369,10 @@ where
                 let ctx = format!(
                     "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
                 );
-                self.shadow.take().unwrap().report(err.context(ctx));
+                self.shadow
+                    .take()
+                    .unwrap()
+                    .report(&self.main, err.context(ctx));
             }
         }
         main_result
@@ -350,7 +388,7 @@ where
             let shadow_gas = shadow.vm.gas_remaining();
             let result = DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(err);
+                self.shadow.take().unwrap().report(&self.main, err);
             }
         }
         main_gas
@@ -386,7 +424,7 @@ where
             );
 
             if let Err(err) = errors.into_result() {
-                self.shadow.take().unwrap().report(err);
+                self.shadow.take().unwrap().report(&self.main, err);
             }
         }
         main_batch
