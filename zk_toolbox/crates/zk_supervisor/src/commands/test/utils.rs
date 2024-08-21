@@ -3,11 +3,7 @@ use std::collections::HashMap;
 use anyhow::Context;
 use common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
 use config::{ChainConfig, EcosystemConfig};
-use ethers::{
-    providers::{Http, Middleware, Provider},
-    signers::{coins_bip39::English, MnemonicBuilder},
-    types::H256,
-};
+use ethers::providers::{Http, Middleware, Provider};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
@@ -33,25 +29,18 @@ pub struct TestWallets {
 }
 
 impl TestWallets {
-    pub fn get(&self, id: String) -> anyhow::Result<Wallet> {
-        let mnemonic = self.wallets.get(id.as_str()).unwrap().as_str();
-        let wallet = MnemonicBuilder::<English>::default()
-            .phrase(mnemonic)
-            .derivation_path(&self.base_path)?
-            .build()?;
-        let private_key = H256::from_slice(&wallet.signer().to_bytes());
+    fn get(&self, id: u32) -> anyhow::Result<Wallet> {
+        let mnemonic = self.wallets.get("test_mnemonic").unwrap().as_str();
 
-        Ok(Wallet::new_with_key(private_key))
+        Wallet::from_mnemonic(mnemonic, &self.base_path, id)
     }
 
     pub fn get_main_wallet(&self) -> anyhow::Result<Wallet> {
-        self.get("test_mnemonic".to_string())
+        self.get(0)
     }
 
     pub fn get_test_wallet(&self, chain_config: &ChainConfig) -> anyhow::Result<Wallet> {
-        let test_wallet_id: String = format!("test_mnemonic{}", chain_config.id + 1);
-
-        self.get(test_wallet_id)
+        self.get(chain_config.id)
     }
 
     pub async fn init_test_wallet(
