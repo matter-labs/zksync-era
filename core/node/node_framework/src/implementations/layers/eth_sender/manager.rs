@@ -6,7 +6,10 @@ use zksync_eth_sender::EthTxManager;
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        eth_interface::{
+            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+            BoundEthInterfaceResource,
+        },
         gas_adjuster::GasAdjusterResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
@@ -27,7 +30,7 @@ use crate::{
 /// - `PoolResource<ReplicaPool>`
 /// - `BoundEthInterfaceResource`
 /// - `BoundEthInterfaceForBlobsResource` (optional)
-/// - `L1TxParamsResource`
+/// - `TxParamsResource`
 /// - `CircuitBreakersResource` (adds a circuit breaker)
 ///
 /// ## Adds tasks
@@ -45,6 +48,7 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub l2_client: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
@@ -79,6 +83,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let eth_client = input.eth_client.0;
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let l2_client = input.l2_client.map(|c| c.0);
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
@@ -88,8 +93,9 @@ impl WiringLayer for EthTxManagerLayer {
             master_pool,
             config,
             gas_adjuster,
-            eth_client,
+            Some(eth_client),
             eth_client_blobs,
+            l2_client,
         );
 
         // Insert circuit breaker.

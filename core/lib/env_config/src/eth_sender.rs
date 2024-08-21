@@ -71,6 +71,8 @@ mod tests {
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
                     ignore_db_nonce: None,
                     priority_tree_start_index: None,
+                    tx_aggregation_only_prove_and_execute: false,
+                    tx_aggregation_paused: false,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -133,6 +135,8 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
 
         "#;

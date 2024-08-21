@@ -24,7 +24,7 @@ impl EthConfig {
         Self {
             sender: Some(SenderConfig {
                 aggregated_proof_sizes: vec![1],
-                wait_confirmations: Some(1),
+                wait_confirmations: Some(10),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
                 max_txs_in_flight: 30,
@@ -42,6 +42,8 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 ignore_db_nonce: None,
                 priority_tree_start_index: Some(0),
+                tx_aggregation_paused: false,
+                tx_aggregation_only_prove_and_execute: false,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -126,6 +128,12 @@ pub struct SenderConfig {
     pub ignore_db_nonce: Option<bool>,
     /// Index of the priority operation to start building the `PriorityMerkleTree` from.
     pub priority_tree_start_index: Option<usize>,
+    /// special mode specifically for gateway migration to allow all inflight txs to be processed
+    #[serde(default = "SenderConfig::default_tx_aggregation_paused")]
+    pub tx_aggregation_paused: bool,
+    /// special mode specifically for gateway migration to decrease number of non-executed batches
+    #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
+    pub tx_aggregation_only_prove_and_execute: bool,
 }
 
 impl SenderConfig {
@@ -159,6 +167,13 @@ impl SenderConfig {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
+    }
+
+    const fn default_tx_aggregation_paused() -> bool {
+        false
+    }
+    const fn default_tx_aggregation_only_prove_and_execute() -> bool {
+        false
     }
 }
 

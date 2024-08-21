@@ -115,6 +115,8 @@ impl ProtoRepr for proto::Sender {
                 .parse(),
             ignore_db_nonce: None,
             priority_tree_start_index: self.priority_op_start_index.map(|x| x as usize),
+            tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
+            tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
         })
     }
 
@@ -146,6 +148,8 @@ impl ProtoRepr for proto::Sender {
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
             priority_op_start_index: this.priority_tree_start_index.map(|x| x as u64),
+            tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
+            tx_aggregation_paused: Some(this.tx_aggregation_paused),
         }
     }
 }

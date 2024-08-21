@@ -15,7 +15,6 @@ use zksync_types::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
-    event::convert_vm_events_to_log_queries,
     web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L2_MESSAGE_ROOT_ADDRESS,
@@ -24,7 +23,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{CommitmentComputer, RealCommitmentComputer},
+    utils::{convert_vm_events_to_log_queries, CommitmentComputer, RealCommitmentComputer},
 };
 
 mod metrics;

@@ -22,3 +22,4 @@ url.workspace = true
 xshell.workspace = true
 serde.workspace = true
 clap-markdown.workspace = true
+futures.workspace = true
