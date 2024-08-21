@@ -27,10 +27,14 @@ impl<S: Send + 'static> BatchExecutorOutputs for StandardOutputs<S> {
     type Batch = (FinishedL1Batch, StorageView<S>);
 }
 
+/// Factory of [`BatchExecutor`]s.
 pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
+    /// Outputs produced by executors instantiated by this factory.
     type Outputs: BatchExecutorOutputs;
+    /// Executor instantiated by this factory.
     type Executor: BatchExecutor<Self::Outputs> + ?Sized;
 
+    /// Initializes an executor for a batch with the specified params and using the provided storage.
     fn init_batch(
         &mut self,
         storage: S,

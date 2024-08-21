@@ -17,8 +17,10 @@ use crate::ExecutionMetricsForCriteria;
 #[cfg(test)]
 mod tests;
 
-/// Internal representation of a transaction executed in the virtual machine. Allows to be more typesafe
-/// when dealing with halted transactions, and to test seal criteria.
+/// State keeper representation of a transaction executed in the virtual machine.
+///
+/// A separate type allows to be more typesafe when dealing with halted transactions. It also simplifies testing seal criteria
+/// (i.e., without picking transactions that actually produce appropriate `ExecutionMetricsForCriteria`).
 #[derive(Debug, Clone)]
 pub enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
