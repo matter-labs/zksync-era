@@ -682,6 +682,13 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         let pubdata_after = self.inner.world_diff.pubdata();
 
+        self.tracer.keccak256_cycles = self.inner.state.keccak256_cycles as u32;
+        self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
+        self.tracer.sha256_cycles = self.inner.state.sha256_cycles as u32;
+        self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
+
+        let circuit_statistic = self.tracer.circuit_statistic();
+
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -694,7 +701,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: self.tracer.circuit_statistic(),
+                circuit_statistic,
             },
             refunds,
         }
