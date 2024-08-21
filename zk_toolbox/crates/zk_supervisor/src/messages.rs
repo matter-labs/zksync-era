@@ -180,3 +180,8 @@ pub(super) fn msg_running_fmt_for_extensions_spinner(extensions: &[Extension]) -
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
 pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
+
+// Test wallets related messages
+pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
+pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
+pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";

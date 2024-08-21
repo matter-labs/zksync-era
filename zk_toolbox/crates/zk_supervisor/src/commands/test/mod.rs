@@ -8,7 +8,7 @@ use xshell::Shell;
 use crate::messages::{
     MSG_ALL_TEST_ABOUT, MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT,
     MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT,
-    MSG_UPGRADE_TEST_ABOUT,
+    MSG_TEST_WALLETS_INFO, MSG_UPGRADE_TEST_ABOUT,
 };
 
 mod all;
@@ -22,6 +22,7 @@ mod revert;
 mod rust;
 mod upgrade;
 mod utils;
+mod wallet;
 
 #[derive(Subcommand, Debug)]
 pub enum TestCommands {
@@ -43,6 +44,8 @@ pub enum TestCommands {
     L1Contracts,
     #[clap(about = MSG_PROVER_TEST_ABOUT, alias = "p")]
     Prover,
+    #[clap(about = MSG_TEST_WALLETS_INFO)]
+    Wallet,
 }
 
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -56,5 +59,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Rust(args) => rust::run(shell, args).await,
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell),
+        TestCommands::Wallet => wallet::run(shell),
     }
 }
