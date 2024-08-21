@@ -359,14 +359,14 @@ impl AccountLoadNextExecutable for Account {
     fn loadnext_custom_new_writes_call(
         &mut self,
         address: Address,
-        new_writes: u32,
+        initial_writes: u32,
         gas_limit: u32,
     ) -> Transaction {
         // For each iteration of the expensive contract, there are two slots that are updated:
         // the length of the vector and the new slot with the element itself.
         let minimal_fee = 2
             * testonly::DEFAULT_GAS_PER_PUBDATA
-            * new_writes
+            * initial_writes
             * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
 
         let fee = testonly::fee(minimal_fee + gas_limit);
@@ -376,8 +376,8 @@ impl AccountLoadNextExecutable for Account {
                 contract_address: address,
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
-                    new_writes: new_writes as usize,
-                    over_writes: 100,
+                    initial_writes: initial_writes as usize,
+                    repeated_writes: 100,
                     events: 100,
                     hashes: 100,
                     recursive_calls: 0,

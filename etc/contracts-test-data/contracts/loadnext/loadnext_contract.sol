@@ -16,8 +16,8 @@ contract LoadnextContract {
 
     function execute(
         uint reads,
-        uint newWrites,
-        uint overWrites,
+        uint initialWrites,
+        uint repeatedWrites,
         uint hashes,
         uint events,
         uint maxRecursion,
@@ -27,8 +27,8 @@ contract LoadnextContract {
             return
                 this.execute(
                     reads,
-                    newWrites,
-                    overWrites,
+                    initialWrites,
+                    repeatedWrites,
                     hashes,
                     events,
                     maxRecursion - 1,
@@ -43,13 +43,13 @@ contract LoadnextContract {
             sum += readArray[i];
         }
 
-        for (uint i = 0; i < newWrites; i++) {
+        for (uint i = 0; i < initialWrites; i++) {
             writeArray.push(i);
         }
 
         uint arrayLength = writeArray.length;
         require(arrayLength > 0);
-        for (uint i = 0; i < overWrites; i++) {
+        for (uint i = 0; i < repeatedWrites; i++) {
             writeArray[i % arrayLength] = i;
         }
 

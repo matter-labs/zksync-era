@@ -33,7 +33,7 @@ The smart contract that is used for every L2 transaction can be found here:
 The `execute` function of the contract has the following parameters:
 
 ```solidity
-function execute(uint reads, uint newWrites, uint overWrites, uint hashes, uint events, uint maxRecursion, uint deploys) external returns(uint) {
+function execute(uint reads, uint initialWrites, uint repeatedWrites, uint hashes, uint events, uint maxRecursion, uint deploys) external returns(uint) {
 ```
 
 which correspond to the following configuration options:
@@ -41,8 +41,8 @@ which correspond to the following configuration options:
 ```rust
 pub struct LoadnextContractExecutionParams {
     pub reads: usize,
-    pub new_writes: usize,
-    pub over_writes: usize,
+    pub initial_writes: usize,
+    pub repeated_writes: usize,
     pub events: usize,
     pub hashes: usize,
     pub recursive_calls: usize,
