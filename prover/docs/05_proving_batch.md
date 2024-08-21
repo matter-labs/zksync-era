@@ -91,7 +91,7 @@ And finally, provide the data about the batch:
 prover_cli <DATABASE_URL> insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
 ```
 
-Also, provers need to know which setup keys they should use. Generate them with:
+Also, provers need to know which setup keys they should use. It may take some time, but you can generate them with:
 
 ```shell
 zk_inception prover generate-sk
