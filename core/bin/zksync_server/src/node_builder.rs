@@ -766,6 +766,7 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenRatioPersister => {
                     self = self
+                        .add_l1_gas_layer()?
                         .add_external_api_client_layer()?
                         .add_base_token_ratio_persister_layer()?;
                 }
