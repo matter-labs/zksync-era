@@ -81,13 +81,6 @@ pub struct StateKeeperMetrics {
     /// The time it takes for transactions to be included in a block. Representative of the time user must wait before their transaction is confirmed.
     #[metrics(buckets = INCLUSION_DELAY_BUCKETS)]
     pub transaction_inclusion_delay: Family<TxExecutionType, Histogram<Duration>>,
-    /// Time spent by the state keeper on transaction execution.
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
-    /// Number of times gas price was reported as too high.
-    pub gas_price_too_high: Counter,
-    /// Number of times blob base fee was reported as too high.
-    pub blob_base_fee_too_high: Counter,
     /// The time it takes to match seal resolution for each tx.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub match_seal_resolution: Histogram<Duration>,
