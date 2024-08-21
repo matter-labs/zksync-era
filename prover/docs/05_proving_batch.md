@@ -106,6 +106,7 @@ zk_inception prover run --component=prover
 zk_inception prover run --component=witness-generator --round=all-rounds
 zk_inception prover run --component=witness-vector-generator --threads=10
 zk_inception prover run --component=compressor
+zk_inception prover run --component=prover-job-monitor
 ```
 
 And you are good to go! The prover subsystem will prove the batch and you can check the results in the database.
