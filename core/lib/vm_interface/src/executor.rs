@@ -60,7 +60,7 @@ where
 /// Handle for executing a single L1 batch.
 ///
 /// The handle is parametric by the transaction execution output in order to be able to represent different
-/// levels of abstraction. The default value is intended to be most generic.
+/// levels of abstraction.
 #[async_trait]
 pub trait BatchExecutor<Out: BatchExecutorOutputs>: 'static + Send + fmt::Debug {
     /// Executes a transaction.
