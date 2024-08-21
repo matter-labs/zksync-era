@@ -17,7 +17,7 @@ Google VM instance, you also need to install [gcloud](https://cloud.google.com/s
 Now, you can use `zk_inception` and `prover_cli` tools for setting up the env and running prover subsystem.
 
 ```shell
-cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor prover_cli --force
+cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor prover_cli --force
 ```
 
 ## Initializing system
@@ -71,22 +71,17 @@ patch versions) and snark wrapper value.
 
 Now, with the use of `prover_cli` tool, you can insert the data about the batch and protocol version into the database:
 
-First, let the tool know which database it should connect to(for local DB you can find the url in `secrets.yaml` file):
+First, get the database URL(you can find it in `<ecosystem_dir>/chains/configs/<chain_name>/secrets.yaml` - it is the
+`prover_url` value) Now, insert the information about protocol version in the database:
 
 ```shell
-prover_cli config --db-url <DATABASE_URL>
-```
-
-Now, insert the information about protocol version in the database:
-
-```shell
-prover_cli insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
+prover_cli <DATABASE_URL> insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
 ```
 
 And finally, provide the data about the batch:
 
 ```shell
-prover_cli insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
+prover_cli <DATABASE_URL> insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
 ```
 
 ## Running prover subsystem
