@@ -1,3 +1,5 @@
+//! Utils to get data for L1 batch execution from storage.
+
 use std::time::{Duration, Instant};
 
 use anyhow::Context;

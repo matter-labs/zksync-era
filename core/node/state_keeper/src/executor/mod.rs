@@ -10,7 +10,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::ReadStorageFactory;
 use zksync_types::Transaction;
-pub use zksync_vm_utils::batch::MainBatchExecutorFactory;
+pub use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use crate::ExecutionMetricsForCriteria;
 

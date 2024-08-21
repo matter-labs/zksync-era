@@ -7,8 +7,8 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_interface::executor;
-use zksync_vm_utils::batch::MainBatchExecutorFactory;
 
 use super::*;
 use crate::{ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage};
@@ -67,7 +67,7 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
         Box::new(io.clone()),
         storage,
         Box::new(output_factory),
-        executor::box_factory(batch_executor),
+        executor::box_batch_executor_factory(batch_executor),
     );
     tokio::task::spawn(async move { vm_runner.run(&stop_receiver).await.unwrap() });
 

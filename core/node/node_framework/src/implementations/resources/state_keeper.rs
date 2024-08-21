@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use zksync_state::OwnedStorage;
 use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
-use zksync_vm_utils::interface::{
-    box_factory, BatchExecutorFactory, BoxBatchExecutorFactory, StandardOutputs,
+use zksync_vm_executor::interface::{
+    box_batch_executor_factory, BatchExecutorFactory, BoxBatchExecutorFactory, StandardOutputs,
 };
 
 use crate::resource::{Resource, Unique};
@@ -41,7 +41,7 @@ where
     T: BatchExecutorFactory<OwnedStorage, Outputs = StandardOutputs<OwnedStorage>, Executor: Sized>,
 {
     fn from(executor: T) -> Self {
-        Self(Unique::new(box_factory(executor)))
+        Self(Unique::new(box_batch_executor_factory(executor)))
     }
 }
 

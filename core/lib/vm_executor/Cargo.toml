@@ -1,6 +1,6 @@
 [package]
-name = "zksync_vm_utils" # FIXME: rename to VM executor
-description = "ZKsync VM utilities"
+name = "zksync_vm_executor"
+description = "Implementations of ZKsync VM executors"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

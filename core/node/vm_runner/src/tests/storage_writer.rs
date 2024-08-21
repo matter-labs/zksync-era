@@ -1,8 +1,8 @@
 use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::StorageLogWithPreviousValue;
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_interface::executor;
-use zksync_vm_utils::batch::MainBatchExecutorFactory;
 
 use super::*;
 use crate::{ConcurrentOutputHandlerFactory, VmRunner};
@@ -161,7 +161,7 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
         io.clone(),
         loader,
         io,
-        executor::box_factory(batch_executor),
+        executor::box_batch_executor_factory(batch_executor),
     );
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
@@ -213,7 +213,7 @@ async fn storage_writer_works() {
         Box::new(io.clone()),
         loader,
         Box::new(output_factory),
-        executor::box_factory(batch_executor),
+        executor::box_batch_executor_factory(batch_executor),
     );
 
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });

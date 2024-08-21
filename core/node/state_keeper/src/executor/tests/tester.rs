@@ -32,7 +32,7 @@ use zksync_types::{
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_utils::batch::{MainBatchExecutor, MainBatchExecutorFactory};
+use zksync_vm_executor::batch::{MainBatchExecutor, MainBatchExecutorFactory};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{

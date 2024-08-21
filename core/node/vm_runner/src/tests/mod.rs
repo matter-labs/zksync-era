@@ -21,8 +21,8 @@ use zksync_types::{
     StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics};
-use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use super::{
     BatchExecuteData, L1BatchOutput, L2BlockOutput, OutputHandler, OutputHandlerFactory, VmRunnerIo,

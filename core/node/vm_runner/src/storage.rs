@@ -14,8 +14,8 @@ use zksync_state::{
     RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
-use zksync_vm_utils::storage::L1BatchParamsProvider;
 
 use crate::{metrics::METRICS, VmRunnerIo};
 

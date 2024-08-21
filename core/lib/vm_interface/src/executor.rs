@@ -76,7 +76,7 @@ pub trait BatchExecutor<Out: BatchExecutorOutputs>: 'static + Send + fmt::Debug 
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<Out::Batch>;
 }
 
-/// Boxed [`BatchExecutorFactory`]. Can be constructed from any executor using [`box_factory()`].
+/// Boxed [`BatchExecutorFactory`]. Can be constructed from any executor using [`box_batch_executor_factory()`].
 pub type BoxBatchExecutorFactory<S, O = StandardOutputs<S>> =
     Box<dyn BatchExecutorFactory<S, Outputs = O, Executor = dyn BatchExecutor<O>>>;
 
@@ -111,7 +111,7 @@ where
 }
 
 /// Boxes the provided executor factory so that it doesn't have an ambiguous associated type.
-pub fn box_factory<S, T>(executor: T) -> BoxBatchExecutorFactory<S, T::Outputs>
+pub fn box_batch_executor_factory<S, T>(executor: T) -> BoxBatchExecutorFactory<S, T::Outputs>
 where
     S: Send + 'static,
     T: BatchExecutorFactory<S, Executor: Sized>,

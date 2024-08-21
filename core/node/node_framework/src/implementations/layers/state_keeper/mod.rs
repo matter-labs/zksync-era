@@ -15,7 +15,7 @@ pub mod output_handler;
 
 // Public re-export to not require the user to directly depend on `zksync_state`.
 pub use zksync_state::RocksdbStorageOptions;
-use zksync_vm_utils::interface::BoxBatchExecutorFactory;
+use zksync_vm_executor::interface::BoxBatchExecutorFactory;
 
 use crate::{
     implementations::resources::{
