@@ -287,6 +287,9 @@ pub mod gpu_prover {
             tokio::task::spawn_blocking(move || {
                 let block_number = job.witness_vector_artifacts.prover_job.block_number;
                 let _span = tracing::info_span!("gpu_prove", %block_number).entered();
+                if setup_data.is_err() {
+                    tracing::info!("Failed to get setup data for job: {:?}", setup_data);
+                }
                 Ok(Self::prove(job, setup_data.context("get_setup_data()")?))
             })
         }
