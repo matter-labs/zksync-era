@@ -152,10 +152,10 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_rollup &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> integration_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_validium &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_validium &> integration_validium.log &
           PID2=$!
 
           wait $PID1
@@ -173,10 +173,10 @@ jobs:
       
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_rollup &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_snap_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_snap_validium.log &
           PID2=$!
 
           wait $PID1
@@ -184,10 +184,10 @@ jobs:
         
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_rollup &
+          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_gen_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_validium &
+          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
           PID2=$!
 
           wait $PID1
@@ -201,10 +201,10 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_rollup &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_rollup &> integration_en_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &> integration_en_validium.log &
           PID2=$!
 
           wait $PID1
@@ -212,10 +212,10 @@ jobs:
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_rollup &
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_rollup &> revert_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_validium &
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_validium &> revert_validium.log &
           PID2=$!
           
           wait $PID1
@@ -232,14 +232,54 @@ jobs:
         if: always()
         run: ci_run cat server_rollup.log || true
 
-      - name: Show external_node_rollup.log logs
-        if: always()
-        run: ci_run cat external_node_rollup.log || true
-
       - name: Show server_validium.log logs
         if: always()
         run: ci_run cat server_validium.log || true
 
+      - name: Show external_node_rollup.log logs
+        if: always()
+        run: ci_run cat external_node_rollup.log || true
+
       - name: Show external_node_validium.log logs
         if: always()
         run: ci_run cat external_node_validium.log || true
+
+      - name: Show integration_rollup.log logs
+        if: always()
+        run: ci_run cat integration_rollup.log || true
+
+      - name: Show integration_validium.log logs
+        if: always()
+        run: ci_run cat integration_validium.log || true
+
+      - name: Show recovery_snap_rollup.log logs
+        if: always()
+        run: ci_run cat recovery_snap_rollup.log || true
+
+      - name: Show recovery_snap_validium.log logs
+        if: always()
+        run: ci_run cat recovery_snap_validium.log || true
+
+      - name: Show recovery_gen_rollup.log logs
+        if: always()
+        run: ci_run cat recovery_gen_rollup.log || true
+
+      - name: Show recovery_gen_validium.log logs
+        if: always()
+        run: ci_run cat recovery_gen_validium.log || true
+
+      - name: Show integration_en_rollup.log logs
+        if: always()
+        run: ci_run cat integration_en_rollup.log || true
+
+      - name: Show integration_en_validium.log logs
+        if: always()
+        run: ci_run cat integration_en_validium.log || true
+
+      - name: Show revert_rollup.log logs
+        if: always()
+        run: ci_run cat revert_rollup.log || true
+
+      - name: Show revert_validium.log logs
+        if: always()
+        run: ci_run cat revert_validium.log || true
