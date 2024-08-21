@@ -114,6 +114,11 @@ pub mod gpu_prover {
                     let started_at = Instant::now();
                     let keystore =
                         Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
+                    tracing::info!(
+                        "Loading setup data for circuit id: {}, setup_data_path {}",
+                        key.circuit_id,
+                        self.config.setup_data_path.clone()
+                    );
                     let artifact: GoldilocksGpuProverSetupData = keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
