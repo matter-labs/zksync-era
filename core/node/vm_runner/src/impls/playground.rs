@@ -75,6 +75,8 @@ impl VmPlayground {
 
         let mut batch_executor = MainBatchExecutor::new(false, false);
         batch_executor.set_fast_vm_mode(vm_mode);
+        let vm_dumps_dir = Path::new(&rocksdb_path).join("__vm_dumps");
+        batch_executor.set_dumps_directory(vm_dumps_dir);
 
         let io = VmPlaygroundIo {
             cursor_file_path,

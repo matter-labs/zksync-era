@@ -2,10 +2,11 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt, fs, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::SystemTime,
 };
 
+use anyhow::Context as _;
 use serde::Serialize;
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H256};
 
@@ -21,6 +22,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
 enum BlockOrTransaction {
     Block(L2BlockEnv),
     Transaction(Box<Transaction>),
@@ -72,7 +74,7 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
 impl<S> VmWithReporting<S> {
     fn report(self, err: anyhow::Error) {
         let mut dump = self.partial_dump;
-        let batch_number = dump.l1_batch_env.number.0;
+        let batch_number = dump.l1_batch_env.number;
         tracing::error!("VM execution diverged on batch #{batch_number}!");
 
         let read_keys = self.storage.borrow().cache().read_storage_keys();
@@ -83,30 +85,39 @@ impl<S> VmWithReporting<S> {
             .collect();
 
         if let Some(dumps_directory) = self.dumps_directory {
-            let timestamp = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("bogus clock");
-            let timestamp = timestamp.as_millis();
-            let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
-            let dump_filename = dumps_directory.join(dump_filename);
-            tracing::info!("Dumping VM state to file `{}`", dump_filename.display());
-
-            let writer = fs::File::create(&dump_filename).expect("failed creating dump file");
-            let writer = io::BufWriter::new(writer);
-            serde_json::to_writer(writer, &dump).expect("failed dumping VM state to file");
-        } else {
-            let json = serde_json::to_string(&dump).expect("failed dumping VM state to string");
-            tracing::error!("VM state: {json}");
+            if let Err(err) = Self::dump_to_file(&dumps_directory, &dump) {
+                tracing::warn!("Failed dumping VM state to file: {err:#}");
+            }
         }
+
+        let json = serde_json::to_string(&dump).expect("failed dumping VM state to string");
+        tracing::error!("VM state: {json}");
 
         if self.panic_on_divergence {
             panic!("{err:?}");
         } else {
-            tracing::error!("{err:?}");
+            tracing::error!("{err:#}");
             tracing::warn!(
-                "New VM is dropped; following VM actions will be executed on the main VM only"
+                "New VM is dropped; following VM actions will be executed only on the main VM"
             );
         }
+    }
+
+    fn dump_to_file(dumps_directory: &Path, dump: &VmStateDump) -> anyhow::Result<()> {
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("bogus clock");
+        let timestamp = timestamp.as_millis();
+        let batch_number = dump.l1_batch_env.number.0;
+        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
+        let dump_filename = dumps_directory.join(dump_filename);
+        tracing::info!("Dumping VM state to file `{}`", dump_filename.display());
+
+        fs::create_dir_all(dumps_directory).context("failed creating dumps directory")?;
+        let writer = fs::File::create(&dump_filename).context("failed creating dump file")?;
+        let writer = io::BufWriter::new(writer);
+        serde_json::to_writer(writer, &dump).context("failed dumping VM state to file")?;
+        Ok(())
     }
 }
 
