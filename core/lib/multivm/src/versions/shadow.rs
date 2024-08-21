@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt, fs, io,
     path::PathBuf,
     time::SystemTime,
@@ -460,8 +460,8 @@ impl DivergenceErrors {
         );
         self.check_match(
             "final_state.used_contract_hashes",
-            &main.used_contract_hashes.iter().collect::<HashSet<_>>(),
-            &shadow.used_contract_hashes.iter().collect::<HashSet<_>>(),
+            &main.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
+            &shadow.used_contract_hashes.iter().collect::<BTreeSet<_>>(),
         );
 
         let main_deduplicated_logs = Self::gather_logs(&main.deduplicated_storage_logs);
