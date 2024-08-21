@@ -1,4 +1,5 @@
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::Path;
 
 use common::logger;
 use config::EcosystemConfig;
@@ -18,7 +19,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_protocol_version(shell: &Shell, link_to_code: &PathBuf) -> anyhow::Result<String> {
+async fn get_protocol_version(shell: &Shell, link_to_code: &Path) -> anyhow::Result<String> {
     let path = link_to_code.join("prover/crates/bin/prover_version/Cargo.toml");
     let protocol_version = cmd!(
         shell,
@@ -29,7 +30,7 @@ async fn get_protocol_version(shell: &Shell, link_to_code: &PathBuf) -> anyhow::
     Ok(protocol_version)
 }
 
-async fn get_snark_wrapper(link_to_code: &PathBuf) -> anyhow::Result<String> {
+async fn get_snark_wrapper(link_to_code: &Path) -> anyhow::Result<String> {
     let path = link_to_code
         .join("prover/crates/bin/vk_setup_data_generator_server_fri/data/commitments.json");
     let file = fs::File::open(path).expect("Could not find commitments file in zksync-era");

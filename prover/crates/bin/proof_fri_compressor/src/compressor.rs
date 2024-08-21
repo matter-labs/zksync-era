@@ -178,13 +178,9 @@ impl JobProcessor for ProofCompressor {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let block_number = *job_id;
+        let setup_data_path = self.setup_data_path.clone();
         tokio::task::spawn_blocking(move || {
-            Self::compress_proof(
-                block_number,
-                job,
-                compression_mode,
-                self.setup_data_path.clone(),
-            )
+            Self::compress_proof(block_number, job, compression_mode, setup_data_path)
         })
     }
 
