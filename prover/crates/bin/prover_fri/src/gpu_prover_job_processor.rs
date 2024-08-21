@@ -114,11 +114,6 @@ pub mod gpu_prover {
                     let started_at = Instant::now();
                     let keystore =
                         Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
-                    tracing::info!(
-                        "Loading setup data for circuit id: {}, setup_data_path {}",
-                        key.circuit_id,
-                        self.config.setup_data_path.clone()
-                    );
                     let artifact: GoldilocksGpuProverSetupData = keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
@@ -287,9 +282,6 @@ pub mod gpu_prover {
             tokio::task::spawn_blocking(move || {
                 let block_number = job.witness_vector_artifacts.prover_job.block_number;
                 let _span = tracing::info_span!("gpu_prove", %block_number).entered();
-                if setup_data.is_err() {
-                    tracing::info!("Failed to get setup data for job: {:?}", setup_data);
-                }
                 Ok(Self::prove(job, setup_data.context("get_setup_data()")?))
             })
         }
