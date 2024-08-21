@@ -5,11 +5,10 @@ use common::{config::global_config, logger};
 use config::EcosystemConfig;
 use xshell::Shell;
 
+use super::utils::{TestWallets, TEST_WALLETS_PATH};
 use crate::messages::{
     MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_TEST_WALLETS_INFO, MSG_WALLETS_TEST_SUCCESS,
 };
-
-use super::utils::{TestWallets, TEST_WALLETS_PATH};
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_TEST_WALLETS_INFO);
