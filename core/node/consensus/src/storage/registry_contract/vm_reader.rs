@@ -3,8 +3,9 @@ use std::time::Duration;
 use anyhow::Context;
 use zksync_basic_types::web3::contract::{Detokenize, Tokenize};
 use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
-use zksync_contracts::consensus_l2_contracts;
-use zksync_consensus_roles::attester;
+use zksync_contracts::consensus_l2_contracts as contracts;
+use zksync_consensus_roles::{validator,attester};
+use zksync_consensus_crypto::ByteFmt;
 use zksync_node_api_server::{
     execution_sandbox::{BlockArgs, BlockStartInfo},
     tx_sender::TxSender,
@@ -20,7 +21,6 @@ use zksync_types::{
 };
 
 use crate::storage::{
-    registry_contract::abi,
     ConnectionPool,
 };
 
@@ -29,50 +29,93 @@ use crate::storage::{
 pub struct VMReader {
     pool: ConnectionPool,
     tx_sender: TxSender,
-    registry_contract: ethabi::Contract,
+    contract: contracts::ConsensusRegistry,
     registry_address: ethabi::Address,
-    // contract functions:
-    attester_committee_size: ethabi::Function,
-    attester_committee: ethabi::Function,
+}
+
+pub(crate) struct AddInputs {
+    node_owner: ethabi::Address,
+    validator: WeightedValidator,
+    attester: attester::WeightedAttester,
+}
+
+pub(crate) struct WeightedValidator {
+    weight: validator::Weight,
+    key: validator::PublicKey,
+    pop: validator::ProofOfPossession,
+}
+
+impl AddInputs {
+    fn encode(&self) -> anyhow::Result<contracts::AddInputs> {
+        Ok(contracts::AddInputs {
+            node_owner: self.node_owner,
+            validator_pub_key: encode_validator_key(&self.validator.key),
+            validator_weight: self.validator.weight.into(),
+            validator_pop: encode_validator_pop(&self.validator.pop),
+            attester_pub_key: encode_attester_key(&self.attester.key),
+            attester_weight: self.attester.weight.try_into().context("overflow")?,
+        })
+    }
+}
+
+fn encode_attester_key(k : &attester::PublicKey) -> contracts::Secp256k1PublicKey {
+    let b: [u8;33] = ByteFmt::encode(&k).try_into().unwrap();
+    Ok(contracts::Secp256k1PublicKey {
+        tag: b[0],
+        x: b[1..33],
+    })
+}
+
+fn decode_attester_key(k: &contracts::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {
+    let mut x = vec![k.tag];
+    x.extend(k.x);
+    ByteFmt::decode(&x) 
+}
+
+fn encode_validator_key(k: &validator::PublicKey) -> contracts::BLS12_381PublicKey {
+    let b: [u8;96] = ByteFmt::encode(k).try_into().unwrap();
+    contracts::BLS12_381PublicKey {
+        a: b[0..32],
+        b: b[32..64],
+        c: b[64..96],
+    }
+}
+
+/*
+fn decode_validator_key(k: contracts::BLS12_381PublicKey) -> anyhow::Result<validator::PublicKey> {
+    let mut x = Vec::from(k.a);
+    x.extend(k.b);
+    x.extend(k.c);
+    ByteFmt::decode(&x)
+}
+
+fn encode_weighted_attester(a: attester::WeightedAttester) -> anyhow::Result<contracts::Attester> {
+    Ok(contracts::Attester {
+        weight: a.weight.try_into().context("overflow")?,
+        pub_key: encode_validator_key(&a.key),
+    })
+}*/
+
+fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester::WeightedAttester> {
+    Ok(attester::WeightedAttester {
+        weight: a.weight.into(),
+        key: decode_attester_key(&a.pub_key).context("key")?,
+    })
 }
 
 #[allow(dead_code)]
 impl VMReader {
     /// Constructs a new `VMReader` instance.
     pub fn new(pool: ConnectionPool, tx_sender: TxSender, registry_address: ethabi::Address) -> Self {
-        let c = consensus_l2_contracts::load_consensus_registry_contract();
         Self {
             pool,
             tx_sender,
-            attester_committee_size: c.function("attesterCommitteeSize").context("attesterCommitteeSize")?.clone(),
-            attester_committee : c.function("attesterCommittee").context("attesterCommittee")?.clone(),
-            registry_contract: c,
+            contract: contracts::ConsensusRegistry::load(),
             registry_address,
         }
     }
 
-    /// Reads attester committee from the registry contract.
-    /// It's implemented by dispatching multiple read transactions (a.k.a. `eth_call` requests),
-    /// each one carries an instantiation of a separate VM execution sandbox.
-    // TODO(moshababo|BFT-493): optimize this process to reuse a single execution sandbox
-    // across one or multiple read sessions.
-    pub async fn read_attester_committee(
-        &self,
-        ctx: &Ctx,
-        // wtf is this?
-        block_id: api::BlockId,
-    ) -> anyhow::Result<attester::Committee> {
-        let block_args = self
-            .block_args(ctx, block_id)
-            .await
-            .context("block_args()")?;
-        self
-            .read_attester_committee(block_args)
-            .await
-            .context("read_attester_committee()")
-    }
-
-    pub async fn block_args(&self, ctx: &Ctx, block_id: api::BlockId) -> anyhow::Result<BlockArgs> {
+    async fn block_args(&self, ctx: &Ctx, block_id: api::BlockId) -> anyhow::Result<BlockArgs> {
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
         let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ Duration::from_secs(10))
             .await
@@ -83,34 +126,26 @@ impl VMReader {
             .context("BlockArgs::new")
     }
 
-    pub async fn contract_deployed(&self, args: BlockArgs) -> bool {
-        self.read_attester_committee_size(args).await.is_ok()
+    pub async fn contract_deployed(&self, block: api::BlockId) -> bool {
+        self.call(block, self.contract.get_attester_commitee(), ()).is_ok()
     }
 
-    pub async fn read_attester_committee(
-        &self,
-        args: BlockArgs,
-    ) -> anyhow::Result<attester::Committee> {
-        let n = self.read_attester_committee_size(args).await.context("read_attester_committee_size()")?;
-        let mut committee = vec![];
-        for i in 0..n {
-            committee.push(self.read_attester(args, i).await.with_context(||format!("read_attester({i})"))?);
+    /// Reads attester committee from the registry contract.
+    /// It's implemented by dispatching multiple read transactions (a.k.a. `eth_call` requests),
+    /// each one carries an instantiation of a separate VM execution sandbox.
+    pub async fn get_attester_committee(&self, block: api::BlockId) -> anyhow::Result<attester::Committee> {
+        let raw = self.call(block, self.contract.get_attester_commitee(), ())?;
+        let mut attesters = vec![];
+        for a in raw {
+           attesters.push(decode_weighted_attester(&a).context("decode_weighted_attester()")?);
         }
-        attester::Committee::new(committee.into_iter()).context("attester::Committee::new()")
+        attester::Committee::new(attesters.into_iter()).context("Committee::new()")
     }
 
-    async fn read_attester_committee_size(&self, args: BlockArgs) -> anyhow::Result<usize> {
-        self.call::<U256>(args, &self.attester_committee_size, ())?.try_into().context("overflow")
-    }
-
-    async fn read_attester(&self, args: BlockArgs, i: usize) -> anyhow::Result<attester::WeightedAttester> {
-        self.call::<abi::Attester>(args, &self.attester_committee, U256::from(i))?.parse()
-    }
-
-    async fn call<Output: Detokenize>(&self, args: BlockArgs, func: &ethabi::Function, input: impl Tokenize) -> anyhow::Result<Output> {
+    async fn call<Sig: contracts::FunctionSig>(&self, ctx: &ctx::Ctx, block: api::BlockId, f: contracts::Function<'_, Sig>, input: Sig::Inputs) -> anyhow::Result<Sig::Outputs> {
         let tx = L2Tx::new(
             self.registry_address,
-            func.encode_input(&input.into_tokens()),
+            f.encode_input(input).context("encode_input")?,
             Nonce(0),
             Fee {
                 gas_limit: U256::from(2000000000u32),
@@ -124,7 +159,8 @@ impl VMReader {
             Default::default(),
         );
         let overrides = CallOverrides { enforced_base_fee: None };
+        let args = self.block_args(ctx, block).await.context("block_args()")?;
         let output = self.tx_sender.eth_call(args, overrides, tx, None).await.context("tx_sender.eth_call()");
-        Output::from_tokens(func.decode_output(&output).context("decode_output()")?).context("Output::from_tokens()")
+        f.decode_output(&output).context("decode_output()")
     }
 }

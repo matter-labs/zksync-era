@@ -1,4 +1,3 @@
-mod abi;
 pub(crate) mod committee_extractor;
 #[cfg(test)]
 mod testonly;
