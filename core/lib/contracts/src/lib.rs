@@ -21,6 +21,9 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_
 pub mod consensus_l2_contracts;
 pub mod test_contracts;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
     Sol,

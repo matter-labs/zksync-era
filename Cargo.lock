@@ -8432,12 +8432,14 @@ dependencies = [
 name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "envy",
  "ethabi",
  "hex",
  "once_cell",
  "serde",
  "serde_json",
+ "tracing",
  "zksync_utils",
 ]
 
