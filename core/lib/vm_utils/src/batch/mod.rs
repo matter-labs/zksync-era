@@ -1,7 +1,7 @@
 //! Main implementation of batch executor.
 
-pub use self::{executor::MainBatchExecutor, handle::MainBatchExecutorHandle};
+pub use self::{executor::MainBatchExecutor, factory::MainBatchExecutorFactory};
 
 mod executor;
-mod handle;
+mod factory;
 mod metrics;

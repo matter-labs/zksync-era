@@ -12,7 +12,7 @@ use zksync_types::{
     H256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{executor::BoxBatchExecutor, L1BatchEnv, L2BlockEnv, SystemEnv};
+use zksync_vm_interface::{executor::BoxBatchExecutorFactory, L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
@@ -32,7 +32,7 @@ impl BasicWitnessInputProducer {
     pub async fn new(
         pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
-        batch_executor: BoxBatchExecutor<OwnedStorage>,
+        batch_executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
         rocksdb_path: String,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
@@ -55,7 +55,7 @@ impl BasicWitnessInputProducer {
             Box::new(io),
             Arc::new(loader),
             Box::new(output_handler_factory),
-            batch_executor,
+            batch_executor_factory,
         );
         Ok((
             Self { vm_runner },

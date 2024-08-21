@@ -17,7 +17,7 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
-        executor::BatchExecutorHandle, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        executor::BatchExecutor, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
         SystemEnv, VmExecutionResultAndLogs,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -30,14 +30,15 @@ use zksync_types::{
 };
 
 use crate::{
-    batch_executor::{StateKeeperOutputs, TxExecutionResult},
+    executor::{
+        StateKeeperExecutor, StateKeeperExecutorFactory, StateKeeperOutputs, TxExecutionResult,
+    },
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    OutputHandler, StateKeeperExecutor, StateKeeperExecutorHandle, StateKeeperOutputHandler,
-    ZkSyncStateKeeper,
+    OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -412,16 +413,16 @@ impl TestBatchExecutorBuilder {
 }
 
 #[async_trait]
-impl StateKeeperExecutor for TestBatchExecutorBuilder {
+impl StateKeeperExecutorFactory for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutorHandle>>> {
-        let handle =
+    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>> {
+        let executor =
             TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
-        Ok(Some(Box::new(handle)))
+        Ok(Some(Box::new(executor)))
     }
 }
 
@@ -450,7 +451,7 @@ impl TestBatchExecutor {
 }
 
 #[async_trait]
-impl BatchExecutorHandle<StateKeeperOutputs> for TestBatchExecutor {
+impl BatchExecutor<StateKeeperOutputs> for TestBatchExecutor {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let result = self
             .txs

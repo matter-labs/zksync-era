@@ -30,11 +30,12 @@ use zksync_node_sync::{
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
 use zksync_state_keeper::{
+    executor::MainStateKeeperExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
-    AsyncRocksdbCache, MainStateKeeperExecutor, OutputHandler, StateKeeperPersistence,
-    TreeWritesPersistence, ZkSyncStateKeeper,
+    AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
+    ZkSyncStateKeeper,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -589,7 +590,8 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor = MainStateKeeperExecutor::new(false, false, Arc::new(async_cache));
+                let executor =
+                    MainStateKeeperExecutorFactory::new(false, false, Arc::new(async_cache));
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(

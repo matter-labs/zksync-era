@@ -7,8 +7,8 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    executor::BatchExecutorHandle, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+    executor::BatchExecutor, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -19,9 +19,10 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    batch_executor::{StateKeeperOutputs, TxExecutionResult},
+    executor::{
+        StateKeeperExecutor, StateKeeperExecutorFactory, StateKeeperOutputs, TxExecutionResult,
+    },
     types::ExecutionMetricsForCriteria,
-    StateKeeperExecutor, StateKeeperExecutorHandle,
 };
 
 pub mod test_batch_executor;
@@ -53,19 +54,19 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
 pub struct MockBatchExecutor;
 
 #[async_trait]
-impl StateKeeperExecutor for MockBatchExecutor {
+impl StateKeeperExecutorFactory for MockBatchExecutor {
     async fn init_batch(
         &mut self,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
         _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutorHandle>>> {
+    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>> {
         Ok(Some(Box::new(Self)))
     }
 }
 
 #[async_trait]
-impl BatchExecutorHandle<StateKeeperOutputs> for MockBatchExecutor {
+impl BatchExecutor<StateKeeperOutputs> for MockBatchExecutor {
     async fn execute_tx(&mut self, _tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         Ok(successful_exec())
     }

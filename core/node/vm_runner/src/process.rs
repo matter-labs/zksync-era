@@ -6,7 +6,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state::OwnedStorage;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 use zksync_vm_interface::{
-    executor::{BoxBatchExecutor, DynBatchExecutorHandle},
+    executor::{BoxBatchExecutorFactory, DynBatchExecutor},
     L2BlockEnv,
 };
 
@@ -32,7 +32,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_processor: BoxBatchExecutor<OwnedStorage>,
+    batch_executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
 }
 
 impl VmRunner {
@@ -47,19 +47,19 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_processor: BoxBatchExecutor<OwnedStorage>,
+        batch_executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
     ) -> Self {
         Self {
             pool,
             io,
             loader,
             output_handler_factory,
-            batch_processor,
+            batch_executor_factory,
         }
     }
 
     async fn process_batch(
-        mut batch_executor: Box<DynBatchExecutorHandle<OwnedStorage>>,
+        mut batch_executor: Box<DynBatchExecutor<OwnedStorage>>,
         l2_blocks: Vec<L2BlockExecutionData>,
         mut output_handler: Box<dyn OutputHandler>,
     ) -> anyhow::Result<()> {
@@ -161,7 +161,7 @@ impl VmRunner {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             };
-            let batch_executor = self.batch_processor.init_batch(
+            let batch_executor = self.batch_executor_factory.init_batch(
                 storage,
                 batch_data.l1_batch_env.clone(),
                 batch_data.system_env.clone(),

@@ -4,7 +4,7 @@ use zksync_vm_runner::{
     impls::{BasicWitnessInputProducer, BasicWitnessInputProducerIo},
     ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
-use zksync_vm_utils::{batch::MainBatchExecutor, interface::box_batch_executor};
+use zksync_vm_utils::{batch::MainBatchExecutorFactory, interface::box_factory};
 
 use crate::{
     implementations::resources::{
@@ -76,12 +76,12 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
 
         // We don't get the executor from the context because it would contain state keeper-specific settings.
-        let batch_executor = MainBatchExecutor::new(false, false);
+        let batch_executor = MainBatchExecutorFactory::new(false, false);
 
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             connection_pool,
             object_store.0,
-            box_batch_executor(batch_executor),
+            box_factory(batch_executor),
             self.config.db_path,
             self.zksync_network_id,
             self.config.first_processed_batch,

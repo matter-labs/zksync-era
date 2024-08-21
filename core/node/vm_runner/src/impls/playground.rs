@@ -16,7 +16,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_state::RocksdbStorage;
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
 use zksync_vm_interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
-use zksync_vm_utils::batch::MainBatchExecutor;
+use zksync_vm_utils::batch::MainBatchExecutorFactory;
 
 use crate::{
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
@@ -41,7 +41,7 @@ impl From<VmPlaygroundHealth> for Health {
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor: MainBatchExecutor,
+    batch_executor_factory: MainBatchExecutorFactory,
     rocksdb_path: String,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -75,8 +75,8 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(first_processed_batch)
         };
 
-        let mut batch_executor = MainBatchExecutor::new(false, false);
-        batch_executor.set_fast_vm_mode(vm_mode);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        batch_executor_factory.set_fast_vm_mode(vm_mode);
 
         let io = VmPlaygroundIo {
             cursor_file_path,
@@ -94,7 +94,7 @@ impl VmPlayground {
 
         let this = Self {
             pool,
-            batch_executor,
+            batch_executor_factory,
             rocksdb_path,
             chain_id,
             io,
@@ -174,7 +174,7 @@ impl VmPlayground {
             Box::new(self.io),
             Arc::new(loader),
             Box::new(self.output_handler_factory),
-            executor::box_batch_executor(self.batch_executor),
+            executor::box_factory(self.batch_executor_factory),
         );
         vm_runner.run(stop_receiver).await
     }

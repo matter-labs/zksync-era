@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{
-    executor::BatchExecutorHandle, BatchTransactionExecutionResult, ExecutionResult, Halt,
+    executor::BatchExecutor, BatchTransactionExecutionResult, ExecutionResult, Halt,
 };
 use zksync_test_account::Account;
 use zksync_types::{

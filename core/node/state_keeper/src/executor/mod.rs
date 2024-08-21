@@ -4,13 +4,13 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_multivm::interface::{
-    executor::{BatchExecutor, BatchExecutorHandle, BatchExecutorOutputs, Standard},
+    executor::{BatchExecutor, BatchExecutorFactory, BatchExecutorOutputs, StandardOutputs},
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult,
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::Transaction;
-use zksync_vm_utils::batch::MainBatchExecutor;
+use zksync_vm_utils::batch::MainBatchExecutorFactory;
 
 use crate::ExecutionMetricsForCriteria;
 
@@ -73,42 +73,45 @@ impl BatchExecutorOutputs for StateKeeperOutputs {
     type Batch = FinishedL1Batch;
 }
 
-pub type StateKeeperExecutorHandle = dyn BatchExecutorHandle<StateKeeperOutputs>;
+pub type StateKeeperExecutor = dyn BatchExecutor<StateKeeperOutputs>;
 
 // FIXME: remove by using `BatchExecutor<()>`?
-/// Functionality of [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
+/// Functionality of [`BatchExecutorFactory`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
 /// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
 #[async_trait]
-pub trait StateKeeperExecutor: fmt::Debug + Send {
+pub trait StateKeeperExecutorFactory: fmt::Debug + Send {
     async fn init_batch(
         &mut self,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutorHandle>>>;
+    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>>;
 }
 
-/// The only [`crate::keeper::ErasedBatchExecutor`] implementation.
+/// The only [`StateKeeperExecutorFactory`] implementation.
 #[derive(Debug)]
-pub struct MainStateKeeperExecutor<E> {
+pub struct MainStateKeeperExecutorFactory<E> {
     batch_executor: E,
     storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
 }
 
-impl MainStateKeeperExecutor<MainBatchExecutor> {
+impl MainStateKeeperExecutorFactory<MainBatchExecutorFactory> {
     pub fn new(
         save_call_traces: bool,
         optional_bytecode_compression: bool,
         storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
     ) -> Self {
         Self {
-            batch_executor: MainBatchExecutor::new(save_call_traces, optional_bytecode_compression),
+            batch_executor: MainBatchExecutorFactory::new(
+                save_call_traces,
+                optional_bytecode_compression,
+            ),
             storage_factory,
         }
     }
 }
 
-impl<E: BatchExecutor<OwnedStorage>> MainStateKeeperExecutor<E> {
+impl<E: BatchExecutorFactory<OwnedStorage>> MainStateKeeperExecutorFactory<E> {
     pub fn custom(
         batch_executor: E,
         storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
@@ -121,12 +124,12 @@ impl<E: BatchExecutor<OwnedStorage>> MainStateKeeperExecutor<E> {
 }
 
 #[derive(Debug)]
-struct MappedHandle<H: ?Sized>(Box<H>);
+struct MappedExecutor<H: ?Sized>(Box<H>);
 
 #[async_trait]
-impl<H> BatchExecutorHandle<StateKeeperOutputs> for MappedHandle<H>
+impl<H> BatchExecutor<StateKeeperOutputs> for MappedExecutor<H>
 where
-    H: BatchExecutorHandle<Standard<OwnedStorage>> + ?Sized,
+    H: BatchExecutor<StandardOutputs<OwnedStorage>> + ?Sized,
 {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let res = self.0.execute_tx(tx.clone()).await?;
@@ -149,16 +152,16 @@ where
 }
 
 #[async_trait]
-impl<E> StateKeeperExecutor for MainStateKeeperExecutor<E>
+impl<T> StateKeeperExecutorFactory for MainStateKeeperExecutorFactory<T>
 where
-    E: BatchExecutor<OwnedStorage, Outputs = Standard<OwnedStorage>>,
+    T: BatchExecutorFactory<OwnedStorage, Outputs = StandardOutputs<OwnedStorage>>,
 {
     async fn init_batch(
         &mut self,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutorHandle>>> {
+    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>> {
         let Some(storage) = self
             .storage_factory
             .access_storage(stop_receiver, l1_batch_env.number - 1)
@@ -167,9 +170,9 @@ where
         else {
             return Ok(None);
         };
-        let handle = self
+        let executor = self
             .batch_executor
             .init_batch(storage, l1_batch_env, system_env);
-        Ok(Some(Box::new(MappedHandle(handle))))
+        Ok(Some(Box::new(MappedExecutor(executor))))
     }
 }

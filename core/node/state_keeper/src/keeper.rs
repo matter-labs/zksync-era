@@ -16,18 +16,14 @@ use zksync_types::{
     protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
-use super::{
+use crate::{
+    executor::{StateKeeperExecutor, StateKeeperExecutorFactory, TxExecutionResult},
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
-    seal_criteria::{ConditionalSealer, SealData, SealResolution},
+    seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::gas_count_from_writes,
-    StateKeeperExecutorHandle,
-};
-use crate::{
-    batch_executor::{StateKeeperExecutor, TxExecutionResult},
-    seal_criteria::UnexecutableReason,
 };
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
@@ -66,7 +62,7 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    batch_executor: Box<dyn StateKeeperExecutor>,
+    batch_executor: Box<dyn StateKeeperExecutorFactory>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 
@@ -74,7 +70,7 @@ impl ZkSyncStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor: Box<dyn StateKeeperExecutor>,
+        batch_executor: Box<dyn StateKeeperExecutorFactory>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
@@ -381,7 +377,7 @@ impl ZkSyncStateKeeper {
     async fn start_next_l2_block(
         params: L2BlockParams,
         updates_manager: &mut UpdatesManager,
-        batch_executor: &mut StateKeeperExecutorHandle,
+        batch_executor: &mut StateKeeperExecutor,
     ) -> anyhow::Result<()> {
         updates_manager.push_l2_block(params);
         let block_env = updates_manager.l2_block.get_env();
@@ -423,7 +419,7 @@ impl ZkSyncStateKeeper {
     )]
     async fn restore_state(
         &mut self,
-        batch_executor: &mut StateKeeperExecutorHandle,
+        batch_executor: &mut StateKeeperExecutor,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
     ) -> Result<(), Error> {
@@ -527,7 +523,7 @@ impl ZkSyncStateKeeper {
     )]
     async fn process_l1_batch(
         &mut self,
-        batch_executor: &mut StateKeeperExecutorHandle,
+        batch_executor: &mut StateKeeperExecutor,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
     ) -> Result<(), Error> {
@@ -655,7 +651,7 @@ impl ZkSyncStateKeeper {
 
     async fn process_upgrade_tx(
         &mut self,
-        batch_executor: &mut StateKeeperExecutorHandle,
+        batch_executor: &mut StateKeeperExecutor,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: ProtocolUpgradeTx,
     ) -> anyhow::Result<()> {
@@ -722,7 +718,7 @@ impl ZkSyncStateKeeper {
     #[tracing::instrument(skip_all)]
     async fn process_one_tx(
         &mut self,
-        batch_executor: &mut StateKeeperExecutorHandle,
+        batch_executor: &mut StateKeeperExecutor,
         updates_manager: &mut UpdatesManager,
         tx: Transaction,
     ) -> anyhow::Result<(SealResolution, TxExecutionResult)> {

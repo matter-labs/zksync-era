@@ -27,7 +27,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    batch_executor::TxExecutionResult,
+    executor::TxExecutionResult,
     io::PendingBatchData,
     keeper::POLL_WAIT_DURATION,
     seal_criteria::{
