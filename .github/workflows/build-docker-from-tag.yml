@@ -103,7 +103,7 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;89"
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,avx512dq,avx512f,avx512vl"
+      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

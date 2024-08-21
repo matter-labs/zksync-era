@@ -176,7 +176,7 @@ jobs:
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,avx512dq,avx512f,avx512vl"
+      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
