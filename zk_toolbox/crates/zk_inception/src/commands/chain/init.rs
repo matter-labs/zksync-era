@@ -19,17 +19,22 @@ use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
 
 use crate::{
-    accept_ownership::{accept_admin, set_token_multiplier_setter},
-    commands::chain::{
-        args::init::{InitArgs, InitArgsFinal},
-        deploy_l2_contracts, deploy_paymaster,
-        genesis::genesis,
+    accept_ownership::accept_admin,
+    commands::{
+        chain::{
+            args::init::{InitArgs, InitArgsFinal},
+            deploy_l2_contracts, deploy_paymaster,
+            genesis::genesis,
+            set_token_multiplier_setter::set_token_multiplier_setter,
+        },
+        portal::create_and_save_portal_config,
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
@@ -143,6 +148,10 @@ pub async fn init(
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
+
+    create_and_save_portal_config(ecosystem_config, shell)
+        .await
+        .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
     Ok(())
 }
