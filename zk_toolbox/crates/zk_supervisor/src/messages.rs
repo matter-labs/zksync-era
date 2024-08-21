@@ -83,7 +83,6 @@ pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
-pub(super) const MSG_ALL_TEST_ABOUT: &str = "Run all tests";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_BUILD_DEPENDENSCIES_HELP: &str = "Install and build dependencies";
@@ -148,9 +147,6 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 
 /// Snapshot creator related messages
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
-
-/// External node related messages
-pub(super) const MSG_RUNNING_EXTERNAL_NODE: &str = "Running external node";
 
 // Lint related messages
 pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String {

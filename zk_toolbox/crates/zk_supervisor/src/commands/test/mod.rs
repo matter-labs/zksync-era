@@ -1,17 +1,16 @@
 use args::{
-    all::AllArgs, integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs,
-    rust::RustArgs, upgrade::UpgradeArgs,
+    integration::IntegrationArgs, recovery::RecoveryArgs, revert::RevertArgs, rust::RustArgs,
+    upgrade::UpgradeArgs,
 };
 use clap::Subcommand;
 use xshell::Shell;
 
 use crate::messages::{
-    MSG_ALL_TEST_ABOUT, MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT,
-    MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT,
-    MSG_TEST_WALLETS_INFO, MSG_UPGRADE_TEST_ABOUT,
+    MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT, MSG_PROVER_TEST_ABOUT,
+    MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT, MSG_TEST_WALLETS_INFO,
+    MSG_UPGRADE_TEST_ABOUT,
 };
 
-mod all;
 mod args;
 mod build;
 mod integration;
@@ -34,8 +33,6 @@ pub enum TestCommands {
     Recovery(RecoveryArgs),
     #[clap(about = MSG_UPGRADE_TEST_ABOUT, alias = "u")]
     Upgrade(UpgradeArgs),
-    #[clap(about = MSG_ALL_TEST_ABOUT)]
-    All(AllArgs),
     #[clap(about = MSG_BUILD_ABOUT)]
     Build,
     #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit")]
@@ -54,7 +51,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Revert(args) => revert::run(shell, args),
         TestCommands::Recovery(args) => recovery::run(shell, args).await,
         TestCommands::Upgrade(args) => upgrade::run(shell, args),
-        TestCommands::All(args) => all::run(shell, args).await,
         TestCommands::Build => build::run(shell),
         TestCommands::Rust(args) => rust::run(shell, args).await,
         TestCommands::L1Contracts => l1_contracts::run(shell),
