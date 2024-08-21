@@ -1,8 +1,6 @@
 use ethabi::{ParamType,Contract,Token};
 use anyhow::Context as _;
 
-use crate::{TestContract};
-
 pub struct ConsensusRegistry(Contract);
 
 pub trait FunctionSig {
@@ -98,12 +96,8 @@ impl ConsensusRegistry {
         Self(crate::load_contract(Self::FILE))
     }
 
-    pub fn test_contract(&self) -> TestContract {
-        TestContract {
-            bytecode: crate::read_bytecode(Self::FILE),
-            contract: self.0.clone(),
-            factory_deps: vec![],
-        }
+    pub fn bytecode() -> Vec<u8> {
+        crate::read_bytecode(Self::FILE)
     }
 
     pub fn get_attester_committee(&self) -> Function<GetAttesterCommittee> { (&self.0).into() }

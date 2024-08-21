@@ -1,8 +1,5 @@
-use std::time::Duration;
-
 use anyhow::Context;
-use zksync_basic_types::web3::contract::{Detokenize, Tokenize};
-use zksync_concurrency::{ctx::Ctx, error::Wrap as _};
+use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_contracts::consensus_l2_contracts as contracts;
 use zksync_consensus_roles::{validator,attester};
 use zksync_consensus_crypto::ByteFmt;
@@ -81,6 +78,14 @@ fn encode_validator_key(k: &validator::PublicKey) -> contracts::BLS12_381PublicK
     }
 }
 
+fn encode_validator_pop(pop: &validator::ProofOfPossession) -> contracts::BLS12_381Signature {
+    let b: [u8;48] = ByteFmt::encode(pop).try_into().unwrap();
+    contracts::BLS12_381Signature {
+        a: b[0..32],
+        b: b[32..48],
+    }
+}
+
 /*
 fn decode_validator_key(k: contracts::BLS12_381PublicKey) -> anyhow::Result<validator::PublicKey> {
     let mut x = Vec::from(k.a);
@@ -115,9 +120,9 @@ impl VMReader {
         }
     }
 
-    async fn block_args(&self, ctx: &Ctx, block_id: api::BlockId) -> anyhow::Result<BlockArgs> {
+    async fn block_args(&self, ctx: &ctx::Ctx, block_id: api::BlockId) -> anyhow::Result<BlockArgs> {
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?.0;
-        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ Duration::from_secs(10))
+        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ std::time::Duration::from_secs(10))
             .await
             .unwrap();
 

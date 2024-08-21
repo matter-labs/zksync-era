@@ -1,6 +1,6 @@
 use zksync_basic_types::{ethabi, L1BatchNumber};
 use zksync_concurrency::ctx::Ctx;
-use zksync_contracts::{consensus_l2_contracts, TestContract};
+use zksync_contracts::{consensus_l2_contracts as contracts};
 use zksync_state_keeper::testonly::fee;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{Execute, Transaction};
@@ -12,7 +12,7 @@ pub struct VMWriter {
     pool: ConnectionPool,
     node: StateKeeper,
     account: Account,
-    registry_contract: TestContract,
+    contract: contracts::ConsensusRegistry,
     pub deploy_tx: DeployContractsTx,
 }
 
@@ -24,9 +24,9 @@ impl VMWriter {
         mut account: Account,
         owner: ethabi::Address,
     ) -> Self {
-        let registry_contract = consensus_l2_contracts::load_consensus_registry_contract_in_test();
+        let contract = contracts::ConsensusRegistry::bytecode();
         let deploy_tx = account.get_deploy_tx_with_factory_deps(
-            &registry_contract.bytecode,
+            &contract.bytecode,
             Some(&owner.into_tokens()),
             vec![],
             TxType::L2,
@@ -36,7 +36,7 @@ impl VMWriter {
             pool,
             node,
             account,
-            registry_contract,
+            contract: contracts::ConsensusRegistry::load(),
             deploy_tx,
         }
     }
