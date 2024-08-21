@@ -2,7 +2,9 @@
 use std::time::Duration;
 
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::Instrumented,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
@@ -17,14 +19,23 @@ pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct L1BatchNumberModel {
+    pub l1_batch_number: i64,
+}
+
 impl TeeProofGenerationDal<'_, '_> {
-    pub async fn get_next_batch_to_be_proven(
+    pub async fn lock_batch_for_proving(
         &mut self,
         tee_type: TeeType,
         processing_timeout: Duration,
+        min_batch_number: Option<L1BatchNumber>,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let query = sqlx::query!(
+        let min_batch_condition = min_batch_number.map_or(String::new(), |min_batch| {
+            format!("AND proofs.l1_batch_number >= {}", min_batch.0)
+        });
+        let query_str = format!(
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -48,6 +59,7 @@ impl TeeProofGenerationDal<'_, '_> {
                                 AND proofs.prover_taken_at < NOW() - $3::INTERVAL
                             )
                         )
+                        {min_batch_condition}
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -58,19 +70,49 @@ impl TeeProofGenerationDal<'_, '_> {
             RETURNING
                 tee_proof_generation_details.l1_batch_number
             "#,
-            &tee_type.to_string(),
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            &processing_timeout,
+            min_batch_condition = min_batch_condition
         );
-        let batch_number = Instrumented::new("get_next_batch_to_be_proven")
-            .with_arg("tee_type", &tee_type)
-            .with_arg("processing_timeout", &processing_timeout)
-            .with(query)
-            .fetch_optional(self.storage)
-            .await?
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        Ok(batch_number)
+        let tee_type_str = tee_type.to_string();
+        let query = sqlx::query_as(&query_str)
+            .bind(&tee_type_str)
+            .bind(
+                TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
+            )
+            .bind(&processing_timeout);
+
+        let batch_number: Option<L1BatchNumberModel> =
+            query.fetch_optional(self.storage.conn()).await.unwrap();
+
+        Ok(batch_number.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
+    }
+
+    pub async fn unlock_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        tee_type: TeeType,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(l1_batch_number.0);
+        sqlx::query!(
+            r#"
+            UPDATE tee_proof_generation_details
+            SET
+                status = 'unpicked',
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+                AND tee_type = $2
+            "#,
+            batch_number,
+            tee_type.to_string()
+        )
+        .instrument("unlock_batch")
+        .with_arg("l1_batch_number", &batch_number)
+        .with_arg("tee_type", &tee_type)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn save_proof_artifacts_metadata(
@@ -146,44 +188,6 @@ impl TeeProofGenerationDal<'_, '_> {
             .with(query)
             .execute(self.storage)
             .await?;
-
-        Ok(())
-    }
-
-    pub async fn mark_proof_generation_job_as_skipped(
-        &mut self,
-        batch_number: L1BatchNumber,
-        tee_type: TeeType,
-    ) -> DalResult<()> {
-        let l1_batch_number = i64::from(batch_number.0);
-        let query = sqlx::query!(
-            r#"
-            UPDATE tee_proof_generation_details
-            SET
-                status = 'skipped',
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $1
-                AND tee_type = $2
-            "#,
-            l1_batch_number,
-            tee_type.to_string()
-        );
-        let instrumentation = Instrumented::new("mark_proof_generation_job_as_skipped")
-            .with_arg("l1_batch_number", &l1_batch_number)
-            .with_arg("tee_type", &tee_type);
-        let result = instrumentation
-            .clone()
-            .with(query)
-            .execute(self.storage)
-            .await?;
-        if result.rows_affected() == 0 {
-            let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Cannot mark proof as skipped because batch number {} does not exist",
-                l1_batch_number
-            ));
-            return Err(err);
-        }
 
         Ok(())
     }
