@@ -36,7 +36,7 @@ on:
         description: "Rust flags for witness_generator compilation"
         type: string
         default: ""
-        required: false       
+        required: false
     outputs:
       protocol_version:
         description: "Protocol version of the binary"
@@ -51,7 +51,7 @@ jobs:
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
       WITNESS_GENERATOR_RUST_FLAGS: ${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-c3d ]
     strategy:
       matrix:
         component:
@@ -170,7 +170,7 @@ jobs:
         run: |
           ci_run sccache --show-stats || true
           ci_run cat /tmp/sccache_log.txt || true
-  
+
   copy-images:
     name: Copy images between docker registries
     needs: build-images
@@ -204,4 +204,3 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
-          
