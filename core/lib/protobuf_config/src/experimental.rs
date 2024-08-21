@@ -85,6 +85,8 @@ impl ProtoRepr for proto::VmPlayground {
                 .clone()
                 .unwrap_or_else(Self::Type::default_db_path),
             first_processed_batch: L1BatchNumber(self.first_processed_batch.unwrap_or(0)),
+            window_size: NonZeroU32::new(self.window_size.unwrap_or(1))
+                .context("window_size cannot be 0")?,
             reset: self.reset.unwrap_or(false),
         })
     }
@@ -94,6 +96,7 @@ impl ProtoRepr for proto::VmPlayground {
             fast_vm_mode: Some(proto::FastVmMode::new(this.fast_vm_mode).into()),
             db_path: Some(this.db_path.clone()),
             first_processed_batch: Some(this.first_processed_batch.0),
+            window_size: Some(this.window_size.get()),
             reset: Some(this.reset),
         }
     }
