@@ -1,9 +1,9 @@
 use clap::Parser;
 
-use crate::messages::MSG_BUILD_DEPENDENSCIES_HELP;
+use crate::messages::MSG_NO_DEPS_HELP;
 
 #[derive(Debug, Parser)]
 pub struct UpgradeArgs {
-    #[clap(short, long, help = MSG_BUILD_DEPENDENSCIES_HELP)]
+    #[clap(short, long, help = MSG_NO_DEPS_HELP)]
     pub no_deps: bool,
 }
