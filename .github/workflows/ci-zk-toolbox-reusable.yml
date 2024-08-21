@@ -148,14 +148,20 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_rollup
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_validium
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_rollup &
+          PID1=$!
+
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_validium &
+          PID2=$!
+
+          wait $PID1
+          wait $PID2
 
       - name: Init external nodes
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_rollup
-          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup 
           
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
@@ -163,13 +169,25 @@ jobs:
       
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_rollup
-          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_validium
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_rollup &
+          PID1=$!
+
+          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_validium &
+          PID2=$!
+
+          wait $PID1
+          wait $PID2
         
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_rollup
-          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_validium
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_rollup &
+          PID1=$!
+
+          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_validium &
+          PID2=$!
+
+          wait $PID1
+          wait $PID2
 
       - name: Run external node server
         run: |
@@ -179,13 +197,25 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_rollup
-          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_validium
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_rollup &
+          PID1=$!
+
+          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_validium &
+          PID2=$!
+
+          wait $PID1
+          wait $PID2
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_rollup
-          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_validium
+          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_rollup &
+          PID1=$!
+
+          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_validium &
+          PID2=$!
+          
+          wait $PID1
+          wait $PID2
 
       # Upgrade tests should run last, because as soon as they 
       # finish the bootloader will be different
