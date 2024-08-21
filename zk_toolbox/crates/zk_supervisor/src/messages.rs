@@ -116,8 +116,6 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 
 // Revert tests related messages
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
-pub(super) const MSG_REVERT_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
 pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
@@ -137,8 +135,6 @@ pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran succes
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
-pub(super) const MSG_UPGRADE_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_UPGRADE_TEST_RUN_SUCCESS: &str = "Upgrade test ran successfully";
 
 // Cleaning related messages

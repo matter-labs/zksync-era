@@ -1,22 +1,20 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
+use common::{cmd::Cmd, config::global_config, logger};
 use config::EcosystemConfig;
 use ethers::utils::hex::ToHex;
 use xshell::{cmd, Shell};
 
 use super::{
     args::integration::IntegrationArgs,
-    utils::{TestWallets, TEST_WALLETS_PATH},
+    utils::{build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
 };
 use crate::messages::{
-    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS,
-    MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
-const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -29,8 +27,8 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
 
     if !args.no_deps {
-        build_repository(shell, &ecosystem_config)?;
-        build_test_contracts(shell, &ecosystem_config)?;
+        build_contracts(shell, &ecosystem_config)?;
+        install_and_build_dependencies(shell, &ecosystem_config)?;
     }
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
@@ -62,29 +60,5 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     logger::outro(MSG_INTEGRATION_TESTS_RUN_SUCCESS);
 
-    Ok(())
-}
-
-fn build_repository(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
-    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
-
-    Cmd::new(cmd!(shell, "yarn install --frozen-lockfile")).run()?;
-    Cmd::new(cmd!(shell, "yarn utils build")).run()?;
-
-    spinner.finish();
-    Ok(())
-}
-
-fn build_test_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
-
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
-    Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
-
-    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(CONTRACTS_TEST_DATA_PATH));
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
-
-    spinner.finish();
     Ok(())
 }

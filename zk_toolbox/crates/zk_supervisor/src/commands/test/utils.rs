@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use common::wallets::Wallet;
+use common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
 use config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
@@ -9,9 +9,17 @@ use ethers::{
     types::H256,
 };
 use serde::Deserialize;
+use xshell::{cmd, Shell};
+
+use crate::messages::{
+    MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
+};
 
 pub const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
 const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
+
+const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
+const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
 #[derive(Deserialize)]
 pub struct TestWallets {
@@ -77,4 +85,32 @@ impl TestWallets {
 
         Ok(())
     }
+}
+
+pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
+    shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS);
+
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+    Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
+
+    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(CONTRACTS_TEST_DATA_PATH));
+    Cmd::new(cmd!(shell, "yarn build")).run()?;
+
+    spinner.finish();
+    Ok(())
+}
+
+pub fn install_and_build_dependencies(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
+    let spinner = Spinner::new(MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES);
+
+    Cmd::new(cmd!(shell, "yarn install")).run()?;
+    Cmd::new(cmd!(shell, "yarn utils build")).run()?;
+
+    spinner.finish();
+    Ok(())
 }

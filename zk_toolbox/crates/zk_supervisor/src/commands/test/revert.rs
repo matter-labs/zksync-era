@@ -2,10 +2,9 @@ use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use super::args::revert::RevertArgs;
+use super::{args::revert::RevertArgs, utils::install_and_build_dependencies};
 use crate::messages::{
-    msg_revert_tests_run, MSG_REVERT_TEST_INSTALLING_DEPENDENCIES, MSG_REVERT_TEST_RUN_INFO,
-    MSG_REVERT_TEST_RUN_SUCCESS,
+    msg_revert_tests_run, MSG_REVERT_TEST_RUN_INFO, MSG_REVERT_TEST_RUN_SUCCESS,
 };
 
 const REVERT_TESTS_PATH: &str = "core/tests/revert-test";
@@ -23,19 +22,6 @@ pub fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     run_test(shell, &args, &ecosystem_config)?;
     logger::outro(MSG_REVERT_TEST_RUN_SUCCESS);
 
-    Ok(())
-}
-
-fn install_and_build_dependencies(
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
-    let spinner = Spinner::new(MSG_REVERT_TEST_INSTALLING_DEPENDENCIES);
-    Cmd::new(cmd!(shell, "yarn install")).run()?;
-    Cmd::new(cmd!(shell, "yarn utils build")).run()?;
-
-    spinner.finish();
     Ok(())
 }
 

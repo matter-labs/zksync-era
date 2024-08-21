@@ -8,7 +8,7 @@ use xshell::{cmd, Shell};
 
 use super::{
     args::recovery::RecoveryArgs,
-    utils::{TestWallets, TEST_WALLETS_PATH},
+    utils::{install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
 };
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS,
@@ -30,18 +30,6 @@ pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
     run_test(shell, &args, &ecosystem_config).await?;
     logger::outro(MSG_RECOVERY_TEST_RUN_SUCCESS);
 
-    Ok(())
-}
-
-fn install_and_build_dependencies(
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(&ecosystem_config.link_to_code);
-    let spinner = Spinner::new("Installing and building dependencies...");
-    Cmd::new(cmd!(shell, "yarn install")).run()?;
-    Cmd::new(cmd!(shell, "yarn utils build")).run()?;
-    spinner.finish();
     Ok(())
 }
 
