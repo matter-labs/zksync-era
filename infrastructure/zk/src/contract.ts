@@ -405,7 +405,7 @@ export async function registerHyperchain({
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
-        '--use-governance true'
+        '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
