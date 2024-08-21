@@ -13,11 +13,7 @@ use zksync_utils::u256_to_h256;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::{
-    protocol_version::L1VerifierConfig,
-    vm_trace::{Call, CallType},
-    Address, L2BlockNumber, ProtocolVersionId,
-};
+use crate::{protocol_version::L1VerifierConfig, Address, L2BlockNumber, ProtocolVersionId};
 
 pub mod en;
 pub mod state_override;
@@ -641,13 +637,14 @@ pub struct ResultDebugCall {
     pub result: DebugCall,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub enum DebugCallType {
+    #[default]
     Call,
     Create,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DebugCall {
     pub r#type: DebugCallType,
@@ -661,30 +658,6 @@ pub struct DebugCall {
     pub error: Option<String>,
     pub revert_reason: Option<String>,
     pub calls: Vec<DebugCall>,
-}
-
-impl From<Call> for DebugCall {
-    fn from(value: Call) -> Self {
-        let calls = value.calls.into_iter().map(DebugCall::from).collect();
-        let debug_type = match value.r#type {
-            CallType::Call(_) => DebugCallType::Call,
-            CallType::Create => DebugCallType::Create,
-            CallType::NearCall => unreachable!("We have to filter our near calls before"),
-        };
-        Self {
-            r#type: debug_type,
-            from: value.from,
-            to: value.to,
-            gas: U256::from(value.gas),
-            gas_used: U256::from(value.gas_used),
-            value: value.value,
-            output: Bytes::from(value.output.clone()),
-            input: Bytes::from(value.input.clone()),
-            error: value.error.clone(),
-            revert_reason: value.revert_reason,
-            calls,
-        }
-    }
 }
 
 // TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase

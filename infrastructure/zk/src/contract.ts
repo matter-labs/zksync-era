@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
+import { Wallet } from 'ethers';
+import path from 'path';
 
 export async function build(zkSyncNetwork: boolean): Promise<void> {
     const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
@@ -401,10 +403,24 @@ export async function registerHyperchain({
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    let tokenMultiplierSetterAddress = process.env.TOKEN_MULTIPLIER_SETTER_ADDRESS;
+
+    if (baseTokenName && !tokenMultiplierSetterAddress) {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+        // this is one of the rich accounts
+        tokenMultiplierSetterAddress = Wallet.fromMnemonic(
+            process.env.MNEMONIC ?? ethTestConfig.mnemonic,
+            "m/44'/60'/0'/0/2"
+        ).address;
+        console.log(`Defaulting token multiplier setter address to ${tokenMultiplierSetterAddress}`);
+    }
+
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
@@ -542,6 +558,10 @@ command
     .description('register hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .option(
+        '--token-multiplier-setter-address <token-multiplier-setter-address>',
+        'address of the token multiplier setter'
+    )
     .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
@@ -550,6 +570,5 @@ command
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
-    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

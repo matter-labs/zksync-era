@@ -6,27 +6,36 @@ CLI tool for performing maintenance of a ZKsync Prover
 
 ```
 git clone git@github.com:matter-labs/zksync-era.git
-cargo install -p prover_cli
+cargo install prover_cli
 ```
-
-> This should be `cargo install zksync-prover-cli` or something similar ideally.
 
 ## Usage
 
-> NOTE: For the moment it is necessary to run the CLI commands with `zk f`.
-
 ```
-Usage: prover_cli <COMMAND>
+Usage: prover_cli [DB_URL] <COMMAND>
 
 Commands:
+  debug-proof
   file-info
+  config
+  delete
   status
-  help       Print this message or the help of the given subcommand(s)
+  requeue
+  restart
+  stats        Displays L1 Batch proving stats for a given period
+  help         Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [DB_URL]  [env: PLI__DB_URL=] [default: postgres://postgres:notsecurepassword@localhost/prover_local]
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
 ```
+
+Warning: If this tool is being used outside the directory where the zksync-era repository is located, the configuration
+is not persistent, so the database URL needs to be set each time a new command that requires it is called!. Work is
+being done to improve this.
 
 ### `prover_cli file-info`
 
@@ -84,6 +93,7 @@ Usage: prover_cli status <COMMAND>
 
 Commands:
   batch
+  l1
   help   Print this message or the help of the given subcommand(s)
 
 Options:
@@ -119,6 +129,8 @@ Scheduler: In progress ⌛️
 > Compressor job not found 🚫
 ```
 
+NOTE: With the --verbose flag, much more detailed information about each stage of the process is displayed.
+
 #### `prover_cli status l1`
 
 Retrieve information about the state of the batches sent to L1 and compare the contract hashes in L1 with those stored
@@ -127,7 +139,7 @@ in the prover database.
 #### Example Output
 
 ```
-zk f run --release -- status l1
+prover_cli status l1
 
 ====== L1 Status ======
 State keeper: First batch: 0, recent batch: 10
@@ -151,15 +163,44 @@ DB hash: 0x0000000000000000000000000000000000000000000000000000000000000000
 
 ### `prover_cli requeue`
 
-TODO
+Requeue all the stuck jobs for a specific batch.
+
+```
+Usage: prover_cli requeue [OPTIONS] --batch <BATCH>
+
+Options:
+  -b, --batch <BATCH>
+      --max-attempts <MAX_ATTEMPTS>  Maximum number of attempts to re-queue a job. Default value is 10. NOTE: this argument is temporary and will be deprecated once the `config` command is implemented [default: 10]
+  -h, --help                         Print help
+```
 
 ### `prover_cli delete`
 
-TODO
+Delete all the data from the prover database.
+
+```
+Usage: prover_cli delete [OPTIONS]
+
+Options:
+  -a, --all            Delete data from all batches
+  -b, --batch <BATCH>  Batch number to delete [default: 0]
+  -h, --help           Print help
+```
 
 ### `prover_cli config`
 
-TODO
+It allows you to change the CLI configuration; currently, it only lets you change the database URL, but work is being
+done to also include information about the L1 contracts for when they are not set in the environment variables.
+
+```
+Usage: prover_cli config [DB_URL]
+
+Arguments:
+  [DB_URL]  [env: PLI__DB_URL=] [default: postgres://postgres:notsecurepassword@localhost/prover_local]
+
+Options:
+  -h, --help  Print help
+```
 
 ### `prover_cli debug-proof`
 
@@ -191,25 +232,31 @@ assertion `left == right` failed
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
+### `prover_cli debug-proof`
+
+TODO
+
 ## Development Status
 
-| **Command** | **Subcommand** | **Flags**                         | **Status** |
-| ----------- | -------------- | --------------------------------- | ---------- |
-| `status`    | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
-|             |                | `-v, --verbose`                   | 🏗️         |
-|             | `l1`           |                                   | 🏗️         |
-| `restart`   | `batch`        | `-n <BATCH_NUMBER>`               | ❌         |
-|             | `jobs`         | `-n <BATCH_NUMBER>`               | ❌         |
-|             |                | `-bwg, --basic-witness-generator` | ❌         |
-|             |                | `-lwg, --leaf-witness-generator`  | ❌         |
-|             |                | `-nwg, --node-witness-generator`  | ❌         |
-|             |                | `-rt, --recursion-tip`            | ❌         |
-|             |                | `-s, --scheduler`                 | ❌         |
-|             |                | `-c, --compressor`                | ❌         |
-|             |                | `-f, --failed`                    | ❌         |
-| `delete`    |                | `-n <BATCH_NUMBER>`               | 🏗️         |
-|             |                | `-a, --all`                       | 🏗️         |
-| `requeue`   |                | `—b, --batch <BATCH_NUMBER>`      | 🏗️         |
-|             |                | `-a, --all`                       | 🏗️         |
-| `config`    |                | `--db-url <DB_URL>`               | ❌         |
-|             |                | `--max-attempts <MAX_ATTEMPTS>`   | ❌         |
+| **Command**   | **Subcommand** | **Flags**                         | **Status** |
+| ------------- | -------------- | --------------------------------- | ---------- |
+| `status`      | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               |                | `-v, --verbose`                   | ✅️        |
+|               | `l1`           |                                   | ✅️        |
+| `restart`     | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               | `jobs`         | `-n <BATCH_NUMBER>`               | ️🏗️        |
+|               |                | `-bwg, --basic-witness-generator` | 🏗️         |
+|               |                | `-lwg, --leaf-witness-generator`  | 🏗️         |
+|               |                | `-nwg, --node-witness-generator`  | 🏗️         |
+|               |                | `-rt, --recursion-tip`            | 🏗️         |
+|               |                | `-s, --scheduler`                 | 🏗️         |
+|               |                | `-c, --compressor`                | 🏗️         |
+|               |                | `-f, --failed`                    | 🏗          |
+| `delete`      |                | `-n <BATCH_NUMBER>`               | ✅️️       |
+|               |                | `-a, --all`                       | ️️✅️️️️️️ |
+| `requeue`     |                | `—b, --batch <BATCH_NUMBER>`      | ✅️        |
+|               |                | `-a, --all`                       | ✅️️       |
+| `config`      |                | `--db-url <DB_URL>`               | 🏗          |
+| `debug-proof` |                | `--file <FILE>`                   | ✅️        |
+| `file-info`   |                | `--file-path <FILE_PATH>`         | ✅️        |
+| `stats`       |                | `--period <PERIOD>`               | ✅️        |
