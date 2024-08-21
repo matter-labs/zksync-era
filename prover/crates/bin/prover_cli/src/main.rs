@@ -1,4 +1,5 @@
-use prover_cli::{cli, config};
+use clap::Parser;
+use prover_cli::cli::ProverCLI;
 
 #[tokio::main]
 async fn main() {
@@ -6,15 +7,9 @@ async fn main() {
         .with_max_level(tracing::Level::ERROR)
         .init();
 
-    config::get_envfile()
-        .and_then(config::load_envfile)
-        .inspect_err(|err| {
-            tracing::error!("{err:?}");
-            std::process::exit(1);
-        })
-        .unwrap();
+    let prover = ProverCLI::parse();
 
-    match cli::start().await {
+    match prover.start().await {
         Ok(_) => {}
         Err(err) => {
             tracing::error!("{err:?}");
