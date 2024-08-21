@@ -135,7 +135,7 @@ fn run_prover_job_monitor(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin prover_job_monitor -- --config-path={config_path} --secrets-path={secrets_path}"));
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --release --bin zksync_prover_job_monitor -- --config-path={config_path} --secrets-path={secrets_path}"));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_RUNNING_PROVER_JOB_MONITOR)
 }
