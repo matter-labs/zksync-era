@@ -11,7 +11,8 @@ use super::{
     utils::{build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
 };
 use crate::messages::{
-    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_INTEGRATION_TESTS_RUN_SUCCESS,
+    msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR,
+    MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
 
 const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
@@ -33,7 +34,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
     let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-        .context("Impossible to deserialize test wallets")?;
+        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
     wallets
         .init_test_wallet(&ecosystem_config, &chain_config)

@@ -11,7 +11,8 @@ use super::{
     utils::{install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
 };
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_RECOVERY_TEST_RUN_INFO, MSG_RECOVERY_TEST_RUN_SUCCESS,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR, MSG_RECOVERY_TEST_RUN_INFO,
+    MSG_RECOVERY_TEST_RUN_SUCCESS,
 };
 
 const RECOVERY_TESTS_PATH: &str = "core/tests/recovery-test";
@@ -51,7 +52,7 @@ async fn run_test(
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
     let wallets: TestWallets = serde_json::from_str(shell.read_file(&wallets_path)?.as_ref())
-        .context("Impossible to deserialize test wallets")?;
+        .context(MSG_DESERIALIZE_TEST_WALLETS_ERR)?;
 
     wallets
         .init_test_wallet(ecosystem_config, &chain_config)
