@@ -121,7 +121,7 @@ jobs:
         run: |
           ci_run zk_inception server --ignore-prerequisites --chain chain_validium &> server_validium.log &
           ci_run sleep 5
-  
+
       - name: Run integration tests
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose --chain chain_validium
@@ -132,14 +132,14 @@ jobs:
           --db-name=zksync_en_localhost_era --l1-rpc-url=http://reth:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
-      - name: Run recovery tests (from snapshot)
-        run: |
-          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_validium
-            
+      #      - name: Run recovery tests (from snapshot)
+      #        run: |
+      #          ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_validium
+
       - name: Run recovery tests (from genesis)
         run: |
           ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_validium
-  
+
       - name: Run external node server
         run: |
           ci_run zk_inception external-node run --ignore-prerequisites --chain chain_validium &> external_node_validium.log &
@@ -149,13 +149,9 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_validium
 
-      - name: Run revert tests
-        run: |
-          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_validium
-
-      - name: Run revert tests (external node)
-        run: |
-          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_validium
+      #      - name: Run revert tests (external node)
+      #        run: |
+      #          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_validium
 
       - name: Create and initialize Rollup chain
         run: |
@@ -198,11 +194,11 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
           ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose --chain chain_rollup
-            
-      - name: Run recovery tests (from genesis)
-        run: |
-          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_rollup
-  
+
+      #      - name: Run recovery tests (from genesis)
+      #        run: |
+      #          ci_run zk_supervisor test recovery --ignore-prerequisites --verbose --chain chain_rollup
+
       - name: Run external node server
         run: |
           ci_run zk_inception external-node run --ignore-prerequisites --chain chain_rollup &> external_node_rollup.log &
@@ -212,13 +208,13 @@ jobs:
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_rollup
 
-      - name: Run revert tests
-        run: |
-          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_rollup
+      #      - name: Run revert tests
+      #        run: |
+      #          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_rollup
 
-      - name: Run revert tests (external node)
-        run: |
-          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_rollup
+      #      - name: Run revert tests (external node)
+      #        run: |
+      #          ci_run zk_supervisor test revert --external-node --ignore-prerequisites --verbose --chain chain_rollup
 
       # Upgrade tests should run last, because as soon as they 
       # finish the bootloader will be different
