@@ -30,7 +30,7 @@ use zksync_node_sync::{
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
 use zksync_state_keeper::{
-    executor::MainStateKeeperExecutorFactory,
+    executor::{MainBatchExecutorFactory, MainStateKeeperExecutorFactory},
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
@@ -590,14 +590,15 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor =
-                    MainStateKeeperExecutorFactory::new(false, false, Arc::new(async_cache));
+                let executor_factory = MainBatchExecutorFactory::new(false, false);
+                let executor_factory =
+                    MainStateKeeperExecutorFactory::new(executor_factory, Arc::new(async_cache));
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(executor),
+                        Box::new(executor_factory),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),

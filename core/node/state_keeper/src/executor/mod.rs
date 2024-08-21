@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, marker::PhantomData, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -8,9 +8,9 @@ use zksync_multivm::interface::{
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult,
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
-use zksync_state::{OwnedStorage, ReadStorageFactory};
+use zksync_state::ReadStorageFactory;
 use zksync_types::Transaction;
-use zksync_vm_utils::batch::MainBatchExecutorFactory;
+pub use zksync_vm_utils::batch::MainBatchExecutorFactory;
 
 use crate::ExecutionMetricsForCriteria;
 
@@ -75,7 +75,6 @@ impl BatchExecutorOutputs for StateKeeperOutputs {
 
 pub type StateKeeperExecutor = dyn BatchExecutor<StateKeeperOutputs>;
 
-// FIXME: remove by using `BatchExecutor<()>`?
 /// Functionality of [`BatchExecutorFactory`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
 /// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
 #[async_trait]
@@ -89,71 +88,72 @@ pub trait StateKeeperExecutorFactory: fmt::Debug + Send {
 }
 
 /// The only [`StateKeeperExecutorFactory`] implementation.
-#[derive(Debug)]
-pub struct MainStateKeeperExecutorFactory<E> {
-    batch_executor: E,
-    storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
+pub struct MainStateKeeperExecutorFactory<S, T> {
+    executor_factory: T,
+    storage_factory: Arc<dyn ReadStorageFactory<S>>,
 }
 
-impl MainStateKeeperExecutorFactory<MainBatchExecutorFactory> {
-    pub fn new(
-        save_call_traces: bool,
-        optional_bytecode_compression: bool,
-        storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
-    ) -> Self {
+// Removes inferred `S: Debug` constraint
+impl<S, T: fmt::Debug> fmt::Debug for MainStateKeeperExecutorFactory<S, T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MainStateKeeperExecutorFactory")
+            .field("executor_factory", &self.executor_factory)
+            .field("storage_factory", &self.storage_factory)
+            .finish()
+    }
+}
+
+impl<S: Send + 'static, T: BatchExecutorFactory<S>> MainStateKeeperExecutorFactory<S, T> {
+    pub fn new(batch_executor: T, storage_factory: Arc<dyn ReadStorageFactory<S>>) -> Self {
         Self {
-            batch_executor: MainBatchExecutorFactory::new(
-                save_call_traces,
-                optional_bytecode_compression,
-            ),
+            executor_factory: batch_executor,
             storage_factory,
         }
     }
 }
 
-impl<E: BatchExecutorFactory<OwnedStorage>> MainStateKeeperExecutorFactory<E> {
-    pub fn custom(
-        batch_executor: E,
-        storage_factory: Arc<dyn ReadStorageFactory<OwnedStorage>>,
-    ) -> Self {
-        Self {
-            batch_executor,
-            storage_factory,
-        }
-    }
+struct MappedExecutor<S, H: ?Sized> {
+    inner: Box<H>,
+    _storage: PhantomData<S>,
 }
 
-#[derive(Debug)]
-struct MappedExecutor<H: ?Sized>(Box<H>);
+impl<S, H: ?Sized + fmt::Debug> fmt::Debug for MappedExecutor<S, H> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&*self.inner, formatter)
+    }
+}
 
 #[async_trait]
-impl<H> BatchExecutor<StateKeeperOutputs> for MappedExecutor<H>
+impl<S, H> BatchExecutor<StateKeeperOutputs> for MappedExecutor<S, H>
 where
-    H: BatchExecutor<StandardOutputs<OwnedStorage>> + ?Sized,
+    S: Send + 'static,
+    H: BatchExecutor<StandardOutputs<S>> + ?Sized,
 {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
-        let res = self.0.execute_tx(tx.clone()).await?;
+        let res = self.inner.execute_tx(tx.clone()).await?;
         Ok(TxExecutionResult::new(res, &tx))
     }
 
     async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
-        self.0.rollback_last_tx().await
+        self.inner.rollback_last_tx().await
     }
 
     async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
-        self.0.start_next_l2_block(env).await
+        self.inner.start_next_l2_block(env).await
     }
 
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
-        let (finished_batch, _) = self.0.finish_batch().await?;
+        let (finished_batch, _) = self.inner.finish_batch().await?;
         Ok(finished_batch)
     }
 }
 
 #[async_trait]
-impl<T> StateKeeperExecutorFactory for MainStateKeeperExecutorFactory<T>
+impl<S, T> StateKeeperExecutorFactory for MainStateKeeperExecutorFactory<S, T>
 where
-    T: BatchExecutorFactory<OwnedStorage, Outputs = StandardOutputs<OwnedStorage>>,
+    S: Send + 'static,
+    T: BatchExecutorFactory<S, Outputs = StandardOutputs<S>>,
 {
     async fn init_batch(
         &mut self,
@@ -170,8 +170,11 @@ where
             return Ok(None);
         };
         let executor = self
-            .batch_executor
+            .executor_factory
             .init_batch(storage, l1_batch_env, system_env);
-        Ok(Some(Box::new(MappedExecutor(executor))))
+        Ok(Some(Box::new(MappedExecutor {
+            inner: executor,
+            _storage: PhantomData,
+        })))
     }
 }

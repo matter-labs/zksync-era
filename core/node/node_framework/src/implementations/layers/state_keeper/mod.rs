@@ -103,7 +103,7 @@ impl WiringLayer for StateKeeperLayer {
 
         let state_keeper = StateKeeperTask {
             io,
-            batch_executor: batch_executor_base,
+            executor_factory: batch_executor_base,
             output_handler,
             sealer,
             storage_factory: Arc::new(storage_factory),
@@ -126,7 +126,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor: BoxBatchExecutorFactory<OwnedStorage>,
+    executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
@@ -139,12 +139,12 @@ impl Task for StateKeeperTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let executor =
-            MainStateKeeperExecutorFactory::custom(self.batch_executor, self.storage_factory);
+        let executor_factory =
+            MainStateKeeperExecutorFactory::new(self.executor_factory, self.storage_factory);
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver.0,
             self.io,
-            Box::new(executor),
+            Box::new(executor_factory),
             self.output_handler,
             self.sealer,
         );
