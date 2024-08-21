@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_state::OwnedStorage;
 use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
-use zksync_vm_utils::interface::{box_batch_executor, BatchExecutor, BoxBatchExecutor};
+use zksync_vm_utils::interface::{box_batch_executor, BatchExecutor, BoxBatchExecutor, Standard};
 
 use crate::resource::{Resource, Unique};
 
@@ -36,7 +36,7 @@ impl Resource for BatchExecutorResource {
 
 impl<T> From<T> for BatchExecutorResource
 where
-    T: BatchExecutor<OwnedStorage, Handle: Sized>,
+    T: BatchExecutor<OwnedStorage, Outputs = Standard<OwnedStorage>, Handle: Sized>,
 {
     fn from(executor: T) -> Self {
         Self(Unique::new(box_batch_executor(executor)))

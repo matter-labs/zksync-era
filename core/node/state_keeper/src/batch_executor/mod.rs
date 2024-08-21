@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_multivm::interface::{
-    executor::{BatchExecutor, BatchExecutorHandle, InspectStorage, InspectStorageFn},
+    executor::{BatchExecutor, BatchExecutorHandle, BatchExecutorOutputs, Standard},
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult,
     FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
@@ -64,8 +64,18 @@ impl TxExecutionResult {
     }
 }
 
-pub type StateKeeperExecutorHandle = dyn BatchExecutorHandle<OwnedStorage, TxExecutionResult>;
+/// Batch executor outputs consumed by the state keeper.
+#[derive(Debug)]
+pub struct StateKeeperOutputs(());
 
+impl BatchExecutorOutputs for StateKeeperOutputs {
+    type Tx = TxExecutionResult;
+    type Batch = FinishedL1Batch;
+}
+
+pub type StateKeeperExecutorHandle = dyn BatchExecutorHandle<StateKeeperOutputs>;
+
+// FIXME: remove by using `BatchExecutor<()>`?
 /// Functionality of [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
 /// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
 #[async_trait]
@@ -114,21 +124,9 @@ impl<E: BatchExecutor<OwnedStorage>> MainStateKeeperExecutor<E> {
 struct MappedHandle<H: ?Sized>(Box<H>);
 
 #[async_trait]
-impl<S, H> InspectStorage<S> for MappedHandle<H>
+impl<H> BatchExecutorHandle<StateKeeperOutputs> for MappedHandle<H>
 where
-    S: 'static,
-    H: BatchExecutorHandle<S> + ?Sized,
-{
-    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        self.0.inspect_storage(f).await
-    }
-}
-
-#[async_trait]
-impl<S, H> BatchExecutorHandle<S, TxExecutionResult> for MappedHandle<H>
-where
-    S: 'static,
-    H: BatchExecutorHandle<S> + ?Sized,
+    H: BatchExecutorHandle<Standard<OwnedStorage>> + ?Sized,
 {
     async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         let res = self.0.execute_tx(tx.clone()).await?;
@@ -143,17 +141,17 @@ where
         self.0.start_next_l2_block(env).await
     }
 
-    async fn finish_batch(
-        self: Box<Self>,
-    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
-        self.0.finish_batch().await
+    async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
+        let (finished_batch, _) = self.0.finish_batch().await?;
+        // FIXME: metrics
+        Ok(finished_batch)
     }
 }
 
 #[async_trait]
 impl<E> StateKeeperExecutor for MainStateKeeperExecutor<E>
 where
-    E: BatchExecutor<OwnedStorage>,
+    E: BatchExecutor<OwnedStorage, Outputs = Standard<OwnedStorage>>,
 {
     async fn init_batch(
         &mut self,

@@ -1,15 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
-use tokio::{
-    sync::{oneshot, watch},
-    task::JoinHandle,
-};
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::OwnedStorage;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 use zksync_vm_interface::{
-    executor::{BatchExecutorHandle, BoxBatchExecutor},
+    executor::{BoxBatchExecutor, DynBatchExecutorHandle},
     L2BlockEnv,
 };
 
@@ -62,7 +59,7 @@ impl VmRunner {
     }
 
     async fn process_batch(
-        mut batch_executor: Box<dyn BatchExecutorHandle<OwnedStorage>>,
+        mut batch_executor: Box<DynBatchExecutorHandle<OwnedStorage>>,
         l2_blocks: Vec<L2BlockExecutionData>,
         mut output_handler: Box<dyn OutputHandler>,
     ) -> anyhow::Result<()> {
@@ -97,23 +94,13 @@ impl VmRunner {
                 .context("VM runner failed to handle L2 block")?;
         }
 
-        let (batch, mut storage_handle) = batch_executor
+        let (batch, storage_view) = batch_executor
             .finish_batch()
             .await
             .context("VM runner failed to execute batch tip")?;
-        let (storage_sender, storage_receiver) = oneshot::channel();
-        storage_handle
-            .inspect_storage(Box::new(|storage_view| {
-                storage_sender.send(storage_view.cache()).ok();
-            }))
-            .await
-            .context("Failed getting storage view cache")?;
-
         let output = L1BatchOutput {
             batch,
-            storage_view_cache: storage_receiver
-                .await
-                .context("Failed getting storage view cache")?,
+            storage_view_cache: storage_view.cache(),
         };
         latency.observe();
         output_handler

@@ -7,8 +7,8 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    executor::{BatchExecutorHandle, InspectStorage, InspectStorageFn},
-    storage::ReadStorage,
+    executor::{BatchExecutorHandle, Standard},
+    storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
 use zksync_types::Transaction;
@@ -16,17 +16,17 @@ use zksync_types::Transaction;
 use super::metrics::{ExecutorCommand, EXECUTOR_METRICS};
 
 #[derive(Debug)]
-enum HandleOrError {
-    Handle(JoinHandle<anyhow::Result<()>>),
+enum HandleOrError<S> {
+    Handle(JoinHandle<anyhow::Result<StorageView<S>>>),
     Err(Arc<dyn StdError + Send + Sync>),
 }
 
-impl HandleOrError {
+impl<S> HandleOrError<S> {
     async fn wait_for_error(&mut self) -> anyhow::Error {
         let err_arc = match self {
             Self::Handle(handle) => {
                 let err = match handle.await {
-                    Ok(Ok(())) => anyhow::anyhow!("batch executor unexpectedly stopped"),
+                    Ok(Ok(_)) => anyhow::anyhow!("batch executor unexpectedly stopped"),
                     Ok(Err(err)) => err,
                     Err(err) => anyhow::Error::new(err).context("batch executor panicked"),
                 };
@@ -40,8 +40,7 @@ impl HandleOrError {
         anyhow::Error::new(err_arc)
     }
 
-    #[allow(dead_code)] // FIXME: is it OK to not wait for handle?
-    async fn wait(self) -> anyhow::Result<()> {
+    async fn wait(self) -> anyhow::Result<StorageView<S>> {
         match self {
             Self::Handle(handle) => handle.await.context("batch executor panicked")?,
             Self::Err(err_arc) => Err(anyhow::Error::new(err_arc)),
@@ -54,14 +53,14 @@ impl HandleOrError {
 /// the batches.
 #[derive(Debug)]
 pub struct MainBatchExecutorHandle<S> {
-    handle: HandleOrError,
-    commands: mpsc::Sender<Command<S>>,
+    handle: HandleOrError<S>,
+    commands: mpsc::Sender<Command>,
 }
 
 impl<S: ReadStorage> MainBatchExecutorHandle<S> {
     pub(super) fn new(
-        handle: JoinHandle<anyhow::Result<()>>,
-        commands: mpsc::Sender<Command<S>>,
+        handle: JoinHandle<anyhow::Result<StorageView<S>>>,
+        commands: mpsc::Sender<Command>,
     ) -> Self {
         Self {
             handle: HandleOrError::Handle(handle),
@@ -71,37 +70,9 @@ impl<S: ReadStorage> MainBatchExecutorHandle<S> {
 }
 
 #[async_trait]
-impl<S> InspectStorage<S> for MainBatchExecutorHandle<S>
+impl<S> BatchExecutorHandle<Standard<S>> for MainBatchExecutorHandle<S>
 where
-    S: ReadStorage + 'static,
-{
-    #[tracing::instrument(skip_all)]
-    async fn inspect_storage(&mut self, f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self
-            .commands
-            .send(Command::InspectStorage(f, response_sender))
-            .await
-            .is_err();
-        if send_failed {
-            return Err(self.handle.wait_for_error().await);
-        }
-
-        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::InspectStorage]
-            .start();
-        if response_receiver.await.is_err() {
-            return Err(self.handle.wait_for_error().await);
-        }
-        latency.observe();
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl<S> BatchExecutorHandle<S> for MainBatchExecutorHandle<S>
-where
-    S: ReadStorage + 'static,
+    S: ReadStorage + Send + 'static,
 {
     #[tracing::instrument(skip_all)]
     async fn execute_tx(
@@ -197,7 +168,7 @@ where
     #[tracing::instrument(skip_all)]
     async fn finish_batch(
         mut self: Box<Self>,
-    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -216,11 +187,13 @@ where
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
         latency.observe();
-        Ok((finished_batch, self))
+        let storage_view = self.handle.wait().await?;
+        Ok((finished_batch, storage_view))
     }
 }
 
-pub(super) enum Command<S> {
+#[derive(Debug)]
+pub(super) enum Command {
     ExecuteTx(
         Box<Transaction>,
         oneshot::Sender<BatchTransactionExecutionResult>,
@@ -228,5 +201,4 @@ pub(super) enum Command<S> {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
-    InspectStorage(InspectStorageFn<S>, oneshot::Sender<()>),
 }

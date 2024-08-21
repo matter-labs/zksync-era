@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
-        executor::BatchExecutor,
+        executor::{BatchExecutor, Standard},
         storage::{ReadStorage, StorageView},
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
@@ -56,6 +56,7 @@ impl MainBatchExecutor {
 }
 
 impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
+    type Outputs = Standard<S>;
     type Handle = MainBatchExecutorHandle<S>;
 
     fn init_batch(
@@ -72,6 +73,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
             commands: commands_receiver,
+            _storage: PhantomData,
         };
 
         let handle =
@@ -91,7 +93,8 @@ struct CommandReceiver<S> {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    commands: mpsc::Receiver<Command<S>>,
+    commands: mpsc::Receiver<Command>,
+    _storage: PhantomData<S>,
 }
 
 impl<S: ReadStorage + 'static> CommandReceiver<S> {
@@ -100,7 +103,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
@@ -141,12 +144,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                         break;
                     }
                     batch_finished = true;
-                }
-                Command::InspectStorage(f, resp) => {
-                    f(&mut storage_view.borrow_mut());
-                    if resp.send(()).is_err() {
-                        break;
-                    }
+                    break;
                 }
             }
         }
@@ -155,7 +153,11 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
             tracing::info!("State keeper exited with an unfinished L1 batch");
         }
-        Ok(())
+        drop(vm);
+        let storage_view = Rc::into_inner(storage_view)
+            .context("storage view leaked")?
+            .into_inner();
+        Ok(storage_view)
     }
 
     fn execute_tx(

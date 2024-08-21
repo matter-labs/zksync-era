@@ -7,8 +7,8 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    executor::{BatchExecutorHandle, InspectStorage, InspectStorageFn},
-    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
+    executor::BatchExecutorHandle, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -19,8 +19,9 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    batch_executor::TxExecutionResult, types::ExecutionMetricsForCriteria, StateKeeperExecutor,
-    StateKeeperExecutorHandle,
+    batch_executor::{StateKeeperOutputs, TxExecutionResult},
+    types::ExecutionMetricsForCriteria,
+    StateKeeperExecutor, StateKeeperExecutorHandle,
 };
 
 pub mod test_batch_executor;
@@ -64,16 +65,7 @@ impl StateKeeperExecutor for MockBatchExecutor {
 }
 
 #[async_trait]
-impl<S: 'static> InspectStorage<S> for MockBatchExecutor {
-    async fn inspect_storage(&mut self, _f: InspectStorageFn<S>) -> anyhow::Result<()> {
-        // The inspection hook is not called; this could be a problem in the general case,
-        // but in the state keeper context it's fine.
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for MockBatchExecutor {
+impl BatchExecutorHandle<StateKeeperOutputs> for MockBatchExecutor {
     async fn execute_tx(&mut self, _tx: Transaction) -> anyhow::Result<TxExecutionResult> {
         Ok(successful_exec())
     }
@@ -86,10 +78,8 @@ impl<S: 'static> BatchExecutorHandle<S, TxExecutionResult> for MockBatchExecutor
         Ok(())
     }
 
-    async fn finish_batch(
-        self: Box<Self>,
-    ) -> anyhow::Result<(FinishedL1Batch, Box<dyn InspectStorage<S>>)> {
-        Ok((FinishedL1Batch::mock(), self))
+    async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
+        Ok(FinishedL1Batch::mock())
     }
 }
 
