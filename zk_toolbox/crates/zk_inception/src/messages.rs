@@ -259,6 +259,7 @@ pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
 pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
