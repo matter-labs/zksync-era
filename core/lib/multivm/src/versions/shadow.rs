@@ -1,9 +1,9 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashSet},
     fmt,
 };
 
-use anyhow::Context as _;
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
 use crate::{
@@ -17,10 +17,30 @@ use crate::{
     vm_fast,
 };
 
+struct VmWithReporting<S> {
+    vm: vm_fast::Vm<ImmutableStorageView<S>>,
+    reporter: Box<dyn FnMut(anyhow::Error)>,
+}
+
+impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VmWithReporting")
+            .field("vm", &self.vm)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S> VmWithReporting<S> {
+    fn report(mut self, err: anyhow::Error) {
+        (self.reporter)(err);
+    }
+}
+
 #[derive(Debug)]
 pub struct ShadowVm<S, T> {
     main: T,
-    shadow: vm_fast::Vm<ImmutableStorageView<S>>,
+    shadow: RefCell<Option<VmWithReporting<S>>>,
 }
 
 impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
@@ -33,9 +53,14 @@ where
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
     ) -> Self {
+        let main = T::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let shadow = vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage));
         Self {
-            main: T::new(batch_env.clone(), system_env.clone(), storage.clone()),
-            shadow: vm_fast::Vm::new(batch_env, system_env, ImmutableStorageView::new(storage)),
+            main,
+            shadow: RefCell::new(Some(VmWithReporting {
+                vm: shadow,
+                reporter: Box::new(|err| panic!("{err:?}")),
+            })),
         }
     }
 }
@@ -48,19 +73,23 @@ where
     type TracerDispatcher = T::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
-        self.shadow.push_transaction(tx.clone());
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.push_transaction(tx.clone());
+        }
         self.main.push_transaction(tx);
     }
 
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
         let main_result = self.main.execute(execution_mode);
-        let shadow_result = self.shadow.execute(execution_mode);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result, &shadow_result);
-        errors
-            .into_result()
-            .with_context(|| format!("executing VM with mode {execution_mode:?}"))
-            .unwrap();
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_result = shadow.vm.execute(execution_mode);
+            let mut errors = DivergenceErrors::default();
+            errors.check_results_match(&main_result, &shadow_result);
+            if let Err(err) = errors.into_result() {
+                let ctx = format!("executing VM with mode {execution_mode:?}");
+                self.shadow.take().unwrap().report(err.context(ctx));
+            }
+        }
         main_result
     }
 
@@ -69,46 +98,68 @@ where
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        let shadow_result = self.shadow.inspect((), execution_mode);
         let main_result = self.main.inspect(dispatcher, execution_mode);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result, &shadow_result);
-        errors
-            .into_result()
-            .with_context(|| format!("executing VM with mode {execution_mode:?}"))
-            .unwrap();
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_result = shadow.vm.inspect((), execution_mode);
+            let mut errors = DivergenceErrors::default();
+            errors.check_results_match(&main_result, &shadow_result);
+
+            if let Err(err) = errors.into_result() {
+                self.shadow
+                    .take()
+                    .unwrap()
+                    .report(err.context(format!("executing VM with mode {execution_mode:?}")));
+            }
+        }
         main_result
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
         let main_memory = self.main.get_bootloader_memory();
-        let shadow_memory = self.shadow.get_bootloader_memory();
-        DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory).unwrap();
+        if let Some(shadow) = &*self.shadow.borrow() {
+            let shadow_memory = shadow.vm.get_bootloader_memory();
+            let result =
+                DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory);
+            if let Err(err) = result {
+                self.shadow.take().unwrap().report(err);
+            }
+        }
         main_memory
     }
 
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         let main_bytecodes = self.main.get_last_tx_compressed_bytecodes();
-        let shadow_bytecodes = self.shadow.get_last_tx_compressed_bytecodes();
-        DivergenceErrors::single(
-            "get_last_tx_compressed_bytecodes",
-            &main_bytecodes,
-            &shadow_bytecodes,
-        )
-        .unwrap();
+        if let Some(shadow) = &*self.shadow.borrow() {
+            let shadow_bytecodes = shadow.vm.get_last_tx_compressed_bytecodes();
+            let result = DivergenceErrors::single(
+                "get_last_tx_compressed_bytecodes",
+                &main_bytecodes,
+                &shadow_bytecodes,
+            );
+            if let Err(err) = result {
+                self.shadow.take().unwrap().report(err);
+            }
+        }
         main_bytecodes
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        self.shadow.start_new_l2_block(l2_block_env);
         self.main.start_new_l2_block(l2_block_env);
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.start_new_l2_block(l2_block_env);
+        }
     }
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         let main_state = self.main.get_current_execution_state();
-        let shadow_state = self.shadow.get_current_execution_state();
-        DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state)
-            .unwrap();
+        if let Some(shadow) = &*self.shadow.borrow() {
+            let shadow_state = shadow.vm.get_current_execution_state();
+            let result =
+                DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state);
+            if let Err(err) = result {
+                self.shadow.take().unwrap().report(err);
+            }
+        }
         main_state
     }
 
@@ -124,17 +175,19 @@ where
         let main_result = self
             .main
             .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
-        let shadow_result = self
-            .shadow
-            .execute_transaction_with_bytecode_compression(tx, with_compression);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result.1, &shadow_result.1);
-        errors
-            .into_result()
-            .with_context(|| {
-                format!("executing transaction {tx_hash:?}, with_compression={with_compression:?}")
-            })
-            .unwrap();
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_result = shadow
+                .vm
+                .execute_transaction_with_bytecode_compression(tx, with_compression);
+            let mut errors = DivergenceErrors::default();
+            errors.check_results_match(&main_result.1, &shadow_result.1);
+            if let Err(err) = errors.into_result() {
+                let ctx = format!(
+                    "executing transaction {tx_hash:?}, with_compression={with_compression:?}"
+                );
+                self.shadow.take().unwrap().report(err.context(ctx));
+            }
+        }
         main_result
     }
 
@@ -153,17 +206,20 @@ where
             tx.clone(),
             with_compression,
         );
-        let shadow_result =
-            self.shadow
-                .inspect_transaction_with_bytecode_compression((), tx, with_compression);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result.1, &shadow_result.1);
-        errors
-            .into_result()
-            .with_context(|| {
-                format!("inspecting transaction {tx_hash:?}, with_compression={with_compression:?}")
-            })
-            .unwrap();
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_result =
+                shadow
+                    .vm
+                    .inspect_transaction_with_bytecode_compression((), tx, with_compression);
+            let mut errors = DivergenceErrors::default();
+            errors.check_results_match(&main_result.1, &shadow_result.1);
+            if let Err(err) = errors.into_result() {
+                let ctx = format!(
+                    "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
+                );
+                self.shadow.take().unwrap().report(err.context(ctx));
+            }
+        }
         main_result
     }
 
@@ -173,40 +229,49 @@ where
 
     fn gas_remaining(&self) -> u32 {
         let main_gas = self.main.gas_remaining();
-        let shadow_gas = self.shadow.gas_remaining();
-        DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas).unwrap();
+        if let Some(shadow) = &*self.shadow.borrow() {
+            let shadow_gas = shadow.vm.gas_remaining();
+            let result = DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas);
+            if let Err(err) = result {
+                self.shadow.take().unwrap().report(err);
+            }
+        }
         main_gas
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
         let main_batch = self.main.finish_batch();
-        let shadow_batch = self.shadow.finish_batch();
+        if let Some(shadow) = self.shadow.get_mut() {
+            let shadow_batch = shadow.vm.finish_batch();
+            let mut errors = DivergenceErrors::default();
+            errors.check_results_match(
+                &main_batch.block_tip_execution_result,
+                &shadow_batch.block_tip_execution_result,
+            );
+            errors.check_final_states_match(
+                &main_batch.final_execution_state,
+                &shadow_batch.final_execution_state,
+            );
+            errors.check_match(
+                "final_bootloader_memory",
+                &main_batch.final_bootloader_memory,
+                &shadow_batch.final_bootloader_memory,
+            );
+            errors.check_match(
+                "pubdata_input",
+                &main_batch.pubdata_input,
+                &shadow_batch.pubdata_input,
+            );
+            errors.check_match(
+                "state_diffs",
+                &main_batch.state_diffs,
+                &shadow_batch.state_diffs,
+            );
 
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(
-            &main_batch.block_tip_execution_result,
-            &shadow_batch.block_tip_execution_result,
-        );
-        errors.check_final_states_match(
-            &main_batch.final_execution_state,
-            &shadow_batch.final_execution_state,
-        );
-        errors.check_match(
-            "final_bootloader_memory",
-            &main_batch.final_bootloader_memory,
-            &shadow_batch.final_bootloader_memory,
-        );
-        errors.check_match(
-            "pubdata_input",
-            &main_batch.pubdata_input,
-            &shadow_batch.pubdata_input,
-        );
-        errors.check_match(
-            "state_diffs",
-            &main_batch.state_diffs,
-            &shadow_batch.state_diffs,
-        );
-        errors.into_result().unwrap();
+            if let Err(err) = errors.into_result() {
+                self.shadow.take().unwrap().report(err);
+            }
+        }
         main_batch
     }
 }
@@ -365,17 +430,23 @@ where
     T: VmInterfaceHistoryEnabled,
 {
     fn make_snapshot(&mut self) {
-        self.shadow.make_snapshot();
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.make_snapshot();
+        }
         self.main.make_snapshot();
     }
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        self.shadow.rollback_to_the_latest_snapshot();
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.rollback_to_the_latest_snapshot();
+        }
         self.main.rollback_to_the_latest_snapshot();
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.shadow.pop_snapshot_no_rollback();
+        if let Some(shadow) = self.shadow.get_mut() {
+            shadow.vm.pop_snapshot_no_rollback();
+        }
         self.main.pop_snapshot_no_rollback();
     }
 }
