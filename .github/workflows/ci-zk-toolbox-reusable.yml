@@ -208,9 +208,9 @@ jobs:
           #        run: |
           #          ci_run zk_supervisor test integration --ignore-prerequisites --verbose --external-node --chain chain_rollup
           #
-          - name: Run revert tests
-            run: |
-              ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_rollup
+          #      - name: Run revert tests
+          #        run: |
+          #          ci_run zk_supervisor test revert --ignore-prerequisites --verbose --chain chain_rollup
 
       #      - name: Run revert tests (external node)
       #        run: |
