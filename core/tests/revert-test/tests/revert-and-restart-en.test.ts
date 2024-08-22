@@ -149,7 +149,7 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -213,7 +213,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) { }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -290,18 +290,18 @@ describe('Block reverting test', function () {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeGeneralConfig = loadConfig({
+            const externalNodeConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
                 configsFolderSuffix: 'external_node',
-                config: 'general.yaml'
+                config: 'external_node.yaml'
             });
             const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeGeneralConfig.main_node_url;
+            enEthClientUrl = externalNodeConfig.main_node_url;
             operatorAddress = walletsConfig.operator.address;
         } else {
             let env = fetchEnv(mainEnv);
