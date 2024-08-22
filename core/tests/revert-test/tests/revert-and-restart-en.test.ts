@@ -4,11 +4,11 @@
 // main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 import * as utils from 'utils';
-import {Tester} from './tester';
-import {exec, runServerInBackground, runExternalNodeInBackground} from './utils';
+import { Tester } from './tester';
+import { exec, runServerInBackground, runExternalNodeInBackground } from './utils';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import {expect, assert} from 'chai';
+import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
@@ -19,7 +19,7 @@ import {
     replaceAggregatedBlockExecuteDeadline
 } from 'utils/build/file-configs';
 import path from 'path';
-import {ChildProcessWithoutNullStreams} from 'child_process';
+import { ChildProcessWithoutNullStreams } from 'child_process';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -30,7 +30,7 @@ let extEnv: string;
 let deploymentMode: string;
 
 if (fileConfig.loadFromFile) {
-    const genesisConfig = loadConfig({pathToHome, chain: fileConfig.chain, config: 'genesis.yaml'});
+    const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
     deploymentMode = genesisConfig.deploymentMode;
 } else {
     if (!process.env.DEPLOYMENT_MODE) {
@@ -84,7 +84,7 @@ function compileBinaries() {
     run(
         'cargo',
         ['build', '--release', '--bin', 'zksync_external_node', '--bin', 'zksync_server', '--bin', 'block_reverter'],
-        {cwd: process.env.ZKSYNC_HOME}
+        { cwd: process.env.ZKSYNC_HOME }
     );
 }
 
@@ -99,7 +99,7 @@ function fetchEnv(zksyncEnv: string): any {
             ZKSYNC_HOME: process.env.ZKSYNC_HOME
         }
     });
-    return {...process.env, ...dotenv.parse(res.stdout)};
+    return { ...process.env, ...dotenv.parse(res.stdout) };
 }
 
 async function runBlockReverter(args: string[]): Promise<string> {
@@ -107,7 +107,7 @@ async function runBlockReverter(args: string[]): Promise<string> {
 
     let fileConfigFlags = '';
     if (fileConfig.loadFromFile) {
-        const configPaths = getAllConfigsPath({pathToHome, chain: fileConfig.chain});
+        const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
         fileConfigFlags = `
                 --config-path=${configPaths['general.yaml']}
                 --contracts-config-path=${configPaths['contracts.yaml']}
@@ -150,8 +150,7 @@ async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams) {
-    }
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams) {}
 
     public async terminate() {
         try {
@@ -224,8 +223,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {
-    }
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
 
     public async terminate() {
         try {
@@ -308,16 +306,16 @@ describe('Block reverting test', function () {
 
     before('initialize test', async () => {
         if (fileConfig.loadFromFile) {
-            const secretsConfig = loadConfig({pathToHome, chain: fileConfig.chain, config: 'secrets.yaml'});
-            const generalConfig = loadConfig({pathToHome, chain: fileConfig.chain, config: 'general.yaml'});
-            const contractsConfig = loadConfig({pathToHome, chain: fileConfig.chain, config: 'contracts.yaml'});
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
             const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
                 configsFolderSuffix: 'external_node',
                 chain: fileConfig.chain,
                 config: 'general.yaml'
             });
-            const walletsConfig = loadConfig({pathToHome, chain: fileConfig.chain, config: 'wallets.yaml'});
+            const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
@@ -338,8 +336,8 @@ describe('Block reverting test', function () {
             compileBinaries();
         }
         console.log(`PWD = ${process.env.PWD}`);
-        mainLogs = fs.createWriteStream(mainLogsPath, {flags: 'a'});
-        extLogs = fs.createWriteStream(extLogsPath, {flags: 'a'});
+        mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
+        extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
@@ -547,7 +545,7 @@ describe('Block reverting test', function () {
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint) {
     const senderBalanceBefore = await sender.getBalance();
     const receiver = zksync.Wallet.createRandom().connect(sender.provider);
-    const transferHandle = await sender.sendTransaction({to: receiver.address, value: amount, type: 0});
+    const transferHandle = await sender.sendTransaction({ to: receiver.address, value: amount, type: 0 });
 
     // ethers doesn't work well with block reversions, so we poll for the receipt manually.
     let txReceipt = null;
