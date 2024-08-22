@@ -147,6 +147,29 @@ export class NodeProcess {
         }
     }
 
+    async stop(signal: 'INT' | 'KILL' = 'INT') {
+        interface ChildProcessError extends Error {
+            readonly code: number | null;
+        }
+
+        let signalNumber;
+        if (signal == 'KILL') {
+            signalNumber = 9;
+        } else {
+            signalNumber = 15;
+        }
+        try {
+            await promisify(exec)(`kill -${signalNumber} ${this.childProcess.pid}`);
+        } catch (err) {
+            const typedErr = err as ChildProcessError;
+            if (typedErr.code === 1) {
+                // No matching processes were found; this is fine.
+            } else {
+                throw err;
+            }
+        }
+    }
+
     static async spawn(
         env: { [key: string]: string },
         logsFile: FileHandle | string,
@@ -176,7 +199,7 @@ export class NodeProcess {
     }
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
-        await NodeProcess.stopAll(signal);
+        await this.stop(signal);
         await waitForProcess(this.childProcess, signal === 'INT');
     }
 }
@@ -184,10 +207,15 @@ export class NodeProcess {
 async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
     await new Promise((resolve, reject) => {
         childProcess.on('error', (error) => {
-            reject(error);
+            //@ts-ignore
+            if (error.stderr.includes('No such process')) {
+                resolve(undefined);
+            } else {
+                reject(error);
+            }
         });
         childProcess.on('exit', (code) => {
-            if (!checkExitCode || code === 0) {
+            if (!checkExitCode || code === 0 || code === null) {
                 resolve(undefined);
             } else {
                 reject(new Error(`Process exited with non-zero code: ${code}`));
