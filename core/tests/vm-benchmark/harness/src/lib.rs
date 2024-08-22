@@ -125,7 +125,7 @@ impl BenchmarkingVmFactory for Fast {
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
     ) -> Self::Instance {
-        vm_fast::Vm::new(batch_env, system_env, storage)
+        vm_fast::Vm::custom(batch_env, system_env, storage)
     }
 }
 

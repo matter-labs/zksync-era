@@ -19,6 +19,10 @@ use zksync_types::{
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{
+    storage::{ImmutableStorageView, StoragePtr, StorageView},
+    VmFactory,
+};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -66,6 +70,63 @@ pub struct Vm<S> {
 }
 
 impl<S: ReadStorage> Vm<S> {
+    pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        let default_aa_code_hash = system_env
+            .base_system_smart_contracts
+            .default_aa
+            .hash
+            .into();
+
+        let program_cache = HashMap::from([convert_system_contract_code(
+            &system_env.base_system_smart_contracts.default_aa,
+            false,
+        )]);
+
+        let (_, bootloader) =
+            convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        let mut inner = VirtualMachine::new(
+            BOOTLOADER_ADDRESS,
+            bootloader,
+            H160::zero(),
+            vec![],
+            system_env.bootloader_gas_limit,
+            Settings {
+                default_aa_code_hash,
+                // this will change after 1.5
+                evm_interpreter_code_hash: default_aa_code_hash,
+                hook_address: get_vm_hook_position(VM_VERSION) * 32,
+            },
+        );
+
+        inner.state.current_frame.sp = 0;
+
+        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.state.current_frame.heap_size = u32::MAX;
+        inner.state.current_frame.aux_heap_size = u32::MAX;
+        inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
+
+        let mut me = Self {
+            world: World::new(storage, program_cache),
+            inner,
+            suspended_at: 0,
+            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode,
+                bootloader_memory.clone(),
+                batch_env.first_l2_block,
+            ),
+            system_env,
+            batch_env,
+            snapshot: None,
+        };
+
+        me.write_to_bootloader_heap(bootloader_memory);
+
+        me
+    }
+
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
@@ -345,72 +406,22 @@ impl<S: ReadStorage> Vm<S> {
     pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
         self.inner.world_diff.decommitted_hashes()
     }
-}
-
-// We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
-// it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let default_aa_code_hash = system_env
-            .base_system_smart_contracts
-            .default_aa
-            .hash
-            .into();
-
-        let program_cache = HashMap::from([convert_system_contract_code(
-            &system_env.base_system_smart_contracts.default_aa,
-            false,
-        )]);
-
-        let (_, bootloader) =
-            convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
-
-        let mut inner = VirtualMachine::new(
-            BOOTLOADER_ADDRESS,
-            bootloader,
-            H160::zero(),
-            vec![],
-            system_env.bootloader_gas_limit,
-            Settings {
-                default_aa_code_hash,
-                // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
-                hook_address: get_vm_hook_position(VM_VERSION) * 32,
-            },
-        );
-
-        inner.state.current_frame.sp = 0;
-
-        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.current_frame.heap_size = u32::MAX;
-        inner.state.current_frame.aux_heap_size = u32::MAX;
-        inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
-
-        let mut me = Self {
-            world: World::new(storage, program_cache),
-            inner,
-            suspended_at: 0,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            bootloader_state: BootloaderState::new(
-                system_env.execution_mode,
-                bootloader_memory.clone(),
-                batch_env.first_l2_block,
-            ),
-            system_env,
-            batch_env,
-            snapshot: None,
-        };
-
-        me.write_to_bootloader_heap(bootloader_memory);
-
-        me
-    }
 
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
             self.inner.delete_history();
         }
+    }
+}
+
+impl<S: ReadStorage> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>> {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
     }
 }
 

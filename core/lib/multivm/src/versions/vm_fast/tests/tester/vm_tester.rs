@@ -98,7 +98,7 @@ impl VmTester {
             };
         }
 
-        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), storage);
+        let vm = Vm::custom(l1_batch, self.vm.system_env.clone(), storage);
 
         if self.test_contract.is_some() {
             self.deploy_test_contract();
@@ -230,7 +230,7 @@ impl VmTesterBuilder {
         }
 
         let fee_account = l1_batch_env.fee_account;
-        let vm = Vm::new(l1_batch_env, self.system_env, storage_ptr.clone());
+        let vm = Vm::custom(l1_batch_env, self.system_env, storage_ptr.clone());
 
         VmTester {
             vm,

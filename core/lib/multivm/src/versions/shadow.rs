@@ -19,15 +19,15 @@ use crate::{
     vm_fast,
 };
 
-struct VmWithReporting<S> {
-    vm: vm_fast::Vm<ImmutableStorageView<S>>,
-    storage: StoragePtr<StorageView<S>>,
+struct VmWithReporting<S, Shadow> {
+    vm: Shadow,
+    main_vm_storage: StoragePtr<StorageView<S>>,
     partial_dump: VmDump,
     dump_handler: VmDumpHandler,
     panic_on_divergence: bool,
 }
 
-impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
+impl<S: fmt::Debug, Shadow: fmt::Debug> fmt::Debug for VmWithReporting<S, Shadow> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("VmWithReporting")
@@ -37,12 +37,12 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
     }
 }
 
-impl<S: ReadStorage> VmWithReporting<S> {
+impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
     fn report(self, main_vm: &impl VmInterface, err: anyhow::Error) {
         let mut dump = self.partial_dump;
         let batch_number = dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-        dump.set_storage(VmStorageDump::new(&self.storage, main_vm));
+        dump.set_storage(VmStorageDump::new(&self.main_vm_storage, main_vm));
         (self.dump_handler)(dump);
 
         if self.panic_on_divergence {
@@ -54,31 +54,19 @@ impl<S: ReadStorage> VmWithReporting<S> {
             );
         }
     }
-
-    /*
-    fn dump_to_file(dumps_directory: &Path, dump: &VmStateDump) -> anyhow::Result<()> {
-
-        let dump_filename = dumps_directory.join(dump_filename);
-        tracing::info!("Dumping VM state to file `{}`", dump_filename.display());
-
-        fs::create_dir_all(dumps_directory).context("failed creating dumps directory")?;
-        let writer = fs::File::create(&dump_filename).context("failed creating dump file")?;
-        let writer = io::BufWriter::new(writer);
-        serde_json::to_writer(writer, &dump).context("failed dumping VM state to file")?;
-        Ok(())
-    }*/
 }
 
 #[derive(Debug)]
-pub struct ShadowVm<S, T> {
-    main: T,
-    shadow: RefCell<Option<VmWithReporting<S>>>,
+pub struct ShadowVm<S, Main, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
+    main: Main,
+    shadow: RefCell<Option<VmWithReporting<S, Shadow>>>,
 }
 
-impl<S, T> ShadowVm<S, T>
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    T: VmInterface,
+    Main: VmInterface,
+    Shadow: VmInterface,
 {
     pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
         if let Some(shadow) = self.shadow.get_mut() {
@@ -93,25 +81,22 @@ where
     }
 }
 
-impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
+impl<S, Main, Shadow> VmFactory<StorageView<S>> for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    T: VmFactory<StorageView<S>>,
+    Main: VmFactory<StorageView<S>>,
+    Shadow: VmFactory<StorageView<S>>,
 {
     fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
     ) -> Self {
-        let main = T::new(batch_env.clone(), system_env.clone(), storage.clone());
-        let shadow = vm_fast::Vm::new(
-            batch_env.clone(),
-            system_env.clone(),
-            ImmutableStorageView::new(storage.clone()),
-        );
+        let main = Main::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let shadow = Shadow::new(batch_env.clone(), system_env.clone(), storage.clone());
         let shadow = VmWithReporting {
             vm: shadow,
-            storage,
+            main_vm_storage: storage,
             partial_dump: VmDump::new(batch_env, system_env),
             dump_handler: Arc::new(drop), // We don't want to log the dump (it's too large), so there's no trivial way to handle it
             panic_on_divergence: true,
@@ -123,12 +108,14 @@ where
     }
 }
 
-impl<S, T> VmInterface for ShadowVm<S, T>
+/// **Important.** This doesn't properly handle tracers; they are not passed to the shadow VM!
+impl<S, Main, Shadow> VmInterface for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    T: VmInterface,
+    Main: VmInterface,
+    Shadow: VmInterface,
 {
-    type TracerDispatcher = T::TracerDispatcher;
+    type TracerDispatcher = Main::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
@@ -162,7 +149,9 @@ where
     ) -> VmExecutionResultAndLogs {
         let main_result = self.main.inspect(dispatcher, execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_result = shadow.vm.inspect((), execution_mode);
+            let shadow_result = shadow
+                .vm
+                .inspect(Shadow::TracerDispatcher::default(), execution_mode);
             let mut errors = DivergenceErrors::default();
             errors.check_results_match(&main_result, &shadow_result);
 
@@ -276,10 +265,11 @@ where
         );
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.partial_dump.push_transaction(tx.clone());
-            let shadow_result =
-                shadow
-                    .vm
-                    .inspect_transaction_with_bytecode_compression((), tx, with_compression);
+            let shadow_result = shadow.vm.inspect_transaction_with_bytecode_compression(
+                Shadow::TracerDispatcher::default(),
+                tx,
+                with_compression,
+            );
             let mut errors = DivergenceErrors::default();
             errors.check_results_match(&main_result.1, &shadow_result.1);
             if let Err(err) = errors.into_result() {
