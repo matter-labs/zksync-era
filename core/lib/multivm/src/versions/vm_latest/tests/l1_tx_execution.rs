@@ -5,13 +5,13 @@ use zksync_test_account::Account;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
     Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{
             tester::{TxType, VmTesterBuilder},

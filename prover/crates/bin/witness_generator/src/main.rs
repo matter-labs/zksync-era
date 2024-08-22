@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
@@ -17,25 +19,11 @@ use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-
-use crate::{
+use zksync_witness_generator::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
     metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
     recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
 };
-
-mod basic_circuits;
-mod leaf_aggregation;
-mod metrics;
-mod node_aggregation;
-mod precalculated_merkle_paths_provider;
-mod recursion_tip;
-mod scheduler;
-mod storage_oracle;
-mod utils;
-
-#[cfg(not(target_env = "msvc"))]
-use jemallocator::Jemalloc;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -91,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
+        .witness_generator_config
         .context("witness generator config")?;
 
     let prometheus_config = general_config.prometheus_config;

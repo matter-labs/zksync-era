@@ -1,7 +1,6 @@
-use zksync_types::{
-    event::L1MessengerL2ToL1Log,
-    writes::{compress_state_diffs, StateDiffRecord},
-};
+use zksync_types::writes::{compress_state_diffs, StateDiffRecord};
+
+use crate::utils::events::L1MessengerL2ToL1Log;
 
 /// Struct based on which the pubdata blob is formed
 #[derive(Debug, Clone, Default)]

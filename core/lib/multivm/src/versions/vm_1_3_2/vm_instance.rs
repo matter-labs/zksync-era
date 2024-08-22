@@ -10,17 +10,15 @@ use zk_evm_1_3_3::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::{Call, VmExecutionTrace, VmTrace},
-    L1BatchNumber, VmEvent, H256, U256,
+    L1BatchNumber, H256, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::{storage::WriteStorage, Call, TxExecutionStatus, VmEvent, VmExecutionLogs},
+    versions::shared::{VmExecutionTrace, VmTrace},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},

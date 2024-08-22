@@ -37,6 +37,7 @@ use zksync_node_framework::{
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::L1GasLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
             main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
@@ -249,7 +250,11 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
-        let experimental_vm_config = try_load_config!(self.configs.experimental_vm_config);
+        let experimental_vm_config = self
+            .configs
+            .experimental_vm_config
+            .clone()
+            .unwrap_or_default();
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
                 .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
@@ -429,6 +434,11 @@ impl MainNodeBuilder {
             self.contracts_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.configs
+                .eth
+                .as_ref()
+                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                .unwrap_or(SettlementMode::SettlesToL1),
         ));
 
         Ok(self)
@@ -437,7 +447,7 @@ impl MainNodeBuilder {
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
         let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
+        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
         let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
         let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
@@ -589,8 +599,14 @@ impl MainNodeBuilder {
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
-        self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
+        let wallets = self.wallets.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self.node.add_layer(BaseTokenRatioPersisterLayer::new(
+            config,
+            contracts_config,
+            wallets,
+            l1_chain_id,
+        ));
 
         Ok(self)
     }
@@ -601,6 +617,12 @@ impl MainNodeBuilder {
             config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
+
+        Ok(self)
+    }
+
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
 
         Ok(self)
     }
@@ -675,7 +697,8 @@ impl MainNodeBuilder {
                     self = self
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
-                        .add_state_keeper_layer()?;
+                        .add_state_keeper_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
                 Component::HttpApi => {
                     self = self
@@ -743,6 +766,7 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenRatioPersister => {
                     self = self
+                        .add_l1_gas_layer()?
                         .add_external_api_client_layer()?
                         .add_base_token_ratio_persister_layer()?;
                 }

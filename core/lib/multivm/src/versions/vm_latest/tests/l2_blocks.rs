@@ -4,7 +4,6 @@
 //!
 
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
@@ -16,7 +15,10 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{
+        storage::WriteStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
+        VmInterface,
+    },
     vm_latest::{
         constants::{
             BOOTLOADER_HEAP_PAGE, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,

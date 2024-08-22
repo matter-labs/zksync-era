@@ -5,15 +5,16 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{H256, U256};
 use zksync_utils::ceil_div_u256;
 
 use crate::{
     interface::{
-        traits::tracers::dyn_tracers::vm_1_5_0::DynTracer, types::tracer::TracerExecutionStatus,
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
