@@ -12,7 +12,7 @@ pub(crate) enum CallOutcome {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "type", rename_all = "snake_case")]
-pub(crate) enum MethodType {
+pub(crate) enum Method {
     GetLatestProofGenerationData,
     GetSpecificProofGenerationData,
     VerifyProof,
@@ -21,21 +21,18 @@ pub(crate) enum MethodType {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_proof_integration_api")]
 pub(crate) struct ProofIntegrationApiMetrics {
-    pub call_count: Family<MethodType, Counter<u64>>,
-    #[metrics(labels = ["type", "outcome"])]
-    pub call_outcome: LabeledFamily<(MethodType, CallOutcome), Counter<u64>, 2>,
     #[metrics(buckets = vise::Buckets::LATENCIES)]
-    pub call_latency: Family<MethodType, Histogram<Duration>>,
+    pub call_latency: LabeledFamily<(Method, CallOutcome), Histogram<Duration>, 2>,
 }
 
 pub(crate) struct MethodCallGuard {
-    method_type: MethodType,
+    method_type: Method,
     outcome: CallOutcome,
     started_at: Instant,
 }
 
 impl MethodCallGuard {
-    pub(crate) fn new(method_type: MethodType) -> Self {
+    pub(crate) fn new(method_type: Method) -> Self {
         MethodCallGuard {
             method_type,
             outcome: CallOutcome::Failure,
@@ -50,9 +47,7 @@ impl MethodCallGuard {
 
 impl Drop for MethodCallGuard {
     fn drop(&mut self) {
-        METRICS.call_outcome[&(self.method_type, self.outcome)].inc();
-        METRICS.call_count[&self.method_type].inc();
-        METRICS.call_latency[&self.method_type].observe(self.started_at.elapsed());
+        METRICS.call_latency[(&self.method_type, self.outcome)].observe(self.started_at.elapsed());
     }
 }
 

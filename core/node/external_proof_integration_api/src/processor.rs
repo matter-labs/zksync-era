@@ -19,7 +19,7 @@ use zksync_prover_interface::{
 
 use crate::{
     error::ProcessorError,
-    metrics::{MethodCallGuard, MethodType},
+    metrics::{Method, MethodCallGuard},
 };
 
 #[derive(Clone)]
@@ -47,7 +47,7 @@ impl Processor {
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<VerifyProofRequest>,
     ) -> Result<(), ProcessorError> {
-        let mut guard = MethodCallGuard::new(MethodType::VerifyProof);
+        let mut guard = MethodCallGuard::new(Method::VerifyProof);
 
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::info!(
@@ -80,8 +80,8 @@ impl Processor {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let mut guard = match request.0 .0 {
-            Some(_) => MethodCallGuard::new(MethodType::GetSpecificProofGenerationData),
-            None => MethodCallGuard::new(MethodType::GetLatestProofGenerationData),
+            Some(_) => MethodCallGuard::new(Method::GetSpecificProofGenerationData),
+            None => MethodCallGuard::new(Method::GetLatestProofGenerationData),
         };
 
         let latest_available_batch = self
