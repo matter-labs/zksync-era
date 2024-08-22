@@ -1,5 +1,6 @@
 use std::{
     io,
+    num::NonZeroU32,
     path::{Path, PathBuf},
     sync::Arc,
     time::SystemTime,
@@ -37,6 +38,17 @@ impl From<VmPlaygroundHealth> for Health {
     }
 }
 
+/// Options related to the VM playground cursor.
+#[derive(Debug)]
+pub struct VmPlaygroundCursorOptions {
+    /// First batch to be processed by the playground. Only used if there are no processed batches, or if [`Self.reset_state`] is set.
+    pub first_processed_batch: L1BatchNumber,
+    /// Maximum number of L1 batches to process in parallel.
+    pub window_size: NonZeroU32,
+    /// If set, reset processing to [`Self.first_processed_batch`].
+    pub reset_state: bool,
+}
+
 /// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
 #[derive(Debug)]
@@ -60,21 +72,17 @@ impl VmPlayground {
         vm_mode: FastVmMode,
         rocksdb_path: String,
         chain_id: L2ChainId,
-        first_processed_batch: L1BatchNumber,
-        reset_state: bool,
+        cursor: VmPlaygroundCursorOptions,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
-        tracing::info!(
-            "Starting VM playground with mode {vm_mode:?}, first processed batch is #{first_processed_batch} \
-             (reset processing: {reset_state:?})"
-        );
+        tracing::info!("Starting VM playground with mode {vm_mode:?}, cursor options: {cursor:?}");
 
         let cursor_file_path = Path::new(&rocksdb_path).join("__vm_playground_cursor");
         let latest_processed_batch = VmPlaygroundIo::read_cursor(&cursor_file_path).await?;
         tracing::info!("Latest processed batch: {latest_processed_batch:?}");
-        let latest_processed_batch = if reset_state {
-            first_processed_batch
+        let latest_processed_batch = if cursor.reset_state {
+            cursor.first_processed_batch
         } else {
-            latest_processed_batch.unwrap_or(first_processed_batch)
+            latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
         let mut batch_executor = MainBatchExecutor::new(false, false);
@@ -96,6 +104,7 @@ impl VmPlayground {
         let io = VmPlaygroundIo {
             cursor_file_path,
             vm_mode,
+            window_size: cursor.window_size.get(),
             latest_processed_batch: Arc::new(watch::channel(latest_processed_batch).0),
             health_updater: Arc::new(ReactiveHealthCheck::new("vm_playground").1),
         };
@@ -115,7 +124,7 @@ impl VmPlayground {
             io,
             loader_task_sender,
             output_handler_factory,
-            reset_to_batch: reset_state.then_some(first_processed_batch),
+            reset_to_batch: cursor.reset_state.then_some(cursor.first_processed_batch),
         };
         Ok((
             this,
@@ -247,6 +256,7 @@ pub struct VmPlaygroundTasks {
 pub struct VmPlaygroundIo {
     cursor_file_path: PathBuf,
     vm_mode: FastVmMode,
+    window_size: u32,
     // We don't read this value from the cursor file in the `VmRunnerIo` implementation because reads / writes
     // aren't guaranteed to be atomic.
     latest_processed_batch: Arc<watch::Sender<L1BatchNumber>>,
@@ -319,7 +329,7 @@ impl VmRunnerIo for VmPlaygroundIo {
             .await?
             .context("no L1 batches in Postgres")?;
         let last_processed_l1_batch = self.latest_processed_batch(conn).await?;
-        Ok(sealed_l1_batch.min(last_processed_l1_batch + 1))
+        Ok(sealed_l1_batch.min(last_processed_l1_batch + self.window_size))
     }
 
     async fn mark_l1_batch_as_processing(
