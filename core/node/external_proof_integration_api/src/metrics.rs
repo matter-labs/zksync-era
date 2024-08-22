@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::time::Instant;
-use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics};
+use vise::{EncodeLabelSet, EncodeLabelValue, Histogram, LabeledFamily, Metrics};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "outcome", rename_all = "snake_case")]
@@ -47,7 +47,7 @@ impl MethodCallGuard {
 
 impl Drop for MethodCallGuard {
     fn drop(&mut self) {
-        METRICS.call_latency[(&self.method_type, self.outcome)].observe(self.started_at.elapsed());
+        METRICS.call_latency[&(self.method_type, self.outcome)].observe(self.started_at.elapsed());
     }
 }
 
