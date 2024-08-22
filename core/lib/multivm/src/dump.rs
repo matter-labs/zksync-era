@@ -11,11 +11,18 @@ use zksync_vm_interface::{
 /// Handler for [`VmDump`].
 pub type VmDumpHandler = Arc<dyn Fn(VmDump) + Send + Sync>;
 
-/// Part of the VM dump representing the storage oracle.
+/// Part of the VM dump representing the storage oracle for a particular VM run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct VmStorageDump {
+    /// Only existing keys (ones with an assigned enum index) are recorded.
     pub(crate) read_storage_keys: HashMap<H256, (H256, u64)>,
+    /// Repeatedly written keys together with their enum indices. Only includes keys that were not read
+    /// (i.e., absent from `read_storage_keys`). Since `InMemoryStorage` returns `is_write_initial == true`
+    /// for all unknown keys, we don't need to record initial writes.
+    ///
+    /// Al least when the Fast VM is involved, this map always looks to be empty because the VM reads values
+    /// for all written keys (i.e., they all will be added to `read_storage_keys`).
     pub(crate) repeated_writes: HashMap<H256, u64>,
     pub(crate) factory_deps: HashMap<H256, web3::Bytes>,
 }
