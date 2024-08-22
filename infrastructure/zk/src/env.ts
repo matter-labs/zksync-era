@@ -72,6 +72,7 @@ export function reload(environment?: string) {
     const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     const env = dotenv.parse(fs.readFileSync(envFile));
     for (const envVar in env) {
+        console.log(`Reloading: ${envVar}=${env[envVar]}`)
         process.env[envVar] = env[envVar];
     }
 }
@@ -95,6 +96,8 @@ export function load() {
 
 // places the environment logged by `zk init` variables into the .init.env file
 export function modify(variable: string, value: string, initEnv: string, withReload = true) {
+    console.log(`MODIFYING ENV VARIABLE ${variable} to ${value}`)
+    console.log(`initEnv ${initEnv}`)
     const assignedVariable = value.startsWith(`${variable}=`) ? value : `${variable}=${value}`;
     fs.mkdirSync('etc/env/l2-inits', { recursive: true });
     fs.mkdirSync('etc/env/l1-inits', { recursive: true });

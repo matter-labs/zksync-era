@@ -187,7 +187,7 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
-        await sleep(25000);
+        await sleep(60000);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });

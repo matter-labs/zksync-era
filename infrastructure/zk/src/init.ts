@@ -248,7 +248,7 @@ export const initHyperCmdAction = async ({
             deploymentMode
         });
     }
-    await initDatabase();
+    await initDatabase(false);
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
