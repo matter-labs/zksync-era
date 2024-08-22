@@ -125,6 +125,7 @@ impl ForgeScript {
     /// Makes sure a transaction is sent, only after its previous one has been confirmed and succeeded.
     pub fn with_slow(mut self) -> Self {
         self.args.add_arg(ForgeScriptArg::Slow);
+        self.args.add_arg(ForgeScriptArg::NoRateLimit);
         self
     }
 
@@ -244,6 +245,8 @@ pub enum ForgeScriptArg {
     },
     Verify,
     Resume,
+    #[strum(to_string = "no-rate-limit")]
+    NoRateLimit,
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
