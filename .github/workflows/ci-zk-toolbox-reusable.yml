@@ -164,19 +164,19 @@ jobs:
       - name: Init external nodes
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://reth:8545 --chain chain_rollup
+          --db-name=zksync_en_localhost_era_rollup1 --l1-rpc-url=http://reth:8545 --chain chain_rollup
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_rollup 
           
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era_validium --l1-rpc-url=http://reth:8545 --chain chain_validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://reth:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_snap_rollup.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain=chain_rollup &> recovery_snap_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_snap_validium.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain=chain_validium &> recovery_snap_validium.log &
           PID2=$!
 
           wait $PID1
