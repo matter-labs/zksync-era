@@ -127,6 +127,7 @@ impl ProofCompressor {
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
     ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
+        println!("start comrpession");
         let keystore = Keystore::default();
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
