@@ -163,6 +163,9 @@ export class NodeProcess {
             console.log('Parent stdout', parent.stdout);
             console.log('Main PID', this.childProcess.pid);
 
+            const ps = await promisify(exec)(`p -aux`);
+            console.log(ps.stdout);
+
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
             await promisify(exec)(`kill -${signalNumber} ${parent.stdout}`);
             // await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
