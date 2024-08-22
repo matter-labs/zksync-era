@@ -136,7 +136,7 @@ impl JobProcessor for ProofCompressor {
             .get_scheduler_proof_job_id(l1_batch_number)
             .await
         else {
-            return Ok(None);
+            anyhow::bail!("Failed to find fri prover job for {l1_batch_number}");
         };
         tracing::info!(
             "Started proof compression for L1 batch: {:?}",
