@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
+        .witness_generator_config
         .context("witness generator config")?;
 
     let prometheus_config = general_config.prometheus_config;

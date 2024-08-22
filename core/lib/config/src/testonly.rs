@@ -12,7 +12,9 @@ use zksync_basic_types::{
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{
+    self, eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
+};
 
 trait Sample {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
@@ -298,6 +300,7 @@ impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
             fast_vm_mode: gen_fast_vm_mode(rng),
             db_path: self.sample(rng),
             first_processed_batch: L1BatchNumber(rng.gen()),
+            window_size: rng.gen(),
             reset: self.sample(rng),
         }
     }
@@ -407,6 +410,8 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             l1_batch_min_age_before_execute_seconds: self.sample(rng),
             max_acceptable_priority_fee_in_gwei: self.sample(rng),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
+            tx_aggregation_paused: false,
+            tx_aggregation_only_prove_and_execute: false,
         }
     }
 }
@@ -893,11 +898,20 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
     }
 }
 
+impl Distribution<configs::wallets::TokenMultiplierSetter> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::TokenMultiplierSetter {
+        configs::wallets::TokenMultiplierSetter {
+            wallet: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::wallets::Wallets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallets {
         configs::wallets::Wallets {
             state_keeper: self.sample_opt(|| self.sample(rng)),
             eth_sender: self.sample_opt(|| self.sample(rng)),
+            token_multiplier_setter: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -914,6 +928,8 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
+            gateway_url: self
+                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -1022,6 +1038,14 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
         configs::base_token_adjuster::BaseTokenAdjusterConfig {
             price_polling_interval_ms: self.sample(rng),
             price_cache_update_interval_ms: self.sample(rng),
+            max_tx_gas: self.sample(rng),
+            default_priority_fee_per_gas: self.sample(rng),
+            max_acceptable_priority_fee_in_gwei: self.sample(rng),
+            l1_receipt_checking_max_attempts: self.sample(rng),
+            l1_receipt_checking_sleep_ms: self.sample(rng),
+            l1_tx_sending_max_attempts: self.sample(rng),
+            l1_tx_sending_sleep_ms: self.sample(rng),
+            halt_on_error: self.sample(rng),
         }
     }
 }
@@ -1049,8 +1073,35 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
             base_url: self.sample(rng),
             api_key: self.sample(rng),
             client_timeout_ms: self.sample(rng),
-            forced_numerator: self.sample(rng),
-            forced_denominator: self.sample(rng),
+            forced: Some(ForcedPriceClientConfig {
+                numerator: self.sample(rng),
+                denominator: self.sample(rng),
+                fluctuation: self.sample(rng),
+            }),
+        }
+    }
+}
+
+impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(
+        &self,
+        rng: &mut R,
+    ) -> configs::prover_job_monitor::ProverJobMonitorConfig {
+        configs::prover_job_monitor::ProverJobMonitorConfig {
+            prometheus_port: self.sample(rng),
+            max_db_connections: self.sample(rng),
+            graceful_shutdown_timeout_ms: self.sample(rng),
+            gpu_prover_archiver_run_interval_ms: self.sample(rng),
+            gpu_prover_archiver_archive_prover_after_ms: self.sample(rng),
+            prover_jobs_archiver_run_interval_ms: self.sample(rng),
+            prover_jobs_archiver_archive_jobs_after_ms: self.sample(rng),
+            proof_compressor_job_requeuer_run_interval_ms: self.sample(rng),
+            prover_job_requeuer_run_interval_ms: self.sample(rng),
+            witness_generator_job_requeuer_run_interval_ms: self.sample(rng),
+            proof_compressor_queue_reporter_run_interval_ms: self.sample(rng),
+            prover_queue_reporter_run_interval_ms: self.sample(rng),
+            witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
+            witness_job_queuer_run_interval_ms: self.sample(rng),
         }
     }
 }
@@ -1071,7 +1122,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             prover_gateway: self.sample(rng),
             witness_vector_generator: self.sample(rng),
             prover_group_config: self.sample(rng),
-            witness_generator: self.sample(rng),
+            witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
             db_config: self.sample(rng),
@@ -1090,6 +1141,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             consensus_config: self.sample(rng),
             external_proof_integration_api_config: self.sample(rng),
             experimental_vm_config: self.sample(rng),
+            prover_job_monitor_config: self.sample(rng),
         }
     }
 }

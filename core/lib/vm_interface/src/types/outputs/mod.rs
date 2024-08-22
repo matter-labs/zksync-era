@@ -2,7 +2,7 @@ pub use self::{
     bytecode::CompressedBytecodeInfo,
     execution_result::{
         Call, CallType, ExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus,
-        VmExecutionLogs, VmExecutionResultAndLogs,
+        VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
     },
     execution_state::{BootloaderMemory, CurrentExecutionState},
     finished_l1batch::FinishedL1Batch,

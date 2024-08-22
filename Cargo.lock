@@ -8336,12 +8336,16 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "hex",
  "rand 0.8.5",
  "tokio",
  "tracing",
  "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_external_price_api",
+ "zksync_node_fee_model",
  "zksync_types",
 ]
 
@@ -8415,6 +8419,7 @@ dependencies = [
  "itertools 0.10.5",
  "num_cpus",
  "rand 0.8.5",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -8958,7 +8963,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.18.0"
+version = "24.20.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9122,6 +9127,7 @@ dependencies = [
  "tracing",
  "zksync_dal",
  "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -9366,7 +9372,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",

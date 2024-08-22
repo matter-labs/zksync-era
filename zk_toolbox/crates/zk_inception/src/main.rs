@@ -13,8 +13,11 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
-    external_node::ExternalNodeCommands, prover::ProverCommands,
+    args::{PortalArgs, RunServerArgs},
+    chain::ChainCommands,
+    ecosystem::EcosystemCommands,
+    external_node::ExternalNodeCommands,
+    prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -56,6 +59,8 @@ pub enum InceptionSubcommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
+    /// Run dapp-portal
+    Portal(PortalArgs),
     /// Update zkSync
     #[command(alias = "u")]
     Update(UpdateArgs),
@@ -118,6 +123,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
+        InceptionSubcommands::Portal(args) => commands::portal::run(shell, args).await?,
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
