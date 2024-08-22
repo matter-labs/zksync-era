@@ -428,7 +428,7 @@ Initialize prover
 - `--project-id <PROJECT_ID>`
 - `--shall-save-to-public-bucket <SHALL_SAVE_TO_PUBLIC_BUCKET>`
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--public-store-dir <PUBLIC_STORE_DIR>`
 - `--public-bucket-base-url <PUBLIC_BUCKET_BASE_URL>`
@@ -438,8 +438,13 @@ Initialize prover
 - `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
+- `--setup-database`
+- `--use-default` - use default database
+- `--dont-drop` - don't drop database
+- `--prover-db-url` - URL of database to use
+- `--prover-db-name` - Name of database to use
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--setup-key-path <SETUP_KEY_PATH>`
 - `--cloud-type <CLOUD_TYPE>`

@@ -70,6 +70,7 @@ pub struct NodeAggregationWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -78,12 +79,14 @@ impl NodeAggregationWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_path: String,
     ) -> Self {
         Self {
             config,
             object_store,
             prover_connection_pool,
             protocol_version,
+            setup_data_path,
         }
     }
 
@@ -241,7 +244,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_job(metadata, &*self.object_store)
+            prepare_job(metadata, &*self.object_store, self.setup_data_path.clone())
                 .await
                 .context("prepare_job()")?,
         )))
@@ -326,6 +329,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 pub async fn prepare_job(
     metadata: NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
+    setup_data_path: String,
 ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let artifacts = get_artifacts(&metadata, object_store).await;
@@ -334,7 +338,7 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let keystore = Keystore::default();
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
     let leaf_vk = keystore
         .load_recursive_layer_verification_key(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
