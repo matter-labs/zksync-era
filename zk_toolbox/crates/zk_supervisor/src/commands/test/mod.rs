@@ -48,7 +48,7 @@ pub enum TestCommands {
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
     match args {
         TestCommands::Integration(args) => integration::run(shell, args).await,
-        TestCommands::Revert(args) => revert::run(shell, args),
+        TestCommands::Revert(args) => revert::run(shell, args).await,
         TestCommands::Recovery(args) => recovery::run(shell, args).await,
         TestCommands::Upgrade(args) => upgrade::run(shell, args),
         TestCommands::Build => build::run(shell),
