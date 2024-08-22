@@ -27,7 +27,7 @@ impl TeeProofGenerationDal<'_, '_> {
         min_batch_number: Option<L1BatchNumber>,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let min_batch_number = min_batch_number.map_or(0, |num| num.0 as i64);
+        let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
         let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
