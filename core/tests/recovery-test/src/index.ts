@@ -159,7 +159,9 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            await promisify(exec)(`kill -${signalNumber} ${this.childProcess.pid}`);
+            // We always run the test using additional tools, that means we have to kill not the main process, but the child process
+            await promisify(exec)(`kill -${signalNumber} $(pgrep -P ${this.childProcess.pid})`);
+            await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {
@@ -207,12 +209,7 @@ export class NodeProcess {
 async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
     await new Promise((resolve, reject) => {
         childProcess.on('error', (error) => {
-            //@ts-ignore
-            if (error.stderr.includes('No such process')) {
-                resolve(undefined);
-            } else {
-                reject(error);
-            }
+            reject(error);
         });
         childProcess.on('exit', (code) => {
             if (!checkExitCode || code === 0 || code === null) {
