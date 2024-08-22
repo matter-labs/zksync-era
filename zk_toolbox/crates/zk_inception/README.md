@@ -271,7 +271,6 @@ Initialize chain, deploying necessary contracts and performing on-chain operatio
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
 - `--deploy-paymaster <DEPLOY_PAYMASTER>`
-- `--copy-configs` - Copy default configs to the chain
 
   Possible values: `true`, `false`
 
@@ -440,6 +439,10 @@ Possible values: `true`, `false`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
 - `--setup-database`
+- `--use-default` - use default database
+- `--dont-drop` - don't drop database
+- `--prover-db-url` - URL of database to use
+- `--prover-db-name` - Name of database to use
 
 Possible values: `true`, `false`
 
