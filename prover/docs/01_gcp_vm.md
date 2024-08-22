@@ -42,7 +42,7 @@ When you choose the region, set the following options:
   - Operating system: Ubuntu
   - Version: Ubuntu 22.04 LTS (x86/64)
   - Boot disk type: SSD persistent disk
-  - Size: 500GB
+  - Size: 300GB
 
 Leave the remaining options as is and click on "Create".
 

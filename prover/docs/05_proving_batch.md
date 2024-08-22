@@ -7,6 +7,13 @@ that.
 
 ## Requirements
 
+### Hardware
+
+Setup for running the whole process should be the same as described [here](./01_gcp_vm.md), except you need 48 GB of
+GPU, which requires an NVIDIA A100 80GB GPU.
+
+### Prerequisites
+
 First of all, you need to install CUDA drivers, all other things will be dealt with by `zk_inception` and `prover_cli`
 tools. For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
 
