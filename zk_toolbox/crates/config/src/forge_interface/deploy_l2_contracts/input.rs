@@ -30,7 +30,10 @@ impl DeployL2ContractsInput {
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: wallets.governor.address,
             erc20_bridge: contracts.bridges.erc20.l1_address,
-            consensus_registry_owner: wallets.governor.address,
+            consensus_registry_owner: wallets
+                .developer_multisig
+                .map(|w| w.address)
+                .unwrap_or(wallets.governor.address),
         })
     }
 }

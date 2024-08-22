@@ -16,6 +16,10 @@ pub struct WalletsConfig {
     pub fee_account: Wallet,
     pub governor: Wallet,
     pub token_multiplier_setter: Wallet,
+    /// A developer multisig account exists on mainnet.
+    /// The intention here is to use its address to own certain contracts,
+    /// while the private key is either empty, or different for each member.
+    pub developer_multisig: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -28,6 +32,7 @@ impl WalletsConfig {
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
             token_multiplier_setter: Wallet::random(rng),
+            developer_multisig: Some(Wallet::random(rng)),
         }
     }
 
@@ -40,6 +45,7 @@ impl WalletsConfig {
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
             token_multiplier_setter: Wallet::empty(),
+            developer_multisig: Some(Wallet::empty()),
         }
     }
     pub fn deployer_private_key(&self) -> Option<H256> {
