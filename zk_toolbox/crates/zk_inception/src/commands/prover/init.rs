@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
+use common::{check_prover_prequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 use zksync_config::{
@@ -26,7 +26,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     check_prover_prequisites(shell);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut general_config = chain_config
         .get_general_config()

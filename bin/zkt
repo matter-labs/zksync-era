@@ -3,6 +3,8 @@
 cd $(dirname $0)
 
 if which zkup >/dev/null; then
+    cargo uninstall zk_inception
+    cargo uninstall zk_supervisor
     zkup -p .. --alias
 else
     echo zkup does not installed, please install it https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox/zkup
