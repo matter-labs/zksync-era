@@ -6298,6 +6298,7 @@ dependencies = [
  "futures",
  "human-panic",
  "serde",
+ "serde_json",
  "strum",
  "tokio",
  "url",
