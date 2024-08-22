@@ -5,6 +5,7 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
         VmRevertReason,
     },
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{Account, VmTesterBuilder},
         utils::read_nonce_holder_tester,
@@ -41,10 +42,9 @@ fn test_nonce_holder() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::account(
             read_nonce_holder_tester().to_vec(),
             account.address,
-            true,
         )])
         .with_rich_accounts(vec![account.clone()])
         .build();

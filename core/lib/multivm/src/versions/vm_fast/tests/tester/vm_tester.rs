@@ -4,8 +4,8 @@ use vm2::WorldDiff;
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    block::L2BlockHasher, get_code_key, get_is_account_key, utils::deployed_address_create,
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
+    block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, L1BatchNumber,
+    L2BlockNumber, Nonce, StorageKey,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -15,7 +15,7 @@ use crate::{
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     versions::{
-        testonly::{default_l1_batch, default_system_env, make_account_rich},
+        testonly::{default_l1_batch, default_system_env, make_account_rich, ContractToDeploy},
         vm_fast::{tests::utils::read_test_contract, vm::Vm},
     },
     vm_latest::utils::l2_blocks::load_last_l2_block,
@@ -28,7 +28,7 @@ pub(crate) struct VmTester {
     pub(crate) test_contract: Option<Address>,
     pub(crate) fee_account: Address,
     pub(crate) rich_accounts: Vec<Account>,
-    pub(crate) custom_contracts: Vec<ContractsToDeploy>,
+    pub(crate) custom_contracts: Vec<ContractToDeploy>,
 }
 
 impl VmTester {
@@ -105,15 +105,13 @@ impl VmTester {
     }
 }
 
-pub(crate) type ContractsToDeploy = (Vec<u8>, Address, bool);
-
 pub(crate) struct VmTesterBuilder {
     storage: Option<InMemoryStorage>,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
     deployer: Option<Account>,
     rich_accounts: Vec<Account>,
-    custom_contracts: Vec<ContractsToDeploy>,
+    custom_contracts: Vec<ContractToDeploy>,
 }
 
 impl Clone for VmTesterBuilder {
@@ -193,7 +191,7 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn with_custom_contracts(mut self, contracts: Vec<ContractsToDeploy>) -> Self {
+    pub(crate) fn with_custom_contracts(mut self, contracts: Vec<ContractToDeploy>) -> Self {
         self.custom_contracts = contracts;
         self
     }
@@ -204,7 +202,7 @@ impl VmTesterBuilder {
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
         let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
-        insert_contracts(&mut raw_storage, &self.custom_contracts);
+        ContractToDeploy::insert(&self.custom_contracts, &mut raw_storage);
         let storage_ptr = Rc::new(RefCell::new(raw_storage));
         for account in self.rich_accounts.iter() {
             make_account_rich(&mut storage_ptr.borrow_mut(), account);
@@ -230,22 +228,4 @@ impl VmTesterBuilder {
 
 pub(crate) fn get_empty_storage() -> InMemoryStorage {
     InMemoryStorage::with_system_contracts(hash_bytecode)
-}
-
-// Inserts the contracts into the test environment, bypassing the
-// deployer system contract. Besides the reference to storage
-// it accepts a `contracts` tuple of information about the contract
-// and whether or not it is an account.
-fn insert_contracts(raw_storage: &mut InMemoryStorage, contracts: &[ContractsToDeploy]) {
-    for (contract, address, is_account) in contracts {
-        let deployer_code_key = get_code_key(address);
-        raw_storage.set_value(deployer_code_key, hash_bytecode(contract));
-
-        if *is_account {
-            let is_account_key = get_is_account_key(address);
-            raw_storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
-        }
-
-        raw_storage.store_factory_dep(hash_bytecode(contract), contract.clone());
-    }
 }

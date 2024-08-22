@@ -10,6 +10,7 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{Account, VmTester, VmTesterBuilder},
         utils::read_many_owners_custom_account_contract,
@@ -48,7 +49,10 @@ async fn test_require_eip712() {
     let (bytecode, contract) = read_many_owners_custom_account_contract();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(
+            bytecode,
+            account_abstraction.address,
+        )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account_abstraction.clone(), private_account.clone()])
         .build();

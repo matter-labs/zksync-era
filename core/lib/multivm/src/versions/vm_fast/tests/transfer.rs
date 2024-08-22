@@ -6,6 +6,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{get_empty_storage, VmTesterBuilder},
         utils::get_balance,
@@ -21,7 +22,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     let test_bytecode = read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
     );
-    let recipeint_bytecode = read_bytecode(
+    let recipient_bytecode = read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/Recipient.json",
     );
     let test_abi = load_contract(
@@ -62,8 +63,8 @@ fn test_send_or_transfer(test_option: TestOptions) {
         .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
-            (test_bytecode, test_contract_address, false),
-            (recipeint_bytecode, recipient_address, false),
+            ContractToDeploy::new(test_bytecode, test_contract_address),
+            ContractToDeploy::new(recipient_bytecode, recipient_address),
         ])
         .build();
 
@@ -110,7 +111,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let test_bytecode = read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
     );
-    let reentrant_recipeint_bytecode = read_bytecode(
+    let reentrant_recipient_bytecode = read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
     );
     let test_abi = load_contract(
@@ -121,7 +122,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     );
 
     let test_contract_address = Address::random();
-    let reentrant_recipeint_address = Address::random();
+    let reentrant_recipient_address = Address::random();
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
@@ -130,7 +131,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
                 .function("send")
                 .unwrap()
                 .encode_input(&[
-                    Token::Address(reentrant_recipeint_address),
+                    Token::Address(reentrant_recipient_address),
                     Token::Uint(value),
                 ])
                 .unwrap(),
@@ -141,7 +142,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
                 .function("transfer")
                 .unwrap()
                 .encode_input(&[
-                    Token::Address(reentrant_recipeint_address),
+                    Token::Address(reentrant_recipient_address),
                     Token::Uint(value),
                 ])
                 .unwrap(),
@@ -154,12 +155,8 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
-            (test_bytecode, test_contract_address, false),
-            (
-                reentrant_recipeint_bytecode,
-                reentrant_recipeint_address,
-                false,
-            ),
+            ContractToDeploy::new(test_bytecode, test_contract_address),
+            ContractToDeploy::new(reentrant_recipient_bytecode, reentrant_recipient_address),
         ])
         .build();
 
@@ -167,7 +164,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let account = &mut vm.rich_accounts[0];
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: reentrant_recipeint_address,
+            contract_address: reentrant_recipient_address,
             calldata: reentrant_recipient_abi
                 .function("setX")
                 .unwrap()

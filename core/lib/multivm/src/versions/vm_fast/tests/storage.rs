@@ -4,6 +4,7 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::tester::VmTesterBuilder,
 };
 
@@ -21,7 +22,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(bytecode, test_contract_address, false)])
+        .with_custom_contracts(vec![ContractToDeploy::new(bytecode, test_contract_address)])
         .build();
 
     let account = &mut vm.rich_accounts[0];
