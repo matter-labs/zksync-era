@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
+use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, U256};
 
 use crate::{
     dump::{VmDump, VmDumpHandler, VmStorageDump},
@@ -16,7 +16,9 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    vm_fast,
+    vm_fast, vm_latest,
+    vm_latest::HistoryEnabled,
+    HistoryMode,
 };
 
 #[cfg(test)]
@@ -41,15 +43,17 @@ impl<S: fmt::Debug, Shadow: fmt::Debug> fmt::Debug for VmWithReporting<S, Shadow
 }
 
 impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
-    fn finalize_dump(&mut self, main_vm: &impl VmInterface) {
-        self.partial_dump
-            .set_storage(VmStorageDump::new(&self.main_vm_storage, main_vm));
+    fn finalize_dump(&mut self, used_contract_hashes: Vec<U256>) {
+        self.partial_dump.set_storage(VmStorageDump::new(
+            &self.main_vm_storage,
+            used_contract_hashes,
+        ));
     }
 
-    fn report(mut self, main_vm: &impl VmInterface, err: anyhow::Error) {
+    fn report(mut self, used_contract_hashes: Vec<U256>, err: anyhow::Error) {
         let batch_number = self.partial_dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-        self.finalize_dump(main_vm);
+        self.finalize_dump(used_contract_hashes);
         (self.dump_handler)(self.partial_dump);
 
         if self.panic_on_divergence {
@@ -64,15 +68,15 @@ impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
 }
 
 #[derive(Debug)]
-pub struct ShadowVm<S, Main, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
-    main: Main,
+pub struct ShadowVm<S: ReadStorage, H: HistoryMode, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
+    main: vm_latest::Vm<StorageView<S>, H>,
     shadow: RefCell<Option<VmWithReporting<S, Shadow>>>,
 }
 
-impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
+impl<S, H, Shadow> ShadowVm<S, H, Shadow>
 where
     S: ReadStorage,
-    Main: VmInterface,
+    H: HistoryMode,
     Shadow: VmInterface,
 {
     pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
@@ -87,18 +91,32 @@ where
         }
     }
 
+    /// Mutable ref is not necessary, but it automatically drops potential borrows.
+    fn report(&mut self, err: anyhow::Error) {
+        self.report_shared(err);
+    }
+
+    /// The caller is responsible for dropping any `shadow` borrows beforehand.
+    fn report_shared(&self, err: anyhow::Error) {
+        self.shadow
+            .take()
+            .unwrap()
+            .report(self.main.get_used_contracts(), err);
+    }
+
     #[cfg(test)]
-    fn dump_state(self) -> VmDump {
-        let mut shadow = self.shadow.into_inner().expect("VM execution diverged");
-        shadow.finalize_dump(&self.main);
-        shadow.partial_dump
+    fn dump_state(&mut self) -> VmDump {
+        let mut borrow = self.shadow.borrow_mut();
+        let borrow = borrow.as_mut().expect("VM execution diverged");
+        borrow.finalize_dump(self.main.get_used_contracts());
+        borrow.partial_dump.clone()
     }
 }
 
-impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
+impl<S, H, Shadow> ShadowVm<S, H, Shadow>
 where
     S: ReadStorage,
-    Main: VmFactory<StorageView<S>>,
+    H: HistoryMode,
     Shadow: VmInterface,
 {
     pub fn with_custom_shadow<ShadowS>(
@@ -110,7 +128,7 @@ where
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = Main::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let main = vm_latest::Vm::new(batch_env.clone(), system_env.clone(), storage.clone());
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
@@ -126,10 +144,10 @@ where
     }
 }
 
-impl<S, Main> VmFactory<StorageView<S>> for ShadowVm<S, Main>
+impl<S, H> VmFactory<StorageView<S>> for ShadowVm<S, H>
 where
     S: ReadStorage,
-    Main: VmFactory<StorageView<S>>,
+    H: HistoryMode,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -141,13 +159,13 @@ where
 }
 
 /// **Important.** This doesn't properly handle tracers; they are not passed to the shadow VM!
-impl<S, Main, Shadow> VmInterface for ShadowVm<S, Main, Shadow>
+impl<S, H, Shadow> VmInterface for ShadowVm<S, H, Shadow>
 where
     S: ReadStorage,
-    Main: VmInterface,
+    H: HistoryMode,
     Shadow: VmInterface,
 {
-    type TracerDispatcher = Main::TracerDispatcher;
+    type TracerDispatcher = <vm_latest::Vm<StorageView<S>, H> as VmInterface>::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
@@ -165,10 +183,7 @@ where
             errors.check_results_match(&main_result, &shadow_result);
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.shadow
-                    .take()
-                    .unwrap()
-                    .report(&self.main, err.context(ctx));
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -189,10 +204,7 @@ where
 
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.shadow
-                    .take()
-                    .unwrap()
-                    .report(&self.main, err.context(ctx));
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -200,12 +212,14 @@ where
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
         let main_memory = self.main.get_bootloader_memory();
-        if let Some(shadow) = &*self.shadow.borrow() {
+        let borrow = self.shadow.borrow();
+        if let Some(shadow) = &*borrow {
             let shadow_memory = shadow.vm.get_bootloader_memory();
             let result =
                 DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(&self.main, err);
+                drop(borrow);
+                self.report_shared(err);
             }
         }
         main_memory
@@ -213,7 +227,8 @@ where
 
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         let main_bytecodes = self.main.get_last_tx_compressed_bytecodes();
-        if let Some(shadow) = &*self.shadow.borrow() {
+        let borrow = self.shadow.borrow();
+        if let Some(shadow) = &*borrow {
             let shadow_bytecodes = shadow.vm.get_last_tx_compressed_bytecodes();
             let result = DivergenceErrors::single(
                 "get_last_tx_compressed_bytecodes",
@@ -221,7 +236,8 @@ where
                 &shadow_bytecodes,
             );
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(&self.main, err);
+                drop(borrow);
+                self.report_shared(err);
             }
         }
         main_bytecodes
@@ -237,12 +253,14 @@ where
 
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         let main_state = self.main.get_current_execution_state();
-        if let Some(shadow) = &*self.shadow.borrow() {
+        let borrow = self.shadow.borrow();
+        if let Some(shadow) = &*borrow {
             let shadow_state = shadow.vm.get_current_execution_state();
             let result =
                 DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(&self.main, err);
+                drop(borrow);
+                self.report_shared(err);
             }
         }
         main_state
@@ -271,10 +289,7 @@ where
                 let ctx = format!(
                     "executing transaction {tx_hash:?}, with_compression={with_compression:?}"
                 );
-                self.shadow
-                    .take()
-                    .unwrap()
-                    .report(&self.main, err.context(ctx));
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -308,10 +323,7 @@ where
                 let ctx = format!(
                     "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
                 );
-                self.shadow
-                    .take()
-                    .unwrap()
-                    .report(&self.main, err.context(ctx));
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -323,11 +335,13 @@ where
 
     fn gas_remaining(&self) -> u32 {
         let main_gas = self.main.gas_remaining();
-        if let Some(shadow) = &*self.shadow.borrow() {
+        let borrow = self.shadow.borrow();
+        if let Some(shadow) = &*borrow {
             let shadow_gas = shadow.vm.gas_remaining();
             let result = DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas);
             if let Err(err) = result {
-                self.shadow.take().unwrap().report(&self.main, err);
+                drop(borrow);
+                self.report_shared(err);
             }
         }
         main_gas
@@ -363,7 +377,7 @@ where
             );
 
             if let Err(err) = errors.into_result() {
-                self.shadow.take().unwrap().report(&self.main, err);
+                self.report(err);
             }
         }
         main_batch
@@ -518,10 +532,9 @@ impl UniqueStorageLogs {
     }
 }
 
-impl<S, T> VmInterfaceHistoryEnabled for ShadowVm<S, T>
+impl<S> VmInterfaceHistoryEnabled for ShadowVm<S, HistoryEnabled>
 where
     S: ReadStorage,
-    T: VmInterfaceHistoryEnabled,
 {
     fn make_snapshot(&mut self) {
         if let Some(shadow) = self.shadow.get_mut() {

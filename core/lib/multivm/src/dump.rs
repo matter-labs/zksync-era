@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{web3, L1BatchNumber, Transaction, H256};
+use zksync_types::{web3, L1BatchNumber, Transaction, H256, U256};
 use zksync_utils::u256_to_h256;
 use zksync_vm_interface::{
     storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView},
-    L1BatchEnv, L2BlockEnv, SystemEnv, VmInterface,
+    L1BatchEnv, L2BlockEnv, SystemEnv,
 };
 
 /// Handler for [`VmDump`].
@@ -24,7 +24,7 @@ impl VmStorageDump {
     /// Storage must be the one used by the VM.
     pub(crate) fn new<S: ReadStorage>(
         storage: &StoragePtr<StorageView<S>>,
-        vm: &impl VmInterface,
+        used_contract_hashes: Vec<U256>,
     ) -> Self {
         let mut storage = storage.borrow_mut();
         let storage_cache = storage.cache();
@@ -50,8 +50,6 @@ impl VmStorageDump {
             })
             .collect();
 
-        // FIXME: may panic
-        let used_contract_hashes = vm.get_current_execution_state().used_contract_hashes;
         let factory_deps = used_contract_hashes
             .into_iter()
             .filter_map(|hash| {

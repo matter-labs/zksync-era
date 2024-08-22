@@ -13,8 +13,6 @@ use crate::{
     versions::shadow::ShadowVm,
 };
 
-pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
-
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
@@ -27,7 +25,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
     VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
-    ShadowedVmFast(ShadowedFastVm<S, H>),
+    ShadowedVmFast(ShadowVm<S, H>),
 }
 
 macro_rules! dispatch_vm {

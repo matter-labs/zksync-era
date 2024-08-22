@@ -16,7 +16,7 @@ use crate::{
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{default_l1_batch, default_system_env, make_account_rich},
     vm_latest,
-    vm_latest::HistoryEnabled,
+    vm_latest::HistoryDisabled,
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
@@ -165,7 +165,7 @@ fn sanity_check_shadow_vm() {
     // We need separate storage views since they are mutated by the VM execution
     let main_storage = StorageView::new(&storage).to_rc_ptr();
     let shadow_storage = StorageView::new(&storage).to_rc_ptr();
-    let mut vm = ShadowVm::<_, ReferenceVm<_>, ReferenceVm<_>>::with_custom_shadow(
+    let mut vm = ShadowVm::<_, HistoryDisabled, ReferenceVm<_>>::with_custom_shadow(
         l1_batch_env,
         system_env,
         main_storage,
@@ -176,7 +176,7 @@ fn sanity_check_shadow_vm() {
 
 #[test]
 fn shadow_vm_basics() {
-    let (vm, harness) = sanity_check_vm::<ShadowVm<_, ReferenceVm>>();
+    let (mut vm, harness) = sanity_check_vm::<ShadowVm<_, HistoryDisabled>>();
     let dump = vm.dump_state();
     assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
     assert_matches!(
@@ -194,8 +194,6 @@ fn shadow_vm_basics() {
     assert!(!dump.storage.read_storage_keys.is_empty());
     assert!(!dump.storage.factory_deps.is_empty());
 
-    dbg!(111);
-
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
@@ -203,7 +201,7 @@ fn shadow_vm_basics() {
     let dump_storage = dump.storage.clone().into_storage();
     let dump_storage = StorageView::new(dump_storage).to_rc_ptr();
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
-    let mut vm = ShadowVm::<_, ReferenceVm, ReferenceVm>::with_custom_shadow(
+    let mut vm = ShadowVm::<_, HistoryDisabled, ReferenceVm>::with_custom_shadow(
         dump.l1_batch_env.clone(),
         dump.system_env.clone(),
         storage,
@@ -211,7 +209,7 @@ fn shadow_vm_basics() {
     );
 
     for action in dump.actions.clone() {
-        match dbg!(action) {
+        match action {
             VmAction::Transaction(tx) => {
                 let (compression_result, _) =
                     vm.execute_transaction_with_bytecode_compression(*tx, true);
@@ -221,6 +219,7 @@ fn shadow_vm_basics() {
                 vm.start_new_l2_block(block);
             }
         }
+        vm.dump_state(); // Check that a dump can be created at any point in batch execution
     }
     vm.finish_batch();
 
