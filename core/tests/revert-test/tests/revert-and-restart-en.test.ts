@@ -19,6 +19,7 @@ import {
     replaceAggregatedBlockExecuteDeadline
 } from 'utils/build/file-configs';
 import path from 'path';
+import { ChildProcessWithoutNullStreams } from 'child_process';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -130,13 +131,13 @@ async function runBlockReverter(args: string[]): Promise<string> {
     return executedProcess.stdout;
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, server: string) {
-    await utils.exec(`killall -9 ${server}`);
+async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
+    await proc.terminate();
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
         try {
-            await tester.syncWallet.provider.getBlockNumber();
+            await proc.tester.syncWallet.provider.getBlockNumber();
             await utils.sleep(2);
             iter += 1;
         } catch (_) {
@@ -149,7 +150,16 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams) {}
+
+    public async terminate() {
+        try {
+            await utils.exec(`kill -9 $(pgrep -P ${this.proc.pid})`);
+            await utils.exec(`kill -9  ${this.proc.pid}`);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -208,12 +218,21 @@ class MainNode {
                 await utils.sleep(1);
             }
         }
-        return new MainNode(tester);
+        return new MainNode(tester, proc);
     }
 }
 
 class ExtNode {
     constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+
+    public async terminate() {
+        try {
+            await utils.exec(`kill -9 $(pgrep -P ${this.proc.pid})`);
+            await utils.exec(`kill -9  ${this.proc.pid}`);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
     public static async terminateAll() {
@@ -290,17 +309,17 @@ describe('Block reverting test', function () {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeConfig = loadConfig({
+            const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
-                config: 'external_node.yaml'
+                config: 'general.yaml'
             });
             const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeConfig.main_node_url;
+            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
         } else {
             let env = fetchEnv(mainEnv);
@@ -361,7 +380,8 @@ describe('Block reverting test', function () {
         await h.waitFinalize();
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode);
         mainNode = await MainNode.spawn(
             mainLogs,
             enableConsensus,
@@ -407,7 +427,7 @@ describe('Block reverting test', function () {
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted - lastExecuted >= 2n) {
                 console.log('Terminate the main node');
-                await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+                await killServerAndWaitForShutdown(mainNode);
                 break;
             }
             await utils.sleep(0.3);
