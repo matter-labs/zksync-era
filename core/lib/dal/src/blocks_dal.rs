@@ -2356,6 +2356,25 @@ impl BlocksDal<'_, '_> {
         Ok(results.into_iter().map(L::from).collect())
     }
 
+    pub async fn has_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<bool> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                (logs_bloom IS NOT NULL) AS "logs_bloom_not_null!"
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(l2_block_number.0),
+        )
+        .instrument("has_l2_block_bloom")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| row.logs_bloom_not_null).unwrap_or(false))
+    }
+
     pub async fn has_last_l2_block_bloom(&mut self) -> DalResult<bool> {
         let row = sqlx::query!(
             r#"
@@ -2548,7 +2567,16 @@ mod tests {
 
     async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
         conn.eth_sender_dal()
-            .save_eth_tx(1, vec![], action_type, Address::default(), 1, None, None)
+            .save_eth_tx(
+                1,
+                vec![],
+                action_type,
+                Address::default(),
+                1,
+                None,
+                None,
+                false,
+            )
             .await
             .unwrap();
     }

@@ -53,4 +53,9 @@ impl AggregatedOperation {
             Self::Execute(op) => op.l1_batches[0].header.protocol_version.unwrap(),
         }
     }
+
+    pub fn is_prove_or_execute(&self) -> bool {
+        self.get_action_type() == AggregatedActionType::PublishProofOnchain
+            || self.get_action_type() == AggregatedActionType::Execute
+    }
 }
