@@ -424,37 +424,41 @@ impl TryFrom<Transaction> for abi::Transaction {
                 factory_deps,
                 eth_block: data.eth_block,
             },
-            E::XL2(data) => Self::L1 {
-                tx: abi::L2CanonicalTransaction {
-                    tx_type: INTEROP_TX_TYPE.into(),
-                    from: address_to_u256(&data.sender),
-                    to: address_to_u256(&tx.execute.contract_address),
-                    gas_limit: data.gas_limit,
-                    gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
-                    max_fee_per_gas: data.max_fee_per_gas,
-                    max_priority_fee_per_gas: 0.into(),
-                    paymaster: 0.into(),
-                    nonce: data.serial_id.0.into(),
-                    value: tx.execute.value,
-                    reserved: [
-                        data.to_mint,
-                        address_to_u256(&data.refund_recipient),
-                        0.into(),
-                        0.into(),
-                    ],
-                    data: tx.execute.calldata,
-                    signature: vec![],
-                    factory_deps: factory_deps
-                        .iter()
-                        .map(|b| h256_to_u256(hash_bytecode(b)))
-                        .collect(),
-                    paymaster_input: vec![],
-                    reserved_dynamic: vec![],
-                }
-                .into(),
-                factory_deps,
-                eth_block: data.eth_block,
-            },
+            E::XL2(data) => Self::XL2(
+                data.input
+                    .context("input is required for XL2 transactions")?
+                    .data,
+            ),
+            // E::XL2(data) => Self::XL2 {
+            //     tx: abi::L2CanonicalTransaction {
+            //         tx_type: INTEROP_TX_TYPE.into(),
+            //         from: address_to_u256(&data.sender),
+            //         to: address_to_u256(&tx.execute.contract_address),
+            //         gas_limit: data.gas_limit,
+            //         gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
+            //         max_fee_per_gas: data.max_fee_per_gas,
+            //         max_priority_fee_per_gas: 0.into(),
+            //         paymaster: 0.into(),
+            //         nonce: data.serial_id.0.into(),
+            //         value: tx.execute.value,
+            //         reserved: [
+            //             data.to_mint,
+            //             address_to_u256(&data.refund_recipient),
+            //             0.into(),
+            //             0.into(),
+            //         ],
+            //         data: tx.execute.calldata,
+            //         signature: vec![],
+            //         factory_deps: factory_deps
+            //             .iter()
+            //             .map(|b| h256_to_u256(hash_bytecode(b)))
+            //             .collect(),
+            //         paymaster_input: vec![],
+            //         reserved_dynamic: vec![],
+            //     }
+            //     .into(),
+            //     factory_deps,
+            // },
             E::ProtocolUpgrade(data) => Self::L1 {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PROTOCOL_UPGRADE_TX_TYPE.into(),
@@ -568,6 +572,63 @@ impl TryFrom<abi::Transaction> for Transaction {
                 tx.set_input(raw, hash);
                 tx.into()
             }
+            abi::Transaction::XL2(raw) => {
+                let (req, hash) =
+                    transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
+                let mut tx = XL2Tx::from_request_unverified(req)?;
+                // println!("kl todo from abi tx {:?}", hash);
+                tx.set_input(raw, hash);
+                tx.into()
+            } // abi::Transaction::XL2 {
+              //     tx,
+              //     factory_deps,
+              // } => {
+              //     let factory_deps_hashes: Vec<_> = factory_deps
+              //         .iter()
+              //         .map(|b| h256_to_u256(hash_bytecode(b)))
+              //         .collect();
+              //     anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
+              //     for item in &tx.reserved[2..] {
+              //         anyhow::ensure!(item == &U256::zero());
+              //     }
+              //     assert_eq!(tx.max_priority_fee_per_gas, U256::zero());
+              //     assert_eq!(tx.paymaster, U256::zero());
+              //     assert!(tx.signature.is_empty());
+              //     assert!(tx.paymaster_input.is_empty());
+              //     assert!(tx.reserved_dynamic.is_empty());
+              //     let hash = tx.hash();
+              //     Transaction {
+              //         common_data:
+              //             ExecuteTransactionCommon::XL2(XL2TxCommonData {
+              //                 serial_id: PriorityOpId(
+              //                     tx.nonce
+              //                         .try_into()
+              //                         .map_err(|err| anyhow::format_err!("{err}"))?,
+              //                 ),
+              //                 canonical_tx_hash: hash,
+              //                 sender: u256_to_account_address(&tx.from),
+              //                 layer_2_tip_fee: U256::zero(),
+              //                 to_mint: tx.reserved[0],
+              //                 refund_recipient: u256_to_account_address(&tx.reserved[1]),
+              //                 full_fee: U256::zero(),
+              //                 gas_limit: tx.gas_limit,
+              //                 max_fee_per_gas: tx.max_fee_per_gas,
+              //                 gas_per_pubdata_limit: tx.gas_per_pubdata_byte_limit,
+              //                 op_processing_type: l1::OpProcessingType::Common,
+              //                 priority_queue_type: l1::PriorityQueueType::Deque,
+              //                 input: None,
+              //                 eth_block:0,
+              //             }),
+              //         execute: Execute {
+              //             contract_address: u256_to_account_address(&tx.to),
+              //             calldata: tx.data,
+              //             factory_deps,
+              //             value: tx.value,
+              //         },
+              //         raw_bytes: None,
+              //         received_timestamp_ms: helpers::unix_timestamp_ms(),
+              //     }
+              // }
         })
     }
 }

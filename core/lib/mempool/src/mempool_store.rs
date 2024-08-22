@@ -1,11 +1,11 @@
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 
 use zksync_types::{
-    l1::L1Tx, l2::L2Tx, xl2::XL2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId,
-    Transaction,
+    fee::Fee, l1::L1Tx, l2::L2Tx, xl2::XL2Tx, Address, ExecuteTransactionCommon, Nonce,
+    PriorityOpId, Transaction, H256, U256,
 };
 
-use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
+use crate::types::{AccountTransactions, L2TxFilter, MempoolScore, XL2MempoolScore};
 
 #[derive(Debug)]
 pub struct MempoolInfo {
@@ -25,15 +25,18 @@ pub struct MempoolStore {
     /// Pending L1 transactions
     l1_transactions: HashMap<PriorityOpId, L1Tx>,
     /// Pending XL2 transactions
-    xl2_transactions: HashMap<PriorityOpId, XL2Tx>,
+    xl2_transactions: HashMap<H256, XL2Tx>,
     /// Pending L2 transactions grouped by initiator address
     l2_transactions_per_account: HashMap<Address, AccountTransactions>,
     /// Global priority queue for L2 transactions. Used for scoring
     l2_priority_queue: BTreeSet<MempoolScore>,
+    /// Global priority queue for XL2 transactions. Used for scoring
+    xl2_priority_queue: BTreeSet<XL2MempoolScore>,
     /// Next priority operation
     next_priority_id: PriorityOpId,
     stashed_accounts: Vec<Address>,
-    /// Number of L2 transactions in the mempool.
+    // stashed_xl2_txs: Vec<H256>,
+    /// Number of L2 + XL2 transactions in the mempool.
     size: u64,
     capacity: u64,
 }
@@ -45,6 +48,7 @@ impl MempoolStore {
             xl2_transactions: HashMap::new(),
             l2_transactions_per_account: HashMap::new(),
             l2_priority_queue: BTreeSet::new(),
+            xl2_priority_queue: BTreeSet::new(),
             next_priority_id,
             stashed_accounts: vec![],
             size: 0,
@@ -82,14 +86,11 @@ impl MempoolStore {
                 }
                 ExecuteTransactionCommon::XL2(data) => {
                     tracing::trace!("inserting XL2 transaction {}", data.serial_id);
-                    self.xl2_transactions.insert(
-                        data.serial_id,
-                        XL2Tx {
-                            execute,
-                            common_data: data,
-                            received_timestamp_ms,
-                        },
-                    );
+                    self.insert_xl2_transaction(XL2Tx {
+                        execute,
+                        common_data: data,
+                        received_timestamp_ms,
+                    });
                 }
                 ExecuteTransactionCommon::L2(data) => {
                     tracing::trace!("inserting L2 transaction {}", data.nonce);
@@ -137,6 +138,26 @@ impl MempoolStore {
         }
     }
 
+    fn insert_xl2_transaction(&mut self, transaction: XL2Tx) {
+        let hash = transaction.common_data.canonical_tx_hash;
+
+        // let _metadata =
+        self.xl2_transactions.insert(hash, transaction);
+
+        let score = XL2MempoolScore {
+            tx_hash: hash,
+            received_at_ms: 0,
+            fee_data: Fee {
+                gas_limit: U256::zero(),
+                max_fee_per_gas: U256::zero(),
+                max_priority_fee_per_gas: U256::zero(),
+                gas_per_pubdata_limit: U256::zero(),
+            },
+        };
+        self.xl2_priority_queue.insert(score);
+        self.size += 1;
+    }
+
     /// Returns `true` if there is a transaction in the mempool satisfying the filter.
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
         self.l1_transactions.contains_key(&self.next_priority_id)
@@ -154,7 +175,55 @@ impl MempoolStore {
             return Some(transaction.into());
         }
 
-        let mut removed = 0;
+        // if let Some(transaction) = self.xl2_transactions.remove(&self.next_priority_id) {
+        //     self.next_xl2_priority_id += 1;
+        //     return Some(transaction.into());
+        // }
+        println!("kl todo next xl2 tx 0");
+
+        // We want to fetch the next transaction that would match the fee requirements.
+        if let Some(tx_pointer_uncloned) = self
+            .xl2_priority_queue
+            .iter()
+            .rfind(|el| el.matches_filter(filter))
+        {
+            let tx_pointer = tx_pointer_uncloned.clone();
+            println!("kl todo next xl2 tx 1");
+            // Stash all observed transactionds that don't meet criteria
+            // let tx_pointer = tx_pointer_option?;
+            for stashed_pointer1 in self
+                .xl2_priority_queue
+                .split_off(&tx_pointer)
+                .into_iter()
+                .skip(1)
+            {
+                self.xl2_transactions
+                    .remove(&stashed_pointer1.tx_hash)
+                    .expect("mempool: dangling pointer in xl2 priority queue");
+                // self.stashed_accounts.push(stashed_pointer.tx_hash);
+            }
+            println!("kl todo next xl2 tx 2");
+
+            let transaction = self.xl2_transactions.get_mut(&tx_pointer.tx_hash);
+            println!("kl todo next xl2 tx 3");
+
+            println!("kl todo next xl2 tx 1 {:?}", tx_pointer.tx_hash);
+            if let Some(tx) = transaction {
+                println!(
+                    "kl todo next xl2 tx 2 {:?}",
+                    tx.common_data.canonical_tx_hash
+                );
+                self.size = self
+                    .size
+                    .checked_sub(1_u64)
+                    .expect("mempool size can't be negative");
+                return Some(tx.clone().into());
+            }
+        }
+        // if let Some(score) = score {
+        //     self.l2_priority_queue.insert(score);
+        // }
+        let mut removed: usize = 0;
         // We want to fetch the next transaction that would match the fee requirements.
         let tx_pointer = self
             .l2_priority_queue

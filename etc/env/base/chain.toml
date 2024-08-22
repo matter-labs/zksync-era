@@ -90,7 +90,7 @@ fee_model_version = "V2"
 validation_computational_gas_limit = 300000
 save_call_traces = true
 
-bootloader_hash = "0x010008edc25c33fdfc4e89cac46a55195cd23bbc176da30dc637e7ed7420d19d"
+bootloader_hash = "0x01000911a072ddb608b969c839d785618e1a1f7768cd41d94a7aa3273d91abed"
 default_aa_hash = "0x0100055de356de05b75c83195567a6688d9050a17b58ccc5c5c91d05cd2bfb6d"
 
 [chain.operations_manager]

@@ -12,6 +12,7 @@ use zksync_utils::{
 
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::{
+    abi,
     fee::Fee,
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
@@ -263,6 +264,8 @@ pub struct TransactionRequest {
     pub full_fee: Option<U256>,
     /// amount to mint for xl2 tx
     pub to_mint: Option<U256>,
+    /// refund recipient for xl2 tx
+    pub refund_recipient: Option<Address>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
@@ -539,15 +542,6 @@ impl TransactionRequest {
                 rlp.append(&self.value);
                 rlp.append(&self.input.0);
             }
-            Some(x) if x == INTEROP_TX_TYPE.into() => {
-                // kl todo
-                rlp_opt(rlp, &self.max_priority_fee_per_gas);
-                rlp.append(&self.gas_price);
-                rlp.append(&self.gas);
-                rlp_opt(rlp, &self.to);
-                rlp.append(&self.value);
-                rlp.append(&self.input.0);
-            }
             // Legacy (None)
             None => {
                 rlp.append(&self.nonce);
@@ -656,6 +650,7 @@ impl TransactionRequest {
                     merkle_proof: Some(rlp.list_at(16)?),
                     full_fee: Some(rlp.val_at(17)?),
                     to_mint: Some(rlp.val_at(18)?),
+                    refund_recipient: Some(rlp.val_at(19)?),
                     ..Self::decode_eip1559_fields(&rlp, 0)?
                 }
             }
@@ -741,6 +736,7 @@ impl TransactionRequest {
         let hash = tx
             .get_tx_hash_with_signed_message(default_signed_message)?
             .unwrap();
+        // println!("kl todo from bytes unverified tx hash {:?}", hash);
         Ok((tx, hash))
     }
 
@@ -764,6 +760,8 @@ impl TransactionRequest {
                 &Eip712Domain::new(L2ChainId::try_from(chain_id).unwrap()),
                 self,
             ))
+        } else if self.transaction_type == Some(INTEROP_TX_TYPE.into()) {
+            Ok(H256::zero())
         } else {
             let mut data = self.get_rlp()?;
             if let Some(tx_type) = self.transaction_type {
@@ -786,7 +784,9 @@ impl TransactionRequest {
         const INTEROP_TX_TYPE_SMALLU64: u64 = INTEROP_TX_TYPE as u64;
         const INTEROP_TX_TYPE_U64: U64 = U64([INTEROP_TX_TYPE_SMALLU64]);
         if self.transaction_type == Some(INTEROP_TX_TYPE_U64) {
-            return Ok(Some(H256(keccak256(&self.get_rlp().unwrap()))));
+            let canonical_tx =
+                abi::L2CanonicalTransaction::from(XL2Tx::from_request_unverified(self.clone())?);
+            return Ok(Some(canonical_tx.hash()));
         }
         Ok(self.raw.as_ref().map(|bytes| H256(keccak256(&bytes.0))))
     }
@@ -945,6 +945,7 @@ impl XL2Tx {
         );
         tx.common_data.to_mint = value.to_mint.unwrap_or_default();
         tx.common_data.full_fee = value.full_fee.unwrap_or_default();
+        tx.common_data.refund_recipient = value.refund_recipient.unwrap_or_default();
         // tx.common_data.serial_id = value.serial_id.unwrap_or_default();
         // tx.common_data.transaction_type = INTEROP_TX_TYPE;
         // For fee calculation we use the same structure, as a result, signature may not be provided
@@ -953,6 +954,7 @@ impl XL2Tx {
         // if let Some(raw_bytes) = value.raw {
         //     tx.set_raw_bytes(raw_bytes);
         // }
+        value.chain_id = Some(270); //kl todo
         Ok(tx)
     }
 

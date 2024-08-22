@@ -29,11 +29,16 @@ message L2Transaction {
   optional bytes rlp = 1; // required; RLP encoded TransactionRequest
 }
 
+message XL2Transaction {
+  optional bytes rlp = 1; // required; RLP encoded TransactionRequest
+}
+
 message TransactionV25 {
   // required
   oneof t {
     L1Transaction l1 = 1;
     L2Transaction l2 = 2;
+    XL2Transaction xl2 = 3;
   }
 }
 

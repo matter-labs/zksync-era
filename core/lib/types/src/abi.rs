@@ -341,6 +341,13 @@ pub enum Transaction {
     },
     /// RLP encoding of a L2 transaction.
     L2(Vec<u8>),
+    XL2(Vec<u8>), // kl todo figure out which is better
+                  // XL2 {
+                  //     /// Hashed data.
+                  //     tx: Box<L2CanonicalTransaction>,
+                  //     /// `tx` contains a commitment to `factory_deps`.
+                  //     factory_deps: Vec<Vec<u8>>,
+                  // },
 }
 
 impl Transaction {
@@ -362,6 +369,16 @@ impl Transaction {
                 tx.hash()
             }
             Self::L2(raw) => TransactionRequest::from_bytes_unverified(raw)?.1,
+            Self::XL2(raw) => TransactionRequest::from_bytes_unverified(raw)?.1,
+            // Self::XL2 { tx, factory_deps } => {
+            //     // verify data integrity
+            //     let factory_deps_hashes: Vec<_> = factory_deps
+            //         .iter()
+            //         .map(|b| h256_to_u256(hash_bytecode(b)))
+            //         .collect();
+            //     anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
+            //     tx.hash()
+            // }
         })
     }
 }

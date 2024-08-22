@@ -15,6 +15,7 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
+    transaction_request::TransactionRequest,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     xl2::XL2Tx,
@@ -547,7 +548,13 @@ impl TransactionsDal<'_, '_> {
         tx: &XL2Tx,
         exec_info: TransactionExecutionMetrics,
     ) -> DalResult<L2TxSubmissionResult> {
-        let tx_hash = tx.hash();
+        let mut tx_hash = tx.hash();
+        if tx_hash.is_zero() {
+            let mut transaction_request: TransactionRequest = ExternalTx::XL2Tx(tx.clone()).into();
+
+            transaction_request.chain_id = Some(270 as u64); // kl to do
+            tx_hash = transaction_request.get_tx_hash().unwrap();
+        }
         let is_duplicate = sqlx::query!(
             r#"
             SELECT
@@ -867,6 +874,14 @@ impl TransactionsDal<'_, '_> {
                 .transactions_dal()
                 .insert_executed_upgrade_transactions(l2_block_number, transactions)
                 .await?;
+            transaction
+                .transactions_dal()
+                .insert_executed_xl2_transactions(
+                    l2_block_number,
+                    block_base_fee_per_gas,
+                    transactions,
+                )
+                .await?;
         } else {
             // Different transaction types have different sets of fields to update so we handle them separately.
             transaction
@@ -884,6 +899,14 @@ impl TransactionsDal<'_, '_> {
             transaction
                 .transactions_dal()
                 .update_executed_upgrade_transactions(l2_block_number, transactions)
+                .await?;
+            transaction
+                .transactions_dal()
+                .update_executed_xl2_transactions(
+                    l2_block_number,
+                    block_base_fee_per_gas,
+                    transactions,
+                )
                 .await?;
         }
 
@@ -1307,6 +1330,389 @@ impl TransactionsDal<'_, '_> {
             &l2_contract_addresses as &[&[u8]],
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
+            l2_block_number.0 as i32,
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+        Ok(())
+    }
+
+    async fn insert_executed_xl2_transactions(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        block_base_fee_per_gas: U256,
+        transactions: &[TransactionExecutionResult],
+    ) -> DalResult<()> {
+        let xl2_txs_len = transactions
+            .iter()
+            .filter(|tx_res| {
+                matches!(
+                    tx_res.transaction.common_data,
+                    ExecuteTransactionCommon::XL2(_)
+                )
+            })
+            .count();
+        println!("kl todo insert xl2 txs len: {}", xl2_txs_len);
+        if xl2_txs_len == 0 {
+            return Ok(());
+        }
+
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_xl2_block#insert_xl2_txs")
+            .with_arg("l2_block_number", &l2_block_number)
+            .with_arg("xl2_txs.len", &xl2_txs_len);
+
+        let mut xl2_hashes = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_initiators = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_nonces = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_gas_limits = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_max_fees_per_gas = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_gas_per_pubdata_limit = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_inputs = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_datas = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_tx_formats = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_contract_addresses = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_values = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_paymaster = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_paymaster_input = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_execution_infos = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_indices_in_block = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_errors = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_effective_gas_prices = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_refunded_gas = Vec::with_capacity(xl2_txs_len);
+        let paymaster = H160::zero();
+        let paymaster_input: Vec<u8> = vec![0u8; 32];
+
+        for (index_in_block, tx_res) in transactions.iter().enumerate() {
+            println!("kl todo insert xl2 txs index_in_block: {}", index_in_block);
+            let transaction = &tx_res.transaction;
+            let ExecuteTransactionCommon::XL2(common_data) = &transaction.common_data else {
+                continue;
+            };
+            println!("kl todo insert xl2 txs index_in_block 2");
+
+            let data = serde_json::to_value(&transaction.execute).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].transaction.execute"),
+                    err,
+                )
+            })?;
+            let xl2_execution_info =
+                serde_json::to_value(tx_res.execution_info).map_err(|err| {
+                    instrumentation.arg_error(
+                        &format!("transactions[{index_in_block}].execution_info"),
+                        err,
+                    )
+                })?;
+            let refunded_gas = i64::try_from(tx_res.refunded_gas).map_err(|err| {
+                instrumentation
+                    .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
+            })?;
+
+            xl2_values.push(u256_to_big_decimal(transaction.execute.value));
+            xl2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            xl2_paymaster_input.push(&paymaster_input[..]);
+            xl2_paymaster.push(paymaster.as_bytes());
+            xl2_hashes.push(tx_res.hash.as_bytes());
+            xl2_indices_in_block.push(index_in_block as i32);
+            xl2_initiators.push(transaction.initiator_account().0);
+            xl2_nonces.push(common_data.serial_id.0 as i32);
+            xl2_tx_formats.push(INTEROP_TX_TYPE as i32);
+            xl2_errors.push(Self::map_transaction_error(tx_res));
+            let xl2_effective_gas_price = block_base_fee_per_gas;
+            xl2_effective_gas_prices.push(u256_to_big_decimal(xl2_effective_gas_price));
+            xl2_execution_infos.push(xl2_execution_info);
+            // Normally input data is mandatory
+            xl2_inputs.push(common_data.input_data().unwrap_or_default());
+            xl2_datas.push(data);
+            xl2_gas_limits.push(u256_to_big_decimal(common_data.gas_limit));
+            xl2_max_fees_per_gas.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+            // xl2_max_priority_fees_per_gas.push(u256_to_big_decimal(
+            //     common_data.fee.max_priority_fee_per_gas,
+            // ));
+            xl2_gas_per_pubdata_limit.push(u256_to_big_decimal(common_data.gas_per_pubdata_limit));
+            xl2_refunded_gas.push(refunded_gas);
+        }
+
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO
+                transactions (
+                    hash,
+                    is_priority,
+                    initiator_address,
+                    nonce,
+                    gas_limit,
+                    max_fee_per_gas,
+                    gas_per_pubdata_limit,
+                    input,
+                    data,
+                    tx_format,
+                    contract_address,
+                    value,
+                    paymaster,
+                    paymaster_input,
+                    execution_info,
+                    miniblock_number,
+                    index_in_block,
+                    error,
+                    effective_gas_price,
+                    refunded_gas,
+                    received_at,
+                    created_at,
+                    updated_at
+                )
+            SELECT
+                data_table.hash,
+                FALSE,
+                data_table.initiator_address,
+                data_table.nonce,
+                data_table.gas_limit,
+                data_table.max_fee_per_gas,
+                data_table.gas_per_pubdata_limit,
+                data_table.input,
+                data_table.data,
+                data_table.tx_format,
+                data_table.contract_address,
+                data_table.value,
+                data_table.paymaster,
+                data_table.paymaster_input,
+                data_table.new_execution_info,
+                $19,
+                data_table.index_in_block,
+                NULLIF(data_table.error, ''),
+                data_table.effective_gas_price,
+                data_table.refunded_gas,
+                NOW(),
+                NOW(),
+                NOW()
+            FROM
+                (
+                    SELECT
+                        UNNEST($1::bytea[]) AS hash,
+                        UNNEST($2::bytea[]) AS initiator_address,
+                        UNNEST($3::INT[]) AS nonce,
+                        UNNEST($4::NUMERIC[]) AS gas_limit,
+                        UNNEST($5::NUMERIC[]) AS max_fee_per_gas,
+                        UNNEST($6::NUMERIC[]) AS gas_per_pubdata_limit,
+                        UNNEST($7::bytea[]) AS input,
+                        UNNEST($8::jsonb[]) AS data,
+                        UNNEST($9::INT[]) AS tx_format,
+                        UNNEST($10::bytea[]) AS contract_address,
+                        UNNEST($11::NUMERIC[]) AS value,
+                        UNNEST($12::bytea[]) AS paymaster,
+                        UNNEST($13::bytea[]) AS paymaster_input,
+                        UNNEST($14::jsonb[]) AS new_execution_info,
+                        UNNEST($15::INTEGER[]) AS index_in_block,
+                        UNNEST($16::VARCHAR[]) AS error,
+                        UNNEST($17::NUMERIC[]) AS effective_gas_price,
+                        UNNEST($18::BIGINT[]) AS refunded_gas
+                ) AS data_table
+            "#,
+            &xl2_hashes as &[&[u8]],
+            &xl2_initiators as &[[u8; 20]],
+            &xl2_nonces,
+            // &xl2_signatures as &[&[u8]],
+            &xl2_gas_limits,
+            &xl2_max_fees_per_gas,
+            // &xl2_max_priority_fees_per_gas,
+            &xl2_gas_per_pubdata_limit,
+            &xl2_inputs as &[&[u8]],
+            &xl2_datas,
+            &xl2_tx_formats,
+            &xl2_contract_addresses as &[&[u8]],
+            &xl2_values,
+            &xl2_paymaster as &[&[u8]],
+            &xl2_paymaster_input as &[&[u8]],
+            &xl2_execution_infos,
+            &xl2_indices_in_block,
+            &xl2_errors as &[&str],
+            &xl2_effective_gas_prices,
+            &xl2_refunded_gas,
+            l2_block_number.0 as i32,
+        );
+
+        instrumentation.with(query).execute(self.storage).await?;
+        Ok(())
+    }
+
+    async fn update_executed_xl2_transactions(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        block_base_fee_per_gas: U256,
+        transactions: &[TransactionExecutionResult],
+    ) -> DalResult<()> {
+        let xl2_txs_len = transactions
+            .iter()
+            .filter(|tx_res| {
+                matches!(
+                    tx_res.transaction.common_data,
+                    ExecuteTransactionCommon::XL2(_)
+                )
+            })
+            .count();
+        if xl2_txs_len == 0 {
+            return Ok(());
+        }
+
+        let instrumentation = Instrumented::new("mark_txs_as_executed_in_xl2_block#update_xl2_txs")
+            .with_arg("l2_block_number", &l2_block_number)
+            .with_arg("xl2_txs.len", &xl2_txs_len);
+
+        let mut xl2_hashes = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_values = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_contract_addresses = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_paymaster = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_paymaster_input = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_indices_in_block = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_initiators = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_nonces = Vec::with_capacity(xl2_txs_len);
+        // let mut xl2_signatures = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_tx_formats = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_errors = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_effective_gas_prices = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_execution_infos = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_inputs = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_datas = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_gas_limits = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_max_fees_per_gas = Vec::with_capacity(xl2_txs_len);
+        // let mut xl2_max_priority_fees_per_gas = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_gas_per_pubdata_limit = Vec::with_capacity(xl2_txs_len);
+        let mut xl2_refunded_gas = Vec::with_capacity(xl2_txs_len);
+        let paymaster = H160::zero();
+        let paymaster_input: &Vec<u8> = &vec![0u8; 32];
+
+        for (index_in_block, tx_res) in transactions.iter().enumerate() {
+            let transaction = &tx_res.transaction;
+            let ExecuteTransactionCommon::XL2(common_data) = &transaction.common_data else {
+                continue;
+            };
+
+            let data = serde_json::to_value(&transaction.execute).map_err(|err| {
+                instrumentation.arg_error(
+                    &format!("transactions[{index_in_block}].transaction.execute"),
+                    err,
+                )
+            })?;
+            let xl2_execution_info =
+                serde_json::to_value(tx_res.execution_info).map_err(|err| {
+                    instrumentation.arg_error(
+                        &format!("transactions[{index_in_block}].execution_info"),
+                        err,
+                    )
+                })?;
+            let refunded_gas = i64::try_from(tx_res.refunded_gas).map_err(|err| {
+                instrumentation
+                    .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
+            })?;
+
+            xl2_values.push(u256_to_big_decimal(transaction.execute.value));
+            xl2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            xl2_paymaster_input.push(&paymaster_input[..]);
+            xl2_paymaster.push(paymaster.as_bytes());
+            xl2_hashes.push(tx_res.hash.as_bytes());
+            xl2_indices_in_block.push(index_in_block as i32);
+            xl2_initiators.push(transaction.initiator_account().0);
+            xl2_nonces.push(common_data.serial_id.0 as i32);
+            // xl2_signatures.push(&common_data.signature[..]);
+            xl2_tx_formats.push(INTEROP_TX_TYPE as i32);
+            xl2_errors.push(Self::map_transaction_error(tx_res));
+            let xl2_effective_gas_price = block_base_fee_per_gas;
+            xl2_effective_gas_prices.push(u256_to_big_decimal(xl2_effective_gas_price));
+            xl2_execution_infos.push(xl2_execution_info);
+            // Normally input data is mandatory
+            xl2_inputs.push(common_data.input_data().unwrap_or_default());
+            xl2_datas.push(data);
+            xl2_gas_limits.push(u256_to_big_decimal(common_data.gas_limit));
+            xl2_max_fees_per_gas.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+            // xl2_max_priority_fees_per_gas.push(u256_to_big_decimal(
+            //     common_data.fee.max_priority_fee_per_gas,
+            // ));
+            xl2_gas_per_pubdata_limit.push(u256_to_big_decimal(common_data.gas_per_pubdata_limit));
+            xl2_refunded_gas.push(refunded_gas);
+        }
+
+        // Due to the current tx replacement model, it's possible that tx has been replaced,
+        // but the original was executed in memory,
+        // so we have to update all fields for tx from fields stored in memory.
+        // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
+        let query = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                hash = data_table.hash,
+                gas_limit = data_table.gas_limit,
+                max_fee_per_gas = data_table.max_fee_per_gas,
+                gas_per_pubdata_limit = data_table.gas_per_pubdata_limit,
+                input = data_table.input,
+                data = data_table.data,
+                tx_format = data_table.tx_format,
+                miniblock_number = $19,
+                index_in_block = data_table.index_in_block,
+                error = NULLIF(data_table.error, ''),
+                effective_gas_price = data_table.effective_gas_price,
+                execution_info = data_table.new_execution_info,
+                refunded_gas = data_table.refunded_gas,
+                value = data_table.value,
+                contract_address = data_table.contract_address,
+                paymaster = data_table.paymaster,
+                paymaster_input = data_table.paymaster_input,
+                in_mempool = FALSE,
+                updated_at = NOW()
+            FROM
+                (
+                    SELECT
+                        data_table_temp.*
+                    FROM
+                        (
+                            SELECT
+                                UNNEST($1::bytea[]) AS initiator_address,
+                                UNNEST($2::INT[]) AS nonce,
+                                UNNEST($3::bytea[]) AS hash,
+                                UNNEST($4::NUMERIC[]) AS gas_limit,
+                                UNNEST($5::NUMERIC[]) AS max_fee_per_gas,
+                                UNNEST($6::NUMERIC[]) AS gas_per_pubdata_limit,
+                                UNNEST($7::INT[]) AS tx_format,
+                                UNNEST($8::INTEGER[]) AS index_in_block,
+                                UNNEST($9::VARCHAR[]) AS error,
+                                UNNEST($10::NUMERIC[]) AS effective_gas_price,
+                                UNNEST($11::jsonb[]) AS new_execution_info,
+                                UNNEST($12::bytea[]) AS input,
+                                UNNEST($13::jsonb[]) AS data,
+                                UNNEST($14::BIGINT[]) AS refunded_gas,
+                                UNNEST($15::NUMERIC[]) AS value,
+                                UNNEST($16::bytea[]) AS contract_address,
+                                UNNEST($17::bytea[]) AS paymaster,
+                                UNNEST($18::bytea[]) AS paymaster_input
+                        ) AS data_table_temp
+                        JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address
+                        AND transactions.nonce = data_table_temp.nonce
+                    ORDER BY
+                        transactions.hash
+                ) AS data_table
+            WHERE
+                transactions.initiator_address = data_table.initiator_address
+                AND transactions.nonce = data_table.nonce
+            "#,
+            &xl2_initiators as &[[u8; 20]],
+            &xl2_nonces,
+            &xl2_hashes as &[&[u8]],
+            // &xl2_signatures as &[&[u8]],
+            &xl2_gas_limits,
+            &xl2_max_fees_per_gas,
+            // &xl2_max_priority_fees_per_gas,
+            &xl2_gas_per_pubdata_limit,
+            &xl2_tx_formats,
+            &xl2_indices_in_block,
+            &xl2_errors as &[&str],
+            &xl2_effective_gas_prices,
+            &xl2_execution_infos,
+            &xl2_inputs as &[&[u8]],
+            &xl2_datas,
+            &xl2_refunded_gas,
+            &xl2_values,
+            &xl2_contract_addresses as &[&[u8]],
+            &xl2_paymaster as &[&[u8]],
+            &xl2_paymaster_input as &[&[u8]],
             l2_block_number.0 as i32,
         );
 

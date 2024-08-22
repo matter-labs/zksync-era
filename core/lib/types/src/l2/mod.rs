@@ -342,6 +342,7 @@ impl From<L2Tx> for TransactionRequest {
             merkle_proof: None,
             full_fee: None,
             to_mint: None,
+            refund_recipient: None,
         };
         match tx_type as u8 {
             LEGACY_TX_TYPE => {}

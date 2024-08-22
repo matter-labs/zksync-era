@@ -134,7 +134,8 @@ impl From<Transaction> for TransactionData {
             ExecuteTransactionCommon::XL2(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 // println!("kl todo tx data into 0 {:?}", common_data);
-                let data = TransactionData {
+                // let data =
+                TransactionData {
                     tx_type: common_data.tx_format() as u8,
                     from: common_data.sender,
                     to: execute_tx.execute.contract_address,
@@ -160,9 +161,9 @@ impl From<Transaction> for TransactionData {
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
-                };
+                }
                 // println!("kl todo tx data into {:?}", data);
-                data
+                // data
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));

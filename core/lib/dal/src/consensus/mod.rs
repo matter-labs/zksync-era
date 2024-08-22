@@ -152,6 +152,7 @@ impl ProtoRepr for proto::TransactionV25 {
                 eth_block: 0,
             },
             T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
+            T::Xl2(l2) => abi::Transaction::XL2(required(&l2.rlp).context("rlp")?.clone()),
         };
         tx.try_into()
     }
@@ -168,6 +169,7 @@ impl ProtoRepr for proto::TransactionV25 {
                     factory_deps,
                 }),
                 abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
+                abi::Transaction::XL2(tx) => T::Xl2(proto::Xl2Transaction { rlp: Some(tx) }),
             }),
         }
     }

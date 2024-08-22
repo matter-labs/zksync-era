@@ -14,6 +14,7 @@ import * as ethers from 'ethers';
 // import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { IBridgehubFactory } from '../../../../contracts/l1-contracts/typechain/IBridgehubFactory';
 import { IL1NativeTokenVaultFactory } from '../../../../contracts/l1-contracts/typechain/IL1NativeTokenVaultFactory';
+import { IL2NativeTokenVaultFactory } from '../../../../contracts/l2-contracts/typechain/IL2NativeTokenVaultFactory';
 import {
     L2_ASSET_ROUTER_ADDRESS,
     L2_BRIDGEHUB_ADDRESS,
@@ -30,6 +31,7 @@ describe('Interop checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let bobOtherChain: zksync.Wallet;
+    let l2Provider: RetryProvider;
     // let tokenDetails: Token;
     // let baseTokenDetails: Token;
     // let aliceErc20: zksync.Contract;
@@ -40,7 +42,7 @@ describe('Interop checks', () => {
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
 
-        let l2Provider = new RetryProvider(
+        l2Provider = new RetryProvider(
             {
                 url: 'http://localhost:3050',
                 timeout: 1200 * 1000
@@ -56,10 +58,12 @@ describe('Interop checks', () => {
     });
 
     test('Can burn and mint', async () => {
+        console.log('kl todo', alice.privateKey);
+        console.log('kl todo', bob.privateKey);
         // if (process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID != '320') {
         //     return;
         // }
-        const amount = ethers.utils.parseEther('1');
+        const amount = ethers.parseEther('1');
         // const mintValue = ethers.utils.parseEther('2');
 
         // const l1Bridgehub = IBridgehubFactory.connect(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!, alice.providerL1!);
@@ -100,28 +104,32 @@ describe('Interop checks', () => {
 
         // console.log(l1BatchNumber, l2MessageIndex, l2TxNumberInBlock);
         // "tuple(tuple(address facet, uint8 action, bool isFreezable, bytes4[] selectors)[] facetCuts, address initAddress, bytes initCalldata)";
-
-        const message = ethers.utils.defaultAbiCoder.encode(['uint256'], [amount]);
+        const l2NTVabi = ['function setSomeRandomValue(uint256 _value)'];
+        const l2Ntv = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NTVabi, alice.provider);
+        const message = l2Ntv.interface.encodeFunctionData('setSomeRandomValue', [987654321]);
         const proof = ['0x'];
         const interopTx = {
             chainId: 270,
-            to: await bob.getAddress(),
+            to: '0x0000000000000000000000000000000000020004',
             from: L2_ASSET_ROUTER_ADDRESS,
-            nonce: 0,
+            nonce: 0x654321,
             calldata: message,
             customData: {
-                paymaster_params: { paymaster: ethers.constants.AddressZero, paymasterInput: '0x' },
+                paymaster_params: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
                 merkleProof: proof,
                 fullFee: '0xf000000000000000',
-                toMint: ethers.utils.arrayify('0xf000000000000000000000000000000000')
+                toMint: '0xf000000000000000000000000000000000',
+                refundRecipient: await alice.getAddress()
             },
-            maxFeePerGas: '0xf000000000000000',
-            maxPriorityFeePerGas: '0xf000000000000000',
-            gasLimit: '0xf000000000',
-            type: INTEROP_TX_TYPE
+            maxFeePerGas: 276250000,
+            maxPriorityFeePerGas: 140000000,
+            gasLimit: '0xf0001234',
+            type: INTEROP_TX_TYPE,
+            value: '0xf000000000000000'
         };
         /*
-        This needs to be in zksync utils serialize
+        // This needs to be in zksync utils serialize
+
         if (meta.merkleProof) {
             fields.push(meta.merkleProof);
         }
@@ -131,14 +139,17 @@ describe('Interop checks', () => {
         if (meta.toMint) {
             fields.push(meta.toMint);
         }
+        if (meta.refundRecipient) {
+            fields.push(meta.refundRecipient);
+        }
         const txType = transaction.type || exports.EIP712_TX_TYPE;
-        return ethers_1.utils.hexConcat([
+        return ethers_1.ethers.concat([
             new Uint8Array([txType]),
-            ethers_1.utils.RLP.encode(fields),
+            ethers_1.ethers.encodeRlp(fields),
         ]); 
         */
-        alice.provider.send('eth_sendTransaction', [zksync.utils.serialize(interopTx)]);
-        console.log('kl todo serialized tx', zksync.utils.serialize(interopTx));
+        alice.provider.send('eth_sendTransaction', [zksync.utils.serializeEip712(interopTx)]);
+        console.log('kl todo serialized tx', zksync.utils.serializeEip712(interopTx));
         // submit tx
         const balanceAfter = await bobOtherChain.getBalance();
         console.log('Balance before: ', balanceBefore.toString());

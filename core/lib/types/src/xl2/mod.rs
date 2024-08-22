@@ -5,14 +5,13 @@ use std::convert::TryFrom;
 // use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L1BlockNumber, PriorityOpId, H160, H256, U256, U64};
-
 // use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 // use zksync_mini_merkle_tree::{compute_empty_tree_hashes, HashEmptySubtree};
-// use zksync_utils::{
-//     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
-// };
+use zksync_utils::address_to_u256;
+
 use super::Transaction;
 use crate::{
+    abi,
     api,
     // abi, ethabi,
     api::TransactionRequest,
@@ -228,7 +227,7 @@ impl From<XL2Tx> for TransactionRequest {
         // let (v, r, s) = signature_to_vrs(&tx.common_data.signature, tx_type);
 
         let mut base_tx_req = TransactionRequest {
-            nonce: U256::from(0),
+            nonce: U256::from(tx.common_data.serial_id.0),
             from: Some(tx.common_data.sender),
             to: Some(tx.execute.contract_address),
             value: tx.execute.value,
@@ -247,6 +246,7 @@ impl From<XL2Tx> for TransactionRequest {
             merkle_proof: None,
             full_fee: Some(tx.common_data.full_fee),
             to_mint: Some(tx.common_data.to_mint),
+            refund_recipient: Some(tx.common_data.refund_recipient),
         };
 
         base_tx_req.transaction_type = Some(U64::from(tx_type));
@@ -302,6 +302,39 @@ impl From<XL2Tx> for api::Transaction {
             s,
             transaction_type: Some(U64([INTEROP_TX_TYPE as u64])),
             ..Default::default()
+        }
+    }
+}
+
+impl From<XL2Tx> for abi::L2CanonicalTransaction {
+    fn from(tx: XL2Tx) -> Self {
+        let XL2Tx {
+            execute,
+            common_data,
+            received_timestamp_ms: _,
+        } = tx;
+        Self {
+            tx_type: INTEROP_TX_TYPE.into(),
+            from: address_to_u256(&common_data.sender),
+            to: address_to_u256(&execute.contract_address),
+            gas_limit: common_data.gas_limit,
+            gas_per_pubdata_byte_limit: common_data.gas_per_pubdata_limit,
+            max_fee_per_gas: common_data.max_fee_per_gas,
+            max_priority_fee_per_gas: U256::from(0),
+            paymaster: U256::from(0),
+            nonce: common_data.serial_id.0.into(),
+            value: execute.value,
+            reserved: [
+                common_data.to_mint,
+                address_to_u256(&common_data.refund_recipient),
+                0.into(),
+                0.into(),
+            ],
+            data: execute.calldata,
+            signature: Default::default(),
+            factory_deps: Default::default(), // execute.factory_deps, // kl todo
+            paymaster_input: Default::default(),
+            reserved_dynamic: Default::default(),
         }
     }
 }
