@@ -1,6 +1,8 @@
 FROM matterlabs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG RUST_FLAGS=""
+ENV RUSTFLAGS=${RUST_FLAGS}
 
 WORKDIR /usr/src/zksync
 COPY . .
