@@ -155,7 +155,6 @@ class MainNode {
     public async terminate() {
         try {
             await utils.exec(`kill -9 $(pgrep -P ${this.proc.pid})`);
-            await utils.exec(`kill -9  ${this.proc.pid}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -228,7 +227,6 @@ class ExtNode {
     public async terminate() {
         try {
             await utils.exec(`kill -9 $(pgrep -P ${this.proc.pid})`);
-            await utils.exec(`kill -9  ${this.proc.pid}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
