@@ -9,10 +9,10 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    set_databases, set_rocks_db_config,
+    set_databases, set_file_artifacts, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
-    WalletsConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, FileArtifacts, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -58,7 +58,9 @@ pub async fn genesis(
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let mut general = config.get_general_config()?;
+    let file_artifacts = FileArtifacts::new(config.artifacts.clone());
     set_rocks_db_config(&mut general, rocks_db)?;
+    set_file_artifacts(&mut general, file_artifacts);
     if config.prover_version != ProverMode::NoProofs {
         general
             .eth

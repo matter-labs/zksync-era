@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use url::Url;
 use xshell::Shell;
+use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
 use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
@@ -15,6 +16,25 @@ pub struct RocksDbs {
     pub state_keeper: PathBuf,
     pub merkle_tree: PathBuf,
     pub protective_reads: PathBuf,
+}
+
+pub struct FileArtifacts {
+    pub public_object_store: PathBuf,
+    pub prover_object_store: PathBuf,
+    pub snapshot: PathBuf,
+    pub core_object_store: PathBuf,
+}
+
+impl FileArtifacts {
+    /// Currently all artifacts are stored in one path, but we keep an opportunity to update this paths
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            public_object_store: path.clone(),
+            prover_object_store: path.clone(),
+            snapshot: path.clone(),
+            core_object_store: path.clone(),
+        }
+    }
 }
 
 pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> anyhow::Result<()> {
@@ -35,6 +55,50 @@ pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> a
         .context("Protective reads config is not presented")?
         .db_path = rocks_dbs.protective_reads.to_str().unwrap().to_string();
     Ok(())
+}
+
+pub fn set_file_artifacts(config: &mut GeneralConfig, file_artifacts: FileArtifacts) {
+    macro_rules! set_artifact_path {
+        ($config:expr, $name:ident, $value:expr) => {
+            $config
+                .as_mut()
+                .map(|a| set_artifact_path!(a.$name, $value))
+        };
+
+        ($config:expr, $value:expr) => {
+            $config.as_mut().map(|a| {
+                if let ObjectStoreMode::FileBacked {
+                    ref mut file_backed_base_path,
+                } = &mut a.mode
+                {
+                    *file_backed_base_path = $value.to_str().unwrap().to_string()
+                }
+            })
+        };
+    }
+
+    set_artifact_path!(
+        config.prover_config,
+        prover_object_store,
+        file_artifacts.prover_object_store
+    );
+    set_artifact_path!(
+        config.prover_config,
+        public_object_store,
+        file_artifacts.public_object_store
+    );
+    set_artifact_path!(
+        config.snapshot_creator,
+        object_store,
+        file_artifacts.snapshot
+    );
+    set_artifact_path!(
+        config.snapshot_recovery,
+        object_store,
+        file_artifacts.snapshot
+    );
+
+    set_artifact_path!(config.core_object_store, file_artifacts.core_object_store);
 }
 
 pub fn ports_config(config: &GeneralConfig) -> Option<PortsConfig> {
