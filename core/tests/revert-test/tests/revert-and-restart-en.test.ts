@@ -290,18 +290,17 @@ describe('Block reverting test', function () {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeConfig = loadConfig({
+            const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
-                configsFolderSuffix: 'external_node',
-                config: 'external_node.yaml'
+                config: 'general.yaml'
             });
             const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeConfig.main_node_url;
+            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
         } else {
             let env = fetchEnv(mainEnv);
