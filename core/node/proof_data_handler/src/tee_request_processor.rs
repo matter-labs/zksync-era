@@ -59,8 +59,7 @@ impl TeeRequestProcessor {
                         l1_batch_number
                     );
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
-                    min_batch_number =
-                        min_batch_number.map_or(Some(l1_batch_number + 1), |num| Some(num + 1));
+                    min_batch_number = Some(min_batch_number.unwrap_or(l1_batch_number) + 1);
                     continue;
                 }
                 Err(err) => {
