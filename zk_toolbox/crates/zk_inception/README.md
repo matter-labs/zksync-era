@@ -457,12 +457,6 @@ Generate setup keys
 
 **Usage:** `zk_inception prover generate-sk`
 
-## `zk_inception prover protocol-version`
-
-Gets information about current protocol version of provers in `zksync-era` and snark wrapper hash.
-
-**Usage:** `zk_inception prover protocol-version`
-
 ## `zk_inception prover run`
 
 Run prover
