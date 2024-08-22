@@ -202,7 +202,7 @@ impl VmTesterBuilder {
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
         let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
-        ContractToDeploy::insert(&self.custom_contracts, &mut raw_storage);
+        ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
         let storage_ptr = Rc::new(RefCell::new(raw_storage));
         for account in self.rich_accounts.iter() {
             make_account_rich(&mut storage_ptr.borrow_mut(), account);

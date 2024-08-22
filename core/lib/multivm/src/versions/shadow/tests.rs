@@ -1,11 +1,15 @@
 //! Shadow VM tests.
 
 use assert_matches::assert_matches;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
+use ethabi::Contract;
+use zksync_contracts::{
+    get_loadnext_contract, load_contract, read_bytecode,
+    test_contracts::LoadnextContractExecutionParams,
+};
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    block::L2BlockHasher, fee::Fee, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
-    U256,
+    block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -14,9 +18,10 @@ use crate::{
     dump::VmAction,
     interface::{storage::InMemoryStorage, ExecutionResult},
     utils::get_max_gas_per_pubdata_byte,
-    versions::testonly::{default_l1_batch, default_system_env, make_account_rich},
-    vm_latest,
-    vm_latest::HistoryDisabled,
+    versions::testonly::{
+        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+    },
+    vm_latest::{self, HistoryDisabled},
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
@@ -48,14 +53,25 @@ fn tx_fee(gas_limit: u32) -> Fee {
 struct Harness {
     alice: Account,
     bob: Account,
+    storage_contract: ContractToDeploy,
+    storage_contract_abi: Contract,
     current_block: L2BlockEnv,
 }
 
 impl Harness {
+    const STORAGE_CONTRACT_PATH: &'static str =
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json";
+    const STORAGE_CONTRACT_ADDRESS: Address = Address::repeat_byte(23);
+
     fn new(l1_batch_env: &L1BatchEnv) -> Self {
         Self {
             alice: Account::random(),
             bob: Account::random(),
+            storage_contract: ContractToDeploy::new(
+                read_bytecode(Self::STORAGE_CONTRACT_PATH),
+                Self::STORAGE_CONTRACT_ADDRESS,
+            ),
+            storage_contract_abi: load_contract(Self::STORAGE_CONTRACT_PATH),
             current_block: l1_batch_env.first_l2_block,
         }
     }
@@ -63,6 +79,45 @@ impl Harness {
     fn setup_storage(&self, storage: &mut InMemoryStorage) {
         make_account_rich(storage, &self.alice);
         make_account_rich(storage, &self.bob);
+
+        self.storage_contract.insert(storage);
+        let storage_contract_key = StorageKey::new(
+            AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
+            H256::zero(),
+        );
+        storage.set_value_hashed_enum(
+            storage_contract_key.hashed_key(),
+            999,
+            H256::from_low_u64_be(42),
+        );
+    }
+
+    fn assert_dump(dump: &VmDump) {
+        assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
+        assert_matches!(
+            dump.actions.as_slice(),
+            [
+                VmAction::Transaction(_),
+                VmAction::Block(_),
+                VmAction::Transaction(_),
+                VmAction::Transaction(_),
+                VmAction::Block(_),
+                VmAction::Transaction(_),
+                VmAction::Transaction(_),
+                VmAction::Block(_),
+            ]
+        );
+        assert!(!dump.storage.read_storage_keys.is_empty());
+        assert!(!dump.storage.factory_deps.is_empty());
+
+        let storage_contract_key = StorageKey::new(
+            AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
+            H256::zero(),
+        )
+        .hashed_key();
+        let (value, enum_index) = dump.storage.read_storage_keys[&storage_contract_key];
+        assert_eq!(value, H256::from_low_u64_be(42));
+        assert_eq!(enum_index, 999);
     }
 
     fn new_block(&mut self, vm: &mut impl VmInterface, tx_hashes: &[H256]) {
@@ -101,7 +156,31 @@ impl Harness {
         compression_result.unwrap();
         assert_matches!(exec_result.result, ExecutionResult::Revert { .. });
 
-        self.new_block(vm, &[out_of_gas_transfer.hash()]);
+        let write_fn = self.storage_contract_abi.function("simpleWrite").unwrap();
+        let simple_write_tx = self.alice.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Self::STORAGE_CONTRACT_ADDRESS,
+                calldata: write_fn.encode_input(&[]).unwrap(),
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+        let (compression_result, exec_result) =
+            vm.execute_transaction_with_bytecode_compression(simple_write_tx.clone(), true);
+        compression_result.unwrap();
+        assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
+
+        let storage_contract_key = StorageKey::new(
+            AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
+            H256::zero(),
+        );
+        let storage_logs = &exec_result.logs.storage_logs;
+        assert!(storage_logs.iter().any(|log| {
+            log.log.key == storage_contract_key && log.previous_value == H256::from_low_u64_be(42)
+        }));
+
+        self.new_block(vm, &[out_of_gas_transfer.hash(), simple_write_tx.hash()]);
 
         let deploy_tx = self.alice.get_deploy_tx(
             &get_loadnext_contract().bytecode,
@@ -178,21 +257,7 @@ fn sanity_check_shadow_vm() {
 fn shadow_vm_basics() {
     let (mut vm, harness) = sanity_check_vm::<ShadowVm<_, HistoryDisabled>>();
     let dump = vm.dump_state();
-    assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
-    assert_matches!(
-        dump.actions.as_slice(),
-        [
-            VmAction::Transaction(_),
-            VmAction::Block(_),
-            VmAction::Transaction(_),
-            VmAction::Block(_),
-            VmAction::Transaction(_),
-            VmAction::Transaction(_),
-            VmAction::Block(_),
-        ]
-    );
-    assert!(!dump.storage.read_storage_keys.is_empty());
-    assert!(!dump.storage.factory_deps.is_empty());
+    Harness::assert_dump(&dump);
 
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     harness.setup_storage(&mut storage);

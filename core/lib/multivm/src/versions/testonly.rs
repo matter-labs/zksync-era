@@ -74,18 +74,20 @@ impl ContractToDeploy {
         }
     }
 
+    pub fn insert(&self, storage: &mut InMemoryStorage) {
+        let deployer_code_key = get_code_key(&self.address);
+        storage.set_value(deployer_code_key, hash_bytecode(&self.bytecode));
+        if self.is_account {
+            let is_account_key = get_is_account_key(&self.address);
+            storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
+        }
+        storage.store_factory_dep(hash_bytecode(&self.bytecode), self.bytecode.clone());
+    }
+
     /// Inserts the contracts into the test environment, bypassing the deployer system contract.
-    pub fn insert(contracts: &[Self], storage: &mut InMemoryStorage) {
+    pub fn insert_all(contracts: &[Self], storage: &mut InMemoryStorage) {
         for contract in contracts {
-            let deployer_code_key = get_code_key(&contract.address);
-            storage.set_value(deployer_code_key, hash_bytecode(&contract.bytecode));
-
-            if contract.is_account {
-                let is_account_key = get_is_account_key(&contract.address);
-                storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
-            }
-
-            storage.store_factory_dep(hash_bytecode(&contract.bytecode), contract.bytecode.clone());
+            contract.insert(storage);
         }
     }
 }
