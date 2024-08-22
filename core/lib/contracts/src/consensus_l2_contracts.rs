@@ -1,60 +1,5 @@
-use ethabi::{ParamType,Contract,Token};
+use ethabi::{ParamType,Token};
 use anyhow::Context as _;
-
-pub struct ConsensusRegistry(Contract);
-
-pub trait FunctionSig {
-    const NAME: &'static str;
-    type Inputs : Default;
-    type Outputs;
-    fn encode_inputs(inputs: Self::Inputs) -> Vec<Token>;
-    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs>;
-}
-
-pub struct GetAttesterCommittee;
-
-impl FunctionSig for GetAttesterCommittee {
-    const NAME : &'static str = "getAttesterCommittee";
-    type Inputs = ();
-    type Outputs = Vec<Attester>;
-    fn encode_inputs(_: Self::Inputs) -> Vec<Token> { vec![] }
-    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [attesters] = tokens.try_into().ok().context("bad size")?; 
-        let mut res = vec![];
-        for token in attesters.into_array().context("not array")? {
-            res.push(Attester::from_token(token).context("attesters")?);
-        }
-        Ok(res)
-    }
-}
-
-pub struct Add;
-
-impl FunctionSig for Add {
-    const NAME : &'static str = "add";
-    type Inputs = AddInputs;
-    type Outputs = ();
-    fn encode_inputs(inputs: Self::Inputs) -> Vec<Token> {
-        vec![
-            Token::Address(inputs.node_owner),
-            Token::Uint(inputs.validator_weight.into()),
-            inputs.validator_pub_key.into_token(),
-            inputs.validator_pop.into_token(),
-            Token::Uint(inputs.attester_weight.into()),
-            inputs.attester_pub_key.into_token(),
-        ]
-    }
-    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [] = tokens.try_into().ok().context("bad size")?;
-        Ok(())
-    }
-}
-
-pub struct Function<'a, Sig>(&'a Contract, std::marker::PhantomData<Sig>);
-
-impl<'a, Sig> From<&'a Contract> for Function<'a, Sig> {
-    fn from(c: &'a Contract) -> Self { Self(c,std::marker::PhantomData) }
-}
 
 fn example(t: &ParamType) -> Token {
     use ParamType as T;
@@ -72,37 +17,107 @@ fn example(t: &ParamType) -> Token {
     }
 }
 
-impl<'a, Sig: FunctionSig> Function<'a, Sig> {
-    pub fn encode_input(&self, inputs: Sig::Inputs) -> ethabi::Result<ethabi::Bytes> {
-        self.0.function(Sig::NAME).unwrap().encode_input(&Sig::encode_inputs(inputs))
-    }
-    pub fn decode_output(&self, outputs: &[u8]) -> ethabi::Result<Sig::Outputs> {
-        let outputs = self.0.function(Sig::NAME).unwrap().decode_output(outputs)?;
-        Sig::decode_outputs(outputs).map_err(|err|ethabi::Error::Other(err.to_string().into()))
-    }
+pub struct Call<'a,O> {
+    address: ethabi::Address,
+    function: &'a ethabi::Function,
+    inputs: Vec<Token>,
+    _marker: std::marker::PhantomData<O>,
+}
 
+pub trait Outputs : Sized { fn from_tokens(tokens: Vec<Token>) -> anyhow::Result<Self>; }
+
+impl<'a,O:Outputs> Call<'a,O> {
+    pub fn address(&self) -> ethabi::Address { self.address } 
+    pub fn calldata(&self) -> ethabi::Result<ethabi::Bytes> {
+        self.function.encode_input(&self.inputs)
+    }
+    pub fn decode_outputs(&self, outputs: &[u8]) -> anyhow::Result<O> {
+        O::from_tokens(self.function.decode_output(outputs).context("decode_output()")?)
+    }
     pub fn test(&self) -> anyhow::Result<()> {
-        let f = self.0.function(Sig::NAME).context("function()")?;
-        Sig::decode_outputs(f.outputs.iter().map(|p|example(&p.kind)).collect()).context("Sig::decode_outputs()")?;
-        f.encode_input(&Sig::encode_inputs(Sig::Inputs::default())).context("f.encode_intput()")?;
+        self.calldata().context("calldata")?;
+        O::from_tokens(self.function.outputs.iter().map(|p|example(&p.kind)).collect()).context("from_tokens()")?;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ConsensusRegistry(ethabi::Contract,ethabi::Address);
+
+#[derive(Debug)]
+pub struct GetAttesterCommitteeOutputs(pub Vec<Attester>);
+
+impl Outputs for GetAttesterCommitteeOutputs {
+    fn from_tokens(tokens: Vec<Token>) -> anyhow::Result<Self> {
+        let [attesters] = tokens.try_into().ok().context("bad size")?; 
+        let mut res = vec![];
+        for token in attesters.into_array().context("not array")? {
+            res.push(Attester::from_token(token).context("attesters")?);
+        }
+        Ok(Self(res))
+    }
+}
+
+#[derive(Debug)]
+pub struct AddOutputs;
+
+impl Outputs for AddOutputs {
+    fn from_tokens(tokens: Vec<Token>) -> anyhow::Result<Self> {
+        let [] = tokens.try_into().ok().context("bad size")?;
+        Ok(Self)
+    }
+}
+
+#[derive(Debug)]
+pub struct InitializeOutputs;
+
+impl Outputs for InitializeOutputs {
+    fn from_tokens(tokens : Vec<Token>) -> anyhow::Result<Self> { 
+        let [] = tokens.try_into().ok().context("bad size")?;
+        Ok(Self)
     }
 }
 
 impl ConsensusRegistry {
     const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
-    
-    pub fn load() -> Self {
-        Self(crate::load_contract(Self::FILE))
-    }
-
     pub fn bytecode() -> Vec<u8> {
         crate::read_bytecode(Self::FILE)
     }
-
-    pub fn get_attester_committee(&self) -> Function<GetAttesterCommittee> { (&self.0).into() }
-
-    pub fn add(&self) -> Function<Add> { (&self.0).into() }
+    pub fn at(address: ethabi::Address) -> Self {
+        Self(crate::load_contract(ConsensusRegistry::FILE),address)
+    }
+    fn call<O>(&self, name: &'static str, inputs: Vec<Token>) -> Call<O> {
+        let function = self.0.function(name).unwrap();
+        Call {
+            address: self.1,
+            inputs: inputs,
+            function,
+            _marker: std::marker::PhantomData,
+        }
+    }
+    pub fn get_attester_committee(&self) -> Call<GetAttesterCommitteeOutputs> {
+        self.call("getAttesterCommittee",vec![])
+    }
+    pub fn add(&self,
+        node_owner: ethabi::Address,
+        validator_weight: u32,
+        validator_pub_key: BLS12_381PublicKey,
+        validator_pop: BLS12_381Signature,
+        attester_weight: u32,
+        attester_pub_key: Secp256k1PublicKey,
+    ) -> Call<AddOutputs> {
+        self.call("add", vec![
+            Token::Address(node_owner),
+            Token::Uint(validator_weight.into()),
+            validator_pub_key.into_token(),
+            validator_pop.into_token(),
+            Token::Uint(attester_weight.into()),
+            attester_pub_key.into_token(),
+        ])
+    }
+    pub fn initialize(&self, initial_owner: ethabi::Address) -> Call<InitializeOutputs> {
+        self.call("initialize", vec![Token::Address(initial_owner)])
+    }
 }
 
 #[derive(Debug, Default)]
@@ -195,14 +210,4 @@ impl BLS12_381Signature {
             Token::FixedBytes(self.b.into()),
         ])
     }
-}
-
-#[derive(Debug, Default)]
-pub struct AddInputs {
-    node_owner: ethabi::Address,
-    validator_weight: u32,
-    validator_pub_key: BLS12_381PublicKey,
-    validator_pop: BLS12_381Signature,
-    attester_weight: u32,
-    attester_pub_key: Secp256k1PublicKey,
 }

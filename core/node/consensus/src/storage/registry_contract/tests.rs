@@ -1,5 +1,5 @@
 use rand::Rng;
-use super::{AddInputs,WeightedValidator,VM};
+use super::{Add,WeightedValidator,VM, Registry};
 use zksync_basic_types::{web3::contract::Tokenize};
 use zksync_concurrency::{ctx, scope};
 use zksync_contracts::consensus_l2_contracts as contracts;
@@ -11,34 +11,29 @@ use zksync_types::{
 };
 use crate::storage::ConnectionPool;
 use zksync_state_keeper::testonly::fee;
-use zksync_test_account::{Account, TxType};
 use zksync_types::{Execute, Transaction};
 
-impl VM {
-    async fn deploy(pool: ConnectionPool, account: &mut Account, owner: ethabi::Address) -> (Self, Transaction) {
-        let deploy_tx = account.get_deploy_tx(
+struct Account(zksync_test_account::Account);
+
+impl Account {
+    fn new() -> Self {
+        Self(zksync_test_account::random())
+    }
+
+    async fn deploy_registry_contract(&mut self, inputs: contracts::Initialize) -> (Registry, Transaction) {
+        let tx = self.0.get_deploy_tx(
             &contracts::ConsensusRegistry::bytecode(),
-            Some(&owner.into_tokens()),
-            TxType::L2,
+            Some(&inputs.encode()),
+            zksync_test_account::TxType::L2,
         );
-        let tx_sender = zksync_node_api_server::web3::testonly::create_test_tx_sender(
-            pool,
-            L2ChainId::default(),
-            zksync_node_api_server::execution_sandbox::TransactionExecutor::Real,
-        )
-        .await.0;
-        (VM::new(tx_sender,deploy_tx.address),deploy_tx.tx)
+        (Registry(tx), tx.tx)
     }
 
-    fn add(&self, account: &mut Account, inputs: AddInputs) -> Transaction {
-        self.make_tx(account,self.contract.add().encode_inputs(inputs.encode()))
-    }
-
-    fn make_tx(&self, account: &mut Account, calldata: Vec<u8>) -> Transaction {
-        account.get_l2_tx_for_execute(
+    fn make_tx<F:contracts::Function>(&self, call: contracts::Call<F>) -> Transaction {
+        self.0.get_l2_tx_for_execute(
             Execute {
-                address: self.address,
-                calldata,
+                contract_address: call.address,
+                calldata: call.calldata().unwrap(),
                 value: Default::default(),
                 factory_deps: vec![],
             },
@@ -58,10 +53,11 @@ async fn test_vm_reader() {
         let (node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
 
-        let mut account = Account::random();
-        let (vm, deploy_tx) = VM::deploy(pool, &mut account, account.address).await;
+        let vm = VM::new(pool.clone()).await;
+        let mut account = Account::new();
+        let (registry, tx) = account.deploy_consensus_registry(contracts::Initialize { initial_owner: account.address() });
         
-        let mut txs = vec![deploy_tx];
+        let mut txs = vec![tx];
         let mut attesters = vec![];
         for _ in 0..5 {
             let input = gen_add_inputs(rng);
@@ -82,9 +78,9 @@ async fn test_vm_reader() {
     .unwrap();
 }
 
-fn gen_add_inputs(rng: &mut impl Rng) -> AddInputs {
+fn gen_add_inputs(rng: &mut impl Rng) -> Add {
     let k : validator::SecretKey = rng.gen();
-    AddInputs {
+    Add {
         node_owner: ethabi::Address::random(),
         validator: WeightedValidator {
             key: k.public(),
