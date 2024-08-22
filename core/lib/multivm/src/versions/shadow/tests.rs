@@ -209,7 +209,7 @@ impl Harness {
 
 fn sanity_check_vm<Vm>() -> (Vm, Harness)
 where
-    Vm: VmInterface + VmFactory<StorageView<InMemoryStorage>>,
+    Vm: VmFactory<StorageView<InMemoryStorage>>,
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
@@ -259,13 +259,19 @@ fn shadow_vm_basics() {
     let dump = vm.dump_state();
     Harness::assert_dump(&dump);
 
+    // Test standard playback functionality.
+    let replayed_dump = dump
+        .clone()
+        .play_back::<ShadowVm<_, HistoryDisabled>>()
+        .dump_state();
+    pretty_assertions::assert_eq!(replayed_dump, dump);
+
+    // Check that the VM executes identically when reading from the original storage and one restored from the dump.
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
-
     let dump_storage = dump.storage.clone().into_storage();
     let dump_storage = StorageView::new(dump_storage).to_rc_ptr();
-    // Check that the VM executes identically when reading from the original storage and one restored from the dump.
     let mut vm = ShadowVm::<_, HistoryDisabled, ReferenceVm>::with_custom_shadow(
         dump.l1_batch_env.clone(),
         dump.system_env.clone(),

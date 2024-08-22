@@ -5,7 +5,7 @@ use zksync_types::{web3, L1BatchNumber, Transaction, H256, U256};
 use zksync_utils::u256_to_h256;
 use zksync_vm_interface::{
     storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView},
-    L1BatchEnv, L2BlockEnv, SystemEnv,
+    L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
 };
 
 /// Handler for [`VmDump`].
@@ -64,7 +64,6 @@ impl VmStorageDump {
         }
     }
 
-    #[allow(dead_code)] // FIXME
     pub(crate) fn into_storage(self) -> InMemoryStorage {
         let mut storage = InMemoryStorage::default();
         for (key, (value, enum_index)) in self.read_storage_keys {
@@ -125,5 +124,30 @@ impl VmDump {
 
     pub(crate) fn set_storage(&mut self, storage: VmStorageDump) {
         self.storage = storage;
+    }
+
+    /// Plays back this dump on the specified VM. This prints some debug data to stdout, so should only be used in tests.
+    pub fn play_back<Vm: VmFactory<StorageView<InMemoryStorage>>>(self) -> Vm {
+        let storage = self.storage.into_storage();
+        let storage = StorageView::new(storage).to_rc_ptr();
+        let mut vm = Vm::new(self.l1_batch_env, self.system_env, storage);
+        for action in self.actions {
+            println!("Executing action: {action:?}");
+            match action {
+                VmAction::Transaction(tx) => {
+                    let tx_hash = tx.hash();
+                    let (compression_result, _) =
+                        vm.execute_transaction_with_bytecode_compression(*tx, true);
+                    if let Err(err) = compression_result {
+                        panic!("Failed compressing bytecodes for transaction {tx_hash:?}: {err}");
+                    }
+                }
+                VmAction::Block(block) => {
+                    vm.start_new_l2_block(block);
+                }
+            }
+        }
+        vm.finish_batch();
+        vm
     }
 }
