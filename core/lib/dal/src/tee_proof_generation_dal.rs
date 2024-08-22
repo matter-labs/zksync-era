@@ -19,11 +19,6 @@ pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct L1BatchNumberModel {
-    pub l1_batch_number: i64,
-}
-
 impl TeeProofGenerationDal<'_, '_> {
     pub async fn lock_batch_for_proving(
         &mut self,
@@ -32,10 +27,8 @@ impl TeeProofGenerationDal<'_, '_> {
         min_batch_number: Option<L1BatchNumber>,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let min_batch_condition = min_batch_number.map_or(String::new(), |min_batch| {
-            format!("AND proofs.l1_batch_number >= {}", min_batch.0)
-        });
-        let query_str = format!(
+        let min_batch_number = min_batch_number.map_or(0, |num| num.0 as i64);
+        let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -59,7 +52,7 @@ impl TeeProofGenerationDal<'_, '_> {
                                 AND proofs.prover_taken_at < NOW() - $3::INTERVAL
                             )
                         )
-                        {min_batch_condition}
+                        AND proofs.l1_batch_number >= $4
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -70,21 +63,22 @@ impl TeeProofGenerationDal<'_, '_> {
             RETURNING
                 tee_proof_generation_details.l1_batch_number
             "#,
-            min_batch_condition = min_batch_condition
+            tee_type.to_string(),
+            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
+            processing_timeout,
+            min_batch_number
         );
 
-        let tee_type_str = tee_type.to_string();
-        let query = sqlx::query_as(&query_str)
-            .bind(&tee_type_str)
-            .bind(
-                TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            )
-            .bind(&processing_timeout);
+        let batch_number = Instrumented::new("lock_batch_for_proving")
+            .with_arg("tee_type", &tee_type)
+            .with_arg("processing_timeout", &processing_timeout)
+            .with_arg("l1_batch_number", &min_batch_number)
+            .with(query)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
-        let batch_number: Option<L1BatchNumberModel> =
-            query.fetch_optional(self.storage.conn()).await.unwrap();
-
-        Ok(batch_number.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
+        Ok(batch_number)
     }
 
     pub async fn unlock_batch(
