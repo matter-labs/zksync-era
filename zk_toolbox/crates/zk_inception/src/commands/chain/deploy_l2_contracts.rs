@@ -11,7 +11,7 @@ use config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
-            output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
+            output::{ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput},
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
@@ -31,7 +31,8 @@ use crate::{
 pub enum Deploy2ContractsOption {
     All,
     Upgrader,
-    IntiailizeBridges,
+    InitiailizeBridges,
+    ConsensusRegistry,
 }
 
 pub async fn run(
@@ -70,7 +71,17 @@ pub async fn run(
             )
             .await?;
         }
-        Deploy2ContractsOption::IntiailizeBridges => {
+        Deploy2ContractsOption::ConsensusRegistry => {
+            deploy_consensus_registry(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?;
+        }
+        Deploy2ContractsOption::InitiailizeBridges => {
             initialize_bridges(
                 shell,
                 &chain_config,
@@ -138,6 +149,32 @@ pub async fn deploy_upgrader(
     Ok(())
 }
 
+pub async fn deploy_consensus_registry(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    call_forge(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployConsensusRegistry"),
+    )
+    .await?;
+
+    let output = ConsensusRegistryOutput::read(
+        shell,
+        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+    )?;
+    contracts_config.set_consensus_registry(&output)?;
+
+    Ok(())
+}
+
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -147,19 +184,17 @@ pub async fn deploy_l2_contracts(
 ) -> anyhow::Result<()> {
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     call_forge(shell, chain_config, ecosystem_config, forge_args, None).await?;
-    let output = InitializeBridgeOutput::read(
-        shell,
-        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
-    )?;
 
+    let output_path = DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code);
+
+    let output = InitializeBridgeOutput::read(shell, &output_path)?;
     contracts_config.set_l2_shared_bridge(&output)?;
 
-    let output = DefaultL2UpgradeOutput::read(
-        shell,
-        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
-    )?;
-
+    let output = DefaultL2UpgradeOutput::read(shell, &output_path)?;
     contracts_config.set_default_l2_upgrade(&output)?;
+
+    let output = ConsensusRegistryOutput::read(shell, &output_path)?;
+    contracts_config.set_consensus_registry(&output)?;
 
     Ok(())
 }
