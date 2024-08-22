@@ -8046,12 +8046,16 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "hex",
  "rand 0.8.5",
  "tokio",
  "tracing",
  "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_external_price_api",
+ "zksync_node_fee_model",
  "zksync_types",
 ]
 
@@ -8669,7 +8673,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.18.0"
+version = "24.20.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9078,7 +9082,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_base_token_adjuster",
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",

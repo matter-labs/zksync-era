@@ -3,7 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 
-use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
+use crate::{metrics::PROVER_FRI_METRICS, task_wiring::Task};
 
 /// `ProofCompressorJobRequeuer` is a task that requeues compressor jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
@@ -34,8 +34,8 @@ impl Task for ProofCompressorJobRequeuer {
         for stuck_job in stuck_jobs {
             tracing::info!("requeued proof compressor job {:?}", stuck_job);
         }
-        PROVER_JOB_MONITOR_METRICS
-            .requeued_proof_compressor_jobs
+        PROVER_FRI_METRICS
+            .proof_compressor_requeued_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

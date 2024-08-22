@@ -20,8 +20,9 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
+    settlement::SettlementMode,
     web3::{contract::Error as Web3ContractError, BlockNumber},
-    Address, L2ChainId, ProtocolVersionId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
@@ -62,6 +63,8 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
+    settlement_mode: SettlementMode,
+    sl_chain_id: SLChainId,
 }
 
 struct TxData {
@@ -81,6 +84,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        settlement_mode: SettlementMode,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -97,6 +101,9 @@ impl EthTxAggregator {
             ),
             None => None,
         };
+
+        let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
+
         Self {
             config,
             aggregator,
@@ -110,6 +117,8 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            settlement_mode,
+            sl_chain_id,
         }
     }
 
@@ -605,6 +614,12 @@ impl EthTxAggregator {
             .unwrap();
 
         transaction
+            .eth_sender_dal()
+            .set_chain_id(eth_tx.id, self.sl_chain_id.0)
+            .await
+            .unwrap();
+
+        transaction
             .blocks_dal()
             .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
             .await
@@ -618,9 +633,10 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
+        let is_gateway = self.settlement_mode.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr)
+            .get_next_nonce(from_addr, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);

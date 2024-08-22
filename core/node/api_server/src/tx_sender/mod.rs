@@ -517,11 +517,16 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+
+        // At the moment fair_l2_gas_price is rarely changed for ETH-based chains. But for CBT
+        // chains it gets changed every few blocks because of token price change. We want to avoid
+        // situations when transactions with low gas price gets into mempool and sit there for a
+        // long time, so we require max_fee_per_gas to be at least current_l2_fair_gas_price / 2
+        if tx.common_data.fee.max_fee_per_gas < (fee_input.fair_l2_gas_price() / 2).into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx.common_data.fee.max_fee_per_gas,
             );
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }
