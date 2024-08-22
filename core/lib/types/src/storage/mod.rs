@@ -199,11 +199,11 @@ pub fn get_l2_message_root_init_logs() -> Vec<StorageLog> {
 }
 
 pub fn get_system_contracts_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
-    let system_context_init_logs = get_system_context_init_logs(chain_id);
-    let l2_message_root_init_logs = get_l2_message_root_init_logs();
+    get_system_context_init_logs(chain_id)
+    // let l2_message_root_init_logs = get_l2_message_root_init_logs();
 
-    system_context_init_logs
-        .into_iter()
-        .chain(l2_message_root_init_logs)
-        .collect()
+    // system_context_init_logs
+    // .into_iter()
+    // .chain(l2_message_root_init_logs)
+    // .collect()
 }

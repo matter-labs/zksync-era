@@ -75,11 +75,11 @@ pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
 }
 
-pub(crate) fn read_message_root() -> Vec<u8> {
-    read_bytecode(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
-}
+// pub(crate) fn read_message_root() -> Vec<u8> {
+//     read_bytecode(
+//         "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+//     )
+// }
 
 pub(crate) fn read_error_contract() -> Vec<u8> {
     read_bytecode(
