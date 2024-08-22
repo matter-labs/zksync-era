@@ -4,19 +4,21 @@ use zksync_contracts::consensus_l2_contracts as contracts;
 use zksync_consensus_roles::{validator,attester};
 use zksync_consensus_crypto::ByteFmt;
 use zksync_node_api_server::{
-    execution_sandbox::{BlockArgs, BlockStartInfo},
-    tx_sender::TxSender,
-};
+    execution_sandbox::{VmConcurrencyLimiter,TxSharedArgs},
+    tx_sender::{MultiVMBaseSystemContracts}, tx_sender::TxSender};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
+use zksync_node_api_server::execution_sandbox::TransactionExecutor;
+use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api,
+    AccountTreeId,
     ethabi,
+    fee_model::BatchFeeInput,
     fee::Fee,
     l2::L2Tx,
     transaction_request::CallOverrides,
     Nonce, U256,
 };
-use crate::storage::Connection;
+use crate::storage::{ConnectionPool,Connection};
 
 #[cfg(test)]
 mod tests;
@@ -26,7 +28,9 @@ mod tests;
 pub(crate) struct VM {
     contract: contracts::ConsensusRegistry,
     address: ethabi::Address,
-    sender: TxSender,
+    pool: ConnectionPool,
+    tx_shared_args: TxSharedArgs,
+    limiter: VmConcurrencyLimiter,
 }
 
 pub(crate) struct AddInputs {
@@ -107,33 +111,60 @@ fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester:
     })
 }
 
-type Calldata = Vec<u8>;
+pub type Calldata = Vec<u8>;
 
-impl VM {
-    /// Constructs a new `VMReader` instance.
-    pub fn new(tx_sender: TxSender, address: ethabi::Address) -> Self {
-        Self {
-            tx_sender,
-            contract: contracts::ConsensusRegistry::load(),
-            address,
-        }
+/*
+struct VoidTxSink;
+
+impl TxSink for VoidTxSink {
+    async fn submit_tx(
+        &self,
+        _tx: &L2Tx,
+        _execution_metrics: TransactionExecutionMetrics,
+    ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+        unreachable!()
     }
+}*/
 
+struct Contract {
+    address: ethabi::Address,
+    contract: contracts::ConsensusRegistry::load(),
+}
+
+impl Contract {
     /// Reads attester committee from the registry contract.
     /// It's implemented by dispatching multiple read transactions (a.k.a. `eth_call` requests),
     /// each one carries an instantiation of a separate VM execution sandbox.
-    pub async fn get_attester_committee(&self, ctx: &ctx::Ctx, conn: &mut Connection<'_>, block: api::BlockId) -> anyhow::Result<attester::Committee> {
-        let raw = self.call(ctx, conn, block, self.contract.get_attester_commitee(), ())?;
+    pub async fn get_attester_committee(&self, ctx: &ctx::Ctx, vm: &VM, batch: attester::BatchNumber) -> ctx::Result<attester::Committee> {
+        let raw = vm.call(ctx, batch, self.contract.get_attester_commitee(), ())?;
         let mut attesters = vec![];
         for a in raw {
            attesters.push(decode_weighted_attester(&a).context("decode_weighted_attester()")?);
         }
-        attester::Committee::new(attesters.into_iter()).context("Committee::new()")
+        Ok(attester::Committee::new(attesters.into_iter()).context("Committee::new()")?)
+    }
+}
+
+impl VM {
+    /// Constructs a new `VMReader` instance.
+    pub async fn new(pool: ConnectionPool) -> anyhow::Result<Self> {
+        Self {
+            pool,
+            tx_shared_args: TxSharedArgs {
+                operator_account: AccountTreeId::default(),
+                fee_input: BatchFeeInput::sensible_l1_pegged_default(),
+                base_system_contracts: scope::wait_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking),
+                caches: PostgresStorageCaches::new(1, 1),
+                validation_computational_gas_limit: u32::MAX,
+                chain_id: L2ChainId::default(),
+                whitelisted_tokens_for_aa: vec![],
+            },
+            limiter: VmConcurrencyLimiter::new(1).0,
+        }
     }
 
-    async fn eth_call<Sig: contracts::FunctionSig>(&self, f: contracts::Function<'_, Sig>, input: Sig::Inputs) -> anyhow::Result<L2Tx> {
-    fn eth_call(ctx: &ctx::Ctx, conn: &mut Connection<'_>, batch: attester::BatchNumber, tx: L2Tx) -> Bytes {
-        L2Tx::new(
+    async fn call<Sig: contracts::FunctionSig>(&self, ctx: &ctx::Ctx, batch: attester::BatchNumber, f: contracts::Function<'_, Sig>, input: Sig::Inputs) -> ctx::Result<Sig::Outputs> {
+        let tx = L2Tx::new(
             self.address,
             f.encode_input(input).context("encode_input")?,
             Nonce(0),
@@ -147,13 +178,23 @@ impl VM {
             U256::zero(),
             vec![],
             Default::default(),
-        )
-        let overrides = CallOverrides { enforced_base_fee: None };
-        let (_, block) = conn.get_l2_block_range_of_l1_batch(ctx, batch).await.context("get_l2_block_range_of_l1_batch()")?.context("batch not sealed")?;
-        let block = api::BlockId::Number(api::BlockNumber::Number(block.0.into()));
-        let start_info = BlockStartInfo::new(&mut conn, /*max_cache_age=*/ std::time::Duration::from_secs(10)).await.unwrap();
-        let args = BlockArgs::new(&mut conn, block, &start_info).await.context("BlockArgs::new")
-        let output = self.tx_sender.eth_call(args, overrides, tx, None).await.context("tx_sender.eth_call()");
-        output.parse()
+        );
+        let args = self.pool.connection().await.wrap("connection()")?.block_args(ctx,batch).await.wrap("block_args()")?;
+        let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
+        let output = ctx.wait(TransactionExecutor::Real.execute_tx_eth_call(
+            permit,
+            self.tx_shared_args.clone(), 
+            self.pool.clone(),
+            CallOverrides { enforced_base_fee: None },
+            tx,
+            args,
+            None,
+            vec![],
+            None,
+        )).await?.context("execute_tx_eth_call()")?;
+        match output.result {
+            ExecutionResult::Success { output } => Ok(f.decode_output(&output).context("decode_output()")?),
+            other => Err(anyhow::format_err!("unsuccessful execution: {other:?").into()),
+        }
     }
 }

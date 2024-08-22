@@ -9027,6 +9027,7 @@ dependencies = [
  "zksync_node_test_utils",
  "zksync_protobuf",
  "zksync_state_keeper",
+ "zksync_storage",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",

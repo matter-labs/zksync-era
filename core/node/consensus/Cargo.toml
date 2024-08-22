@@ -32,6 +32,7 @@ zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
 zksync_node_api_server.workspace = true
+zksync_storage.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 secrecy.workspace = true

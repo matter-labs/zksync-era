@@ -1,22 +1,21 @@
 use rand::Rng;
-use super::{AddInputs,WeightedValidator,VMReader};
-use zksync_basic_types::{web3::contract::Tokenize, L1BatchNumber};
+use super::{AddInputs,WeightedValidator,VM};
+use zksync_basic_types::{web3::contract::Tokenize};
 use zksync_concurrency::{ctx, scope};
+use zksync_contracts::consensus_l2_contracts as contracts;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 use zksync_types::{
-    api::{BlockId, BlockNumber},
     ethabi,
-    L2ChainId, ProtocolVersionId, U256,
+    L2ChainId, ProtocolVersionId,
 };
 use crate::storage::ConnectionPool;
-use zksync_basic_types::{ethabi};
 use zksync_state_keeper::testonly::fee;
-use zksync_test_account::{Account, DeployContractsTx, TxType};
+use zksync_test_account::{Account, TxType};
 use zksync_types::{Execute, Transaction};
 
 impl VM {
-    fn deploy(pool: ConnectionPool, account: &mut Account, owner: ethabi::Address) -> (Self, Transaction) {
+    async fn deploy(pool: ConnectionPool, account: &mut Account, owner: ethabi::Address) -> (Self, Transaction) {
         let deploy_tx = account.get_deploy_tx(
             &contracts::ConsensusRegistry::bytecode(),
             Some(&owner.into_tokens()),
@@ -60,7 +59,7 @@ async fn test_vm_reader() {
         s.spawn_bg(runner.run_real(ctx));
 
         let mut account = Account::random();
-        let (vm, deploy_tx) = VM::deploy(pool, &mut account, account.address);
+        let (vm, deploy_tx) = VM::deploy(pool, &mut account, account.address).await;
         
         let mut txs = vec![deploy_tx];
         let mut attesters = vec![];
@@ -83,84 +82,14 @@ async fn test_vm_reader() {
     .unwrap();
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_committee_extractor() {
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::RealClock);
-
-    scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
-        let (node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
-        let account = runner.account.clone();
-        s.spawn_bg(runner.run_real(ctx));
-
-        let mut writer = VMWriter::new(pool.clone(), node, account.clone(), account.address);
-        let tx_sender = make_tx_sender(&pool).await; 
-        let reader = VMReader::new(pool.clone(), tx_sender.clone(), writer.deploy_tx.address);
-        let extractor = CommitteeExtractor::new(pool.clone(), reader);
-        s.spawn_bg(extractor.run(ctx));
-
-        let mut want: Vec<(L1BatchNumber, attester::Committee)> = vec![];
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, attester::Committee::default()));
-
-        writer.deploy().await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, attester::Committee::default()));
-
-        let nodes = gen_random_abi_nodes(ctx, 5);
-        let committee = attester::Committee::new(nodes.iter().map(abi_node_to_attester)).unwrap();
-        writer.add_nodes(&nodes.iter().collect::<Vec<_>>()).await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, attester::Committee::default()));
-
-        writer.set_committees().await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, committee.clone()));
-
-        writer.remove_nodes(&nodes.iter().collect::<Vec<_>>()).await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, committee.clone()));
-
-        writer.set_committees().await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, attester::Committee::default()));
-
-        let nodes = gen_random_abi_nodes(ctx, 5);
-        let committee = attester::Committee::new(nodes.iter().map(abi_node_to_attester)).unwrap();
-        writer.add_nodes(&nodes.iter().collect::<Vec<_>>()).await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, attester::Committee::default()));
-
-        writer.set_committees().await;
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, committee.clone()));
-
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, committee.clone()));
-
-        let batch_number = writer.seal_batch_and_wait(ctx).await;
-        want.push((batch_number, committee.clone()));
-
-        // TODO: wait for getting stuff populated.
-        for (batch, want) in want {
-            let got = pool.connection(ctx).await?.attester_committee(ctx, batch).await?;
-            assert_eq!(got, Some(want));
-        }
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
-
 fn gen_add_inputs(rng: &mut impl Rng) -> AddInputs {
+    let k : validator::SecretKey = rng.gen();
     AddInputs {
         node_owner: ethabi::Address::random(),
-        // TODO: generate valid pop.
         validator: WeightedValidator {
-            key: rng.gen(),
+            key: k.public(),
             weight: rng.gen_range(1..100),
-            pop: rng.gen(),
+            pop: k.sign_pop(),
         },
         attester: attester::WeightedAttester {
             key: rng.gen(),
