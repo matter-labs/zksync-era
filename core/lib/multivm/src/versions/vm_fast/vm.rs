@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, VirtualMachine,
+    ExecutionEnd, Program, Settings, StorageInterface, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -56,8 +56,7 @@ const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemo
 
 pub struct Vm<S> {
     pub(crate) world: World<S>,
-    pub(crate) inner: VirtualMachine,
-    suspended_at: u16,
+    pub(crate) inner: VirtualMachine<(), World<S>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -79,14 +78,8 @@ impl<S: ReadStorage> Vm<S> {
         let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
-            let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
-                ExecutionEnd::SuspendedOnHook {
-                    hook,
-                    pc_to_resume_from,
-                } => {
-                    self.suspended_at = pc_to_resume_from;
-                    hook
-                }
+            let hook = match self.inner.run(&mut self.world, &mut ()) {
+                ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
                     break match TxRevertReason::parse_error(&output) {
@@ -390,7 +383,6 @@ impl<S: ReadStorage> Vm<S> {
         let mut me = Self {
             world: World::new(storage, program_cache),
             inner,
-            suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
@@ -606,7 +598,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 struct VmSnapshot {
     vm_snapshot: vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
-    suspended_at: u16,
     gas_for_account_validation: u32,
 }
 
@@ -621,7 +612,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         self.snapshot = Some(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
-            suspended_at: self.suspended_at,
             gas_for_account_validation: self.gas_for_account_validation,
         });
     }
@@ -630,13 +620,11 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         let VmSnapshot {
             vm_snapshot,
             bootloader_snapshot,
-            suspended_at,
             gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback(vm_snapshot);
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
-        self.suspended_at = suspended_at;
         self.gas_for_account_validation = gas_for_account_validation;
 
         self.delete_history_if_appropriate();
@@ -651,7 +639,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
-            .field("suspended_at", &self.suspended_at)
             .field(
                 "gas_for_account_validation",
                 &self.gas_for_account_validation,
@@ -670,12 +657,12 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
 pub(crate) struct World<S> {
     pub(crate) storage: S,
     // TODO (PLA-1008): Store `Program`s in an LRU cache
-    program_cache: HashMap<U256, Program>,
+    program_cache: HashMap<U256, Program<(), World<S>>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
 
 impl<S: ReadStorage> World<S> {
-    fn new(storage: S, program_cache: HashMap<U256, Program>) -> Self {
+    fn new(storage: S, program_cache: HashMap<U256, Program<(), World<S>>>) -> Self {
         Self {
             storage,
             program_cache,
@@ -684,7 +671,7 @@ impl<S: ReadStorage> World<S> {
     }
 }
 
-impl<S: ReadStorage> vm2::World for World<S> {
+impl<S: ReadStorage> vm2::World<()> for World<S> {
     fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
         self.decommit(hash)
             .code_page()
@@ -698,7 +685,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
             .collect()
     }
 
-    fn decommit(&mut self, hash: U256) -> Program {
+    fn decommit(&mut self, hash: U256) -> Program<(), World<S>> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
@@ -710,7 +697,9 @@ impl<S: ReadStorage> vm2::World for World<S> {
             })
             .clone()
     }
+}
 
+impl<S: ReadStorage> StorageInterface for World<S> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {
@@ -755,7 +744,7 @@ impl<S: ReadStorage> vm2::World for World<S> {
     }
 }
 
-fn bytecode_to_program(bytecode: &[u8]) -> Program {
+fn bytecode_to_program<S: ReadStorage>(bytecode: &[u8]) -> Program<(), World<S>> {
     Program::new(
         decode_program(
             &bytecode
@@ -771,7 +760,10 @@ fn bytecode_to_program(bytecode: &[u8]) -> Program {
     )
 }
 
-fn convert_system_contract_code(code: &SystemContractCode, is_bootloader: bool) -> (U256, Program) {
+fn convert_system_contract_code<S: ReadStorage>(
+    code: &SystemContractCode,
+    is_bootloader: bool,
+) -> (U256, Program<(), World<S>>) {
     (
         h256_to_u256(code.hash),
         Program::new(
