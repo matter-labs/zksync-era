@@ -352,6 +352,9 @@ describe('Block reverting test', function () {
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
+        // wait for node to be responsive before sending a deposit
+        await extNode.tester.web3Provider.getL1BatchNumber();
+
         const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
             token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
             amount: depositAmount,
