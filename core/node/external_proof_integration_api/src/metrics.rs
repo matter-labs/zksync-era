@@ -21,7 +21,7 @@ pub(crate) enum Method {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_proof_integration_api")]
 pub(crate) struct ProofIntegrationApiMetrics {
-    #[metrics(buckets = vise::Buckets::LATENCIES)]
+    #[metrics(labels = ["method", "outcome"], buckets = vise::Buckets::LATENCIES)]
     pub call_latency: LabeledFamily<(Method, CallOutcome), Histogram<Duration>, 2>,
 }
 
