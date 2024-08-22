@@ -87,7 +87,7 @@ After you have the data, you need to prepare the system to run the batch. So, da
 the protocol version it should use. You can do that with running
 
 ```shell
-zk_inception prover protocol-version
+zk_supervisor prover-version
 ```
 
 Example output:

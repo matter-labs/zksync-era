@@ -10,7 +10,7 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_PROTOCOL_VERSION_ABOUT, MSG_SUBCOMMAND_CLEAN,
+    msg_global_chain_does_not_exist, MSG_PROVER_VERSION_ABOUT, MSG_SUBCOMMAND_CLEAN,
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
@@ -47,8 +47,8 @@ enum SupervisorSubcommands {
     Fmt(FmtArgs),
     #[command(hide = true)]
     Markdown,
-    #[command(about = MSG_PROTOCOL_VERSION_ABOUT)]
-    ProtocolVersion,
+    #[command(about = MSG_PROVER_VERSION_ABOUT)]
+    ProverVersion,
 }
 
 #[derive(Parser, Debug)]
@@ -105,7 +105,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         }
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
-        SupervisorSubcommands::ProtocolVersion => commands::protocol_version::run(shell).await?,
+        SupervisorSubcommands::ProverVersion => commands::prover_version::run(shell).await?,
     }
     Ok(())
 }
