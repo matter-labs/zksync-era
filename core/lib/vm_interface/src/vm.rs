@@ -48,6 +48,7 @@ pub trait VmInterface {
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
 
     /// Get the current state of the virtual machine.
+    /// This method should be used only after the batch execution; otherwise, it can panic.
     fn get_current_execution_state(&self) -> CurrentExecutionState;
 
     /// Execute transaction with optional bytecode compression.

@@ -12,11 +12,12 @@ use zksync_vm_interface::{
 pub type VmDumpHandler = Arc<dyn Fn(VmDump) + Send + Sync>;
 
 /// Part of the VM dump representing the storage oracle.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct VmStorageDump {
-    read_storage_keys: HashMap<H256, (H256, u64)>,
-    repeated_writes: HashMap<H256, u64>,
-    factory_deps: HashMap<H256, web3::Bytes>,
+    pub(crate) read_storage_keys: HashMap<H256, (H256, u64)>,
+    pub(crate) repeated_writes: HashMap<H256, u64>,
+    pub(crate) factory_deps: HashMap<H256, web3::Bytes>,
 }
 
 impl VmStorageDump {
@@ -49,6 +50,7 @@ impl VmStorageDump {
             })
             .collect();
 
+        // FIXME: may panic
         let used_contract_hashes = vm.get_current_execution_state().used_contract_hashes;
         let factory_deps = used_contract_hashes
             .into_iter()
@@ -81,21 +83,23 @@ impl VmStorageDump {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "snake_case")]
-enum VmAction {
+pub(crate) enum VmAction {
     Block(L2BlockEnv),
     Transaction(Box<Transaction>),
 }
 
 /// VM dump allowing to re-run the VM on the same inputs. Opaque, but can be (de)serialized.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct VmDump {
-    l1_batch_env: L1BatchEnv,
-    system_env: SystemEnv,
-    actions: Vec<VmAction>,
+    pub(crate) l1_batch_env: L1BatchEnv,
+    pub(crate) system_env: SystemEnv,
+    pub(crate) actions: Vec<VmAction>,
     #[serde(flatten)]
-    storage: VmStorageDump,
+    pub(crate) storage: VmStorageDump,
 }
 
 impl VmDump {

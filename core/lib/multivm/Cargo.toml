@@ -45,3 +45,4 @@ tokio = { workspace = true, features = ["time"] }
 zksync_test_account.workspace = true
 ethabi.workspace = true
 zksync_eth_signer.workspace = true
+assert_matches.workspace = true

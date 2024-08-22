@@ -19,6 +19,9 @@ use crate::{
     vm_fast,
 };
 
+#[cfg(test)]
+mod tests;
+
 struct VmWithReporting<S, Shadow> {
     vm: Shadow,
     main_vm_storage: StoragePtr<StorageView<S>>,
@@ -38,12 +41,16 @@ impl<S: fmt::Debug, Shadow: fmt::Debug> fmt::Debug for VmWithReporting<S, Shadow
 }
 
 impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
-    fn report(self, main_vm: &impl VmInterface, err: anyhow::Error) {
-        let mut dump = self.partial_dump;
-        let batch_number = dump.l1_batch_number();
+    fn finalize_dump(&mut self, main_vm: &impl VmInterface) {
+        self.partial_dump
+            .set_storage(VmStorageDump::new(&self.main_vm_storage, main_vm));
+    }
+
+    fn report(mut self, main_vm: &impl VmInterface, err: anyhow::Error) {
+        let batch_number = self.partial_dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-        dump.set_storage(VmStorageDump::new(&self.main_vm_storage, main_vm));
-        (self.dump_handler)(dump);
+        self.finalize_dump(main_vm);
+        (self.dump_handler)(self.partial_dump);
 
         if self.panic_on_divergence {
             panic!("{err:?}");
@@ -79,21 +86,32 @@ where
             shadow.panic_on_divergence = panic;
         }
     }
+
+    #[cfg(test)]
+    fn dump_state(self) -> VmDump {
+        let mut shadow = self.shadow.into_inner().expect("VM execution diverged");
+        shadow.finalize_dump(&self.main);
+        shadow.partial_dump
+    }
 }
 
-impl<S, Main, Shadow> VmFactory<StorageView<S>> for ShadowVm<S, Main, Shadow>
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmFactory<StorageView<S>>,
-    Shadow: VmFactory<StorageView<S>>,
+    Shadow: VmInterface,
 {
-    fn new(
+    pub fn with_custom_shadow<ShadowS>(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
-    ) -> Self {
+        shadow_storage: StoragePtr<ShadowS>,
+    ) -> Self
+    where
+        Shadow: VmFactory<ShadowS>,
+    {
         let main = Main::new(batch_env.clone(), system_env.clone(), storage.clone());
-        let shadow = Shadow::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
             main_vm_storage: storage,
@@ -105,6 +123,20 @@ where
             main,
             shadow: RefCell::new(Some(shadow)),
         }
+    }
+}
+
+impl<S, Main> VmFactory<StorageView<S>> for ShadowVm<S, Main>
+where
+    S: ReadStorage,
+    Main: VmFactory<StorageView<S>>,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        Self::with_custom_shadow(batch_env, system_env, storage.clone(), storage)
     }
 }
 
