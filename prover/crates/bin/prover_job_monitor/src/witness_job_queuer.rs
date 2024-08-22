@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 
-use crate::{
-    metrics::{WitnessType, PROVER_JOB_MONITOR_METRICS},
-    task_wiring::Task,
-};
+use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
 /// `WitnessJobQueuer` is a task that moves witness generator jobs from 'waiting_for_proofs' to 'queued'.
 /// Note: this task is the backbone of scheduling/getting ready witness jobs to execute.
@@ -28,8 +25,8 @@ impl WitnessJobQueuer {
             );
         }
 
-        PROVER_JOB_MONITOR_METRICS.queued_witness_generator_jobs
-            [&WitnessType::LeafWitnessGenerator]
+        SERVER_METRICS
+            .leaf_fri_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(len as u64);
     }
 
@@ -65,8 +62,8 @@ impl WitnessJobQueuer {
                 depth
             );
         }
-        PROVER_JOB_MONITOR_METRICS.queued_witness_generator_jobs
-            [&WitnessType::NodeWitnessGenerator]
+        SERVER_METRICS
+            .node_fri_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(len as u64);
     }
 
@@ -83,8 +80,8 @@ impl WitnessJobQueuer {
                 l1_batch_number,
             );
         }
-        PROVER_JOB_MONITOR_METRICS.queued_witness_generator_jobs
-            [&WitnessType::RecursionTipWitnessGenerator]
+        SERVER_METRICS
+            .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(l1_batch_numbers.len() as u64);
     }
 
@@ -101,8 +98,8 @@ impl WitnessJobQueuer {
                 l1_batch_number,
             );
         }
-        PROVER_JOB_MONITOR_METRICS.queued_witness_generator_jobs
-            [&WitnessType::SchedulerWitnessGenerator]
+        SERVER_METRICS
+            .scheduler_witness_generator_waiting_to_queued_jobs_transitions
             .inc_by(l1_batch_numbers.len() as u64);
     }
 }

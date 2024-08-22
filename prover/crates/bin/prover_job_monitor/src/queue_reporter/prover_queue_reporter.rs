@@ -3,10 +3,7 @@ use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::{
-    metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS},
-    task_wiring::Task,
-};
+use crate::{metrics::FRI_PROVER_METRICS, task_wiring::Task};
 
 /// `ProverQueueReporter` is a task that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
@@ -47,8 +44,8 @@ impl Task for ProverQueueReporter {
                     )
                     .unwrap_or(u8::MAX);
 
-                PROVER_JOB_MONITOR_METRICS.report_prover_jobs(
-                    JobStatus::Queued,
+                FRI_PROVER_METRICS.report_prover_jobs(
+                    "queued",
                     circuit_id,
                     aggregation_round,
                     group_id,
@@ -56,8 +53,8 @@ impl Task for ProverQueueReporter {
                     queued as u64,
                 );
 
-                PROVER_JOB_MONITOR_METRICS.report_prover_jobs(
-                    JobStatus::InProgress,
+                FRI_PROVER_METRICS.report_prover_jobs(
+                    "in_progress",
                     circuit_id,
                     aggregation_round,
                     group_id,
@@ -73,7 +70,7 @@ impl Task for ProverQueueReporter {
             .await;
 
         for ((circuit_id, aggregation_round), l1_batch_number) in lag_by_circuit_type {
-            PROVER_JOB_MONITOR_METRICS.oldest_unprocessed_batch
+            FRI_PROVER_METRICS.block_number
                 [&(circuit_id.to_string(), aggregation_round.to_string())]
                 .set(l1_batch_number.0 as u64);
         }

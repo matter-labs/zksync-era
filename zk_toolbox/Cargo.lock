@@ -681,6 +681,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "types",
  "url",
  "xshell",
 ]
@@ -6297,6 +6298,7 @@ dependencies = [
  "futures",
  "human-panic",
  "serde",
+ "serde_json",
  "strum",
  "tokio",
  "url",
