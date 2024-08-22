@@ -192,6 +192,27 @@ jobs:
 
           wait $PID1
           wait $PID2
+#      - name: Run recovery tests (from snapshot)
+#        run: |
+#          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_snap_rollup.log &
+#          PID1=$!
+#
+#          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_snap_validium.log &
+#          PID2=$!
+#
+#          wait $PID1
+#          wait $PID2
+#
+#      - name: Run recovery tests (from genesis)
+#        run: |
+#          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_gen_rollup.log &
+#          PID1=$!
+#
+#          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
+#          PID2=$!
+#
+#          wait $PID1
+#          wait $PID2
 
       - name: Run external node server
         run: |
