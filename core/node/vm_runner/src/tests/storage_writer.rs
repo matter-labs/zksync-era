@@ -3,7 +3,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state_keeper::MainBatchExecutor;
 
 use super::*;
-use crate::{ConcurrentOutputHandlerFactory, VmRunner};
+use crate::{storage::PostgresLoader, ConcurrentOutputHandlerFactory, VmRunner};
 
 #[derive(Debug, Clone)]
 struct StorageWriterIo {

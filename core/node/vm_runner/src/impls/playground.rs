@@ -19,6 +19,7 @@ use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesMa
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
 
 use crate::{
+    storage::{PostgresLoader, StorageLoader},
     ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
     StorageSyncTask, VmRunner, VmRunnerIo, VmRunnerStorage,
 };
@@ -46,16 +47,24 @@ pub struct VmPlaygroundCursorOptions {
     pub reset_state: bool,
 }
 
+#[derive(Debug)]
+struct VmPlaygroundRocksdb {
+    path: String,
+    loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
+}
+
 /// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
+///
+/// If the RocksDB directory is not specified, the playground works in the ephemeral mode: it takes all inputs from Postgres, doesn't maintain cache
+/// and doesn't persist the processed batch cursor. This is mostly useful for debugging purposes.
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
     batch_executor: MainBatchExecutor,
-    rocksdb_path: String,
+    rocksdb: Option<VmPlaygroundRocksdb>,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
-    loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
     output_handler_factory:
         ConcurrentOutputHandlerFactory<VmPlaygroundIo, VmPlaygroundOutputHandler>,
     reset_to_batch: Option<L1BatchNumber>,
@@ -66,14 +75,20 @@ impl VmPlayground {
     pub async fn new(
         pool: ConnectionPool<Core>,
         vm_mode: FastVmMode,
-        rocksdb_path: String,
+        rocksdb_path: Option<String>,
         chain_id: L2ChainId,
         cursor: VmPlaygroundCursorOptions,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
-        tracing::info!("Starting VM playground with mode {vm_mode:?}, cursor options: {cursor:?}");
+        tracing::info!("Starting VM playground with mode {vm_mode:?}, RocksDB cache path: {rocksdb_path:?}, cursor options: {cursor:?}");
 
-        let cursor_file_path = Path::new(&rocksdb_path).join("__vm_playground_cursor");
-        let latest_processed_batch = VmPlaygroundIo::read_cursor(&cursor_file_path).await?;
+        let cursor_file_path = rocksdb_path
+            .as_deref()
+            .map(|path| Path::new(path).join("__vm_playground_cursor"));
+        let latest_processed_batch = if let Some(path) = &cursor_file_path {
+            VmPlaygroundIo::read_cursor(path).await?
+        } else {
+            None
+        };
         tracing::info!("Latest processed batch: {latest_processed_batch:?}");
         let latest_processed_batch = if cursor.reset_state {
             cursor.first_processed_batch
@@ -97,24 +112,33 @@ impl VmPlayground {
                 io.clone(),
                 VmPlaygroundOutputHandler,
             );
-        let (loader_task_sender, loader_task_receiver) = oneshot::channel();
 
+        let (rocksdb, loader_task) = if let Some(path) = rocksdb_path {
+            let (loader_task_sender, loader_task_receiver) = oneshot::channel();
+            let rocksdb = VmPlaygroundRocksdb {
+                path,
+                loader_task_sender,
+            };
+            let loader_task = VmPlaygroundLoaderTask {
+                inner: loader_task_receiver,
+            };
+            (Some(rocksdb), Some(loader_task))
+        } else {
+            (None, None)
+        };
         let this = Self {
             pool,
             batch_executor,
-            rocksdb_path,
+            rocksdb,
             chain_id,
             io,
-            loader_task_sender,
             output_handler_factory,
             reset_to_batch: cursor.reset_state.then_some(cursor.first_processed_batch),
         };
         Ok((
             this,
             VmPlaygroundTasks {
-                loader_task: VmPlaygroundLoaderTask {
-                    inner: loader_task_receiver,
-                },
+                loader_task,
                 output_handler_factory_task,
             },
         ))
@@ -132,7 +156,12 @@ impl VmPlayground {
 
     #[tracing::instrument(skip(self), err)]
     async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
-        let builder = RocksdbStorage::builder(self.rocksdb_path.as_ref()).await?;
+        let Some(rocksdb) = &self.rocksdb else {
+            tracing::warn!("No RocksDB path specified; skipping resetting cache");
+            return Ok(());
+        };
+
+        let builder = RocksdbStorage::builder(rocksdb.path.as_ref()).await?;
         let current_l1_batch = builder.l1_batch_number().await;
         if current_l1_batch <= Some(last_retained_batch) {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
@@ -150,10 +179,12 @@ impl VmPlayground {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
-        fs::create_dir_all(&self.rocksdb_path)
-            .await
-            .with_context(|| format!("cannot create dir `{}`", self.rocksdb_path))?;
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        if let Some(rocksdb) = &self.rocksdb {
+            fs::create_dir_all(&rocksdb.path)
+                .await
+                .with_context(|| format!("cannot create dir `{}`", rocksdb.path))?;
+        }
 
         if let Some(reset_to_batch) = self.reset_to_batch {
             self.io.health_updater.update(HealthStatus::Affected.into());
@@ -168,22 +199,28 @@ impl VmPlayground {
 
         self.io.update_health();
 
-        let (loader, loader_task) = VmRunnerStorage::new(
-            self.pool.clone(),
-            self.rocksdb_path,
-            self.io.clone(),
-            self.chain_id,
-        )
-        .await?;
-        self.loader_task_sender.send(loader_task).ok();
+        let loader: Arc<dyn StorageLoader> = if let Some(rocksdb) = self.rocksdb {
+            let (loader, loader_task) = VmRunnerStorage::new(
+                self.pool.clone(),
+                rocksdb.path,
+                self.io.clone(),
+                self.chain_id,
+            )
+            .await?;
+            rocksdb.loader_task_sender.send(loader_task).ok();
+            Arc::new(loader)
+        } else {
+            Arc::new(PostgresLoader(self.pool.clone()))
+        };
+
         let vm_runner = VmRunner::new(
             self.pool,
             Box::new(self.io),
-            Arc::new(loader),
+            loader,
             Box::new(self.output_handler_factory),
             Box::new(self.batch_executor),
         );
-        vm_runner.run(stop_receiver).await
+        vm_runner.run(&stop_receiver).await
     }
 }
 
@@ -212,7 +249,7 @@ impl VmPlaygroundLoaderTask {
 #[derive(Debug)]
 pub struct VmPlaygroundTasks {
     /// Task that synchronizes storage with new available batches.
-    pub loader_task: VmPlaygroundLoaderTask,
+    pub loader_task: Option<VmPlaygroundLoaderTask>,
     /// Task that handles output from processed batches.
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
 }
@@ -220,7 +257,7 @@ pub struct VmPlaygroundTasks {
 /// I/O powering [`VmPlayground`].
 #[derive(Debug, Clone)]
 pub struct VmPlaygroundIo {
-    cursor_file_path: PathBuf,
+    cursor_file_path: Option<PathBuf>,
     vm_mode: FastVmMode,
     window_size: u32,
     // We don't read this value from the cursor file in the `VmRunnerIo` implementation because reads / writes
@@ -247,15 +284,16 @@ impl VmPlaygroundIo {
     }
 
     async fn write_cursor(&self, cursor: L1BatchNumber) -> anyhow::Result<()> {
+        let Some(cursor_file_path) = &self.cursor_file_path else {
+            return Ok(());
+        };
         let buffer = cursor.to_string();
-        fs::write(&self.cursor_file_path, buffer)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed writing VM playground cursor to `{}`",
-                    self.cursor_file_path.display()
-                )
-            })
+        fs::write(cursor_file_path, buffer).await.with_context(|| {
+            format!(
+                "failed writing VM playground cursor to `{}`",
+                cursor_file_path.display()
+            )
+        })
     }
 
     fn update_health(&self) {

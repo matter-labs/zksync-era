@@ -37,6 +37,33 @@ pub trait StorageLoader: 'static + Send + Sync + fmt::Debug {
     ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>>;
 }
 
+/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
+#[derive(Debug)]
+pub(crate) struct PostgresLoader(pub ConnectionPool<Core>);
+
+#[async_trait]
+impl StorageLoader for PostgresLoader {
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
+        let mut conn = self.0.connection().await?;
+        let Some(data) = load_batch_execute_data(
+            &mut conn,
+            l1_batch_number,
+            &L1BatchParamsProvider::new(),
+            L2ChainId::default(),
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+        Ok(Some((data, storage)))
+    }
+}
+
 /// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
 pub struct BatchExecuteData {

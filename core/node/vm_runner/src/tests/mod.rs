@@ -10,7 +10,6 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state::OwnedStorage;
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
@@ -19,14 +18,12 @@ use zksync_types::{
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
 
-use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
-use crate::storage::{load_batch_execute_data, StorageLoader};
+use super::{OutputHandlerFactory, VmRunnerIo};
 
 mod output_handler;
 mod playground;
@@ -35,33 +32,6 @@ mod storage;
 mod storage_writer;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
-#[derive(Debug)]
-struct PostgresLoader(ConnectionPool<Core>);
-
-#[async_trait]
-impl StorageLoader for PostgresLoader {
-    async fn load_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
-        let mut conn = self.0.connection().await?;
-        let Some(data) = load_batch_execute_data(
-            &mut conn,
-            l1_batch_number,
-            &L1BatchParamsProvider::new(),
-            L2ChainId::default(),
-        )
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-        Ok(Some((data, storage)))
-    }
-}
 
 #[derive(Debug, Default)]
 struct IoMock {

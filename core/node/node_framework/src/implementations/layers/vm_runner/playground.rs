@@ -45,7 +45,7 @@ pub struct Output {
     #[context(task)]
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
     #[context(task)]
-    pub loader_task: VmPlaygroundLoaderTask,
+    pub loader_task: Option<VmPlaygroundLoaderTask>,
     #[context(task)]
     pub playground: VmPlayground,
 }
@@ -82,7 +82,7 @@ impl WiringLayer for VmPlaygroundLayer {
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
             self.config.fast_vm_mode,
-            self.config.db_path,
+            Some(self.config.db_path), // FIXME: make optional in config?
             self.zksync_network_id,
             cursor,
         )
@@ -119,6 +119,6 @@ impl Task for VmPlayground {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(&stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
