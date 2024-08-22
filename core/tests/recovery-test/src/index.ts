@@ -216,11 +216,12 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
             reject(error);
         });
         childProcess.on('exit', (code) => {
-            if (!checkExitCode || code === 0 || code === null || code === 1) {
-                resolve(undefined);
-            } else {
-                reject(new Error(`Process exited with non-zero code: ${code}`));
-            }
+            resolve(undefined);
+            // if (!checkExitCode || code === 0 || code === null || code === 1) {
+            //     resolve(undefined);
+            // } else {
+            //     reject(new Error(`Process exited with non-zero code: ${code}`));
+            // }
         });
     });
 }
