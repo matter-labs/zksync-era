@@ -80,6 +80,12 @@ impl VmPlayground {
         cursor: VmPlaygroundCursorOptions,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
         tracing::info!("Starting VM playground with mode {vm_mode:?}, RocksDB cache path: {rocksdb_path:?}, cursor options: {cursor:?}");
+        if rocksdb_path.is_none() {
+            tracing::warn!(
+                "RocksDB cache is disabled; this can lead to significant performance degradation. Additionally, VM playground progress won't be persisted. \
+                If this is not intended, set the cache path in app config"
+            );
+        }
 
         let cursor_file_path = rocksdb_path
             .as_deref()

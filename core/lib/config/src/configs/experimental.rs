@@ -69,8 +69,7 @@ pub struct ExperimentalVmPlaygroundConfig {
     #[serde(default)]
     pub fast_vm_mode: FastVmMode,
     /// Path to the RocksDB cache directory.
-    #[serde(default = "ExperimentalVmPlaygroundConfig::default_db_path")]
-    pub db_path: String,
+    pub db_path: Option<String>,
     /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
     #[serde(default)]
     pub first_processed_batch: L1BatchNumber,
@@ -87,7 +86,7 @@ impl Default for ExperimentalVmPlaygroundConfig {
     fn default() -> Self {
         Self {
             fast_vm_mode: FastVmMode::default(),
-            db_path: Self::default_db_path(),
+            db_path: None,
             first_processed_batch: L1BatchNumber(0),
             window_size: Self::default_window_size(),
             reset: false,
@@ -96,10 +95,6 @@ impl Default for ExperimentalVmPlaygroundConfig {
 }
 
 impl ExperimentalVmPlaygroundConfig {
-    pub fn default_db_path() -> String {
-        "./db/vm_playground".to_owned()
-    }
-
     pub fn default_window_size() -> NonZeroU32 {
         NonZeroU32::new(1).unwrap()
     }

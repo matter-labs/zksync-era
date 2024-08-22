@@ -82,7 +82,7 @@ impl WiringLayer for VmPlaygroundLayer {
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
             self.config.fast_vm_mode,
-            Some(self.config.db_path), // FIXME: make optional in config?
+            self.config.db_path,
             self.zksync_network_id,
             cursor,
         )
