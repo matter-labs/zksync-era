@@ -35,6 +35,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
 }
 
 impl ProofCompressor {
@@ -44,6 +45,7 @@ impl ProofCompressor {
         compression_mode: u8,
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_path: String,
     ) -> Self {
         Self {
             blob_store,
@@ -51,6 +53,7 @@ impl ProofCompressor {
             compression_mode,
             max_attempts,
             protocol_version,
+            setup_data_path,
         }
     }
 
@@ -59,8 +62,9 @@ impl ProofCompressor {
         l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
+        setup_data_path: String,
     ) -> anyhow::Result<FinalProof> {
-        let keystore = Keystore::default();
+        let keystore = Keystore::new_with_setup_data_path(setup_data_path);
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
@@ -174,8 +178,9 @@ impl JobProcessor for ProofCompressor {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let block_number = *job_id;
+        let setup_data_path = self.setup_data_path.clone();
         tokio::task::spawn_blocking(move || {
-            Self::compress_proof(block_number, job, compression_mode)
+            Self::compress_proof(block_number, job, compression_mode, setup_data_path)
         })
     }
 

@@ -5,6 +5,7 @@ This document contains the help content for the `zk_supervisor` command-line pro
 **Command Overview:**
 
 - [`zk_supervisor`↴](#zk_supervisor)
+- [`zk_supervisor prover-version`↴](#zk_supervisor-prover-version)
 - [`zk_supervisor database`↴](#zk_supervisor-database)
 - [`zk_supervisor database check-sqlx-data`↴](#zk_supervisor-database-check-sqlx-data)
 - [`zk_supervisor database drop`↴](#zk_supervisor-database-drop)
@@ -43,6 +44,12 @@ ZK Toolbox is a set of tools for working with zk stack.
 - `-v`, `--verbose` — Verbose mode
 - `--chain <CHAIN>` — Chain to use
 - `--ignore-prerequisites` — Ignores prerequisites checks
+
+## `zk_supervisor prover-version`
+
+Gets information about current protocol version of provers in `zksync-era` and snark wrapper hash.
+
+**Usage:** `zk_supervisor prover-version`
 
 ## `zk_supervisor database`
 
