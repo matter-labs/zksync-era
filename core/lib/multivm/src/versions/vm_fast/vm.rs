@@ -108,25 +108,22 @@ pub(crate) const LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES: u32 = 1;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct CircuitsTracer {
-    main_vm_cycles: u32,
-    ram_permutation_cycles: u32,
-    storage_application_cycles: u32,
-    storage_sorter_cycles: u32,
-    code_decommitter_cycles: u32,
-    code_decommitter_sorter_cycles: u32,
-    log_demuxer_cycles: u32,
-    events_sorter_cycles: u32,
-    keccak256_cycles: u32,
-    ecrecover_cycles: u32,
-    sha256_cycles: u32,
-    secp256k1_verify_cycles: u32,
-    transient_storage_checker_cycles: u32,
+    rich_addressing_opcodes: u32,
+    average_opcodes: u32,
+    storage_reads: u32,
+    storage_writes: u32,
+    transient_storage_reads: u32,
+    transient_storage_writes: u32,
+    events: u32,
+    precompile_calls: u32,
+    decommits: u32,
+    far_calls: u32,
+    heap_writes: u32,
+    heap_reads: u32,
 }
 
 impl Tracer for CircuitsTracer {
     fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
-        self.main_vm_cycles += 1;
-
         match OP::VALUE {
             Opcode::Nop
             | Opcode::Add
@@ -145,7 +142,7 @@ impl Tracer for CircuitsTracer {
             | Opcode::PointerSub
             | Opcode::PointerPack
             | Opcode::PointerShrink => {
-                self.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
+                self.rich_addressing_opcodes += 1;
             }
             Opcode::This
             | Opcode::Caller
@@ -159,89 +156,130 @@ impl Tracer for CircuitsTracer {
             | Opcode::IncrementTxNumber
             | Opcode::Ret(_)
             | Opcode::NearCall => {
-                self.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+                self.average_opcodes += 1;
             }
             Opcode::StorageRead => {
-                self.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
-                self.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
-                self.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
+                self.storage_reads += 1;
             }
             Opcode::TransientStorageRead => {
-                self.ram_permutation_cycles += TRANSIENT_STORAGE_READ_RAM_CYCLES;
-                self.log_demuxer_cycles += TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES;
-                self.transient_storage_checker_cycles +=
-                    TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES;
+                self.transient_storage_reads += 1;
             }
             Opcode::StorageWrite => {
-                self.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
-                self.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
-                self.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+                self.storage_writes += 1;
             }
             Opcode::TransientStorageWrite => {
-                self.ram_permutation_cycles += TRANSIENT_STORAGE_WRITE_RAM_CYCLES;
-                self.log_demuxer_cycles += TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES;
-                self.transient_storage_checker_cycles +=
-                    TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES;
+                self.transient_storage_writes += 1;
             }
             Opcode::L2ToL1Message | Opcode::Event => {
-                self.ram_permutation_cycles += EVENT_RAM_CYCLES;
-                self.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
-                self.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
+                self.events += 1;
             }
             Opcode::PrecompileCall => {
-                self.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
-                self.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
+                self.precompile_calls += 1;
             }
             Opcode::Decommit => {
-                // Note, that for decommit the log demuxer circuit is not used.
-                self.ram_permutation_cycles += LOG_DECOMMIT_RAM_CYCLES;
-                self.code_decommitter_sorter_cycles += LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES;
+                self.decommits += 1;
             }
             Opcode::FarCall(_) => {
-                self.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
-                self.code_decommitter_sorter_cycles += FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
-                self.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
-                self.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
+                self.far_calls += 1;
             }
             Opcode::AuxHeapWrite | Opcode::HeapWrite /* StaticMemoryWrite */ => {
-                self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+                self.heap_writes += 1;
             }
             Opcode::AuxHeapRead | Opcode::HeapRead | Opcode::PointerRead /* StaticMemoryRead */ => {
-                self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+                self.heap_reads += 1;
             }
         }
     }
 }
 
 impl CircuitsTracer {
-    fn circuit_statistic(&self) -> CircuitStatistic {
+    fn circuit_statistic(&self, extra: ExtraDataForCircuits) -> CircuitStatistic {
+        let ExtraDataForCircuits {
+            keccak256_cycles,
+            ecrecover_cycles,
+            sha256_cycles,
+            secp256k1_verify_cycles,
+            code_decommitter_cycles,
+            storage_application_cycles,
+        } = extra;
         CircuitStatistic {
-            main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
-            ram_permutation: self.ram_permutation_cycles as f32
+            main_vm: (self.rich_addressing_opcodes
+                + self.average_opcodes
+                + self.storage_reads
+                + self.storage_writes
+                + self.transient_storage_reads
+                + self.transient_storage_writes
+                + self.events
+                + self.precompile_calls
+                + self.decommits
+                + self.far_calls
+                + self.heap_writes
+                + self.heap_reads) as f32
+                / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
+            ram_permutation: (self.rich_addressing_opcodes * RICH_ADDRESSING_OPCODE_RAM_CYCLES
+                + self.average_opcodes * AVERAGE_OPCODE_RAM_CYCLES
+                + self.storage_reads * STORAGE_READ_RAM_CYCLES
+                + self.storage_writes * STORAGE_WRITE_RAM_CYCLES
+                + self.transient_storage_reads * TRANSIENT_STORAGE_READ_RAM_CYCLES
+                + self.transient_storage_writes * TRANSIENT_STORAGE_WRITE_RAM_CYCLES
+                + self.events * EVENT_RAM_CYCLES
+                + self.precompile_calls * PRECOMPILE_RAM_CYCLES
+                + self.decommits * LOG_DECOMMIT_RAM_CYCLES
+                + self.far_calls * FAR_CALL_RAM_CYCLES
+                + self.heap_writes * UMA_WRITE_RAM_CYCLES
+                + self.heap_reads * UMA_READ_RAM_CYCLES) as f32
                 / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
-            storage_application: self.storage_application_cycles as f32
+            storage_application: storage_application_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
-            storage_sorter: self.storage_sorter_cycles as f32
+            storage_sorter: (self.storage_reads * STORAGE_READ_STORAGE_SORTER_CYCLES
+                + self.storage_writes * STORAGE_WRITE_STORAGE_SORTER_CYCLES
+                + self.transient_storage_reads
+                    * TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES
+                + self.transient_storage_writes
+                    * TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES
+                + self.far_calls * FAR_CALL_STORAGE_SORTER_CYCLES)
+                as f32
                 / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
-            code_decommitter: self.code_decommitter_cycles as f32
+            code_decommitter: code_decommitter_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
-            code_decommitter_sorter: self.code_decommitter_sorter_cycles as f32
+            code_decommitter_sorter: (self.decommits * LOG_DECOMMIT_DECOMMITTER_SORTER_CYCLES
+                + self.far_calls * FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES)
+                as f32
                 / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
-            log_demuxer: self.log_demuxer_cycles as f32
+            log_demuxer: (self.storage_reads * STORAGE_READ_LOG_DEMUXER_CYCLES
+                + self.storage_writes * STORAGE_WRITE_LOG_DEMUXER_CYCLES
+                + self.transient_storage_reads * TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES
+                + self.transient_storage_writes * TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES
+                + self.events * EVENT_LOG_DEMUXER_CYCLES
+                + self.precompile_calls * PRECOMPILE_LOG_DEMUXER_CYCLES
+                + self.far_calls * FAR_CALL_LOG_DEMUXER_CYCLES) as f32
                 / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
-            events_sorter: self.events_sorter_cycles as f32
+            events_sorter: (self.events * EVENT_EVENTS_SORTER_CYCLES) as f32
                 / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
-            keccak256: self.keccak256_cycles as f32
+            keccak256: keccak256_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
-            ecrecover: self.ecrecover_cycles as f32
+            ecrecover: ecrecover_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
-            sha256: self.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
-            secp256k1_verify: self.secp256k1_verify_cycles as f32
+            sha256: sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+            secp256k1_verify: secp256k1_verify_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
-            transient_storage_checker: self.transient_storage_checker_cycles as f32
+            transient_storage_checker: (self.transient_storage_reads
+                * TRANSIENT_STORAGE_READ_TRANSIENT_STORAGE_CHECKER_CYCLES
+                + self.transient_storage_writes
+                    * TRANSIENT_STORAGE_WRITE_TRANSIENT_STORAGE_CHECKER_CYCLES)
+                as f32
                 / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
         }
     }
+}
+
+struct ExtraDataForCircuits {
+    keccak256_cycles: u32,
+    ecrecover_cycles: u32,
+    sha256_cycles: u32,
+    secp256k1_verify_cycles: u32,
+    code_decommitter_cycles: u32,
+    storage_application_cycles: u32,
 }
 
 pub struct Vm<S> {
@@ -682,14 +720,14 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         let pubdata_after = self.inner.world_diff.pubdata();
 
-        self.tracer.keccak256_cycles = self.inner.state.keccak256_cycles as u32;
-        self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
-        self.tracer.sha256_cycles = self.inner.state.sha256_cycles as u32;
-        self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
-        self.tracer.code_decommitter_cycles = self.inner.state.code_decommitter_cycles as u32;
-        self.tracer.storage_application_cycles = self.inner.state.storage_application_cycles as u32;
-
-        let circuit_statistic = self.tracer.circuit_statistic();
+        let circuit_statistic = self.tracer.circuit_statistic(ExtraDataForCircuits {
+            keccak256_cycles: self.inner.state.keccak256_cycles as u32,
+            ecrecover_cycles: self.inner.state.ecrecover_cycles as u32,
+            sha256_cycles: self.inner.state.sha256_cycles as u32,
+            secp256k1_verify_cycles: self.inner.state.secp256v1_verify_cycles as u32,
+            code_decommitter_cycles: self.inner.state.code_decommitter_cycles as u32,
+            storage_application_cycles: self.inner.state.storage_application_cycles as u32,
+        });
 
         VmExecutionResultAndLogs {
             result,
