@@ -2,6 +2,7 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 use anyhow::Context as _;
@@ -13,6 +14,8 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_multivm::dump::VmDump;
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
@@ -53,6 +56,7 @@ impl VmPlayground {
     /// Creates a new playground.
     pub async fn new(
         pool: ConnectionPool<Core>,
+        dumps_object_store: Option<Arc<dyn ObjectStore>>,
         vm_mode: FastVmMode,
         rocksdb_path: String,
         chain_id: L2ChainId,
@@ -75,8 +79,19 @@ impl VmPlayground {
 
         let mut batch_executor = MainBatchExecutor::new(false, false);
         batch_executor.set_fast_vm_mode(vm_mode);
-        let vm_dumps_dir = Path::new(&rocksdb_path).join("__vm_dumps");
-        batch_executor.set_dumps_directory(vm_dumps_dir);
+        let handle = tokio::runtime::Handle::current();
+        if let Some(store) = dumps_object_store {
+            tracing::info!("Using object store for VM dumps: {store:?}");
+
+            batch_executor.set_dump_handler(Arc::new(move |dump| {
+                if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &dump)) {
+                    let l1_batch_number = dump.l1_batch_number();
+                    tracing::error!(
+                        "Saving VM dump for L1 batch #{l1_batch_number} failed: {err:#}"
+                    );
+                }
+            }));
+        }
 
         let io = VmPlaygroundIo {
             cursor_file_path,
@@ -111,6 +126,23 @@ impl VmPlayground {
                 output_handler_factory_task,
             },
         ))
+    }
+
+    async fn dump_vm_state(object_store: &dyn ObjectStore, dump: &VmDump) -> anyhow::Result<()> {
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("bogus clock");
+        let timestamp = timestamp.as_millis();
+        let batch_number = dump.l1_batch_number();
+        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
+
+        tracing::info!("Dumping diverged VM state to `{dump_filename}`");
+        let dump = serde_json::to_string(&dump).context("failed serializing VM dump")?;
+        object_store
+            .put_raw(Bucket::VmDumps, &dump_filename, dump.into_bytes())
+            .await
+            .context("failed putting VM dump to object store")?;
+        Ok(())
     }
 
     /// Returns a health check for this component.

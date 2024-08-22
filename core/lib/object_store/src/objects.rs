@@ -95,7 +95,6 @@ where
     type Key<'a> = SnapshotStorageLogsStorageKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        // FIXME: should keys be separated by version?
         format!(
             "snapshot_l1_batch_{}_storage_logs_part_{:0>4}.proto.gzip",
             key.l1_batch_number, key.chunk_id

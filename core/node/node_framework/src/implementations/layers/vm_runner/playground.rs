@@ -10,6 +10,7 @@ use zksync_vm_runner::{
 use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource,
+        object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
@@ -34,6 +35,7 @@ impl VmPlaygroundLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    pub dumps_object_store: Option<ObjectStoreResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -61,6 +63,7 @@ impl WiringLayer for VmPlaygroundLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
             master_pool,
+            dumps_object_store,
             app_health,
         } = input;
 
@@ -73,6 +76,7 @@ impl WiringLayer for VmPlaygroundLayer {
 
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
+            dumps_object_store.map(|resource| resource.0),
             self.config.fast_vm_mode,
             self.config.db_path,
             self.zksync_network_id,

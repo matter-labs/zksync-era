@@ -35,6 +35,7 @@ async fn run_playground(
 
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
+        None,
         FastVmMode::Shadow,
         rocksdb_dir.path().to_str().unwrap().to_owned(),
         genesis_params.config().l2_chain_id,

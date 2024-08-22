@@ -1,9 +1,10 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
+    dump::{VmDump, VmDumpHandler},
     interface::{
         storage::{ReadStorage, StorageView},
         Call, CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
@@ -24,7 +25,7 @@ use crate::{
 
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MainBatchExecutor {
     save_call_traces: bool,
     /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
@@ -35,7 +36,21 @@ pub struct MainBatchExecutor {
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    dumps_directory: Option<PathBuf>,
+    dump_handler: Option<VmDumpHandler>,
+}
+
+impl fmt::Debug for MainBatchExecutor {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MainBatchExecutor")
+            .field("save_call_traces", &self.save_call_traces)
+            .field(
+                "optional_bytecode_compression",
+                &self.optional_bytecode_compression,
+            )
+            .field("fast_vm_mode", &self.fast_vm_mode)
+            .finish_non_exhaustive()
+    }
 }
 
 impl MainBatchExecutor {
@@ -44,7 +59,7 @@ impl MainBatchExecutor {
             save_call_traces,
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
-            dumps_directory: None,
+            dump_handler: None,
         }
     }
 
@@ -57,9 +72,9 @@ impl MainBatchExecutor {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_dumps_directory(&mut self, dir: PathBuf) {
-        tracing::info!("Set VM dumps directory: {}", dir.display());
-        self.dumps_directory = Some(dir);
+    pub fn set_dump_handler(&mut self, handler: Arc<dyn Fn(VmDump) + Send + Sync>) {
+        tracing::info!("Set VM dumps handler");
+        self.dump_handler = Some(handler);
     }
 }
 
@@ -77,7 +92,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            dumps_directory: self.dumps_directory.clone(),
+            dump_handler: self.dump_handler.clone(),
             commands: commands_receiver,
         };
 
@@ -100,13 +115,26 @@ struct TransactionOutput {
 ///
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
 /// be constructed.
-#[derive(Debug)]
 struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    dumps_directory: Option<PathBuf>,
+    dump_handler: Option<VmDumpHandler>,
     commands: mpsc::Receiver<Command>,
+}
+
+impl fmt::Debug for CommandReceiver {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CommandReceiver")
+            .field("save_call_traces", &self.save_call_traces)
+            .field(
+                "optional_bytecode_compression",
+                &self.optional_bytecode_compression,
+            )
+            .field("fast_vm_mode", &self.fast_vm_mode)
+            .finish_non_exhaustive()
+    }
 }
 
 impl CommandReceiver {
@@ -127,8 +155,8 @@ impl CommandReceiver {
         );
 
         if let VmInstance::ShadowedVmFast(vm) = &mut vm {
-            if let Some(dir) = self.dumps_directory.take() {
-                vm.set_dumps_directory(dir);
+            if let Some(handler) = self.dump_handler.take() {
+                vm.set_dump_handler(handler);
             }
         }
 

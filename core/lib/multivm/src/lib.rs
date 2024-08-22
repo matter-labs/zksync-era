@@ -19,6 +19,7 @@ pub use crate::{
     vm_instance::VmInstance,
 };
 
+pub mod dump;
 mod glue;
 pub mod tracers;
 pub mod utils;

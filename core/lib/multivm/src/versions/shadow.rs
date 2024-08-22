@@ -1,17 +1,14 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fmt, fs, io,
-    path::{Path, PathBuf},
-    time::SystemTime,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
 };
 
-use anyhow::Context as _;
-use serde::Serialize;
-use zksync_types::{web3, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, H256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
 use crate::{
+    dump::{VmDump, VmDumpHandler, VmStorageDump},
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
@@ -22,50 +19,11 @@ use crate::{
     vm_fast,
 };
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum BlockOrTransaction {
-    Block(L2BlockEnv),
-    Transaction(Box<Transaction>),
-}
-
-#[derive(Debug, Serialize)]
-struct VmStateDump {
-    // VM inputs
-    l1_batch_env: L1BatchEnv,
-    system_env: SystemEnv,
-    blocks_and_transactions: Vec<BlockOrTransaction>,
-    // Storage information (read slots and factory deps, `is_initial_write` oracle)
-    read_storage_keys: HashMap<H256, H256>,
-    initial_writes: HashSet<H256>,
-    repeated_writes: HashSet<H256>,
-    factory_deps: HashMap<H256, web3::Bytes>,
-}
-
-impl VmStateDump {
-    fn new(l1_batch_env: L1BatchEnv, system_env: SystemEnv) -> Self {
-        Self {
-            l1_batch_env,
-            system_env,
-            blocks_and_transactions: vec![],
-            read_storage_keys: HashMap::new(),
-            initial_writes: HashSet::new(),
-            repeated_writes: HashSet::new(),
-            factory_deps: HashMap::new(),
-        }
-    }
-
-    fn push_transaction(&mut self, tx: Transaction) {
-        let tx = BlockOrTransaction::Transaction(Box::new(tx));
-        self.blocks_and_transactions.push(tx);
-    }
-}
-
 struct VmWithReporting<S> {
     vm: vm_fast::Vm<ImmutableStorageView<S>>,
     storage: StoragePtr<StorageView<S>>,
-    partial_dump: VmStateDump,
-    dumps_directory: Option<PathBuf>,
+    partial_dump: VmDump,
+    dump_handler: VmDumpHandler,
     panic_on_divergence: bool,
 }
 
@@ -74,7 +32,6 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
         formatter
             .debug_struct("VmWithReporting")
             .field("vm", &self.vm)
-            .field("dumps_directory", &self.dumps_directory)
             .field("panic_on_divergence", &self.panic_on_divergence)
             .finish_non_exhaustive()
     }
@@ -83,43 +40,10 @@ impl<S: fmt::Debug> fmt::Debug for VmWithReporting<S> {
 impl<S: ReadStorage> VmWithReporting<S> {
     fn report(self, main_vm: &impl VmInterface, err: anyhow::Error) {
         let mut dump = self.partial_dump;
-        let batch_number = dump.l1_batch_env.number;
+        let batch_number = dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-
-        let storage_cache = self.storage.borrow().cache();
-        dump.read_storage_keys = storage_cache
-            .read_storage_keys()
-            .into_iter()
-            .filter(|(_, value)| !value.is_zero())
-            .map(|(key, value)| (key.hashed_key(), value))
-            .collect();
-        for (key, is_initial) in storage_cache.initial_writes() {
-            if is_initial {
-                dump.initial_writes.insert(key.hashed_key());
-            } else {
-                dump.repeated_writes.insert(key.hashed_key());
-            }
-        }
-
-        let used_contract_hashes = main_vm.get_current_execution_state().used_contract_hashes;
-        let mut storage = self.storage.borrow_mut();
-        dump.factory_deps = used_contract_hashes
-            .into_iter()
-            .filter_map(|hash| {
-                let hash = u256_to_h256(hash);
-                Some((hash, web3::Bytes(storage.load_factory_dep(hash)?)))
-            })
-            .collect();
-        drop(storage);
-
-        if let Some(dumps_directory) = self.dumps_directory {
-            if let Err(err) = Self::dump_to_file(&dumps_directory, &dump) {
-                tracing::warn!("Failed dumping VM state to file: {err:#}");
-            }
-        }
-
-        let json = serde_json::to_string(&dump).expect("failed dumping VM state to string");
-        tracing::error!("VM state: {json}");
+        dump.set_storage(VmStorageDump::new(&self.storage, main_vm));
+        (self.dump_handler)(dump);
 
         if self.panic_on_divergence {
             panic!("{err:?}");
@@ -131,13 +55,9 @@ impl<S: ReadStorage> VmWithReporting<S> {
         }
     }
 
+    /*
     fn dump_to_file(dumps_directory: &Path, dump: &VmStateDump) -> anyhow::Result<()> {
-        let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("bogus clock");
-        let timestamp = timestamp.as_millis();
-        let batch_number = dump.l1_batch_env.number.0;
-        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
+
         let dump_filename = dumps_directory.join(dump_filename);
         tracing::info!("Dumping VM state to file `{}`", dump_filename.display());
 
@@ -146,7 +66,7 @@ impl<S: ReadStorage> VmWithReporting<S> {
         let writer = io::BufWriter::new(writer);
         serde_json::to_writer(writer, &dump).context("failed dumping VM state to file")?;
         Ok(())
-    }
+    }*/
 }
 
 #[derive(Debug)]
@@ -160,9 +80,9 @@ where
     S: ReadStorage,
     T: VmInterface,
 {
-    pub fn set_dumps_directory(&mut self, dir: PathBuf) {
+    pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.dumps_directory = Some(dir);
+            shadow.dump_handler = handler;
         }
     }
 
@@ -192,8 +112,8 @@ where
         let shadow = VmWithReporting {
             vm: shadow,
             storage,
-            partial_dump: VmStateDump::new(batch_env, system_env),
-            dumps_directory: None,
+            partial_dump: VmDump::new(batch_env, system_env),
+            dump_handler: Arc::new(drop), // We don't want to log the dump (it's too large), so there's no trivial way to handle it
             panic_on_divergence: true,
         };
         Self {
@@ -289,10 +209,7 @@ where
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.main.start_new_l2_block(l2_block_env);
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow
-                .partial_dump
-                .blocks_and_transactions
-                .push(BlockOrTransaction::Block(l2_block_env));
+            shadow.partial_dump.push_block(l2_block_env);
             shadow.vm.start_new_l2_block(l2_block_env);
         }
     }

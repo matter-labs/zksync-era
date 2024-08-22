@@ -7960,7 +7960,6 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "serde",
- "serde_json",
  "thiserror",
  "tracing",
  "vise",

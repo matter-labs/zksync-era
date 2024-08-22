@@ -56,7 +56,7 @@ impl TxExecutionResult {
 /// by communicating with the externally initialized thread.
 ///
 /// This type is generic over the storage type accepted to create the VM instance, mostly for testing purposes.
-pub trait BatchExecutor<S = OwnedStorage>: 'static + Send + Sync + fmt::Debug {
+pub trait BatchExecutor<S = OwnedStorage>: 'static + Send + fmt::Debug {
     fn init_batch(
         &mut self,
         storage: S,

@@ -25,6 +25,7 @@ zksync_vm_utils.workspace = true
 zksync_health_check.workspace = true
 
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true

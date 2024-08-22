@@ -39,7 +39,6 @@ thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["time"] }
