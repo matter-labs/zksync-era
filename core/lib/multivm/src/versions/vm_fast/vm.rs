@@ -3,16 +3,9 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    CallframeInterface, ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface,
-    Tracer, VirtualMachine,
+    ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface, Tracer, VirtualMachine,
 };
-use zk_evm_1_5_0::zkevm_opcode_defs::{
-    system_params::{
-        ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS, INITIAL_FRAME_FORMAL_EH_LOCATION,
-    },
-    KECCAK256_ROUND_FUNCTION_PRECOMPILE_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
-    SHA256_ROUND_FUNCTION_PRECOMPILE_ADDRESS,
-};
+use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
     l1::is_l1_tx_type,
@@ -76,7 +69,6 @@ pub(crate) const AVERAGE_OPCODE_RAM_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_RAM_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
 pub(crate) const STORAGE_READ_STORAGE_SORTER_CYCLES: u32 = 1;
-pub(crate) const STORAGE_READ_STORAGE_APPLICATION_CYCLES: u32 = 1;
 
 pub(crate) const TRANSIENT_STORAGE_READ_RAM_CYCLES: u32 = 1;
 pub(crate) const TRANSIENT_STORAGE_READ_LOG_DEMUXER_CYCLES: u32 = 1;
@@ -89,7 +81,6 @@ pub(crate) const EVENT_EVENTS_SORTER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_RAM_CYCLES: u32 = 1;
 pub(crate) const STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;
 pub(crate) const STORAGE_WRITE_STORAGE_SORTER_CYCLES: u32 = 2;
-pub(crate) const STORAGE_WRITE_STORAGE_APPLICATION_CYCLES: u32 = 2;
 
 pub(crate) const TRANSIENT_STORAGE_WRITE_RAM_CYCLES: u32 = 1;
 pub(crate) const TRANSIENT_STORAGE_WRITE_LOG_DEMUXER_CYCLES: u32 = 2;

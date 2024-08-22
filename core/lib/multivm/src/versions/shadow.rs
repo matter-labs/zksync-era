@@ -17,10 +17,6 @@ use crate::{
     vm_fast,
 };
 
-struct CircuitsTracerVM2;
-
-impl vm2::Tracer for CircuitsTracerVM2 {}
-
 pub struct ShadowVm<S, T> {
     main: T,
     shadow: vm_fast::Vm<ImmutableStorageView<S>>,
