@@ -41,5 +41,5 @@ async fn create(shell: &Shell) -> anyhow::Result<()> {
         .env("RUST_LOG", "snapshots_creator=debug");
 
     cmd = cmd.with_force_run();
-    cmd.run().context("MSG")
+    cmd.run().context("Snapshot")
 }
