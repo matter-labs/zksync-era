@@ -159,6 +159,8 @@ class MainNode {
             await utils.exec(`kill -9 ${data.stdout}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
+            // @ts-ignore
+            console.log(`ignored error: ${err.stderr}`);
         }
     }
 
