@@ -1,3 +1,4 @@
+use vm2::testworld::TestWorld;
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
@@ -7,7 +8,10 @@ use crate::{
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
         VmRevertReason,
     },
-    vm_fast::{vm::CircuitsTracer, Vm},
+    vm_fast::{
+        vm::{CircuitsTracer, World},
+        Vm,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -185,14 +189,14 @@ impl TransactionTestInfo {
 
 // TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug, PartialEq)]
-struct VmStateDump {
-    state: vm2::State<CircuitsTracer>,
+struct VmStateDump<S: PartialEq> {
+    state: vm2::State<CircuitsTracer, World<S, CircuitsTracer>>,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,
 }
 
-impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump {
+impl<S: ReadStorage + Clone + PartialEq> Vm<S> {
+    fn dump_state(&self) -> VmStateDump<S> {
         VmStateDump {
             state: self.inner.state.clone(),
             storage_writes: self

@@ -17,8 +17,8 @@ use crate::interface::storage::ReadStorage;
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(crate) fn verify_required_memory<T>(
-    state: &State<T>,
+pub(crate) fn verify_required_memory<T, W>(
+    state: &State<T, W>,
     required_values: Vec<(U256, HeapId, u32)>,
 ) {
     for (required_value, memory_page, cell) in required_values {

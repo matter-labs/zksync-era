@@ -284,7 +284,7 @@ struct ExtraDataForCircuits {
 
 pub struct Vm<S> {
     pub(crate) world: World<S, CircuitsTracer>,
-    pub(crate) inner: VirtualMachine<CircuitsTracer>,
+    pub(crate) inner: VirtualMachine<CircuitsTracer, World<S, CircuitsTracer>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -902,16 +902,16 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct World<S, T> {
     pub(crate) storage: S,
     // TODO (PLA-1008): Store `Program`s in an LRU cache
-    program_cache: HashMap<U256, Program<T>>,
+    program_cache: HashMap<U256, Program<T, World<S, T>>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
 
 impl<S: ReadStorage, T> World<S, T> {
-    fn new(storage: S, program_cache: HashMap<U256, Program<T>>) -> Self {
+    fn new(storage: S, program_cache: HashMap<U256, Program<T, World<S, T>>>) -> Self {
         Self {
             storage,
             program_cache,
@@ -934,7 +934,7 @@ impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
             .collect()
     }
 
-    fn decommit(&mut self, hash: U256) -> Program<T> {
+    fn decommit(&mut self, hash: U256) -> Program<T, World<S, T>> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
@@ -946,7 +946,9 @@ impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
             })
             .clone()
     }
+}
 
+impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {
@@ -991,7 +993,7 @@ impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
     }
 }
 
-fn bytecode_to_program<T: Tracer>(bytecode: &[u8]) -> Program<T> {
+fn bytecode_to_program<T: Tracer, W: vm2::World<T>>(bytecode: &[u8]) -> Program<T, W> {
     Program::new(
         decode_program(
             &bytecode
@@ -1007,10 +1009,10 @@ fn bytecode_to_program<T: Tracer>(bytecode: &[u8]) -> Program<T> {
     )
 }
 
-fn convert_system_contract_code<T: Tracer>(
+fn convert_system_contract_code<T: Tracer, W: vm2::World<T>>(
     code: &SystemContractCode,
     is_bootloader: bool,
-) -> (U256, Program<T>) {
+) -> (U256, Program<T, W>) {
     (
         h256_to_u256(code.hash),
         Program::new(
