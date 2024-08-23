@@ -1,5 +1,5 @@
-use std::{cmp::max, fmt::Debug, sync::Arc, time::Duration};
-
+use std::time::Instant;
+use std::{cmp::max, fmt::Debug, sync::Arc};
 use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
@@ -13,7 +13,6 @@ use zksync_types::{
     web3::{contract::Tokenize, BlockNumber},
     Address, U256,
 };
-use zksync_utils::time::millis_since_epoch;
 
 use crate::metrics::{OperationResult, OperationResultLabels, METRICS};
 
@@ -125,7 +124,6 @@ impl BaseTokenRatioPersister {
             return Ok(());
         };
 
-        let start_time = millis_since_epoch();
         let max_attempts = self.config.l1_tx_sending_max_attempts;
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
         let mut prev_base_fee_per_gas: Option<u64> = None;
@@ -135,6 +133,7 @@ impl BaseTokenRatioPersister {
             let (base_fee_per_gas, priority_fee_per_gas) =
                 self.get_eth_fees(l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
 
+            let start_time = Instant::now();
             let result = self
                 .update_ratio_on_l1(l1_params, new_ratio, base_fee_per_gas, priority_fee_per_gas)
                 .await;
@@ -142,32 +141,35 @@ impl BaseTokenRatioPersister {
             match result {
                 Ok(x) => {
                     tracing::info!(
-                "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
-                new_ratio.numerator.get(),
-                new_ratio.denominator.get(),
-                base_fee_per_gas,
-                priority_fee_per_gas
-            );
+                        "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                        new_ratio.numerator.get(),
+                        new_ratio.denominator.get(),
+                        base_fee_per_gas,
+                        priority_fee_per_gas
+                    );
                     METRICS
                         .l1_gas_used
-                        .observe(x.unwrap_or(U256::zero()).low_u128() as f64);
+                        .set(x.unwrap_or(U256::zero()).low_u128() as u64);
                     METRICS.l1_update_latency[&OperationResultLabels {
                         result: OperationResult::Success,
-                        attempts: attempt,
                     }]
-                        .observe(Self::duration_from_millis(
-                            millis_since_epoch() - start_time,
-                        ));
+                        .observe(Instant::now().duration_since(start_time));
+
                     return Ok(());
                 }
                 Err(err) => {
                     tracing::info!(
-                "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
-                attempt,
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                err
-            );
+                        "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                        attempt,
+                        base_fee_per_gas,
+                        priority_fee_per_gas,
+                        err
+                    );
+                    METRICS.l1_update_latency[&OperationResultLabels {
+                        result: OperationResult::Failure,
+                    }]
+                        .observe(Instant::now().duration_since(start_time));
+
                     tokio::time::sleep(sleep_duration).await;
                     prev_base_fee_per_gas = Some(base_fee_per_gas);
                     prev_priority_fee_per_gas = Some(priority_fee_per_gas);
@@ -175,13 +177,7 @@ impl BaseTokenRatioPersister {
                 }
             }
         }
-        METRICS.l1_update_latency[&OperationResultLabels {
-            result: OperationResult::Failure,
-            attempts: max_attempts,
-        }]
-            .observe(Self::duration_from_millis(
-                millis_since_epoch() - start_time,
-            ));
+
         let error_message = "Failed to update base token multiplier on L1";
         Err(last_error
             .map(|x| x.context(error_message))
@@ -189,12 +185,12 @@ impl BaseTokenRatioPersister {
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
-        let start_time = millis_since_epoch();
         let sleep_duration = self.config.price_fetching_sleep_duration();
         let max_retries = self.config.price_fetching_max_attempts;
         let mut last_error = None;
 
         for attempt in 0..max_retries {
+            let start_time = Instant::now();
             match self
                 .price_api_client
                 .fetch_ratio(self.base_token_address)
@@ -203,11 +199,8 @@ impl BaseTokenRatioPersister {
                 Ok(ratio) => {
                     METRICS.external_price_api_latency[&OperationResultLabels {
                         result: OperationResult::Success,
-                        attempts: attempt,
                     }]
-                        .observe(Self::duration_from_millis(
-                            millis_since_epoch() - start_time,
-                        ));
+                        .observe(Instant::now().duration_since(start_time));
                     return Ok(ratio);
                 }
                 Err(err) => {
@@ -218,18 +211,14 @@ impl BaseTokenRatioPersister {
                         err
                     );
                     last_error = Some(err);
+                    METRICS.external_price_api_latency[&OperationResultLabels {
+                        result: OperationResult::Failure,
+                    }]
+                        .observe(Instant::now().duration_since(start_time));
                     sleep(sleep_duration).await;
                 }
             }
         }
-        METRICS.external_price_api_latency[&OperationResultLabels {
-            result: OperationResult::Failure,
-            attempts: max_retries,
-        }]
-            .observe(Self::duration_from_millis(
-                millis_since_epoch() - start_time,
-            ));
-
         let error_message = "Failed to fetch base token ratio after multiple attempts";
         Err(last_error
             .map(|x| x.context(error_message))
@@ -339,9 +328,5 @@ impl BaseTokenRatioPersister {
             "Unable to retrieve `setTokenMultiplier` transaction status in {} attempts",
             max_attempts
         )))
-    }
-
-    fn duration_from_millis(millis: u128) -> Duration {
-        Duration::from_millis(millis as u64)
     }
 }
