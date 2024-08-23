@@ -1,4 +1,3 @@
-use vm2::testworld::TestWorld;
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
