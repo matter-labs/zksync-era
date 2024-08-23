@@ -36,6 +36,20 @@ impl From<VmPlaygroundHealth> for Health {
     }
 }
 
+/// Options configuring the storage loader for VM playground.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum VmPlaygroundStorageOptions {
+    /// Use RocksDB cache.
+    Rocksdb(String),
+    /// Use prefetched batch snapshots (with fallback to Postgres if protective reads are not available for a batch).
+    Snapshots {
+        /// Whether to shadow snapshot storage with Postgres. This degrades performance and is mostly useful
+        /// to test snapshot correctness.
+        shadow: bool,
+    },
+}
+
 /// Options related to the VM playground cursor.
 #[derive(Debug)]
 pub struct VmPlaygroundCursorOptions {
@@ -48,9 +62,14 @@ pub struct VmPlaygroundCursorOptions {
 }
 
 #[derive(Debug)]
-struct VmPlaygroundRocksdb {
-    path: String,
-    loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
+enum VmPlaygroundStorage {
+    Rocksdb {
+        path: String,
+        task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
+    },
+    Snapshots {
+        shadow: bool,
+    },
 }
 
 /// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
@@ -62,7 +81,7 @@ struct VmPlaygroundRocksdb {
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
     batch_executor: MainBatchExecutor,
-    rocksdb: Option<VmPlaygroundRocksdb>,
+    storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
     output_handler_factory:
@@ -75,21 +94,25 @@ impl VmPlayground {
     pub async fn new(
         pool: ConnectionPool<Core>,
         vm_mode: FastVmMode,
-        rocksdb_path: Option<String>,
+        storage: VmPlaygroundStorageOptions,
         chain_id: L2ChainId,
         cursor: VmPlaygroundCursorOptions,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
-        tracing::info!("Starting VM playground with mode {vm_mode:?}, RocksDB cache path: {rocksdb_path:?}, cursor options: {cursor:?}");
-        if rocksdb_path.is_none() {
-            tracing::warn!(
-                "RocksDB cache is disabled; this can lead to significant performance degradation. Additionally, VM playground progress won't be persisted. \
-                If this is not intended, set the cache path in app config"
-            );
-        }
+        tracing::info!("Starting VM playground with mode {vm_mode:?}, storage: {storage:?}, cursor options: {cursor:?}");
 
-        let cursor_file_path = rocksdb_path
-            .as_deref()
-            .map(|path| Path::new(path).join("__vm_playground_cursor"));
+        let cursor_file_path = match &storage {
+            VmPlaygroundStorageOptions::Rocksdb(path) => {
+                Some(Path::new(path).join("__vm_playground_cursor"))
+            }
+            VmPlaygroundStorageOptions::Snapshots { .. } => {
+                tracing::warn!(
+                    "RocksDB cache is disabled; this can lead to significant performance degradation. Additionally, VM playground progress won't be persisted. \
+                    If this is not intended, set the cache path in app config"
+                );
+                None
+            }
+        };
+
         let latest_processed_batch = if let Some(path) = &cursor_file_path {
             VmPlaygroundIo::read_cursor(path).await?
         } else {
@@ -119,23 +142,23 @@ impl VmPlayground {
                 VmPlaygroundOutputHandler,
             );
 
-        let (rocksdb, loader_task) = if let Some(path) = rocksdb_path {
-            let (loader_task_sender, loader_task_receiver) = oneshot::channel();
-            let rocksdb = VmPlaygroundRocksdb {
-                path,
-                loader_task_sender,
-            };
-            let loader_task = VmPlaygroundLoaderTask {
-                inner: loader_task_receiver,
-            };
-            (Some(rocksdb), Some(loader_task))
-        } else {
-            (None, None)
+        let (storage, loader_task) = match storage {
+            VmPlaygroundStorageOptions::Rocksdb(path) => {
+                let (task_sender, task_receiver) = oneshot::channel();
+                let rocksdb = VmPlaygroundStorage::Rocksdb { path, task_sender };
+                let loader_task = VmPlaygroundLoaderTask {
+                    inner: task_receiver,
+                };
+                (rocksdb, Some(loader_task))
+            }
+            VmPlaygroundStorageOptions::Snapshots { shadow } => {
+                (VmPlaygroundStorage::Snapshots { shadow }, None)
+            }
         };
         let this = Self {
             pool,
             batch_executor,
-            rocksdb,
+            storage,
             chain_id,
             io,
             output_handler_factory,
@@ -162,12 +185,12 @@ impl VmPlayground {
 
     #[tracing::instrument(skip(self), err)]
     async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
-        let Some(rocksdb) = &self.rocksdb else {
+        let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage else {
             tracing::warn!("No RocksDB path specified; skipping resetting cache");
             return Ok(());
         };
 
-        let builder = RocksdbStorage::builder(rocksdb.path.as_ref()).await?;
+        let builder = RocksdbStorage::builder(path.as_ref()).await?;
         let current_l1_batch = builder.l1_batch_number().await;
         if current_l1_batch <= Some(last_retained_batch) {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
@@ -186,10 +209,10 @@ impl VmPlayground {
     ///
     /// Propagates RocksDB and Postgres errors.
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        if let Some(rocksdb) = &self.rocksdb {
-            fs::create_dir_all(&rocksdb.path)
+        if let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage {
+            fs::create_dir_all(path)
                 .await
-                .with_context(|| format!("cannot create dir `{}`", rocksdb.path))?;
+                .with_context(|| format!("cannot create dir `{path}`"))?;
         }
 
         if let Some(reset_to_batch) = self.reset_to_batch {
@@ -205,21 +228,20 @@ impl VmPlayground {
 
         self.io.update_health();
 
-        let loader: Arc<dyn StorageLoader> = if let Some(rocksdb) = self.rocksdb {
-            let (loader, loader_task) = VmRunnerStorage::new(
-                self.pool.clone(),
-                rocksdb.path,
-                self.io.clone(),
-                self.chain_id,
-            )
-            .await?;
-            rocksdb.loader_task_sender.send(loader_task).ok();
-            Arc::new(loader)
-        } else {
-            let loader = PostgresLoader::new(self.pool.clone(), self.chain_id).await?;
-            Arc::new(loader)
+        let loader: Arc<dyn StorageLoader> = match self.storage {
+            VmPlaygroundStorage::Rocksdb { path, task_sender } => {
+                let (loader, loader_task) =
+                    VmRunnerStorage::new(self.pool.clone(), path, self.io.clone(), self.chain_id)
+                        .await?;
+                task_sender.send(loader_task).ok();
+                Arc::new(loader)
+            }
+            VmPlaygroundStorage::Snapshots { shadow } => {
+                let mut loader = PostgresLoader::new(self.pool.clone(), self.chain_id).await?;
+                loader.shadow_snapshots(shadow);
+                Arc::new(loader)
+            }
         };
-
         let vm_runner = VmRunner::new(
             self.pool,
             Box::new(self.io),

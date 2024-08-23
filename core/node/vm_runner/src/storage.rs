@@ -55,8 +55,13 @@ impl PostgresLoader {
             pool,
             l1_batch_params_provider,
             chain_id,
-            shadow_snapshots: true, // FIXME: make configurable
+            shadow_snapshots: true,
         })
+    }
+
+    /// Enables or disables snapshot storage shadowing.
+    pub fn shadow_snapshots(&mut self, shadow_snapshots: bool) {
+        self.shadow_snapshots = shadow_snapshots;
     }
 }
 

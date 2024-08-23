@@ -8,7 +8,15 @@ use zksync_state::RocksdbStorage;
 use zksync_types::vm::FastVmMode;
 
 use super::*;
-use crate::impls::{VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundTasks};
+use crate::impls::{
+    VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundStorageOptions, VmPlaygroundTasks,
+};
+
+impl From<&tempfile::TempDir> for VmPlaygroundStorageOptions {
+    fn from(dir: &tempfile::TempDir) -> Self {
+        Self::Rocksdb(dir.path().to_str().unwrap().into())
+    }
+}
 
 async fn setup_storage(
     pool: &ConnectionPool<Core>,
@@ -37,13 +45,6 @@ async fn setup_storage(
     genesis_params
 }
 
-#[derive(Debug)]
-enum StorageLoader<'a> {
-    Cached(&'a tempfile::TempDir),
-    Postgres,
-    Snapshot,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum StorageLoaderKind {
     Cached,
@@ -57,25 +58,24 @@ impl StorageLoaderKind {
 
 async fn run_playground(
     pool: ConnectionPool<Core>,
-    storage_loader: StorageLoader<'_>,
+    storage: VmPlaygroundStorageOptions,
     reset_to: Option<L1BatchNumber>,
 ) {
-    let insert_protective_reads = matches!(storage_loader, StorageLoader::Snapshot);
+    let insert_protective_reads = matches!(
+        storage,
+        VmPlaygroundStorageOptions::Snapshots { shadow: true }
+    );
     let genesis_params = setup_storage(&pool, 5, insert_protective_reads).await;
     let cursor = VmPlaygroundCursorOptions {
         first_processed_batch: reset_to.unwrap_or(L1BatchNumber(0)),
         window_size: NonZeroU32::new(1).unwrap(),
         reset_state: reset_to.is_some(),
     };
-    let rocksdb_dir = match storage_loader {
-        StorageLoader::Cached(dir) => Some(dir.path().to_str().unwrap().to_owned()),
-        _ => None,
-    };
 
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
         FastVmMode::Shadow,
-        rocksdb_dir,
+        storage,
         genesis_params.config().l2_chain_id,
         cursor,
     )
@@ -176,7 +176,7 @@ async fn vm_playground_basics(reset_state: bool) {
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
     run_playground(
         pool,
-        StorageLoader::Cached(&rocksdb_dir),
+        VmPlaygroundStorageOptions::from(&rocksdb_dir),
         reset_state.then_some(L1BatchNumber(0)),
     )
     .await;
@@ -188,7 +188,7 @@ async fn vm_playground_basics_without_cache(reset_state: bool) {
     let pool = ConnectionPool::test_pool().await;
     run_playground(
         pool,
-        StorageLoader::Postgres,
+        VmPlaygroundStorageOptions::Snapshots { shadow: false },
         reset_state.then_some(L1BatchNumber(0)),
     )
     .await;
@@ -202,10 +202,10 @@ async fn starting_from_non_zero_batch(storage_loader_kind: StorageLoaderKind) {
     let storage_loader = match storage_loader_kind {
         StorageLoaderKind::Cached => {
             rocksdb_dir = tempfile::TempDir::new().unwrap();
-            StorageLoader::Cached(&rocksdb_dir)
+            VmPlaygroundStorageOptions::from(&rocksdb_dir)
         }
-        StorageLoaderKind::Postgres => StorageLoader::Postgres,
-        StorageLoaderKind::Snapshot => StorageLoader::Snapshot,
+        StorageLoaderKind::Postgres => VmPlaygroundStorageOptions::Snapshots { shadow: false },
+        StorageLoaderKind::Snapshot => VmPlaygroundStorageOptions::Snapshots { shadow: true },
     };
     run_playground(pool, storage_loader, Some(L1BatchNumber(3))).await;
 }
@@ -215,7 +215,12 @@ async fn starting_from_non_zero_batch(storage_loader_kind: StorageLoaderKind) {
 async fn resetting_playground_state(reset_to: L1BatchNumber) {
     let pool = ConnectionPool::test_pool().await;
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
-    run_playground(pool.clone(), StorageLoader::Cached(&rocksdb_dir), None).await;
+    run_playground(
+        pool.clone(),
+        VmPlaygroundStorageOptions::from(&rocksdb_dir),
+        None,
+    )
+    .await;
 
     // Manually catch up RocksDB to Postgres to ensure that resetting it is not trivial.
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -229,7 +234,7 @@ async fn resetting_playground_state(reset_to: L1BatchNumber) {
 
     run_playground(
         pool.clone(),
-        StorageLoader::Cached(&rocksdb_dir),
+        VmPlaygroundStorageOptions::from(&rocksdb_dir),
         Some(reset_to),
     )
     .await;
@@ -251,7 +256,7 @@ async fn using_larger_window_size(window_size: u32) {
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
         FastVmMode::Shadow,
-        Some(rocksdb_dir.path().to_str().unwrap().to_owned()),
+        VmPlaygroundStorageOptions::from(&rocksdb_dir),
         genesis_params.config().l2_chain_id,
         cursor,
     )
