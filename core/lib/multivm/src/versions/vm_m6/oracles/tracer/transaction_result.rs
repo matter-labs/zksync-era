@@ -5,20 +5,23 @@ use zk_evm_1_3_1::{
     vm_state::VmLocalState,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_types::{vm_trace, U256};
+use zksync_types::U256;
 
-use crate::vm_m6::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{
-            gas_spent_on_bytecodes_and_long_messages_this_opcode, print_debug_if_needed,
-            read_pointer, VmHook,
+use crate::{
+    interface::Call,
+    vm_m6::{
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        oracles::tracer::{
+            utils::{
+                gas_spent_on_bytecodes_and_long_messages_this_opcode, print_debug_if_needed,
+                read_pointer, VmHook,
+            },
+            CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
+            StorageInvocationTracer,
         },
-        CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
-        StorageInvocationTracer,
+        vm_instance::get_vm_hook_params,
     },
-    vm_instance::get_vm_hook_params,
 };
 
 #[derive(Debug)]
@@ -45,7 +48,7 @@ impl<H: HistoryMode> TransactionResultTracer<H> {
             call_tracer,
         }
     }
-    pub fn call_trace(&mut self) -> Option<Vec<vm_trace::Call>> {
+    pub fn call_trace(&mut self) -> Option<Vec<Call>> {
         self.call_tracer
             .as_mut()
             .map(|call_tracer| call_tracer.extract_calls())

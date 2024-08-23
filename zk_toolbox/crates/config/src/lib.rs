@@ -25,4 +25,5 @@ mod wallets;
 
 pub mod external_node;
 pub mod forge_interface;
+pub mod portal;
 pub mod traits;

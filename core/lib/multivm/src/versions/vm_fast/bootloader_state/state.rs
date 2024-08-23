@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{
     l2_block::BootloaderL2Block,
@@ -11,7 +10,7 @@ use super::{
     BootloaderStateSnapshot,
 };
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     versions::vm_fast::{pubdata::PubdataInput, transaction_data::TransactionData},
     vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block},
 };
