@@ -106,6 +106,10 @@ fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester:
 pub(crate) struct Registry(contracts::ConsensusRegistry);
 
 impl Registry {
+    pub fn at(address: ethabi::Address) -> Self {
+        Self(contracts::ConsensusRegistry::at(address))
+    }
+
     /// Reads attester committee from the registry contract.
     pub async fn get_attester_committee(&self, ctx: &ctx::Ctx, vm: &VM, batch: attester::BatchNumber) -> ctx::Result<attester::Committee> {
         let raw = vm.call(ctx, batch, self.0.get_attester_committee());

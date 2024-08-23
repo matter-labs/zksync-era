@@ -12,21 +12,27 @@ use zksync_types::{
 use crate::storage::ConnectionPool;
 use zksync_state_keeper::testonly::fee;
 use zksync_types::{Execute, Transaction};
+use zksync_test_account::Account;
 
-struct Account(zksync_test_account::Account);
-
-impl Account {
-    fn new() -> Self {
-        Self(zksync_test_account::random())
-    }
-
-    async fn deploy_registry_contract(&mut self, inputs: contracts::Initialize) -> (Registry, Transaction) {
-        let tx = self.0.get_deploy_tx(
+impl Registry {
+    fn deploy(account: &mut Account, initial_owner: ethabi::Address) -> (Registry, Transaction) {
+        let tx = account.get_deploy_tx(
             &contracts::ConsensusRegistry::bytecode(),
             Some(&inputs.encode()),
             zksync_test_account::TxType::L2,
         );
-        (Registry(tx), tx.tx)
+        (Registry::at(tx.address), tx.tx)
+    }
+
+    fn add(&self, node_owner: ethabi::Address, validator: WeightedValidator, attester: attester::WeightedAttester) -> Transaction {
+        self.make_tx(self.0.add(
+            node_owner,
+            encode_validator_key(&validator.key),
+            validator.weight.into(),
+            encode_validator_pop(&validator.pop),
+            encode_attester_key(&attester.key),
+            attester.weight.try_into().context("overflow")?,
+        )).unwrap()
     }
 
     fn make_tx<F:contracts::Function>(&self, call: contracts::Call<F>) -> Transaction {
@@ -54,15 +60,13 @@ async fn test_vm_reader() {
         s.spawn_bg(runner.run_real(ctx));
 
         let vm = VM::new(pool.clone()).await;
-        let mut account = Account::new();
-        let (registry, tx) = account.deploy_consensus_registry(contracts::Initialize { initial_owner: account.address() });
+        let mut account = Account::random();
+        let (registry, tx) = Registry::deploy(account.address());
         
+        let mut committee = attesters::Committee::new((0..5).map(|_|gen_attester(rng))).unwrap();
         let mut txs = vec![tx];
-        let mut attesters = vec![];
         for _ in 0..5 {
-            let input = gen_add_inputs(rng);
-            attesters.push(input.attester);
-            txs.push(make_tx(&mut account, vm.add().encode_input(input))); 
+            txs.push((&mut account, vm.add().encode_input(input))); 
         }
         txs.push(make_tx(&mut account, vm.set_committees().encode_input(()))).await;
         node.push_block(txs).await;
@@ -78,18 +82,18 @@ async fn test_vm_reader() {
     .unwrap();
 }
 
-fn gen_add_inputs(rng: &mut impl Rng) -> Add {
+fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
     let k : validator::SecretKey = rng.gen();
-    Add {
-        node_owner: ethabi::Address::random(),
-        validator: WeightedValidator {
-            key: k.public(),
-            weight: rng.gen_range(1..100),
-            pop: k.sign_pop(),
-        },
-        attester: attester::WeightedAttester {
-            key: rng.gen(),
-            weight: rng.gen_range(1..100),
-        },
+    WeightedValidator {
+        key: k.public(),
+        weight: rng.gen_range(1..100),
+        pop: k.sign_pop(),
+    }
+}
+
+fn gen_attester(rng: &mut impl Rng) -> attester::WeightedAttester {
+    attester::WeightedAttester {
+        key: rng.gen(),
+        weight: rng.gen_range(1..100),
     }
 }
