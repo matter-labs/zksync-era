@@ -112,10 +112,6 @@ pub struct PortsConfig {
 }
 
 impl PortsConfig {
-    pub fn offset_from_chain_id(id: u16) -> u16 {
-        id * 100
-    }
-
     pub fn apply_offset(&mut self, offset: u16) {
         self.web3_json_rpc_http_port += offset;
         self.web3_json_rpc_ws_port += offset;
