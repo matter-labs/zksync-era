@@ -128,6 +128,8 @@ pub(super) fn executor(
     };
 
     Ok(executor::Config {
+        // TODO
+        build_version: None,
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,

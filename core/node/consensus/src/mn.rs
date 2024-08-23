@@ -6,9 +6,12 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_types::Address;
 use crate::{
     config,
-    storage::{registry_contract::VM, ConnectionPool, InsertCertificateError, Store},
+    vm::VM,
+    registry,
+    storage::{ConnectionPool, InsertCertificateError, Store},
 };
 
 /// Task running a consensus validator for the main node.
@@ -99,12 +102,8 @@ async fn run_attestation_updater(
     attestation: Arc<attestation::Controller>,
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-    let vm = VM::new(todo!(),todo!());
+    let vm = VM::new(pool.clone()).await;
     let res = async {
-        let Some(committee) = &genesis.attesters else {
-            return Ok(());
-        };
-        let committee = Arc::new(committee.clone());
         loop {
             // After regenesis it might happen that the batch number for the first block
             // is not immediately known (the first block was not produced yet),
@@ -129,12 +128,20 @@ async fn run_attestation_updater(
             let hash = pool
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
-            let mut conn = pool.connection(ctx).await.wrap("connection")?;
             // TODO: this unwrap is dangerous.
-            let committee = vm.get_attester_committee(ctx, &mut conn, status.next_batch_to_attest.prev().unwrap()).await.wrap("vm.get_attester_committee")?;
-            let committee = Arc::new(committee);
-            // TODO: this should be able to update the committee.
-            conn.insert_attester_committee(ctx, status.next_batch_to_attest, &committee).await.wrap("insert_attester_committee()")?;
+            let committee = Arc::new(match &genesis.attesters {
+                Some(c) => c.clone(),
+                None => {
+                    // Currently the committe is hardcoded to come from state at the end of batch
+                    // n-1.
+                    let registry = registry::Contract::at(Address::default());
+                    let batch_defining_committee = status.next_batch_to_attest.prev().context("committee is undefined")?;
+                    registry.get_attester_committee(ctx, &vm, batch_defining_committee).await.wrap("vm.get_attester_committee")?
+                }
+            });
+            // Persist the derived committee.
+            pool.connection(ctx).await.wrap("connection")?
+                .insert_attester_committee(ctx, status.next_batch_to_attest, &committee).await.wrap("insert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest

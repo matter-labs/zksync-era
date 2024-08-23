@@ -14,6 +14,8 @@ mod en;
 pub mod era;
 mod mn;
 mod storage;
+mod vm;
+mod registry;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]

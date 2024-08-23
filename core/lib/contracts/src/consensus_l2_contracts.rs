@@ -1,60 +1,63 @@
-use ethabi::{ParamType,Token};
+use ethabi::{Token};
 use anyhow::Context as _;
 use std::sync::Arc;
 
-fn example(t: &ParamType) -> Token {
-    use ParamType as T;
-    match t {
-        T::Address => Token::Address(ethabi::Address::default()),
-        T::Bytes => Token::Bytes(ethabi::Bytes::default()),
-        T::Int(_) => Token::Int(ethabi::Int::default()),
-        T::Uint(_) => Token::Uint(ethabi::Uint::default()),
-        T::Bool => Token::Bool(bool::default()),
-        T::String => Token::String(String::default()),
-        T::Array(t) => Token::Array(vec![example(t)]),
-        T::FixedBytes(n) => Token::FixedBytes(vec![0;*n]),
-        T::FixedArray(t, n) => Token::FixedArray(vec![example(t);*n]),
-        T::Tuple(ts) => Token::Tuple(ts.iter().map(example).collect()),
-    }
-}
-
+#[derive(Debug)]
 pub struct DeployedContract {
     pub address: ethabi::Address,
     pub contract: ethabi::Contract,
 }
 
-pub trait Function : Default {
+pub trait Function {
     const NAME: &'static str;
     type Contract: AsRef<DeployedContract>;
     type Outputs;
     fn encode(&self) -> Vec<Token>;
-    fn decode_outputs(outputs: &[u8]) -> anyhow::Result<Self::Outputs>;
+    fn decode_outputs(outputs: Vec<Token>) -> anyhow::Result<Self::Outputs>;
 }
 
-pub struct Call<F> {
+pub struct Call<F:Function> {
     pub contract: F::Contract,
     pub inputs: F,
 }
 
 impl<F:Function> Call<F> {
-    pub fn address(&self) -> ethabi::Address { self.address } 
+    pub fn address(&self) -> ethabi::Address { self.contract.as_ref().address } 
+    fn contract(&self) -> &ethabi::Contract { &self.contract.as_ref().contract }
+    pub(crate) fn function(&self) -> &ethabi::Function { self.contract().function(F::NAME).unwrap() }
     pub fn calldata(&self) -> ethabi::Result<ethabi::Bytes> {
-        self.function.encode_input(&self.inputs)
+        self.function().encode_input(&self.inputs.encode())
     }
     pub fn decode_outputs(&self, outputs: &[u8]) -> anyhow::Result<F::Outputs> {
-        O::from_tokens(self.function.decode_output(outputs).context("decode_output()")?)
+        F::decode_outputs(self.function().decode_output(outputs).context("decode_output()")?)
+    } 
+}
+
+fn into_fixed_bytes<const N: usize>(t: Token) -> anyhow::Result<[u8;N]> {
+    match t {
+        Token::FixedBytes(b) => b.try_into().ok().context("bad size"),
+        bad => anyhow::bail!("want fixed_bytes, got {bad:?}"),
     }
-    pub fn test(&self) -> anyhow::Result<()> {
-        self.calldata().context("calldata")?;
-        O::from_tokens(self.function.outputs.iter().map(|p|example(&p.kind)).collect()).context("from_tokens()")?;
-        Ok(())
+}
+
+fn into_tuple<const N: usize>(t: Token) -> anyhow::Result<[Token;N]> {
+    match t {
+        Token::Tuple(ts) => ts.try_into().ok().context("bad size"),
+        bad => anyhow::bail!("want tuple, got {bad:?}"),
+    }
+}
+
+fn into_uint<I:TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I> {
+    match t {
+        Token::Uint(i) => i.try_into().ok().context("overflow"),
+        bad => anyhow::bail!("want uint, got {bad:?}"),
     }
 }
 
 #[derive(Debug,Clone)]
 pub struct ConsensusRegistry(Arc<DeployedContract>);
 
-impl AsRef<DeployedContract> {
+impl AsRef<DeployedContract> for ConsensusRegistry {
     fn as_ref(&self) -> &DeployedContract { &self.0 }
 }
 
@@ -65,7 +68,7 @@ impl ConsensusRegistry {
     }
     pub fn at(address: ethabi::Address) -> Self {
         Self(DeployedContract {
-            contract: crate::load_contract(ConsensusRegistry::FILE)
+            contract: crate::load_contract(ConsensusRegistry::FILE),
             address,
         }.into())
     }
@@ -82,7 +85,9 @@ pub struct GetAttesterCommittee;
 impl Function for GetAttesterCommittee {
     type Contract = ConsensusRegistry;
     const NAME: &'static str = "getAttesterCommittee";
+    
     fn encode(&self) -> Vec<Token> { vec![] }
+    
     type Outputs = Vec<Attester>;
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
         let [attesters] = tokens.try_into().ok().context("bad size")?; 
@@ -120,13 +125,13 @@ impl Function for Add {
     type Outputs = ();
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
         let [] = tokens.try_into().ok().context("bad size")?;
-        Ok(Self)
+        Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Default)]
 pub struct Initialize {
-    initial_owner: ethabi::Address,
+    pub initial_owner: ethabi::Address,
 }
 
 impl Function for Initialize {
@@ -138,7 +143,7 @@ impl Function for Initialize {
     type Outputs = ();
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
         let [] = tokens.try_into().ok().context("bad size")?;
-        Ok(Self)
+        Ok(())
     }
 }
 
@@ -148,27 +153,6 @@ impl Function for Initialize {
 pub struct Secp256k1PublicKey {
     pub tag: [u8;1],
     pub x: [u8;32],
-}
-
-fn into_fixed_bytes<const N: usize>(t: Token) -> anyhow::Result<[u8;N]> {
-    match t {
-        Token::FixedBytes(b) => b.try_into().ok().context("bad size"),
-        bad => anyhow::bail!("want fixed_bytes, got {bad:?}"),
-    }
-}
-
-fn into_tuple<const N: usize>(t: Token) -> anyhow::Result<[Token;N]> {
-    match t {
-        Token::Tuple(ts) => ts.try_into().ok().context("bad size"),
-        bad => anyhow::bail!("want tuple, got {bad:?}"),
-    }
-}
-
-fn into_uint<I:TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I> {
-    match t {
-        Token::Uint(i) => i.try_into().ok().context("overflow"),
-        bad => anyhow::bail!("want uint, got {bad:?}"),
-    }
 }
 
 impl Secp256k1PublicKey {
