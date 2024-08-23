@@ -1,11 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
-use zksync_contracts::consensus_l2_contracts as contracts;
-use zksync_consensus_roles::{attester};
+use zksync_contracts::consensus as contracts;
+use zksync_consensus_roles::attester;
 use zksync_consensus_crypto::ByteFmt;
-use zksync_types::{
-    ethabi,
-};
+use zksync_types::ethabi;
 use crate::vm::VM;
 
 #[cfg(test)]

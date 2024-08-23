@@ -62,7 +62,7 @@ impl AsRef<DeployedContract> for ConsensusRegistry {
 }
 
 impl ConsensusRegistry {
-    const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
+    const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusConsensusRegistry.json";
     pub fn bytecode() -> Vec<u8> {
         crate::read_bytecode(Self::FILE)
     }
@@ -147,6 +147,19 @@ impl Function for Initialize {
     }
 }
 
+pub struct CommitAttesterCommittee;
+
+impl Function for CommitAttesterCommittee {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "commitAttesterCommittee";
+    fn encode(&self) -> Vec<Token> { vec![] }
+    type Outputs = ();
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
+        let [] = tokens.try_into().ok().context("bad size")?;
+        Ok(())
+    }
+}
+
 // Auxiliary structs.
 
 #[derive(Debug, Default)]
@@ -190,9 +203,9 @@ impl Attester {
 
 #[derive(Debug, Default)]
 pub struct BLS12_381PublicKey {
-    a: [u8;32],
-    b: [u8;32],
-    c: [u8;32],
+    pub a: [u8;32],
+    pub b: [u8;32],
+    pub c: [u8;32],
 }
 
 impl BLS12_381PublicKey {
@@ -207,8 +220,8 @@ impl BLS12_381PublicKey {
 
 #[derive(Debug, Default)]
 pub struct BLS12_381Signature {
-    a: [u8;32],
-    b: [u8;16],
+    pub a: [u8;32],
+    pub b: [u8;16],
 }
 
 impl BLS12_381Signature {

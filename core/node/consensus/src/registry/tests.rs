@@ -1,7 +1,7 @@
 use rand::Rng;
 use super::*;
 use zksync_concurrency::{ctx, scope};
-use zksync_contracts::consensus_l2_contracts as contracts;
+use zksync_contracts::consensus as contracts;
 use contracts::Function as _;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
@@ -92,7 +92,11 @@ impl Contract {
             attester_pub_key: encode_attester_key(&attester.key),
             attester_weight: attester.weight.try_into().context("overflow").context("attester_weight")?,
         }))
-    } 
+    }
+
+    fn commit_attester_committee(&self) -> contracts::Call<contracts::CommitAttesterCommittee> {
+        self.0.call(contracts::CommitAttesterCommittee)
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -103,25 +107,26 @@ async fn test_vm_reader() {
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
-        let (node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
 
         let vm = VM::new(pool.clone()).await;
         let mut account = Account::random();
-        let (registry, tx) = Contract::deploy(&mut account, account.address());
+        let address = account.address();
+        let (registry, tx) = Contract::deploy(&mut account, address);
         
-        let mut committee = attester::Committee::new((0..5).map(|_|gen_attester(rng))).unwrap();
+        let committee = attester::Committee::new((0..5).map(|_|gen_attester(rng))).unwrap();
         let mut txs = vec![tx];
         for a in committee.iter() {
             txs.push(make_tx(&mut account, registry.add(rng.gen(), gen_validator(rng), a.clone()).unwrap()));
         }
-        txs.push(make_tx(&mut account, vm.set_committees().encode_input(()))).await;
-        node.push_block(txs).await;
+        txs.push(make_tx(&mut account, registry.commit_attester_committee()));
+        node.push_block(&txs).await;
         node.seal_batch().await;
-        node.wait_for_batch(node.last_batch()).await;
+        pool.wait_for_batch(ctx,node.last_batch()).await?;
 
-        let conn = &mut pool.connection().await.unwrap();
-        assert_eq!(committee, vm.get_attester_committee(ctx, conn, node.last_batch()).await.unwrap());
+        let batch = attester::BatchNumber(node.last_batch().0.into());
+        assert_eq!(committee, registry.get_attester_committee(ctx, &vm, batch).await.unwrap());
         Ok(())
     })
     .await
