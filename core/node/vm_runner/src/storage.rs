@@ -12,7 +12,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
-    RocksdbWithMemory,
+    RocksdbWithMemory, ShadowStorage,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
@@ -43,6 +43,7 @@ pub(crate) struct PostgresLoader {
     pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
     chain_id: L2ChainId,
+    shadow_snapshots: bool,
 }
 
 impl PostgresLoader {
@@ -54,13 +55,14 @@ impl PostgresLoader {
             pool,
             l1_batch_params_provider,
             chain_id,
+            shadow_snapshots: true, // FIXME: make configurable
         })
     }
 }
 
 #[async_trait]
 impl StorageLoader for PostgresLoader {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip_all, l1_batch_number = l1_batch_number.0)]
     async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -77,7 +79,13 @@ impl StorageLoader for PostgresLoader {
             return Ok(None);
         };
 
-        if let Some(storage) = OwnedStorage::snapshot(conn, l1_batch_number).await? {
+        if let Some(storage) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
+            let storage = if self.shadow_snapshots {
+                let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+                OwnedStorage::boxed(ShadowStorage::new(postgres, storage, l1_batch_number))
+            } else {
+                OwnedStorage::from(storage)
+            };
             return Ok(Some((data, storage)));
         }
 
@@ -86,7 +94,7 @@ impl StorageLoader for PostgresLoader {
         );
         let conn = self.pool.connection().await?;
         let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-        Ok(Some((data, storage)))
+        Ok(Some((data, storage.into())))
     }
 }
 
@@ -195,7 +203,7 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
 
             return Ok(if let Some(data) = batch_data {
                 let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-                Some((data, storage))
+                Some((data, storage.into()))
             } else {
                 None
             });

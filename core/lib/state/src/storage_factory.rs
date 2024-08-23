@@ -44,7 +44,7 @@ impl ReadStorageFactory for ConnectionPool<Core> {
     ) -> anyhow::Result<Option<OwnedStorage>> {
         let connection = self.connection().await?;
         let storage = OwnedStorage::postgres(connection, l1_batch_number).await?;
-        Ok(Some(storage))
+        Ok(Some(storage.into()))
     }
 }
 
@@ -81,6 +81,15 @@ pub enum PgOrRocksdbStorage<'a> {
     RocksdbWithMemory(RocksdbWithMemory),
     /// In-memory storage snapshot.
     Snapshot(StorageSnapshot),
+    /// Generic implementation. Should be used for testing purposes only.
+    Boxed(Box<dyn ReadStorage + Send + 'a>),
+}
+
+impl<'a> PgOrRocksdbStorage<'a> {
+    /// Creates a boxed storage. Should be used for testing purposes only.
+    pub fn boxed(storage: impl ReadStorage + Send + 'a) -> Self {
+        Self::Boxed(Box::new(storage))
+    }
 }
 
 impl PgOrRocksdbStorage<'static> {
@@ -93,7 +102,7 @@ impl PgOrRocksdbStorage<'static> {
     pub async fn postgres(
         mut connection: Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<PostgresStorage<'static>> {
         let l2_block_number = if let Some((_, l2_block_number)) = connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
@@ -116,11 +125,7 @@ impl PgOrRocksdbStorage<'static> {
             snapshot_recovery.l2_block_number
         };
         tracing::debug!(%l1_batch_number, %l2_block_number, "Using Postgres-based storage");
-        Ok(
-            PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true)
-                .await?
-                .into(),
-        )
+        PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true).await
     }
 
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
@@ -164,9 +169,9 @@ impl PgOrRocksdbStorage<'static> {
     /// will return `Ok(None)`.
     #[tracing::instrument(skip(connection))]
     pub async fn snapshot(
-        connection: &mut Connection<'_, Core>,
+        connection: &mut Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Self>> {
+    ) -> anyhow::Result<Option<StorageSnapshot>> {
         let Some(header) = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -241,7 +246,7 @@ impl PgOrRocksdbStorage<'static> {
             Some((key, (prev_value, enum_index)))
         });
         let storage = storage.collect();
-        Ok(Some(StorageSnapshot::new(storage, factory_deps).into()))
+        Ok(Some(StorageSnapshot::new(storage, factory_deps)))
     }
 }
 
@@ -300,6 +305,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.read_value(key),
             Self::Snapshot(snapshot) => snapshot.read_value(key),
+            Self::Boxed(storage) => storage.read_value(key),
         }
     }
 
@@ -309,6 +315,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.is_write_initial(key),
             Self::Snapshot(snapshot) => snapshot.is_write_initial(key),
+            Self::Boxed(storage) => storage.is_write_initial(key),
         }
     }
 
@@ -318,6 +325,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.load_factory_dep(hash),
             Self::Snapshot(snapshot) => snapshot.load_factory_dep(hash),
+            Self::Boxed(storage) => storage.load_factory_dep(hash),
         }
     }
 
@@ -327,6 +335,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.get_enumeration_index(key),
             Self::Snapshot(snapshot) => snapshot.get_enumeration_index(key),
+            Self::Boxed(storage) => storage.get_enumeration_index(key),
         }
     }
 }

@@ -225,7 +225,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
         .unwrap()
         .expect("no batch loaded");
     if insert_protective_reads {
-        assert_matches!(batch_storage, OwnedStorage::Snapshot(_));
+        assert_matches!(batch_storage, OwnedStorage::Boxed(_)); // since we use shadowing
     } else {
         assert_matches!(batch_storage, OwnedStorage::Postgres(_));
     }
