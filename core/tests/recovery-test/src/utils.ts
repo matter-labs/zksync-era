@@ -3,7 +3,17 @@ import path from 'path';
 import * as fs from 'fs';
 
 const pathToHome = path.join(__dirname, '../../../..');
+export const slugify = (...args: string[]): string => {
+    const value = args.join(' ');
 
+    return value
+        .normalize('NFD') // split an accented letter in the base letter and the acent
+        .replace(/[\u0300-\u036f]/g, '') // remove all previously split accents
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9 ]/g, '') // remove all chars not letters, numbers and spaces (to be replaced)
+        .replace(/\s+/g, '-'); // separator
+};
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
 export function background({
@@ -19,7 +29,8 @@ export function background({
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
     console.log(`Running command in background: ${command}`);
-    let command_answer = command.replace(' ', '_');
+    let command_answer = slugify(command);
+    command_answer = command_answer.substring(Math.max(command_answer.length - 30, 0), command_answer.length);
 
     let process = _spawn(command, {
         stdio: ['pipe', 'pipe', 'pipe'],
