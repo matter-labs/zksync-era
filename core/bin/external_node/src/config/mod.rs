@@ -770,7 +770,7 @@ impl OptionalENConfig {
     }
 
     const fn default_protective_reads_persistence_enabled() -> bool {
-        true
+        false
     }
 
     const fn default_mempool_cache_update_interval_ms() -> u64 {
