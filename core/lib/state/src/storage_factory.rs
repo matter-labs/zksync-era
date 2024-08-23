@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -6,7 +9,8 @@ use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
-use zksync_vm_interface::storage::ReadStorage;
+use zksync_utils::u256_to_h256;
+use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
@@ -75,6 +79,8 @@ pub enum PgOrRocksdbStorage<'a> {
     Rocksdb(RocksdbStorage),
     /// Implementation over a RocksDB cache instance with in-memory DB diffs.
     RocksdbWithMemory(RocksdbWithMemory),
+    /// In-memory storage snapshot.
+    Snapshot(StorageSnapshot),
 }
 
 impl PgOrRocksdbStorage<'static> {
@@ -153,6 +159,90 @@ impl PgOrRocksdbStorage<'static> {
         tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
         Ok(Some(rocksdb.into()))
     }
+
+    /// Creates a storage snapshot. Require protective reads to be persisted for the batch, otherwise
+    /// will return `Ok(None)`.
+    #[tracing::instrument(skip(connection))]
+    pub async fn snapshot(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Self>> {
+        let Some(header) = connection
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let bytecode_hashes: HashSet<_> = header
+            .used_contract_hashes
+            .into_iter()
+            .map(u256_to_h256)
+            .collect();
+
+        // Check protective reads early on.
+        let protective_reads = connection
+            .storage_logs_dedup_dal()
+            .get_protective_reads_for_l1_batch(l1_batch_number)
+            .await?;
+        if protective_reads.is_empty() {
+            tracing::debug!("No protective reads for batch");
+            return Ok(None);
+        }
+        let protective_reads_len = protective_reads.len();
+        tracing::debug!("Loaded {protective_reads_len} protective reads");
+
+        let touched_slots = connection
+            .storage_logs_dal()
+            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .await?;
+        tracing::debug!("Loaded {} touched keys", touched_slots.len());
+
+        let all_accessed_keys: Vec<_> = protective_reads
+            .into_iter()
+            .map(|key| key.hashed_key())
+            .chain(touched_slots.into_keys())
+            .collect();
+        let previous_values = connection
+            .storage_logs_dal()
+            .get_previous_storage_values(&all_accessed_keys, l1_batch_number)
+            .await?;
+        tracing::debug!(
+            "Obtained {} previous values for accessed keys",
+            previous_values.len()
+        );
+        let initial_write_info = connection
+            .storage_logs_dal()
+            .get_l1_batches_and_indices_for_initial_writes(&all_accessed_keys)
+            .await?;
+        tracing::debug!("Obtained initial write info for accessed keys");
+
+        let bytecodes = connection
+            .factory_deps_dal()
+            .get_factory_deps(&bytecode_hashes)
+            .await;
+        tracing::debug!("Loaded {} bytecodes used in the batch", bytecodes.len());
+        let factory_deps = bytecodes
+            .into_iter()
+            .map(|(hash_u256, words)| {
+                let bytes: Vec<u8> = words.into_iter().flatten().collect();
+                (u256_to_h256(hash_u256), bytes)
+            })
+            .collect();
+
+        let storage = previous_values.into_iter().filter_map(|(key, prev_value)| {
+            let prev_value = prev_value.unwrap_or_else(H256::zero);
+            let &(l1_batch, enum_index) = initial_write_info.get(&key)?;
+            let enum_index_for_batch = if l1_batch < l1_batch_number {
+                enum_index
+            } else {
+                0
+            };
+            Some((key, (prev_value, enum_index_for_batch)))
+        });
+        let storage = storage.collect();
+        Ok(Some(StorageSnapshot::new(storage, factory_deps).into()))
+    }
 }
 
 impl ReadStorage for RocksdbWithMemory {
@@ -209,6 +299,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Postgres(postgres) => postgres.read_value(key),
             Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.read_value(key),
+            Self::Snapshot(snapshot) => snapshot.read_value(key),
         }
     }
 
@@ -217,6 +308,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Postgres(postgres) => postgres.is_write_initial(key),
             Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.is_write_initial(key),
+            Self::Snapshot(snapshot) => snapshot.is_write_initial(key),
         }
     }
 
@@ -225,6 +317,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Postgres(postgres) => postgres.load_factory_dep(hash),
             Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.load_factory_dep(hash),
+            Self::Snapshot(snapshot) => snapshot.load_factory_dep(hash),
         }
     }
 
@@ -233,6 +326,7 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
             Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
             Self::RocksdbWithMemory(rocksdb_mem) => rocksdb_mem.get_enumeration_index(key),
+            Self::Snapshot(snapshot) => snapshot.get_enumeration_index(key),
         }
     }
 }
@@ -243,8 +337,14 @@ impl<'a> From<PostgresStorage<'a>> for PgOrRocksdbStorage<'a> {
     }
 }
 
-impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
+impl From<RocksdbStorage> for PgOrRocksdbStorage<'_> {
     fn from(value: RocksdbStorage) -> Self {
         Self::Rocksdb(value)
+    }
+}
+
+impl From<StorageSnapshot> for PgOrRocksdbStorage<'_> {
+    fn from(value: StorageSnapshot) -> Self {
+        Self::Snapshot(value)
     }
 }

@@ -43,6 +43,7 @@ pub(crate) struct PostgresLoader(pub ConnectionPool<Core>);
 
 #[async_trait]
 impl StorageLoader for PostgresLoader {
+    #[tracing::instrument(skip(self))]
     async fn load_batch(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -59,6 +60,12 @@ impl StorageLoader for PostgresLoader {
             return Ok(None);
         };
 
+        if let Some(storage) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
+            return Ok(Some((data, storage)));
+        }
+        tracing::info!(
+            "Incomplete data to create storage snapshot for batch; will use sequential storage"
+        );
         let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
         Ok(Some((data, storage)))
     }
