@@ -169,6 +169,8 @@ impl fmt::Display for VmRevertReason {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::VmRevertReason;
 
     #[test]
@@ -204,7 +206,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let reason = VmRevertReason::try_from_bytes(msg.as_slice()).expect("Shouldn't be error");
-        assert!(matches!(reason, VmRevertReason::Unknown { .. }));
+        assert_matches!(reason, VmRevertReason::Unknown { .. });
     }
 
     #[test]

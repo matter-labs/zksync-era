@@ -1,3 +1,5 @@
+use std::assert_matches::assert_matches;
+
 use zksync_types::U256;
 
 use crate::{
@@ -44,10 +46,10 @@ fn test_bootloader_out_of_gas() {
 
     let res = vm.vm.execute(VmExecutionMode::Batch);
 
-    assert!(matches!(
+    assert_matches!(
         res.result,
         ExecutionResult::Halt {
             reason: Halt::BootloaderOutOfGas
         }
-    ));
+    );
 }

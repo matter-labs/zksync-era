@@ -1,3 +1,4 @@
+#![feature(assert_matches)]
 #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]

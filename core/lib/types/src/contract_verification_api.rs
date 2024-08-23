@@ -243,32 +243,31 @@ pub enum DeployContractCalldata {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::SourceCodeData;
 
     #[test]
     fn source_code_deserialization() {
         let single_file_str = r#"{"codeFormat": "solidity-single-file", "sourceCode": "text"}"#;
         let single_file_result = serde_json::from_str::<SourceCodeData>(single_file_str);
-        assert!(matches!(
-            single_file_result,
-            Ok(SourceCodeData::SolSingleFile(_))
-        ));
+        assert_matches!(single_file_result, Ok(SourceCodeData::SolSingleFile(_)));
 
         let stand_json_input_str =
             r#"{"codeFormat": "solidity-standard-json-input", "sourceCode": {}}"#;
         let stand_json_input_result = serde_json::from_str::<SourceCodeData>(stand_json_input_str);
-        assert!(matches!(
+        assert_matches!(
             stand_json_input_result,
             Ok(SourceCodeData::StandardJsonInput(_))
-        ));
+        );
 
         let type_not_specified_str = r#"{"sourceCode": "text"}"#;
         let type_not_specified_result =
             serde_json::from_str::<SourceCodeData>(type_not_specified_str);
-        assert!(matches!(
+        assert_matches!(
             type_not_specified_result,
             Ok(SourceCodeData::SolSingleFile(_))
-        ));
+        );
 
         let type_not_specified_object_str = r#"{"sourceCode": {}}"#;
         let type_not_specified_object_result =

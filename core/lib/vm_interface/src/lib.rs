@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 //! ZKsync Era VM interfaces.
 //!
 //! # Developer guidelines
