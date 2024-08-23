@@ -153,7 +153,7 @@ impl BaseTokenRatioPersister {
                     METRICS.l1_update_latency[&OperationResultLabels {
                         result: OperationResult::Success,
                     }]
-                        .observe(Instant::now().duration_since(start_time));
+                        .observe(start_time.elapsed());
 
                     return Ok(());
                 }
@@ -168,7 +168,7 @@ impl BaseTokenRatioPersister {
                     METRICS.l1_update_latency[&OperationResultLabels {
                         result: OperationResult::Failure,
                     }]
-                        .observe(Instant::now().duration_since(start_time));
+                        .observe(start_time.elapsed());
 
                     tokio::time::sleep(sleep_duration).await;
                     prev_base_fee_per_gas = Some(base_fee_per_gas);
@@ -200,7 +200,7 @@ impl BaseTokenRatioPersister {
                     METRICS.external_price_api_latency[&OperationResultLabels {
                         result: OperationResult::Success,
                     }]
-                        .observe(Instant::now().duration_since(start_time));
+                        .observe(start_time.elapsed());
                     return Ok(ratio);
                 }
                 Err(err) => {
@@ -214,7 +214,7 @@ impl BaseTokenRatioPersister {
                     METRICS.external_price_api_latency[&OperationResultLabels {
                         result: OperationResult::Failure,
                     }]
-                        .observe(Instant::now().duration_since(start_time));
+                        .observe(start_time.elapsed());
                     sleep(sleep_duration).await;
                 }
             }
