@@ -35,7 +35,8 @@ describe('Smart contract behavior checks', () => {
 
     // Contracts shared in several tests.
     let counterContract: zksync.Contract;
-    let expensiveContract: zksync.Contract;
+    // TODO: fix error and uncomment
+    // let expensiveContract: zksync.Contract;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
