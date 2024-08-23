@@ -18,6 +18,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-l2-contracts`↴](#zk_inception-chain-deploy-l2-contracts)
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
+- [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
@@ -198,6 +199,7 @@ Chain related commands
 - `deploy-l2-contracts` — Deploy all l2 contracts
 - `upgrader` — Deploy Default Upgrader
 - `deploy-paymaster` — Deploy paymaster smart contract
+- `update-token-multiplier-setter` — Update Token Multiplier Setter address on l1
 
 ## `zk_inception chain create`
 
@@ -389,6 +391,14 @@ Deploy paymaster smart contract
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
 
+## `zk_inception chain update-token-multiplier-setter`
+
+Update Token Multiplier Setter address on l1. Token Multiplier Setter is used by chains with custom base token to
+propagate the changes to numerator / denominator to the l1. Address of the Token Multiplier Setter is taken from the
+wallets configuration.
+
+**Usage:** `zk_inception chain update-token-multiplier-setter`
+
 ## `zk_inception prover`
 
 Prover related commands
@@ -418,7 +428,7 @@ Initialize prover
 - `--project-id <PROJECT_ID>`
 - `--shall-save-to-public-bucket <SHALL_SAVE_TO_PUBLIC_BUCKET>`
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--public-store-dir <PUBLIC_STORE_DIR>`
 - `--public-bucket-base-url <PUBLIC_BUCKET_BASE_URL>`
@@ -428,8 +438,13 @@ Initialize prover
 - `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--download-key <DOWNLOAD_KEY>`
+- `--setup-database`
+- `--use-default` - use default database
+- `--dont-drop` - don't drop database
+- `--prover-db-url` - URL of database to use
+- `--prover-db-name` - Name of database to use
 
-  Possible values: `true`, `false`
+Possible values: `true`, `false`
 
 - `--setup-key-path <SETUP_KEY_PATH>`
 - `--cloud-type <CLOUD_TYPE>`

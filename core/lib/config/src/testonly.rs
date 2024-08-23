@@ -12,7 +12,9 @@ use zksync_basic_types::{
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{
+    self, eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
+};
 
 trait Sample {
     fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
@@ -298,6 +300,7 @@ impl Distribution<configs::ExperimentalVmPlaygroundConfig> for EncodeDist {
             fast_vm_mode: gen_fast_vm_mode(rng),
             db_path: self.sample(rng),
             first_processed_batch: L1BatchNumber(rng.gen()),
+            window_size: rng.gen(),
             reset: self.sample(rng),
         }
     }
@@ -895,11 +898,20 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
     }
 }
 
+impl Distribution<configs::wallets::TokenMultiplierSetter> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::TokenMultiplierSetter {
+        configs::wallets::TokenMultiplierSetter {
+            wallet: self.sample(rng),
+        }
+    }
+}
+
 impl Distribution<configs::wallets::Wallets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallets {
         configs::wallets::Wallets {
             state_keeper: self.sample_opt(|| self.sample(rng)),
             eth_sender: self.sample_opt(|| self.sample(rng)),
+            token_multiplier_setter: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -916,6 +928,8 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
+            gateway_url: self
+                .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -1024,6 +1038,14 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
         configs::base_token_adjuster::BaseTokenAdjusterConfig {
             price_polling_interval_ms: self.sample(rng),
             price_cache_update_interval_ms: self.sample(rng),
+            max_tx_gas: self.sample(rng),
+            default_priority_fee_per_gas: self.sample(rng),
+            max_acceptable_priority_fee_in_gwei: self.sample(rng),
+            l1_receipt_checking_max_attempts: self.sample(rng),
+            l1_receipt_checking_sleep_ms: self.sample(rng),
+            l1_tx_sending_max_attempts: self.sample(rng),
+            l1_tx_sending_sleep_ms: self.sample(rng),
+            halt_on_error: self.sample(rng),
         }
     }
 }
@@ -1051,8 +1073,11 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
             base_url: self.sample(rng),
             api_key: self.sample(rng),
             client_timeout_ms: self.sample(rng),
-            forced_numerator: self.sample(rng),
-            forced_denominator: self.sample(rng),
+            forced: Some(ForcedPriceClientConfig {
+                numerator: self.sample(rng),
+                denominator: self.sample(rng),
+                fluctuation: self.sample(rng),
+            }),
         }
     }
 }

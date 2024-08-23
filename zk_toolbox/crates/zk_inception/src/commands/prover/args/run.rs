@@ -28,6 +28,8 @@ pub enum ProverComponent {
     Prover,
     #[strum(to_string = "Compressor")]
     Compressor,
+    #[strum(to_string = "ProverJobMonitor")]
+    ProverJobMonitor,
 }
 
 #[derive(Debug, Clone, Parser, Default)]
