@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger};
 use config::EcosystemConfig;
-use ethers::utils::hex::ToHex;
 use xshell::{cmd, Shell};
 
 use super::{
@@ -40,11 +39,9 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         .init_test_wallet(&ecosystem_config, &chain_config)
         .await?;
 
-    let private_key = wallets.get_test_wallet(&chain_config)?.private_key.unwrap();
-
     let mut command = cmd!(shell, "yarn jest --forceExit --testTimeout 120000")
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", private_key.encode_hex::<String>());
+        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))

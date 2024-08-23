@@ -2,11 +2,10 @@ use std::str::FromStr;
 
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
-use config::{ChainConfig, PortsConfig};
+use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
-use zksync_config::configs::chain;
 
 use super::genesis::GenesisArgsFinal;
 use crate::{

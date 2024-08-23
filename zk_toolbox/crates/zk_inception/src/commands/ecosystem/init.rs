@@ -26,7 +26,7 @@ use config::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
-    ContractsConfig, EcosystemConfig, GenesisConfig, PortsConfig,
+    ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode};
 use xshell::{cmd, Shell};

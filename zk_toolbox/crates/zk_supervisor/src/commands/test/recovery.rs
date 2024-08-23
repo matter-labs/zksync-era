@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use anyhow::Context;
 use common::{cmd::Cmd, config::global_config, logger, server::Server, spinner::Spinner};
 use config::EcosystemConfig;
-use ethers::utils::hex::ToHex;
 use xshell::{cmd, Shell};
 
 use super::{
@@ -58,11 +57,9 @@ async fn run_test(
         .init_test_wallet(ecosystem_config, &chain_config)
         .await?;
 
-    let private_key = wallets.get_test_wallet(&chain_config)?.private_key.unwrap();
-
     let cmd = Cmd::new(cmd)
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("MASTER_WALLET_PK", private_key.encode_hex::<String>());
+        .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
 
     cmd.with_force_run().run()?;
 
