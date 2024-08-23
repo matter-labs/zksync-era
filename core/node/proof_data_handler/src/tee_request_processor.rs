@@ -39,35 +39,43 @@ impl TeeRequestProcessor {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let mut min_batch_number: Option<L1BatchNumber> = None;
+        let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
-        loop {
+        let result = loop {
             let l1_batch_number = match self
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
                 .await?
             {
                 Some(number) => number,
-                None => return Ok(Json(TeeProofGenerationDataResponse(None))),
+                None => break Ok(Json(TeeProofGenerationDataResponse(None))),
             };
 
             match self.blob_store.get(l1_batch_number).await {
-                Ok(input) => {
-                    return Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
-                }
+                Ok(input) => break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input))))),
                 Err(ObjectStoreError::KeyNotFound(_)) => {
-                    tracing::warn!(
-                        "Blob for batch number {} has not been found in the object store.",
-                        l1_batch_number
-                    );
+                    missing_range = match missing_range {
+                        Some((start, _)) => Some((start, l1_batch_number)),
+                        None => Some((l1_batch_number, l1_batch_number)),
+                    };
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
                     min_batch_number = Some(min_batch_number.unwrap_or(l1_batch_number) + 1);
-                    continue;
                 }
                 Err(err) => {
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
-                    return Err(RequestProcessorError::ObjectStore(err));
+                    break Err(RequestProcessorError::ObjectStore(err));
                 }
             }
+        };
+
+        if let Some((start, end)) = missing_range {
+            tracing::warn!(
+                "Blobs for batch numbers {} to {} not found in the object store. Marked as unpicked.",
+                start,
+                end
+            );
         }
+
+        result
     }
 
     async fn lock_batch_for_proving(
