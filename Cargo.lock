@@ -1463,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "avail_client"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da?branch=dz-proto-configs#8de57c26b4ea7aed55b967de28d75a9a6715b8fb"
+source = "git+https://github.com/matter-labs/hyperchain-da?rev=d9730534c81f2b4090858c5fdd880a52d807c7c4#d9730534c81f2b4090858c5fdd880a52d807c7c4"
 dependencies = [
  "alloy",
  "anyhow",
@@ -2276,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "celestia_client"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da?branch=dz-proto-configs#8de57c26b4ea7aed55b967de28d75a9a6715b8fb"
+source = "git+https://github.com/matter-labs/hyperchain-da?rev=d9730534c81f2b4090858c5fdd880a52d807c7c4#d9730534c81f2b4090858c5fdd880a52d807c7c4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3175,7 +3175,7 @@ dependencies = [
 [[package]]
 name = "da_config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da?branch=dz-proto-configs#8de57c26b4ea7aed55b967de28d75a9a6715b8fb"
+source = "git+https://github.com/matter-labs/hyperchain-da?rev=d9730534c81f2b4090858c5fdd880a52d807c7c4#d9730534c81f2b4090858c5fdd880a52d807c7c4"
 dependencies = [
  "anyhow",
  "da_utils",
@@ -3187,7 +3187,7 @@ dependencies = [
 [[package]]
 name = "da_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da?branch=dz-proto-configs#8de57c26b4ea7aed55b967de28d75a9a6715b8fb"
+source = "git+https://github.com/matter-labs/hyperchain-da?rev=d9730534c81f2b4090858c5fdd880a52d807c7c4#d9730534c81f2b4090858c5fdd880a52d807c7c4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7614,7 +7614,7 @@ dependencies = [
 [[package]]
 name = "proto_config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/hyperchain-da?branch=dz-proto-configs#8de57c26b4ea7aed55b967de28d75a9a6715b8fb"
+source = "git+https://github.com/matter-labs/hyperchain-da?rev=d9730534c81f2b4090858c5fdd880a52d807c7c4#d9730534c81f2b4090858c5fdd880a52d807c7c4"
 dependencies = [
  "anyhow",
  "da_config",
