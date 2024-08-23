@@ -509,7 +509,18 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        #[cfg(all(feature = "da-avail", feature = "da-celestia"))]
+        return Err(anyhow!("More than one DA client is enabled"));
+
+        #[cfg(feature = "da-avail")]
+        self.node
+            .add_layer(avail_client::wiring_layer::AvailWiringLayer::new());
+        #[cfg(feature = "da-celestia")]
+        self.node
+            .add_layer(celestia_client::wiring_layer::CelestiaWiringLayer);
+
+        #[cfg(not(any(feature = "da-avail", feature = "da-celestia")))]
         self.node.add_layer(NoDAClientWiringLayer);
         Ok(self)
     }
@@ -759,7 +770,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
+                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;

@@ -43,3 +43,12 @@ zksync_node_api_server.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+
+#avail_client = { version = "0.1.0", path = "../../../../hyperchain-da/clients/implementations/avail", optional = true }
+avail_client = { version = "0.1.0", git = "https://github.com/matter-labs/hyperchain-da", branch = "dz-proto-configs", optional = true }
+#celestia_client = { version = "0.1.0", path = "../../../../hyperchain-da/clients/implementations/celestia", optional = true }
+celestia_client = { version = "0.1.0", git = "https://github.com/matter-labs/hyperchain-da", branch = "dz-proto-configs", optional = true }
+
+[features]
+da-avail = ["avail_client"]
+da-celestia = ["celestia_client"]

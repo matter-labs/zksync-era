@@ -302,3 +302,9 @@ zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }
+
+# these are used in hyperchain-da, which causes ambiguity in the dependency resolution, so we use native ones explicitly
+[patch."https://github.com/matter-labs/zksync-era"]
+zksync_node_framework = { path = "core/node/node_framework" }
+zksync_env_config = { path = "core/lib/env_config" }
+zksync_da_client = { path = "core/lib/da_client" }
