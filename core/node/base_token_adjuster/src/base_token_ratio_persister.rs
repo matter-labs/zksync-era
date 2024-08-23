@@ -1,6 +1,5 @@
 use anyhow::Context as _;
-use std::time::Instant;
-use std::{cmp::max, fmt::Debug, sync::Arc};
+use std::{cmp::max, fmt::Debug, sync::Arc, time::Instant};
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
