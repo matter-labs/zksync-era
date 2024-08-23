@@ -31,10 +31,10 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
                 .l1_receipt_checking_max_attempts
                 .unwrap_or(Self::Type::default_l1_receipt_checking_max_attempts()),
             price_fetching_sleep_ms: self
-                .l1_receipt_checking_sleep_ms
+                .price_fetching_sleep_ms
                 .unwrap_or(Self::Type::default_price_fetching_sleep_ms()),
             price_fetching_max_attempts: self
-                .l1_receipt_checking_max_attempts
+                .price_fetching_max_attempts
                 .unwrap_or(Self::Type::default_price_fetching_max_attempts()),
             l1_tx_sending_max_attempts: self
                 .l1_tx_sending_max_attempts
