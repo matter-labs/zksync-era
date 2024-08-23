@@ -8,6 +8,7 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 }
 
 // Subcommands help
+pub(super) const MSG_PROVER_VERSION_ABOUT: &str = "Protocol version used by provers";
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";

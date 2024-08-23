@@ -26,8 +26,11 @@ binaryen
 system-contracts
 artifacts-zk
 cache-zk
-// Ignore directories with OZ and forge submodules.
+# Ignore directories with OZ and forge submodules.
 contracts/l1-contracts/lib
+
+# Ignore ecosystem configs
+/configs/
 
 **/.git
 **/node_modules
