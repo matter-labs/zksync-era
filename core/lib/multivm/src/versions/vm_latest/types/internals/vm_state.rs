@@ -140,8 +140,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
-            // For now, the default account hash is used as the code hash for the EVM simulator.
-            // In the 1.5.0 version, it is not possible to instantiate EVM bytecode.
             evm_simulator_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.evm_simulator.hash,
             ),
