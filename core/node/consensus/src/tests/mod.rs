@@ -3,11 +3,13 @@ use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
-    validator,
+    attester, validator,
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
-use zksync_types::ProtocolVersionId;
+use zksync_dal::consensus::AttestationStatus;
+use zksync_node_sync::MainNodeClient;
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
     mn::run_main_node,

@@ -8,10 +8,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{
-            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource,
-        },
+        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
         priority_merkle_tree::PriorityTreeResource,
