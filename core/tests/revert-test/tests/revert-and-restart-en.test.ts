@@ -351,17 +351,24 @@ describe('Block reverting test', function () {
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
-        // wait for node to be responsive before sending a deposit
-        await extNode.tester.web3Provider.getL1BatchNumber();
 
-        const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
-            amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true,
-            approveERC20: true
-        });
-        await h.waitFinalize();
+        for (let iter = 0; iter < 30; iter++) {
+            try {
+                const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
+                    token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
+                    amount: depositAmount,
+                    to: alice.address,
+                    approveBaseERC20: true,
+                    approveERC20: true
+                });
+                await h.waitFinalize();
+                await utils.sleep(2);
+            } catch (error: any) {
+                if (error.message == 'server shutting down') {
+                    continue;
+                }
+            }
+        }
 
         console.log('Restart the main node with L1 batch execution disabled.');
         await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
