@@ -28,6 +28,11 @@ on:
         type: boolean
         required: false
         default: false
+      custom_args:
+        description: 'Custom arguments for docker build'
+        type: string
+        required: false
+        default: ''
 jobs:
   build-images:
     name: Build and Push Docker Images
@@ -146,10 +151,11 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.components }}
           PLATFORM: ${{ matrix.platforms }}
+          CUSTOM_ARGS: ${{ inputs.custom_args }}
         run: |
           ci_run run_retried rustup default nightly-2024-05-07
           platform=$(echo $PLATFORM | tr '/' '-')
-          ci_run zk docker $DOCKER_ACTION --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
+          ci_run zk docker $DOCKER_ACTION $CUSTOM_ARGS --custom-tag=${IMAGE_TAG_SUFFIX} --platform=${PLATFORM} $COMPONENT
       - name: Show sccache stats
         if: always()
         run: |

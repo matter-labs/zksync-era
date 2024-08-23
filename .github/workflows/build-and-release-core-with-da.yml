@@ -1,0 +1,49 @@
+name: Build and release the core images with DA clients
+on:
+  workflow_dispatch:
+    inputs:
+      da_layer:
+        type: choice
+        description: "Which DA client to use"
+        required: true
+        options:
+          - avail
+          - celestia
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: [ matterlabs-deployer-stage ]
+    outputs:
+      image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+
+      - name: Generate image tag suffix
+        id: generate-tag-suffix
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          ts=$(date +%s%N | cut -b1-13)
+          echo "image_tag_suffix=${sha}-${ts}" >> $GITHUB_OUTPUT
+
+  build-core-images:
+    name: Build core images
+    needs: setup
+    uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-${{ inputs.da_layer }}-da
+      action: "build"
+      custom_args: '--build-arg="FEATURES=da-${{ inputs.da_layer }}"'
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  push-core-images:
+    name: Build and push images
+    needs: [ setup, build-core-images ]
+    uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-${{ inputs.da_layer }}-da
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

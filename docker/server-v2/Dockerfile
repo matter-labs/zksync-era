@@ -2,11 +2,14 @@
 # syntax=docker/dockerfile:experimental
 FROM matterlabs/zksync-build-base:latest as builder
 
+# space-separated list of features to enable
+ARG FEATURES
+
 WORKDIR /usr/src/zksync
 
 COPY . .
 
-RUN cargo build --release --features=rocksdb/io-uring
+RUN cargo build --release --features "rocksdb/io-uring ${FEATURES}"
 
 FROM debian:bookworm-slim
 
