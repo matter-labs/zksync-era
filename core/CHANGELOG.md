@@ -1,5 +1,26 @@
 # Changelog
 
+## [24.21.0](https://github.com/matter-labs/zksync-era/compare/core-v24.20.0...core-v24.21.0) (2024-08-22)
+
+
+### Features
+
+* External prover API metrics, refactoring ([#2630](https://github.com/matter-labs/zksync-era/issues/2630)) ([c83cca8](https://github.com/matter-labs/zksync-era/commit/c83cca8fe7fa105ec6b1491e4efb9f9e4bd66d41))
+
+## [24.20.0](https://github.com/matter-labs/zksync-era/compare/core-v24.19.0...core-v24.20.0) (2024-08-21)
+
+
+### Features
+
+* Add `gateway_url` to EN config ([#2698](https://github.com/matter-labs/zksync-era/issues/2698)) ([cfdda01](https://github.com/matter-labs/zksync-era/commit/cfdda019afe26810234285411eba79ada472c888))
+* **vm:** Enable parallelization in VM playground ([#2679](https://github.com/matter-labs/zksync-era/issues/2679)) ([c9ad59e](https://github.com/matter-labs/zksync-era/commit/c9ad59e1ec918f29a7a4b26fe5a6f62cf94a5ba1))
+
+
+### Bug Fixes
+
+* base token ratio startup as a separate component ([#2704](https://github.com/matter-labs/zksync-era/issues/2704)) ([d65588f](https://github.com/matter-labs/zksync-era/commit/d65588f42391ce03fc636daa541b1978fad13429))
+* **upgrade.test.ts:** minting from a clean state ([#2402](https://github.com/matter-labs/zksync-era/issues/2402)) ([efa3bd6](https://github.com/matter-labs/zksync-era/commit/efa3bd6c09fbaf75d9807349afa626eb99fc3dfe))
+
 ## [24.19.0](https://github.com/matter-labs/zksync-era/compare/core-v24.18.0...core-v24.19.0) (2024-08-21)
 
 

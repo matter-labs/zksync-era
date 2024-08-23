@@ -8673,7 +8673,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.19.0"
+version = "24.21.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8755,6 +8755,7 @@ dependencies = [
  "bincode",
  "tokio",
  "tracing",
+ "vise",
  "zksync_basic_types",
  "zksync_config",
  "zksync_dal",
