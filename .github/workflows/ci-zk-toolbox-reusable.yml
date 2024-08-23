@@ -11,7 +11,7 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   build:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -48,8 +48,8 @@ jobs:
           compression-level: 0
 
   tests:
-    runs-on: [matterlabs-ci-runner]
-    needs: [build]
+    runs-on: [ matterlabs-ci-runner ]
+    needs: [ build ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -298,3 +298,11 @@ jobs:
       - name: Show revert_validium.log logs
         if: always()
         run: ci_run cat revert_validium.log || true
+
+      - name: Show external_node.log logs
+        if: always()
+        run: ci_run cat "zk_external-node -- --components=all" || true
+
+      - name: Show external_node.log2 logs
+        if: always()
+        run: ci_run cat "zk_external-node -- --components=all,tree_fetcher" || true

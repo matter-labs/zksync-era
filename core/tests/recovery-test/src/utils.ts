@@ -1,5 +1,6 @@
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import path from 'path';
+import * as fs from 'fs';
 
 const pathToHome = path.join(__dirname, '../../../..');
 
@@ -18,13 +19,25 @@ export function background({
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
     console.log(`Running command in background: ${command}`);
-    return _spawn(command, {
-        stdio: stdio,
+    let command_answer = command.replace(' ', '_');
+
+    let process = _spawn(command, {
+        stdio: ['pipe', 'pipe', 'pipe'],
         shell: true,
         detached: true,
         cwd,
         env
     });
+
+    process.stdout.on('data', (data) => {
+        let file = path.join(pathToHome, command_answer);
+        fs.appendFileSync(file, data);
+    });
+    process.stderr.on('data', (data) => {
+        let file = path.join(pathToHome, command_answer);
+        fs.appendFileSync(file, data);
+    });
+    return process;
 }
 
 export function runInBackground({
