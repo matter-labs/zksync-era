@@ -10,7 +10,11 @@ use zksync_types::vm::FastVmMode;
 use super::*;
 use crate::impls::{VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundTasks};
 
-async fn setup_storage(pool: &ConnectionPool<Core>, batch_count: u32) -> GenesisParams {
+async fn setup_storage(
+    pool: &ConnectionPool<Core>,
+    batch_count: u32,
+    insert_protective_reads: bool,
+) -> GenesisParams {
     let mut conn = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
     if !conn.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -24,32 +28,49 @@ async fn setup_storage(pool: &ConnectionPool<Core>, batch_count: u32) -> Genesis
     // Generate some batches and persist them in Postgres
     let mut accounts = [Account::random()];
     fund(&mut conn, &accounts).await;
-    store_l1_batches(
-        &mut conn,
-        1..=batch_count,
-        genesis_params.base_system_contracts().hashes(),
-        &mut accounts,
-    )
-    .await
-    .unwrap();
+    store_l1_batches(&mut conn, 1..=batch_count, &genesis_params, &mut accounts)
+        .await
+        .unwrap();
 
     // Fill in missing storage logs for all batches so that running VM for all of them works correctly.
-    storage_writer::write_storage_logs(pool.clone()).await;
+    storage_writer::write_storage_logs(pool.clone(), insert_protective_reads).await;
     genesis_params
+}
+
+#[derive(Debug)]
+enum StorageLoader<'a> {
+    Cached(&'a tempfile::TempDir),
+    Postgres,
+    Snapshot,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum StorageLoaderKind {
+    Cached,
+    Postgres,
+    Snapshot,
+}
+
+impl StorageLoaderKind {
+    const ALL: [Self; 3] = [Self::Cached, Self::Postgres, Self::Snapshot];
 }
 
 async fn run_playground(
     pool: ConnectionPool<Core>,
-    rocksdb_dir: Option<&tempfile::TempDir>,
+    storage_loader: StorageLoader<'_>,
     reset_to: Option<L1BatchNumber>,
 ) {
-    let genesis_params = setup_storage(&pool, 5).await;
+    let insert_protective_reads = matches!(storage_loader, StorageLoader::Snapshot);
+    let genesis_params = setup_storage(&pool, 5, insert_protective_reads).await;
     let cursor = VmPlaygroundCursorOptions {
         first_processed_batch: reset_to.unwrap_or(L1BatchNumber(0)),
         window_size: NonZeroU32::new(1).unwrap(),
         reset_state: reset_to.is_some(),
     };
-    let rocksdb_dir = rocksdb_dir.map(|dir| dir.path().to_str().unwrap().to_owned());
+    let rocksdb_dir = match storage_loader {
+        StorageLoader::Cached(dir) => Some(dir.path().to_str().unwrap().to_owned()),
+        _ => None,
+    };
 
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
@@ -155,7 +176,7 @@ async fn vm_playground_basics(reset_state: bool) {
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
     run_playground(
         pool,
-        Some(&rocksdb_dir),
+        StorageLoader::Cached(&rocksdb_dir),
         reset_state.then_some(L1BatchNumber(0)),
     )
     .await;
@@ -165,15 +186,28 @@ async fn vm_playground_basics(reset_state: bool) {
 #[tokio::test]
 async fn vm_playground_basics_without_cache(reset_state: bool) {
     let pool = ConnectionPool::test_pool().await;
-    run_playground(pool, None, reset_state.then_some(L1BatchNumber(0))).await;
+    run_playground(
+        pool,
+        StorageLoader::Postgres,
+        reset_state.then_some(L1BatchNumber(0)),
+    )
+    .await;
 }
 
-#[test_casing(2, [false, true])]
+#[test_casing(3, StorageLoaderKind::ALL)]
 #[tokio::test]
-async fn starting_from_non_zero_batch(with_cache: bool) {
+async fn starting_from_non_zero_batch(storage_loader_kind: StorageLoaderKind) {
     let pool = ConnectionPool::test_pool().await;
-    let rocksdb_dir = with_cache.then(|| tempfile::TempDir::new().unwrap());
-    run_playground(pool, rocksdb_dir.as_ref(), Some(L1BatchNumber(3))).await;
+    let rocksdb_dir;
+    let storage_loader = match storage_loader_kind {
+        StorageLoaderKind::Cached => {
+            rocksdb_dir = tempfile::TempDir::new().unwrap();
+            StorageLoader::Cached(&rocksdb_dir)
+        }
+        StorageLoaderKind::Postgres => StorageLoader::Postgres,
+        StorageLoaderKind::Snapshot => StorageLoader::Snapshot,
+    };
+    run_playground(pool, storage_loader, Some(L1BatchNumber(3))).await;
 }
 
 #[test_casing(2, [L1BatchNumber(0), L1BatchNumber(2)])]
@@ -181,7 +215,7 @@ async fn starting_from_non_zero_batch(with_cache: bool) {
 async fn resetting_playground_state(reset_to: L1BatchNumber) {
     let pool = ConnectionPool::test_pool().await;
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
-    run_playground(pool.clone(), Some(&rocksdb_dir), None).await;
+    run_playground(pool.clone(), StorageLoader::Cached(&rocksdb_dir), None).await;
 
     // Manually catch up RocksDB to Postgres to ensure that resetting it is not trivial.
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -193,7 +227,12 @@ async fn resetting_playground_state(reset_to: L1BatchNumber) {
         .await
         .unwrap();
 
-    run_playground(pool.clone(), Some(&rocksdb_dir), Some(reset_to)).await;
+    run_playground(
+        pool.clone(),
+        StorageLoader::Cached(&rocksdb_dir),
+        Some(reset_to),
+    )
+    .await;
 }
 
 #[test_casing(2, [2, 3])]
@@ -203,7 +242,7 @@ async fn using_larger_window_size(window_size: u32) {
     let pool = ConnectionPool::test_pool().await;
     let rocksdb_dir = tempfile::TempDir::new().unwrap();
 
-    let genesis_params = setup_storage(&pool, 5).await;
+    let genesis_params = setup_storage(&pool, 5, false).await;
     let cursor = VmPlaygroundCursorOptions {
         first_processed_batch: L1BatchNumber(0),
         window_size: NonZeroU32::new(window_size).unwrap(),
