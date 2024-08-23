@@ -5,7 +5,7 @@ use serde::Deserialize;
 pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
 pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 100;
 pub const DEFAULT_MAX_RETRIES: u16 = 5;
-pub const DEFAULT_ENABLE_ONCHAIN_VERIFICATION: bool = true;
+pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = false;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DADispatcherConfig {
@@ -18,7 +18,7 @@ pub struct DADispatcherConfig {
     /// Enable on-chain verification of the data availability.
     // TODO: run a verification task to check if the L1 contract expects the inclusion proofs.
     // Maybe even remove this value and use the L1 as a source of truth.
-    pub enable_onchain_verification: Option<bool>,
+    pub use_dummy_inclusion_data: Option<bool>,
 }
 
 impl DADispatcherConfig {
@@ -27,7 +27,7 @@ impl DADispatcherConfig {
             polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
             max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
-            enable_onchain_verification: Some(DEFAULT_ENABLE_ONCHAIN_VERIFICATION),
+            use_dummy_inclusion_data: Some(DEFAULT_USE_DUMMY_INCLUSION_DATA),
         }
     }
 
@@ -47,8 +47,8 @@ impl DADispatcherConfig {
         self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
     }
 
-    pub fn enable_onchain_verification(&self) -> bool {
-        self.enable_onchain_verification
-            .unwrap_or(DEFAULT_ENABLE_ONCHAIN_VERIFICATION)
+    pub fn use_dummy_inclusion_data(&self) -> bool {
+        self.use_dummy_inclusion_data
+            .unwrap_or(DEFAULT_USE_DUMMY_INCLUSION_DATA)
     }
 }

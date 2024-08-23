@@ -136,7 +136,7 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = if self.config.enable_onchain_verification() {
+        let inclusion_data = if self.config.use_dummy_inclusion_data() {
             self.client
                 .get_inclusion_data(blob_info.blob_id.as_str())
                 .await
