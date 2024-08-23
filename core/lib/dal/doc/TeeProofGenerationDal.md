@@ -15,4 +15,7 @@ stateDiagram-v2
 ready_to_be_proven --> picked_by_prover : lock_batch_for_proving
 picked_by_prover --> generated : save_proof_artifacts_metadata
 generated --> [*]
+
+picked_by_prover --> unpicked : unlock_batch
+unpicked --> [*]
 ```
