@@ -147,7 +147,7 @@ impl VM {
         &self, 
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,
-        call: contracts::Call<O>,
+        call: contracts::Call<'_,O>,
     ) -> ctx::Result<F::Outputs> {
         let tx = L2Tx::new(
             call.address(),
