@@ -21,6 +21,7 @@ pub enum L1Network {
     #[default]
     Localhost,
     Sepolia,
+    Holesky,
     Mainnet,
 }
 
@@ -30,6 +31,7 @@ impl L1Network {
         match self {
             L1Network::Localhost => 9,
             L1Network::Sepolia => 11_155_111,
+            L1Network::Holesky => 17000,
             L1Network::Mainnet => 1,
         }
     }
