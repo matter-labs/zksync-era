@@ -150,17 +150,20 @@ async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams) {}
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) {}
 
     public async terminate() {
         try {
-            let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
-            console.log('Pid: ', data.stdout);
-            await utils.exec(`kill -9 ${data.stdout}`);
+            // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
+            // console.log('Pid: ', data.stdout);
+            if (this.zkInception) {
+                await utils.exec(`kill -9 ${this.proc.pid}`);
+            } else {
+                await utils.exec(`killall -INT zksync_server`);
+            }
         } catch (err) {
             console.log(`ignored error: ${err}`);
-            // @ts-ignore
-            console.log(`ignored error: ${err.stderr}`);
+            // console.log(`ignored error: ${ err.stderr }`);
         }
     }
 
@@ -221,18 +224,22 @@ class MainNode {
                 await utils.sleep(1);
             }
         }
-        return new MainNode(tester, proc);
+        return new MainNode(tester, proc, fileConfig.loadFromFile);
     }
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) {}
 
     public async terminate() {
         try {
-            let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
-            console.log('Pid: ', data.stdout);
-            await utils.exec(`kill -9 ${data.stdout}`);
+            // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
+            // console.log('Pid: ', data.stdout);
+            if (this.zkInception) {
+                await utils.exec(`kill -9 ${this.proc.pid}`);
+            } else {
+                await utils.exec('killall -INT zksync_external_node');
+            }
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -285,7 +292,7 @@ class ExtNode {
                 await utils.sleep(1);
             }
         }
-        return new ExtNode(tester, proc);
+        return new ExtNode(tester, proc, fileConfig.loadFromFile);
     }
 
     // Waits for the node process to exit.

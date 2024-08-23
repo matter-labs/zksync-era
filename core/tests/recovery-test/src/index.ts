@@ -159,17 +159,17 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            const parent = await promisify(exec)(`pgrep -P ${this.childProcess.pid}`);
-            console.log('Parent stdout', parent.stdout);
-            console.log('Main PID', this.childProcess.pid);
+            // const parent = await promisify(exec)(`pgrep -P ${this.childProcess.pid}`);
+            // console.log('Parent stdout', parent.stdout);
+            // console.log('Main PID', this.childProcess.pid);
 
             // const ps = await promisify(exec)(`ps -a`);
             // console.log(ps.stdout);
 
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-            await promisify(exec)(`kill -${signalNumber} ${parent.stdout}`);
+            // await promisify(exec)(`kill -${signalNumber} ${parent.stdout}`);
             console.log('exec');
-            // await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
+            await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {

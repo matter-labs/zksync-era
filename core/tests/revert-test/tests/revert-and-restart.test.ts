@@ -45,9 +45,7 @@ async function killServerAndWaitForShutdown(tester: Tester, serverProcess: Child
     if (serverProcess === undefined) {
         await utils.exec('killall -9 zksync_server');
     } else {
-        let data = await utils.exec(`pgrep -P ${serverProcess.pid}`);
-        console.log('Pid: ', data.stdout);
-        await utils.exec(`kill -9 ${data.stdout}`);
+        await utils.exec(`kill -9 ${serverProcess.pid}`);
     }
     // Wait until it's really stopped.
     let iter = 0;
@@ -215,7 +213,10 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         let fileConfigFlags = '';
         if (fileConfig.loadFromFile) {
-            const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
+            const configPaths = getAllConfigsPath({
+                pathToHome,
+                chain: fileConfig.chain
+            });
             fileConfigFlags = `
                 --config-path=${configPaths['general.yaml']}
                 --contracts-config-path=${configPaths['contracts.yaml']}

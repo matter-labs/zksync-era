@@ -1,5 +1,8 @@
 import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { promisify } from 'util';
+import path from 'path';
+
+const pathToHome = path.join(__dirname, '../../../..');
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -54,10 +57,20 @@ export function runServerInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        command = 'zk_inception server';
-        if (chain) {
-            command += ` --chain ${chain}`;
-        }
+        const basePath = `${pathToHome}/chains/${chain}/configs/external_node`;
+        const config_path = `${basePath}/general.yaml`;
+        const secrets_path = `${basePath}/secrets.yaml`;
+        const en_config_path = `${basePath}/external_node.yaml`;
+
+        command = `cargo run --release --bin zksync_server --
+        --config-path ${config_path}
+        --secrets-path ${secrets_path}
+        --external-node-config-path ${en_config_path}`;
+
+        // command = 'zk_inception server';
+        // if (chain) {
+        //     command += ` --chain ${ chain }`;
+        // }
     } else {
         command = 'zk server';
     }
@@ -81,8 +94,18 @@ export function runExternalNodeInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        command = 'zk_inception external-node run';
-        command += chain ? ` --chain ${chain}` : '';
+        const basePath = `${pathToHome}/chains/${chain}/configs/external_node`;
+        const config_path = `${basePath}/general.yaml`;
+        const secrets_path = `${basePath}/secrets.yaml`;
+        const en_config_path = `${basePath}/external_node.yaml`;
+
+        command = `cargo run --release --bin zksync_external_node --
+        --config-path ${config_path}
+        --secrets-path ${secrets_path}
+        --external-node-config-path ${en_config_path}`;
+
+        // command = 'zk_inception external-node run';
+        // command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node';
     }
@@ -94,6 +117,7 @@ export function runExternalNodeInBackground({
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
 // returns { stdout, stderr }
 const promisified = promisify(_exec);
+
 export function exec(command: string, options: ProcessEnvOptions) {
     command = command.replace(/\n/g, ' ');
     return promisified(command, options);
