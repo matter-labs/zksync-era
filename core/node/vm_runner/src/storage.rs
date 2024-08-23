@@ -39,7 +39,24 @@ pub trait StorageLoader: 'static + Send + Sync + fmt::Debug {
 
 /// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
 #[derive(Debug)]
-pub(crate) struct PostgresLoader(pub ConnectionPool<Core>);
+pub(crate) struct PostgresLoader {
+    pool: ConnectionPool<Core>,
+    l1_batch_params_provider: L1BatchParamsProvider,
+    chain_id: L2ChainId,
+}
+
+impl PostgresLoader {
+    pub async fn new(pool: ConnectionPool<Core>, chain_id: L2ChainId) -> anyhow::Result<Self> {
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        let mut conn = pool.connection().await?;
+        l1_batch_params_provider.initialize(&mut conn).await?;
+        Ok(Self {
+            pool,
+            l1_batch_params_provider,
+            chain_id,
+        })
+    }
+}
 
 #[async_trait]
 impl StorageLoader for PostgresLoader {
@@ -48,24 +65,26 @@ impl StorageLoader for PostgresLoader {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
-        let mut conn = self.0.connection().await?;
+        let mut conn = self.pool.connection().await?;
         let Some(data) = load_batch_execute_data(
             &mut conn,
             l1_batch_number,
-            &L1BatchParamsProvider::new(),
-            L2ChainId::default(),
+            &self.l1_batch_params_provider,
+            self.chain_id,
         )
         .await?
         else {
             return Ok(None);
         };
 
-        if let Some(storage) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
+        if let Some(storage) = OwnedStorage::snapshot(conn, l1_batch_number).await? {
             return Ok(Some((data, storage)));
         }
+
         tracing::info!(
             "Incomplete data to create storage snapshot for batch; will use sequential storage"
         );
+        let conn = self.pool.connection().await?;
         let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
         Ok(Some((data, storage)))
     }

@@ -216,7 +216,8 @@ impl VmPlayground {
             rocksdb.loader_task_sender.send(loader_task).ok();
             Arc::new(loader)
         } else {
-            Arc::new(PostgresLoader(self.pool.clone()))
+            let loader = PostgresLoader::new(self.pool.clone(), self.chain_id).await?;
+            Arc::new(loader)
         };
 
         let vm_runner = VmRunner::new(

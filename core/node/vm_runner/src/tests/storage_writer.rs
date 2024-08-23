@@ -4,6 +4,7 @@ use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::OwnedStorage;
 use zksync_state_keeper::MainBatchExecutor;
+use zksync_types::L2ChainId;
 
 use super::*;
 use crate::{
@@ -170,7 +171,10 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
     });
     let mut processed_batch = io.last_processed_batch.subscribe();
 
-    let loader = Arc::new(PostgresLoader(pool.clone()));
+    let loader = PostgresLoader::new(pool.clone(), L2ChainId::default())
+        .await
+        .unwrap();
+    let loader = Arc::new(loader);
     let batch_executor = Box::new(MainBatchExecutor::new(false, false));
     let vm_runner = VmRunner::new(pool, io.clone(), loader, io, batch_executor);
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -209,7 +213,10 @@ async fn storage_writer_works(insert_protective_reads: bool) {
         current: L1BatchNumber(0),
         max: 1, // FIXME
     }));
-    let loader = Arc::new(PostgresLoader(pool.clone()));
+    let loader = PostgresLoader::new(pool.clone(), genesis_params.config().l2_chain_id)
+        .await
+        .unwrap();
+    let loader = Arc::new(loader);
 
     // Check that the loader returns expected types of storage.
     let (_, batch_storage) = loader
