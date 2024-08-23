@@ -278,8 +278,8 @@ jobs:
 
       - name: Show external_node.log logs
         if: always()
-        run: ci_run cat "zk_external-node -- --components=all" || true
+        run: ci_run cat "externalnodeyaml-componentsall" || true
 
       - name: Show external_node.log2 logs
         if: always()
-        run: ci_run cat "zk_external-node -- --components=all,tree_fetcher" || true
+        run: ci_run cat "eyaml-componentsalltreefetcher" || true

@@ -310,11 +310,11 @@ jobs:
           ci_run cat /tmp/sccache_log.txt || true
       - name: Show external_node.log logs
         if: always()
-        run: ci_run cat "zk_external-node -- --components=all" || true
+        run: ci_run cat "zk-externalnode-componentsall" || true
 
       - name: Show external_node.log2 logs
         if: always()
-        run: ci_run cat "zk_external-node -- --components=all,tree_fetcher" || true
+        run: ci_run cat "lnode-componentsalltreefetcher" || true
 
   external-node:
     name: External node (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, deployment_mode=${{ matrix.deployment_mode }})
@@ -439,10 +439,3 @@ jobs:
           ci_run sccache --show-stats || true
           ci_run cat /tmp/sccache_log.txt || true
 
-      - name: Show external_node.log logs
-        if: always()
-        run: ci_run cat "zk_external-node -- --components=all" || true
-
-      - name: Show external_node.log2 logs
-        if: always()
-        run: ci_run cat "zk_external-node -- --components=all,tree_fetcher" || true
