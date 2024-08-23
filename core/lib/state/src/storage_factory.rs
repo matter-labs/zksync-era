@@ -230,15 +230,15 @@ impl PgOrRocksdbStorage<'static> {
             })
             .collect();
 
+        // Retain only slots that were written to before the batch. Other slots (i.e., initial writes and phantom writes)
+        // will return zero previous value, "is initial write" flag and non-existing enum index as expected.
         let storage = previous_values.into_iter().filter_map(|(key, prev_value)| {
-            let prev_value = prev_value.unwrap_or_else(H256::zero);
+            let prev_value = prev_value?;
             let &(l1_batch, enum_index) = initial_write_info.get(&key)?;
-            let enum_index_for_batch = if l1_batch < l1_batch_number {
-                enum_index
-            } else {
-                0
-            };
-            Some((key, (prev_value, enum_index_for_batch)))
+            if l1_batch >= l1_batch_number {
+                return None;
+            }
+            Some((key, (prev_value, enum_index)))
         });
         let storage = storage.collect();
         Ok(Some(StorageSnapshot::new(storage, factory_deps).into()))
