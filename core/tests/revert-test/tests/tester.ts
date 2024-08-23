@@ -21,17 +21,27 @@ export class Tester {
     }
 
     // prettier-ignore
-    static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string) : Promise<Tester> {
+    static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string): Promise<Tester> {
         const ethProvider = new ethers.JsonRpcProvider(l1_rpc_addr);
         ethProvider.pollingInterval = 100;
 
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
-            ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
-            "m/44'/60'/0'/0/0"
-        );
-        const ethWallet = new ethers.Wallet(ethWalletHD.privateKey, ethProvider);
+
+        let ethWalletPK: string;
+        if (process.env.MASTER_WALLET_PK) {
+            ethWalletPK = process.env.MASTER_WALLET_PK;
+        } else {
+            const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
+                ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
+                "m/44'/60'/0'/0/0"
+            );
+
+            ethWalletPK = ethWalletHD.privateKey
+        }
+
+        const ethWallet = new ethers.Wallet(ethWalletPK, ethProvider);
+
         const hyperchainAdminHD = ethers.HDNodeWallet.fromMnemonic(
             ethers.Mnemonic.fromPhrase(ethTestConfig.mnemonic),
             "m/44'/60'/0'/0/1"

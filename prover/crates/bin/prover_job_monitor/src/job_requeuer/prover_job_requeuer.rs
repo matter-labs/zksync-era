@@ -3,7 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 
-use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
+use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
 /// `ProverJobRequeuer` is a task that requeues prover jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
@@ -34,8 +34,8 @@ impl Task for ProverJobRequeuer {
         for stuck_job in stuck_jobs {
             tracing::info!("requeued circuit prover job {:?}", stuck_job);
         }
-        PROVER_JOB_MONITOR_METRICS
-            .requeued_circuit_prover_jobs
+        SERVER_METRICS
+            .prover_fri_requeued_jobs
             .inc_by(job_len as u64);
         Ok(())
     }

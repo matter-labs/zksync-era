@@ -190,7 +190,8 @@ class MainNode {
             stdio: [null, logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the main node starts responding.
@@ -203,7 +204,7 @@ class MainNode {
                 if (proc.exitCode != null) {
                     assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('MainNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
@@ -243,7 +244,8 @@ class ExtNode {
             stdio: [null, logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the node starts responding.
@@ -256,7 +258,7 @@ class ExtNode {
                 if (proc.exitCode != null) {
                     assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('ExtNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
@@ -288,17 +290,17 @@ describe('Block reverting test', function () {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeConfig = loadConfig({
+            const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
-                config: 'external_node.yaml'
+                config: 'general.yaml'
             });
             const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeConfig.main_node_url;
+            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
         } else {
             let env = fetchEnv(mainEnv);
@@ -349,14 +351,25 @@ describe('Block reverting test', function () {
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
-        const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
-            amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true,
-            approveERC20: true
-        });
-        await h.waitFinalize();
+
+        for (let iter = 0; iter < 30; iter++) {
+            try {
+                const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
+                    token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
+                    amount: depositAmount,
+                    to: alice.address,
+                    approveBaseERC20: true,
+                    approveERC20: true
+                });
+                await h.waitFinalize();
+                break;
+            } catch (error: any) {
+                if (error.message == 'server shutting down') {
+                    await utils.sleep(2);
+                    continue;
+                }
+            }
+        }
 
         console.log('Restart the main node with L1 batch execution disabled.');
         await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');

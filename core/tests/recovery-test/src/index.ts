@@ -83,9 +83,11 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(useZkSupervisor: boolean, env: { [key: string]: string }) {
+export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
     if (useZkSupervisor) {
-        await executeNodeCommand(env, 'zk_inception external-node init');
+        let cmd = 'zk_inception external-node init';
+        cmd += chain ? ` --chain ${chain}` : '';
+        await executeNodeCommand(env, cmd);
     } else {
         await executeNodeCommand(env, 'zk db reset');
         await executeNodeCommand(env, 'zk clean --database');
@@ -149,8 +151,9 @@ export class NodeProcess {
         env: { [key: string]: string },
         logsFile: FileHandle | string,
         pathToHome: string,
-        useZkInception: boolean,
-        components: NodeComponents = NodeComponents.STANDARD
+        components: NodeComponents = NodeComponents.STANDARD,
+        useZkInception?: boolean,
+        chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
 
@@ -159,7 +162,8 @@ export class NodeProcess {
             stdio: [null, logs.fd, logs.fd],
             cwd: pathToHome,
             env,
-            useZkInception
+            useZkInception,
+            chain
         });
 
         return new NodeProcess(childProcess, logs);
@@ -197,11 +201,16 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
  */
 export class FundedWallet {
     static async create(mainNode: zksync.Provider, eth: ethers.Provider): Promise<FundedWallet> {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
-        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
-        const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
-        const wallet = new zksync.Wallet(walletHD.privateKey, mainNode, eth);
+        if (!process.env.MASTER_WALLET_PK) {
+            const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
+            const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
+            const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
+            const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
+
+            process.env.MASTER_WALLET_PK = walletHD.privateKey;
+        }
+
+        const wallet = new zksync.Wallet(process.env.MASTER_WALLET_PK, mainNode, eth);
 
         return new FundedWallet(wallet);
     }

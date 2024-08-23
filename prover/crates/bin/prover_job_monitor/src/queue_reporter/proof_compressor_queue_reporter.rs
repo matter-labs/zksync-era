@@ -5,7 +5,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
 use crate::{
-    metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS},
+    metrics::{JobStatus, PROVER_FRI_METRICS},
     task_wiring::Task,
 };
 
@@ -43,11 +43,11 @@ impl Task for ProofCompressorQueueReporter {
                 );
             }
 
-            PROVER_JOB_MONITOR_METRICS.proof_compressor_jobs
+            PROVER_FRI_METRICS.proof_compressor_jobs
                 [&(JobStatus::Queued, protocol_version.to_string())]
                 .set(stats.queued as u64);
 
-            PROVER_JOB_MONITOR_METRICS.proof_compressor_jobs
+            PROVER_FRI_METRICS.proof_compressor_jobs
                 [&(JobStatus::InProgress, protocol_version.to_string())]
                 .set(stats.in_progress as u64);
         }
@@ -58,8 +58,8 @@ impl Task for ProofCompressorQueueReporter {
             .await;
 
         if let Some(l1_batch_number) = oldest_not_compressed_batch {
-            PROVER_JOB_MONITOR_METRICS
-                .oldest_uncompressed_batch
+            PROVER_FRI_METRICS
+                .proof_compressor_oldest_uncompressed_batch
                 .set(l1_batch_number.0 as u64);
         }
 

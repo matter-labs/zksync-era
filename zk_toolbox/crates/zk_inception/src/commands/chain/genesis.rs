@@ -78,7 +78,12 @@ pub async fn genesis(
             .sender
             .as_mut()
             .context("sender")?
-            .pubdata_sending_mode = PubdataSendingMode::Custom
+            .pubdata_sending_mode = PubdataSendingMode::Custom;
+        general
+            .state_keeper_config
+            .as_mut()
+            .context("state_keeper_config")?
+            .pubdata_overhead_part = 0.0;
     }
 
     general.save_with_base_path(shell, &config.configs)?;
