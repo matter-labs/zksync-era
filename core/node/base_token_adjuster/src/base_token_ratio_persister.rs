@@ -182,9 +182,10 @@ impl BaseTokenRatioPersister {
             .observe(Self::duration_from_millis(
                 millis_since_epoch() - start_time,
             ));
-        Err(last_error.unwrap_or(anyhow::format_err!(
-            "Failed to update base token multiplier on L1"
-        )))
+        let error_message = "Failed to update base token multiplier on L1";
+        Err(last_error
+            .map(|x| x.context(error_message))
+            .unwrap_or_else(|| anyhow::anyhow!(error_message)))
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
