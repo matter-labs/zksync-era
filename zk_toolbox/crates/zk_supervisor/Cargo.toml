@@ -26,4 +26,3 @@ serde_json.workspace = true
 clap-markdown.workspace = true
 futures.workspace = true
 types.workspace = true
-serde_json.workspace = true
