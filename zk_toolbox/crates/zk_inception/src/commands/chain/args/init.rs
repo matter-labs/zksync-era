@@ -1,6 +1,6 @@
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
-use config::ChainConfig;
+use config::{ChainConfig, PortsConfig};
 use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
@@ -59,7 +59,11 @@ impl InitArgs {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
-            port_offset: self.port_offset.unwrap_or(0),
+            port_offset: self
+                .port_offset
+                .unwrap_or(PortsConfig::offset_from_chain_id(
+                    config.chain_id.as_u64() as u16
+                )),
         }
     }
 }
