@@ -81,6 +81,32 @@ pub(crate) fn read_message_root() -> Vec<u8> {
     )
 }
 
+pub(crate) fn read_bridgehub() -> (Vec<u8>, Contract) {
+    let path =
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/Bridgehub.sol/Bridgehub.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_stm() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/StateTransitionManager.sol/StateTransitionManager.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_mailbox_facet() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/facets/Mailbox.sol/MailboxFacet.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_diamond_init() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/DiamondInit.sol/DiamondInit.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_transparent_proxy() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json";
+    (read_bytecode(path), load_contract(path))
+}
+
 pub(crate) fn read_error_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",

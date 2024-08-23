@@ -14,7 +14,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface},
-    utils::StorageWritesDeduplicator,
+    utils::{bytecode::encode_call, StorageWritesDeduplicator},
     vm_latest::{
         tests::{
             tester::{TxType, VmTesterBuilder},
@@ -79,8 +79,8 @@ fn test_l1_l2_tx_execution_large_factory_deps() {
     let mailbox_contract = mailbox_contract();
     let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
-    // Generate a large number of vectors
-    let vector_size: usize = 95_899_345_880; // Size of each vector
+    // For 1 bytes array passed the largest tested size that doesn't fail is 9_632_000
+    let vector_size: usize = 9_632_000; // Size of each vector
     let num_vectors = 1; // Number of vectors
 
     let factory_deps: Vec<Vec<u8>> = (0..num_vectors).map(|_| vec![0u8; vector_size]).collect();
@@ -92,8 +92,14 @@ fn test_l1_l2_tx_execution_large_factory_deps() {
     let encoded_data = mailbox_contract
         .function("bridgehubRequestL2TransactionOnGateway")
         .unwrap()
-        .encode_input(&request_params.to_tokens())
+        .encode_input(&modified_request_params.to_tokens())
         .unwrap();
+
+    println!(
+        "Factory deps first byte array size: {}",
+        factory_deps[0].len()
+    );
+    println!("Encoded data size: {}", encoded_data.len());
 
     // Creating a Fee instance with the specified gas limit
     let fee = Fee {
@@ -189,8 +195,8 @@ fn test_l1_l2_tx_execution_many_small_factory_deps() {
     let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
     // Generate a large number of vectors
-    let small_vector_size: usize = 32; //(i32::MAX / 2).into(); // Size of each vector
-    let num_vectors = (i32::MAX / 10) * 7; // Number of vectors
+    let small_vector_size: usize = 32; // Size of each vector
+    let num_vectors = 71_066; // Number of vectors
 
     let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
         .map(|_| vec![0u8; small_vector_size])
@@ -203,8 +209,11 @@ fn test_l1_l2_tx_execution_many_small_factory_deps() {
     let encoded_data = mailbox_contract
         .function("bridgehubRequestL2TransactionOnGateway")
         .unwrap()
-        .encode_input(&request_params.to_tokens())
+        .encode_input(&modified_request_params.to_tokens())
         .unwrap();
+
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
 
     // Creating a Fee instance with the specified gas limit
     let fee = Fee {

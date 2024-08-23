@@ -191,6 +191,52 @@ impl Account {
         .unwrap()
     }
 
+    pub fn get_l1_prank_tx(
+        &self,
+        execute: Execute,
+        serial_id: u64,
+        prank_address: Address,
+    ) -> Transaction {
+        let max_fee_per_gas = U256::from(0u32);
+        let gas_limit = U256::from(20_000_000);
+        let factory_deps = execute.factory_deps;
+        abi::Transaction::L1 {
+            tx: abi::L2CanonicalTransaction {
+                tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
+                from: address_to_u256(&prank_address),
+                to: address_to_u256(&execute.contract_address),
+                gas_limit,
+                gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
+                max_fee_per_gas,
+                max_priority_fee_per_gas: 0.into(),
+                paymaster: 0.into(),
+                nonce: serial_id.into(),
+                value: execute.value,
+                reserved: [
+                    // `to_mint`
+                    gas_limit * max_fee_per_gas + execute.value,
+                    // `refund_recipient`
+                    address_to_u256(&self.address),
+                    0.into(),
+                    0.into(),
+                ],
+                data: execute.calldata,
+                signature: vec![],
+                factory_deps: factory_deps
+                    .iter()
+                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .collect(),
+                paymaster_input: vec![],
+                reserved_dynamic: vec![],
+            }
+            .into(),
+            factory_deps,
+            eth_block: 0,
+        }
+        .try_into()
+        .unwrap()
+    }
+
     pub fn get_test_contract_transaction(
         &mut self,
         address: Address,
