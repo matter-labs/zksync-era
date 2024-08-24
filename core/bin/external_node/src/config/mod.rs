@@ -1394,6 +1394,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
+            l2_consensus_registry_addr: None, // Main Node only; on ENs it's etched separately by the consensus module.
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
             base_token_address: Some(config.remote.base_token_addr),

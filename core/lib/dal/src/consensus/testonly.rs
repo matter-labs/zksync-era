@@ -10,6 +10,7 @@ impl Distribution<AttestationStatus> for Standard {
         AttestationStatus {
             genesis: rng.gen(),
             next_batch_to_attest: rng.gen(),
+            consensus_registry_address: rng.gen(),
         }
     }
 }

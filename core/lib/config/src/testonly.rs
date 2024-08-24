@@ -250,6 +250,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_weth_bridge_proxy_addr: rng.gen(),
             l2_weth_bridge_addr: rng.gen(),
             l2_testnet_paymaster_addr: rng.gen(),
+            l2_consensus_registry_addr: rng.gen(),
             l1_multicall3_addr: rng.gen(),
             base_token_addr: rng.gen(),
             chain_admin_addr: rng.gen(),

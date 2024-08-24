@@ -554,6 +554,7 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(AttestationStatus {
             genesis: genesis.hash(),
             next_batch_to_attest,
+            consensus_registry_address: None, // Assigned in the API layer.
         }))
     }
 }

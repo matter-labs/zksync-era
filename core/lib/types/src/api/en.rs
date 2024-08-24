@@ -43,11 +43,15 @@ pub struct SyncBlock {
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
 }
-
+/// Genesis served by the main node to the external nodes.
+///
+/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::messages::consensus::Genesis`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGenesis(pub serde_json::Value);
 
 /// AttestationStatus maintained by the main node.
 /// Used for testing L1 batch signing by consensus attesters.
+///
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::AttestationStatus`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationStatus(pub serde_json::Value);

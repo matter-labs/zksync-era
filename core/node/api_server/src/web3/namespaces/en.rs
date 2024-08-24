@@ -40,7 +40,7 @@ impl EnNamespace {
     pub async fn attestation_status_impl(
         &self,
     ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let status = self
+        let Some(mut status) = self
             .state
             .acquire_connection()
             .await?
@@ -54,13 +54,16 @@ impl EnNamespace {
             .context("TransactionBuilder::build()")?
             .consensus_dal()
             .attestation_status()
-            .await?;
+            .await?
+        else {
+            return Ok(None);
+        };
 
-        Ok(status.map(|s| {
-            en::AttestationStatus(
-                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
-            )
-        }))
+        status.consensus_registry_address = self.state.api_config.l2_consensus_registry_addr;
+
+        Ok(Some(en::AttestationStatus(
+            zksync_protobuf::serde::serialize(&status, serde_json::value::Serializer).unwrap(),
+        )))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {

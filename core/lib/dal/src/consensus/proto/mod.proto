@@ -120,4 +120,5 @@ message PaymasterParams {
 message AttestationStatus {
   optional roles.validator.GenesisHash genesis = 1; // required
   optional uint64 next_batch_to_attest = 2; // required
+  optional bytes consensus_registry_address = 3; // optional; H160
 }
