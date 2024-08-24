@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use crate::consensus_l2_contracts::{
     Call,Function,
     CommitAttesterCommittee,
-    ConsensusRegistry,Add,GetAttesterCommittee,Initialize,
+    ConsensusRegistry,Add,GetAttesterCommittee,Initialize,Owner,
 };
 use ethabi::{ParamType,Token};
 
@@ -37,4 +37,5 @@ fn test_consensus_registry_abi() {
     c.call(Add::default()).test().unwrap();
     c.call(Initialize::default()).test().unwrap();
     c.call(CommitAttesterCommittee).test().unwrap();
+    c.call(Owner).test().unwrap();
 }

@@ -284,6 +284,13 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
     ) -> DalResult<Option<api::TransactionDetails>> {
+        Ok(self.get_transaction_details_raw(hash).await?.map(|x|x.into()))
+    }
+
+    pub async fn get_transaction_details_raw(
+        &mut self,
+        hash: H256,
+    ) -> DalResult<Option<StorageTransactionDetails>> {
         let row = sqlx::query_as!(
             StorageTransactionDetails,
             r#"
@@ -329,7 +336,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(Into::into))
+        Ok(row)
     }
 
     /// Returns hashes of txs which were received after `from_timestamp` and the time of receiving the last tx.

@@ -62,7 +62,7 @@ impl AsRef<DeployedContract> for ConsensusRegistry {
 }
 
 impl ConsensusRegistry {
-    const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusConsensusRegistry.json";
+    const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
     pub fn bytecode() -> Vec<u8> {
         crate::read_bytecode(Self::FILE)
     }
@@ -157,6 +157,19 @@ impl Function for CommitAttesterCommittee {
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
         let [] = tokens.try_into().ok().context("bad size")?;
         Ok(())
+    }
+}
+
+pub struct Owner;
+
+impl Function for Owner {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "owner";
+    fn encode(&self) -> Vec<Token> { vec![] }
+    type Outputs = ethabi::Address;
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
+        let [owner] = tokens.try_into().ok().context("bad size")?;
+        owner.into_address().context("not an address")
     }
 }
 
