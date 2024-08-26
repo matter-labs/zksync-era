@@ -242,6 +242,10 @@ jobs:
         if: always()
         run: ci_run cat server_validium.log || true
 
+      - name: Show server_custom_token.log logs
+        if: always()
+        run: ci_run cat server_custom_token.log || true
+
       - name: Show external_node_rollup.log logs
         if: always()
         run: ci_run cat external_node_rollup.log || true
@@ -257,6 +261,10 @@ jobs:
       - name: Show integration_validium.log logs
         if: always()
         run: ci_run cat integration_validium.log || true
+
+      - name: Show integration_custom_token.log logs
+        if: always()
+        run: ci_run cat integration_custom_token.log || true
 
       - name: Show recovery_snap_rollup.log logs
         if: always()
