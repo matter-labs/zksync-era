@@ -8,7 +8,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -34,7 +34,7 @@ use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
-        save_recursive_layer_prover_input_artifacts, AggregationWrapper, AggregationWrapperLegacy,
+        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
     },
 };
 
@@ -70,6 +70,7 @@ pub struct NodeAggregationWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -78,12 +79,14 @@ impl NodeAggregationWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_path: String,
     ) -> Self {
         Self {
             config,
             object_store,
             prover_connection_pool,
             protocol_version,
+            setup_data_path,
         }
     }
 
@@ -241,7 +244,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_job(metadata, &*self.object_store)
+            prepare_job(metadata, &*self.object_store, self.setup_data_path.clone())
                 .await
                 .context("prepare_job()")?,
         )))
@@ -326,6 +329,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 pub async fn prepare_job(
     metadata: NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
+    setup_data_path: String,
 ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let artifacts = get_artifacts(&metadata, object_store).await;
@@ -334,7 +338,7 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let keystore = Keystore::default();
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
     let leaf_vk = keystore
         .load_recursive_layer_verification_key(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
@@ -444,27 +448,12 @@ async fn get_artifacts(
         circuit_id: metadata.circuit_id,
         depth: metadata.depth,
     };
-    let result = object_store.get(key).await;
-
-    // TODO: remove after transition
-    return match result {
-        Ok(aggregation_wrapper) => aggregation_wrapper,
-        Err(error) => {
-            // probably legacy struct is saved in GCS
-            if let ObjectStoreError::Serialization(serialization_error) = error {
-                let legacy_wrapper: AggregationWrapperLegacy =
-                    object_store.get(key).await.unwrap_or_else(|inner_error| {
-                        panic!(
-                            "node aggregation job artifacts getting error. Key: {:?}, errors: {:?} {:?}",
-                            key, serialization_error, inner_error
-                        )
-                    });
-                AggregationWrapper(legacy_wrapper.0.into_iter().map(|x| (x.0, x.1)).collect())
-            } else {
-                panic!("node aggregation job artifacts missing: {:?}", key)
-            }
-        }
-    };
+    object_store.get(key).await.unwrap_or_else(|error| {
+        panic!(
+            "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
+            key, error
+        )
+    })
 }
 
 #[tracing::instrument(

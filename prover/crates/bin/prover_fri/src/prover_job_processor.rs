@@ -85,7 +85,8 @@ impl Prover {
                 .clone(),
             SetupLoadMode::FromDisk => {
                 let started_at = Instant::now();
-                let keystore = Keystore::default();
+                let keystore =
+                    Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
                 let artifact: GoldilocksProverSetupData = keystore
                     .load_cpu_setup_data_for_circuit_type(key.clone())
                     .context("get_cpu_setup_data_for_circuit_type()")?;
@@ -109,6 +110,7 @@ impl Prover {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 Self::prove_recursive_layer(job.job_id, recursive_circuit, config, setup_data)
             }
+            CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
         };
         ProverArtifacts::new(job.block_number, proof)
     }
@@ -297,7 +299,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id,
                 prover_setup_metadata_list
             );
-            let keystore = Keystore::default();
+            let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
             for prover_setup_metadata in prover_setup_metadata_list {
                 let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                 let setup_data = keystore

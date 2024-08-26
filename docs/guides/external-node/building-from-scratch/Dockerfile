@@ -21,6 +21,8 @@ RUN cp target/release/zksync_external_node /usr/bin
 # build contracts
 RUN git submodule update --init --recursive
 RUN zk run yarn
+RUN zk compiler all || true
+RUN rm /root/.cache/hardhat-nodejs/compilers-v2/linux-amd64/solc-*.does.not.work || true
 RUN zk compiler all
 RUN zk contract build
 RUN zk f yarn run l2-contracts build

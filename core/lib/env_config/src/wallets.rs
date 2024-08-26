@@ -2,20 +2,29 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use zksync_basic_types::{Address, H256};
-use zksync_config::configs::wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets};
+use zksync_config::configs::wallets::{
+    AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets,
+};
 
 use crate::FromEnv;
 
+fn pk_from_env(env_var: &str, context: &str) -> anyhow::Result<Option<H256>> {
+    std::env::var(env_var)
+        .ok()
+        .map(|pk| pk.parse::<H256>().context(context.to_string()))
+        .transpose()
+}
+
 impl FromEnv for Wallets {
     fn from_env() -> anyhow::Result<Self> {
-        let operator = std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse::<H256>().context("Malformed pk"))
-            .transpose()?;
-        let blob_operator = std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse::<H256>().context("Malformed pk"))
-            .transpose()?;
+        let operator = pk_from_env(
+            "ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY",
+            "Malformed operator pk",
+        )?;
+        let blob_operator = pk_from_env(
+            "ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY",
+            "Malformed blob operator pk",
+        )?;
 
         let eth_sender = if let Some(operator) = operator {
             let operator = Wallet::from_private_key_bytes(operator, None)?;
@@ -40,9 +49,22 @@ impl FromEnv for Wallets {
             None
         };
 
+        let token_multiplier_setter_pk = pk_from_env(
+            "TOKEN_MULTIPLIER_SETTER_PRIVATE_KEY",
+            "Malformed token multiplier setter pk",
+        )?;
+        let token_multiplier_setter =
+            if let Some(token_multiplier_setter_pk) = token_multiplier_setter_pk {
+                let wallet = Wallet::from_private_key_bytes(token_multiplier_setter_pk, None)?;
+                Some(TokenMultiplierSetter { wallet })
+            } else {
+                None
+            };
+
         Ok(Self {
             eth_sender,
             state_keeper,
+            token_multiplier_setter,
         })
     }
 }

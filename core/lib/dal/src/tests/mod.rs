@@ -13,10 +13,11 @@ use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
-    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
+    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 use zksync_vm_interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+    VmExecutionMetrics,
 };
 
 use crate::{
@@ -50,6 +51,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     }
 }
 pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {

@@ -10,7 +10,6 @@ use zksync_types::{
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    vm_trace::{Call, LegacyCall, LegacyMixedCall},
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
     PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
@@ -18,7 +17,9 @@ use zksync_types::{
     PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
+use zksync_vm_interface::Call;
 
+use super::call::{LegacyCall, LegacyMixedCall};
 use crate::BigDecimal;
 
 #[derive(Debug, Clone, sqlx::FromRow)]

@@ -79,10 +79,11 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
-        .context("witness generator config")?;
+        .witness_generator_config
+        .context("witness generator config")?
+        .clone();
 
-    let prometheus_config = general_config.prometheus_config;
+    let prometheus_config = general_config.prometheus_config.clone();
 
     // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
@@ -158,6 +159,8 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
 
+    let setup_data_path = prover_config.setup_data_path.clone();
+
     for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
@@ -168,8 +171,7 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let setup_data_path = prover_config.setup_data_path.clone();
-                let vk_commitments = get_cached_commitments(Some(setup_data_path));
+                let vk_commitments = get_cached_commitments(Some(setup_data_path.clone()));
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,
@@ -204,6 +206,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -213,6 +216,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -222,6 +226,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -231,6 +236,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }

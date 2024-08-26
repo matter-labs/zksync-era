@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use zksync_dal::ConnectionPool;
 use zksync_prover_dal::{Prover, ProverDal};
 
@@ -38,7 +40,7 @@ impl PeriodicJob for FriGpuProverArchiver {
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()
-            .archive_old_provers(self.archive_prover_after_secs)
+            .archive_old_provers(Duration::from_secs(self.archive_prover_after_secs))
             .await;
         tracing::info!("Archived {:?} fri gpu prover records", archived_provers);
         HOUSE_KEEPER_METRICS
