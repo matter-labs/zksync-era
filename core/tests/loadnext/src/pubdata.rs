@@ -104,6 +104,11 @@ impl<'a> PubdataMetricsParser<'a> {
                 "Unknown compression version {compression_version}",
             ));
         }
+        let _compressed_length = {
+            let mut buf = [0u8; 4];
+            buf[1..].copy_from_slice(&self.take::<3>());
+            u32::from_be_bytes(buf)
+        };
         let bytes_per_enumeration_index = u8::from_be_bytes(self.take());
 
         // skip initial writes
@@ -133,6 +138,18 @@ impl<'a> PubdataMetricsParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic = "Unknown compression version 0"]
+    fn test_failure_0() {
+        PubdataMetrics::parse(&[0u8; 1024]);
+    }
+
+    #[test]
+    #[should_panic = "out of range"]
+    fn test_failure_1() {
+        PubdataMetrics::parse(&[1u8; 1024]);
+    }
 
     macro_rules! make_test {
         ($name:ident,$path:expr) => {
