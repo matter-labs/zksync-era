@@ -26,6 +26,8 @@ mod tests {
             l1_receipt_checking_sleep_ms: 20_000,
             l1_tx_sending_max_attempts: 10,
             l1_tx_sending_sleep_ms: 30_000,
+            price_fetching_max_attempts: 20,
+            price_fetching_sleep_ms: 10_000,
             halt_on_error: true,
         }
     }
@@ -41,6 +43,8 @@ mod tests {
             l1_receipt_checking_sleep_ms: 30_000,
             l1_tx_sending_max_attempts: 3,
             l1_tx_sending_sleep_ms: 30_000,
+            price_fetching_max_attempts: 3,
+            price_fetching_sleep_ms: 5_000,
             halt_on_error: false,
         }
     }
@@ -58,6 +62,8 @@ mod tests {
             BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=20000
             BASE_TOKEN_ADJUSTER_L1_TX_SENDING_MAX_ATTEMPTS=10
             BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=30000
+            BASE_TOKEN_ADJUSTER_PRICE_FETCHING_MAX_ATTEMPTS=20
+            BASE_TOKEN_ADJUSTER_PRICE_FETCHING_SLEEP_MS=10000
             BASE_TOKEN_ADJUSTER_HALT_ON_ERROR=true
         "#;
         lock.set_env(config);
@@ -79,6 +85,8 @@ mod tests {
             "BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS",
             "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_MAX_ATTEMPTS",
             "BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS",
+            "BASE_TOKEN_ADJUSTER_PRICE_FETCHING_MAX_ATTEMPTS",
+            "BASE_TOKEN_ADJUSTER_PRICE_FETCHING_SLEEP_MS",
             "BASE_TOKEN_ADJUSTER_HALT_ON_ERROR",
         ]);
 

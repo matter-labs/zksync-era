@@ -84,6 +84,10 @@ pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability 
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
 
+pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
+    format!("Not found preexisting ecosystem Contracts with chains {chains}")
+}
+
 pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
     format!("Initializing chain {chain_name}")
 }
@@ -259,6 +263,7 @@ pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
 pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
