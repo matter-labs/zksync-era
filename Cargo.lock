@@ -8050,6 +8050,7 @@ dependencies = [
  "rand 0.8.5",
  "tokio",
  "tracing",
+ "vise",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -8057,6 +8058,7 @@ dependencies = [
  "zksync_external_price_api",
  "zksync_node_fee_model",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8673,7 +8675,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.20.0"
+version = "24.21.0"
 dependencies = [
  "anyhow",
  "assert_matches",
