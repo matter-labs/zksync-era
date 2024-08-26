@@ -30,6 +30,11 @@ jobs:
           ci_run bash -c "yarn install"
           ci_run bash -c "git config --global --add safe.directory /usr/src/zksync"
 
+      - name: Setup db
+        run: |
+          ci_run zk_inception containers --observability false 
+          ci_run zk_supervisor database prepare
+
       - name: Lints
         run: |
           ci_run zk_supervisor fmt --check
@@ -38,3 +43,4 @@ jobs:
           ci_run zk_supervisor lint -e js --check
           ci_run zk_supervisor lint -e ts --check
           ci_run zk_supervisor lint -e rs --check
+          ci_run zk_supervisor database check
