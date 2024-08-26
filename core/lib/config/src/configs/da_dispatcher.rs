@@ -15,9 +15,9 @@ pub struct DADispatcherConfig {
     pub max_rows_to_dispatch: Option<u32>,
     /// The maximum number of retries for the dispatch of a blob.
     pub max_retries: Option<u16>,
-    /// Enable on-chain verification of the data availability.
-    // TODO: run a verification task to check if the L1 contract expects the inclusion proofs.
-    // Maybe even remove this value and use the L1 as a source of truth.
+    /// Use dummy value as inclusion proof instead of getting it from the client.
+    // TODO: run a verification task to check if the L1 contract expects the inclusion proofs to
+    // avoid the scenario where contracts expect real proofs, and server is using dummy proofs.
     pub use_dummy_inclusion_data: Option<bool>,
 }
 
