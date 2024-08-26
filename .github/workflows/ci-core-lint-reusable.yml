@@ -34,6 +34,7 @@ jobs:
 
       - name: Setup db
         run: |
+          ci_run zk_inception ecosystem init --dev
           ci_run zk_supervisor database prepare
 
       - name: Lints
