@@ -4,7 +4,7 @@ use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration};
 fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
     tracing::info!("Downloading initial setup from {:?}", key_download_url);
 
-    const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(120);
+    const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
     let client = reqwest::blocking::Client::builder()
         .timeout(DOWNLOAD_TIMEOUT)
         .build()
