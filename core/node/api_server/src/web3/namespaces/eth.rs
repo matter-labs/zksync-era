@@ -57,7 +57,6 @@ impl EthNamespace {
         block_id: Option<BlockId>,
         state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
-        tracing::info!("AAAAAAAAA");
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
@@ -66,7 +65,6 @@ impl EthNamespace {
             .state
             .resolve_block_args(&mut connection, block_id)
             .await?;
-        tracing::info!("BBBBBBBBBB");
         self.current_method().set_block_diff(
             self.state
                 .last_sealed_l2_block
@@ -84,20 +82,15 @@ impl EthNamespace {
                     .into(),
             )
         }
-        tracing::info!("CCCCCCCCCCCCCc");
         let call_overrides = request.get_call_overrides()?;
-        tracing::info!("DDDDDDDDDDDDDD");
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
-        tracing::info!("EEEEEEEEEEEEEE");
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
-        let call_result = self
+        let call_result: Vec<u8> = self
             .state
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
-            .await;
-        tracing::info!("CALL RESULT: {:?}", call_result);
-        tracing::info!("FFFFFFFFFFFFF");
-        Ok(call_result?.into())
+            .await?;
+        Ok(call_result.into())
     }
 
     pub async fn estimate_gas_impl(

@@ -225,11 +225,10 @@ impl DebugNamespace {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
             ExecutionResult::Halt { reason } => {
-                tracing::info!("Halt because of {}", reason.to_string());
                 return Err(Web3Error::SubmitTransactionError(
                     reason.to_string(),
                     vec![],
-                ));
+                ))
             }
         };
 
