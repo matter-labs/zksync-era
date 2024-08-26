@@ -6,46 +6,13 @@ env:
   CLICOLOR: 1
 
 jobs:
+  build:
+    name: build
+    uses: ./.github/workflows/ci-zk-toolbox-build.yml
+
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
-
-  build:
-    runs-on: [matterlabs-ci-runner]
-
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
-
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Build
-        run: |
-          ci_run bash -c "cd zk_toolbox && cargo build --release"
-
-      # Compress with tar to avoid permission loss
-      # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
-      - name: Tar zk_toolbox binaries
-        run: |
-          tar -C ./zk_toolbox/target/release -cvf zk_toolbox.tar zk_inception zk_supervisor
-
-      - name: Upload zk_toolbox binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: zk_toolbox
-          path: zk_toolbox.tar
-          compression-level: 0
 
   tests:
     runs-on: [matterlabs-ci-runner]

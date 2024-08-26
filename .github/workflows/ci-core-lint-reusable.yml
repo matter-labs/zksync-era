@@ -3,6 +3,10 @@ on:
   workflow_call:
 
 jobs:
+  build:
+    name: build
+    uses: ./.github/workflows/ci-zk-toolbox-build.yml
+
   code_lint:
     runs-on: [matterlabs-ci-runner]
     needs: [build]
