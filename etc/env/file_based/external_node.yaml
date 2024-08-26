@@ -5,4 +5,4 @@ l1_batch_commit_data_generator_mode: Rollup
 main_node_url: http://localhost:3050
 main_node_rate_limit_rps: 1000
 
-gateway_url: http://localhost:3060
+gateway_url: http://localhost:3052

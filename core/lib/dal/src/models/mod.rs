@@ -3,6 +3,7 @@ use anyhow::Context as _;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{ProtocolVersionId, H160, H256};
 
+mod call;
 pub mod storage_base_token_ratio;
 pub(crate) mod storage_data_availability;
 pub mod storage_eth_tx;

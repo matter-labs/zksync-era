@@ -7,7 +7,16 @@ import * as db from './database';
 import * as env from './env';
 // import { time } from 'console';
 
-export async function server(rebuildTree: boolean, uring: boolean, components?: string, timeToLive?: string) {
+export async function server(
+    rebuildTree: boolean,
+    uring: boolean,
+    components?: string,
+    timeToLive?: string,
+    txAggregationPaused?: boolean
+) {
+    if (txAggregationPaused) {
+        process.env.ETH_SENDER_SENDER_TX_AGGREGATION_PAUSED = 'true';
+    }
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
@@ -116,6 +125,7 @@ export const serverCommand = new Command('server')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
     .option('--time-to-live <time-to-live>', 'time to live for the server')
+    .option('--tx-aggregation-paused', 'pause tx aggregation')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
@@ -123,7 +133,7 @@ export const serverCommand = new Command('server')
         } else if (cmd.clearL1TxsHistory) {
             await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive, cmd.txAggregationPaused);
         }
     });
 

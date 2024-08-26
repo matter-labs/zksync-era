@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
+use once_cell::sync::Lazy;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
@@ -13,7 +14,7 @@ use zksync_types::{
         L1BatchDetails, L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion, StorageProof,
         TransactionDetails,
     },
-    event::{MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT, MESSAGE_ROOT_ADDED_CHAIN_EVENT},
+    ethabi,
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     l1::L1Tx,
@@ -39,6 +40,24 @@ use crate::{
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
+
+pub static MESSAGE_ROOT_ADDED_CHAIN_EVENT: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "AddedChain",
+        &[ethabi::ParamType::Uint(256), ethabi::ParamType::Uint(256)],
+    )
+});
+
+pub static MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "AppendedChainBatchRoot",
+        &[
+            ethabi::ParamType::Uint(256),
+            ethabi::ParamType::Uint(256),
+            ethabi::ParamType::FixedBytes(32),
+        ],
+    )
+});
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {

@@ -34,7 +34,8 @@ impl ProtoRepr for proto::ExternalNode {
             gateway_url: self
                 .gateway_url
                 .as_ref()
-                .map(|a| a.parse().expect("gateway_url")),
+                .map(|a| a.parse().context("gateway_url"))
+                .transpose()?,
         })
     }
 

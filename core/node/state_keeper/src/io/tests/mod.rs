@@ -5,7 +5,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmExecutionMetrics},
+    interface::{TransactionExecutionMetrics, VmEvent, VmExecutionMetrics},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
@@ -14,7 +14,7 @@ use zksync_types::{
     commitment::L1BatchCommitmentMode,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 

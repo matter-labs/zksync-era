@@ -3,6 +3,8 @@
 [external_price_api_client]
 
 # What source to use for the external price API. Currently only options are "forced", "no-op", and "coingecko".
-source = "no-op"
+source = "forced"
 
-client_timeout_ms = 10000
+[external_price_api_client.forced]
+numerator = 3
+denominator = 2

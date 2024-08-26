@@ -51,7 +51,7 @@ file_backed_base_path = "artifacts"
 url = "http://127.0.0.1:3050"
 
 [en.gateway]
-url = "http://127.0.0.1:3060"
+url = "http://127.0.0.1:3052"
 
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
