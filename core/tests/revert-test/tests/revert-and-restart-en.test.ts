@@ -20,6 +20,7 @@ import {
 } from 'utils/build/file-configs';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
+import { promisify } from 'node:util';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -156,11 +157,16 @@ class MainNode {
         try {
             // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
             // console.log('Pid: ', data.stdout);
-            if (this.zkInception) {
-                await utils.exec(`kill -9 ${this.proc.pid}`);
-            } else {
-                await utils.exec(`killall -INT zksync_server`);
+            let parent = this.proc.pid;
+            while (true) {
+                try {
+                    parent = +(await utils.exec(`pgrep -P ${parent}`)).stdout;
+                    console.log('Parent stdout', parent);
+                } catch (e) {
+                    break;
+                }
             }
+            await utils.exec(`kill -9 ${parent}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
             // console.log(`ignored error: ${ err.stderr }`);
@@ -235,11 +241,16 @@ class ExtNode {
         try {
             // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
             // console.log('Pid: ', data.stdout);
-            if (this.zkInception) {
-                await utils.exec(`kill -9 ${this.proc.pid}`);
-            } else {
-                await utils.exec('killall -INT zksync_external_node');
+            let parent = this.proc.pid;
+            while (true) {
+                try {
+                    parent = +(await utils.exec(`pgrep -P ${parent}`)).stdout;
+                    console.log('Parent stdout', parent);
+                } catch (e) {
+                    break;
+                }
             }
+            await utils.exec(`kill -9 ${parent}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }

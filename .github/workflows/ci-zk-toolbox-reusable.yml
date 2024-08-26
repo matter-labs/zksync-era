@@ -85,7 +85,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           
           ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
-          --deploy-ecosystem --l1-rpc-url=http://reth:8545 \
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --server-db-name=zksync_server_localhost_era \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
@@ -109,7 +109,7 @@ jobs:
 
           ci_run zk_inception chain init \
           --deploy-paymaster \
-          --l1-rpc-url=http://reth:8545 \
+          --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --server-db-name=zksync_server_localhost_validium \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
@@ -141,11 +141,11 @@ jobs:
       - name: Init external nodes
         run: |
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://reth:8545 --chain era
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 --chain era
           ci_run zk_inception external-node init --ignore-prerequisites --chain era 
           
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://reth:8545 --chain chain_validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
       - name: Run recovery tests (from snapshot)
