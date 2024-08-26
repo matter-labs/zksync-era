@@ -27,10 +27,12 @@ jobs:
         run: |
           ci_run bash -c "cd zk_toolbox && cargo build --release"
           cp ./zk_toolbox/target/release/zk_supervisor ./bin
+          cp ./zk_toolbox/target/release/zk_inception ./bin
           ci_run bash -c "yarn install"
 
       - name: Setup db
         run: |
+          ci_run zk_inception ecosystem init --dev
           ci_run zk_supervisor database prepare
 
       - name: Lints
