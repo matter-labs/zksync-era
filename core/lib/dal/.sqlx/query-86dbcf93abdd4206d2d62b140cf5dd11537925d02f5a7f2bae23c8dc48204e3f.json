@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                proofs.l1_batch_number\n            FROM\n                tee_proof_generation_details AS proofs\n                JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number\n            WHERE\n                inputs.status = $1\n                AND proofs.status = $2\n            ORDER BY\n                proofs.l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "tee_proofs_job_status",
+            "kind": {
+              "Enum": [
+                "Generated",
+                "PickedByProver",
+                "Unpicked"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "86dbcf93abdd4206d2d62b140cf5dd11537925d02f5a7f2bae23c8dc48204e3f"
+}

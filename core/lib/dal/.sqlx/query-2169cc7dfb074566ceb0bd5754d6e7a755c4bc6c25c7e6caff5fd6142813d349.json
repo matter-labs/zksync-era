@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at)\n            VALUES\n                ($1, $2, $3, NOW(), NOW())\n            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        {
+          "Custom": {
+            "name": "tee_proofs_job_status",
+            "kind": {
+              "Enum": [
+                "Generated",
+                "PickedByProver",
+                "Unpicked"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2169cc7dfb074566ceb0bd5754d6e7a755c4bc6c25c7e6caff5fd6142813d349"
+}
