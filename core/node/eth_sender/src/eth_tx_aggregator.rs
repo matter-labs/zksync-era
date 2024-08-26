@@ -562,9 +562,9 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match op_type {
-            AggregatedActionType::Commit => self.custom_commit_sender_addr,
-            _ => None,
+        let sender_addr = match (op_type, is_gateway) {
+            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =

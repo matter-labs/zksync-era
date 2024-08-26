@@ -70,7 +70,6 @@ export function collectVariables(config: any, prefix: string = ''): Map<string, 
     let variables: Map<string, string> = new Map();
 
     for (const key in config) {
-        console.log(`Collecing: ${key}=${config[key]}`);
         const keyUppercase = key.toUpperCase();
         if (typeof config[key] == 'object' && config[key] !== null) {
             // Checking whether it's an array

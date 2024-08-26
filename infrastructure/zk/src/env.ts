@@ -72,7 +72,6 @@ export function reload(environment?: string) {
     const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     const env = dotenv.parse(fs.readFileSync(envFile));
     for (const envVar in env) {
-        console.log(`Reloading: ${envVar}=${env[envVar]}`);
         process.env[envVar] = env[envVar];
     }
 }

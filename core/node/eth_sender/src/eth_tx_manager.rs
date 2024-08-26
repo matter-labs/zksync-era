@@ -262,10 +262,10 @@ impl EthTxManager {
     }
 
     pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Option<Address> {
-        if operator_type == OperatorType::NonBlob {
-            None
-        } else {
+        if operator_type == OperatorType::Blob {
             self.l1_interface.get_blobs_operator_account()
+        } else {
+            None
         }
     }
     // Monitors the in-flight transactions, marks mined ones as confirmed,
@@ -649,7 +649,7 @@ impl EthTxManager {
                 .get_l1_block_numbers(operator_type)
                 .await
                 .unwrap();
-            tracing::info!(
+            tracing::debug!(
                 "Loop iteration at block {} for {operator_type:?} operator",
                 l1_block_numbers.latest
             );
