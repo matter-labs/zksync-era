@@ -1,9 +1,9 @@
 use zksync_state_keeper::MainBatchExecutor;
+use zksync_types::vm::FastVmMode;
 
 use crate::{
     implementations::resources::state_keeper::BatchExecutorResource,
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
 };
 
 /// Wiring layer for `MainBatchExecutor`, part of the state keeper responsible for running the VM.
@@ -11,12 +11,7 @@ use crate::{
 pub struct MainBatchExecutorLayer {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
-}
-
-#[derive(Debug, IntoContext)]
-#[context(crate = crate)]
-pub struct Output {
-    pub batch_executor: BatchExecutorResource,
+    fast_vm_mode: FastVmMode,
 }
 
 impl MainBatchExecutorLayer {
@@ -24,25 +19,29 @@ impl MainBatchExecutorLayer {
         Self {
             save_call_traces,
             optional_bytecode_compression,
+            fast_vm_mode: FastVmMode::default(),
         }
+    }
+
+    pub fn with_fast_vm_mode(mut self, mode: FastVmMode) -> Self {
+        self.fast_vm_mode = mode;
+        self
     }
 }
 
 #[async_trait::async_trait]
 impl WiringLayer for MainBatchExecutorLayer {
     type Input = ();
-    type Output = Output;
+    type Output = BatchExecutorResource;
 
     fn layer_name(&self) -> &'static str {
         "main_batch_executor_layer"
     }
 
-    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let builder =
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
+        let mut executor =
             MainBatchExecutor::new(self.save_call_traces, self.optional_bytecode_compression);
-
-        Ok(Output {
-            batch_executor: builder.into(),
-        })
+        executor.set_fast_vm_mode(self.fast_vm_mode);
+        Ok(executor.into())
     }
 }

@@ -111,6 +111,13 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
+# Installing foundry-zksync from git is failing, we will build it from sources
+# Install foundry
+RUN git clone https://github.com/matter-labs/foundry-zksync
+RUN cd foundry-zksync && cargo build --release --bins
+RUN mv ./foundry-zksync/target/release/forge /usr/local/bin/
+RUN mv ./foundry-zksync/target/release/cast /usr/local/bin/
+
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
 COPY --from=solidity-builder /solidity/build/solc/solc /usr/bin/
@@ -129,9 +136,6 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     cd valgrind-3.20.0 && ./configure && make && make install && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
-# Install foundry
-RUN cargo install --git https://github.com/foundry-rs/foundry \
-    --profile release --locked forge cast
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
@@ -142,5 +146,5 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 FROM rust-lightweight as rust-lightweight-nightly
 
-RUN rustup install nightly-2024-05-07 && \
-    rustup default nightly-2024-05-07
+RUN rustup install nightly-2024-08-01 && \
+    rustup default nightly-2024-08-01

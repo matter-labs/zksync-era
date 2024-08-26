@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::H256;
+use zksync_basic_types::{settlement::SettlementMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -24,7 +24,7 @@ impl EthConfig {
         Self {
             sender: Some(SenderConfig {
                 aggregated_proof_sizes: vec![1],
-                wait_confirmations: Some(1),
+                wait_confirmations: Some(10),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
                 max_txs_in_flight: 30,
@@ -40,6 +40,8 @@ impl EthConfig {
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
+                tx_aggregation_paused: false,
+                tx_aggregation_only_prove_and_execute: false,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -54,6 +56,7 @@ impl EthConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
+                settlement_mode: Default::default(),
             }),
             watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
@@ -82,6 +85,7 @@ pub enum PubdataSendingMode {
     Calldata,
     Blobs,
     Custom,
+    RelayedL2Calldata,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -117,6 +121,12 @@ pub struct SenderConfig {
 
     /// The mode in which we send pubdata: Calldata, Blobs or Custom (DA layers, Object Store, etc.)
     pub pubdata_sending_mode: PubdataSendingMode,
+    /// special mode specifically for gateway migration to allow all inflight txs to be processed
+    #[serde(default = "SenderConfig::default_tx_aggregation_paused")]
+    pub tx_aggregation_paused: bool,
+    /// special mode specifically for gateway migration to decrease number of non-executed batches
+    #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
+    pub tx_aggregation_only_prove_and_execute: bool,
 }
 
 impl SenderConfig {
@@ -151,6 +161,13 @@ impl SenderConfig {
             .ok()
             .map(|pk| pk.parse().unwrap())
     }
+
+    const fn default_tx_aggregation_paused() -> bool {
+        false
+    }
+    const fn default_tx_aggregation_only_prove_and_execute() -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq, Default)]
@@ -181,6 +198,10 @@ pub struct GasAdjusterConfig {
     pub internal_pubdata_pricing_multiplier: f64,
     /// Max blob base fee that is allowed to be used.
     pub max_blob_base_fee: Option<u64>,
+    /// Whether the gas adjuster should require that the L2 node is used as a settlement layer.
+    /// It offers a runtime check for correctly provided values.
+    #[serde(default)]
+    pub settlement_mode: SettlementMode,
 }
 
 impl GasAdjusterConfig {

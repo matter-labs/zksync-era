@@ -9,10 +9,10 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::{interface::L1BatchEnv, vm_1_4_2::SystemEnv};
+use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, OwnedPostgresStorage, OwnedStorage, PgOrRocksdbStorage,
-    RocksdbCell, RocksdbStorage, RocksdbStorageBuilder, RocksdbWithMemory,
+    AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
+    RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
@@ -57,8 +57,8 @@ struct BatchData {
 /// Abstraction for VM runner's storage layer that provides two main features:
 ///
 /// 1. A [`ReadStorageFactory`] implementation backed by either Postgres or RocksDB (if it's
-/// caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
-/// once RocksDB cache is caught up.
+///    caught up). Always initialized as a `Postgres` variant and is then mutated into `Rocksdb`
+///    once RocksDB cache is caught up.
 /// 2. Loads data needed to re-execute the next unprocessed L1 batch.
 ///
 /// Users of `VmRunnerStorage` are not supposed to retain storage access to batches that are less
@@ -140,12 +140,12 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
             )
             .await?;
 
-            return Ok(batch_data.map(|data| {
-                (
-                    data,
-                    OwnedPostgresStorage::new(self.pool.clone(), l1_batch_number - 1).into(),
-                )
-            }));
+            return Ok(if let Some(data) = batch_data {
+                let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+                Some((data, storage))
+            } else {
+                None
+            });
         };
 
         match state.storage.get(&l1_batch_number) {
@@ -166,11 +166,11 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
                     .filter(|(&num, _)| num < l1_batch_number)
                     .map(|(_, data)| data.diff.clone())
                     .collect::<Vec<_>>();
-                let storage = PgOrRocksdbStorage::RocksdbWithMemory(RocksdbWithMemory {
+                let storage = OwnedStorage::RocksdbWithMemory(RocksdbWithMemory {
                     rocksdb: rocksdb.clone(),
                     batch_diffs,
                 });
-                Ok(Some((data, storage.into())))
+                Ok(Some((data, storage)))
             }
         }
     }

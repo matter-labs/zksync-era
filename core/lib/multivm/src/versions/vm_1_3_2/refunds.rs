@@ -1,12 +1,16 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
 
-use crate::vm_1_3_2::{
-    history_recorder::HistoryMode,
-    vm_with_bootloader::{eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
-    VmInstance,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_1_3_2::{
+        history_recorder::HistoryMode,
+        vm_with_bootloader::{
+            eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
+        },
+        VmInstance,
+    },
 };
 
 impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {

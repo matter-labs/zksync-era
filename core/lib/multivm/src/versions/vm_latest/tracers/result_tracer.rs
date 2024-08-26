@@ -5,16 +5,16 @@ use zk_evm_1_5_0::{
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::U256;
 
 use crate::{
     interface::{
-        tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_5_0::DynTracer,
-        types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmRevertReason,
+        storage::{StoragePtr, WriteStorage},
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},

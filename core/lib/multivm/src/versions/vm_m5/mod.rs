@@ -1,7 +1,6 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 pub use zk_evm_1_3_1;
-pub use zksync_types::vm_trace::VmExecutionTrace;
 
 pub use self::{
     errors::TxRevertReason,

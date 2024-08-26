@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
@@ -17,25 +19,11 @@ use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-
-use crate::{
+use zksync_witness_generator::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
     metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
     recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
 };
-
-mod basic_circuits;
-mod leaf_aggregation;
-mod metrics;
-mod node_aggregation;
-mod precalculated_merkle_paths_provider;
-mod recursion_tip;
-mod scheduler;
-mod storage_oracle;
-mod utils;
-
-#[cfg(not(target_env = "msvc"))]
-use jemallocator::Jemalloc;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -91,10 +79,11 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
-        .context("witness generator config")?;
+        .witness_generator_config
+        .context("witness generator config")?
+        .clone();
 
-    let prometheus_config = general_config.prometheus_config;
+    let prometheus_config = general_config.prometheus_config.clone();
 
     // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
@@ -170,6 +159,8 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
 
+    let setup_data_path = prover_config.setup_data_path.clone();
+
     for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
@@ -180,8 +171,7 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let setup_data_path = prover_config.setup_data_path.clone();
-                let vk_commitments = get_cached_commitments(Some(setup_data_path));
+                let vk_commitments = get_cached_commitments(Some(setup_data_path.clone()));
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,
@@ -216,6 +206,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -225,6 +216,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -234,6 +226,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -243,6 +236,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }

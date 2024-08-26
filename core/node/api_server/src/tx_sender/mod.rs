@@ -10,7 +10,7 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::VmExecutionResultAndLogs,
+    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_eth_call_gas_limit, get_max_batch_gas_limit,
@@ -25,15 +25,15 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     api::state_override::StateOverride,
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
+    vm::VmVersion,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
-    MAX_NEW_FACTORY_DEPS, U256,
+    ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -517,11 +517,16 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+
+        // At the moment fair_l2_gas_price is rarely changed for ETH-based chains. But for CBT
+        // chains it gets changed every few blocks because of token price change. We want to avoid
+        // situations when transactions with low gas price gets into mempool and sit there for a
+        // long time, so we require max_fee_per_gas to be at least current_l2_fair_gas_price / 2
+        if tx.common_data.fee.max_fee_per_gas < (fee_input.fair_l2_gas_price() / 2).into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx.common_data.fee.max_fee_per_gas,
             );
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }

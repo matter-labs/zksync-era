@@ -7,9 +7,12 @@ use zksync_contracts::{
 };
 use zksync_multivm::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        storage::{InMemoryStorage, StorageView, WriteStorage},
+        tracer::VmExecutionStopReason,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
@@ -17,7 +20,6 @@ use zksync_multivm::{
     },
     zk_evm_latest::aux_structures::Timestamp,
 };
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
@@ -260,8 +262,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
-    let mut vm: Vm<_, HistoryEnabled> =
-        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
+    let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
     let result = vm.inspect(tracer.into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
