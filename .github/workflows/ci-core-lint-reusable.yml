@@ -19,7 +19,9 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
+          mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: Build
@@ -32,7 +34,6 @@ jobs:
 
       - name: Setup db
         run: |
-          ci_run zk_inception containers --observability false 
           ci_run zk_supervisor database prepare
 
       - name: Lints
