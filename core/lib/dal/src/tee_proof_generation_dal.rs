@@ -2,7 +2,9 @@
 use std::time::Duration;
 
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::Instrumented,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
@@ -18,12 +20,14 @@ pub struct TeeProofGenerationDal<'a, 'c> {
 }
 
 impl TeeProofGenerationDal<'_, '_> {
-    pub async fn get_next_batch_to_be_proven(
+    pub async fn lock_batch_for_proving(
         &mut self,
         tee_type: TeeType,
         processing_timeout: Duration,
+        min_batch_number: Option<L1BatchNumber>,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
+        let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
         let query = sqlx::query!(
             r#"
             UPDATE tee_proof_generation_details
@@ -48,6 +52,7 @@ impl TeeProofGenerationDal<'_, '_> {
                                 AND proofs.prover_taken_at < NOW() - $3::INTERVAL
                             )
                         )
+                        AND proofs.l1_batch_number >= $4
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -58,19 +63,50 @@ impl TeeProofGenerationDal<'_, '_> {
             RETURNING
                 tee_proof_generation_details.l1_batch_number
             "#,
-            &tee_type.to_string(),
+            tee_type.to_string(),
             TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            &processing_timeout,
+            processing_timeout,
+            min_batch_number
         );
-        let batch_number = Instrumented::new("get_next_batch_to_be_proven")
+
+        let batch_number = Instrumented::new("lock_batch_for_proving")
             .with_arg("tee_type", &tee_type)
             .with_arg("processing_timeout", &processing_timeout)
+            .with_arg("l1_batch_number", &min_batch_number)
             .with(query)
             .fetch_optional(self.storage)
             .await?
             .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(batch_number)
+    }
+
+    pub async fn unlock_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        tee_type: TeeType,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(l1_batch_number.0);
+        sqlx::query!(
+            r#"
+            UPDATE tee_proof_generation_details
+            SET
+                status = 'unpicked',
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+                AND tee_type = $2
+            "#,
+            batch_number,
+            tee_type.to_string()
+        )
+        .instrument("unlock_batch")
+        .with_arg("l1_batch_number", &batch_number)
+        .with_arg("tee_type", &tee_type)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn save_proof_artifacts_metadata(
