@@ -19,6 +19,8 @@ pub struct LintArgs {
     pub check: bool,
     #[clap(long, short = 'e')]
     pub extensions: Vec<Extension>,
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub contracts: Option<bool>,
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
@@ -37,13 +39,17 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
     logger::info(msg_running_linters_for_files(&extensions));
 
     let ecosystem = EcosystemConfig::from_file(shell)?;
+    let contracts = args.contracts.unwrap_or(false);
 
     for extension in extensions {
         match extension {
             Extension::Rs => lint_rs(shell, &ecosystem, args.check)?,
-            Extension::Sol => lint_contracts(shell, &ecosystem, args.check)?,
             ext => lint(shell, &ecosystem, &ext, args.check)?,
         }
+    }
+
+    if contracts {
+        lint_contracts(shell, &ecosystem, args.check)?;
     }
 
     Ok(())
@@ -128,8 +134,6 @@ fn lint(
 }
 
 fn lint_contracts(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
-    lint(shell, ecosystem, &Extension::Sol, check)?;
-
     let spinner = Spinner::new(MSG_RUNNING_CONTRACTS_LINTER_SPINNER);
     let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
     let cmd = cmd!(shell, "yarn");
