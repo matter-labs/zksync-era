@@ -21,12 +21,12 @@ message Genesis {
   optional uint64 genesis_protocol_version = 4; // optional;
   optional string default_aa_hash = 5; // required; h256
   optional string bootloader_hash = 6; // required; h256
-  optional string evm_simulator_hash = 7; // required; h256
-  optional uint64 l1_chain_id = 8; // required;
-  optional uint64 l2_chain_id = 9; // required;
-  optional string fee_account = 10; // h160
-  optional Prover prover = 11;
+  optional uint64 l1_chain_id = 7; // required;
+  optional uint64 l2_chain_id = 8; // required;
+  optional string fee_account = 9; // h160
+  optional Prover prover = 10;
   optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
-  optional string genesis_protocol_semantic_version = 13; // optional;
-  reserved 12; reserved "shared_bridge";
+  optional string genesis_protocol_semantic_version = 12; // optional;
+  optional string evm_simulator_hash = 13; // required; h256
+  reserved 11; reserved "shared_bridge";
 }
