@@ -16,6 +16,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          git config --global --add safe.directory $(pwd)
 
       - name: Start services
         run: |
@@ -28,6 +29,9 @@ jobs:
           cp ./zk_toolbox/target/release/zk_supervisor ./bin
           ci_run bash -c "yarn install"
 
+      - name: Setup db
+        run: |
+          ci_run zk_supervisor database prepare
 
       - name: Lints
         run: |
@@ -37,3 +41,4 @@ jobs:
           ci_run zk_supervisor lint -e js --check
           ci_run zk_supervisor lint -e ts --check
           ci_run zk_supervisor lint -e rs --check
+          ci_run zk_supervisor database check
