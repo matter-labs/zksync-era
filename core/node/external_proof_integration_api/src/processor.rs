@@ -17,7 +17,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 
-use crate::{error::ProcessorError, metrics::Method};
+use crate::error::ProcessorError;
 
 #[derive(Clone)]
 pub(crate) struct Processor {
