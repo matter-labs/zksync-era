@@ -201,8 +201,8 @@ impl Task for TeeProver {
                     if !err.is_retriable() || retries > self.config.max_retries {
                         return Err(err.into());
                     }
-                    retries += 1;
                     tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
+                    retries += 1;
                     backoff = std::cmp::min(
                         backoff.mul_f32(self.config.retry_backoff_multiplier),
                         self.config.max_backoff,

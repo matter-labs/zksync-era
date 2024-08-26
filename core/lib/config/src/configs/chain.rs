@@ -127,8 +127,9 @@ pub struct StateKeeperConfig {
 
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads can be written asynchronously in VM runner instead.
-    /// By default, set to `true` as a temporary safety measure.
-    #[serde(default = "StateKeeperConfig::default_protective_reads_persistence_enabled")]
+    /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
+    /// which is capable of saving protective reads is run.
+    #[serde(default)]
     pub protective_reads_persistence_enabled: bool,
 
     // Base system contract hashes, required only for generating genesis config.
@@ -145,10 +146,6 @@ pub struct StateKeeperConfig {
 }
 
 impl StateKeeperConfig {
-    fn default_protective_reads_persistence_enabled() -> bool {
-        true
-    }
-
     /// Creates a config object suitable for use in unit tests.
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
