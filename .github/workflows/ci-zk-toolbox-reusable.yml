@@ -275,11 +275,3 @@ jobs:
       - name: Show revert_validium.log logs
         if: always()
         run: ci_run cat revert_validium.log || true
-
-      - name: Show external_node.log logs
-        if: always()
-        run: ci_run cat "externalnodeyaml-componentsall" || true
-
-      - name: Show external_node.log2 logs
-        if: always()
-        run: ci_run cat "eyaml-componentsalltreefetcher" || true

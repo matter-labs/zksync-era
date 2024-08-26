@@ -28,12 +28,8 @@ export function background({
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
-    console.log(`Running command in background: ${command}`);
-    let command_answer = slugify(command);
-    command_answer = command_answer.substring(Math.max(command_answer.length - 30, 0), command_answer.length);
-
     let process = _spawn(command, {
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdio,
         shell: true,
         detached: true,
         cwd,

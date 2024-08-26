@@ -57,20 +57,10 @@ export function runServerInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        const basePath = `${pathToHome}/chains/${chain}/configs/external_node`;
-        const config_path = `${basePath}/general.yaml`;
-        const secrets_path = `${basePath}/secrets.yaml`;
-        const en_config_path = `${basePath}/external_node.yaml`;
-
-        command = `cargo run --release --bin zksync_server --
-        --config-path ${config_path}
-        --secrets-path ${secrets_path}
-        --external-node-config-path ${en_config_path}`;
-
-        // command = 'zk_inception server';
-        // if (chain) {
-        //     command += ` --chain ${ chain }`;
-        // }
+        command = 'zk_inception server';
+        if (chain) {
+            command += ` --chain ${chain}`;
+        }
     } else {
         command = 'zk server';
     }
@@ -94,18 +84,8 @@ export function runExternalNodeInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        const basePath = `${pathToHome}/chains/${chain}/configs/external_node`;
-        const config_path = `${basePath}/general.yaml`;
-        const secrets_path = `${basePath}/secrets.yaml`;
-        const en_config_path = `${basePath}/external_node.yaml`;
-
-        command = `cargo run --release --bin zksync_external_node --
-        --config-path ${config_path}
-        --secrets-path ${secrets_path}
-        --external-node-config-path ${en_config_path}`;
-
-        // command = 'zk_inception external-node run';
-        // command += chain ? ` --chain ${chain}` : '';
+        command = 'zk_inception external-node run';
+        command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node';
     }
