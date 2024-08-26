@@ -98,7 +98,7 @@ jobs:
 
   ci-for-zk-toolbox-build:
     needs: changed_files
-    if: contains(github.ref_name, 'release-please--branches')
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for building zk_toolbox
     uses: ./.github/workflows/ci-zk-toolbox-build.yml
 
