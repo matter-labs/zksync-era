@@ -3,16 +3,12 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use api::state_override::{OverrideAccount, StateOverride};
-use itertools::Itertools;
 use zksync_multivm::interface::{
     ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
-    api::{ApiStorageLog, Log},
-    get_intrinsic_constants,
-    transaction_request::CallRequest,
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
-    U256,
+    api::ApiStorageLog, get_intrinsic_constants, transaction_request::CallRequest, K256PrivateKey,
+    L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -360,24 +356,24 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             .send_raw_transaction_with_detailed_output(tx_bytes.into())
             .await?;
         assert_eq!(send_result.transaction_hash, tx_hash);
-        assert_eq!(
-            send_result.events,
-            self.vm_events()
-                .iter()
-                .map(|x| {
-                    let mut l = Log::from(x);
-                    l.transaction_hash = Some(tx_hash);
-                    l
-                })
-                .collect_vec()
-        );
+
+        let expected_events = self.vm_events();
+        assert_eq!(send_result.events.len(), expected_events.len());
+        for (event, expected_event) in send_result.events.iter().zip(&expected_events) {
+            assert_eq!(event.transaction_hash, Some(tx_hash));
+            assert_eq!(event.address, expected_event.address);
+            assert_eq!(event.topics, expected_event.indexed_topics);
+            assert_eq!(event.l1_batch_number, Some(1.into()));
+            assert_eq!(event.transaction_index, Some(1.into()));
+        }
+
         assert_eq!(
             send_result.storage_logs,
             self.storage_logs()
                 .iter()
                 .filter(|x| x.log.is_write())
                 .map(ApiStorageLog::from)
-                .collect_vec()
+                .collect::<Vec<_>>()
         );
         Ok(())
     }

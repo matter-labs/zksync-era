@@ -84,7 +84,6 @@ impl EthNamespace {
         }
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
-
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
         let call_result: Vec<u8> = self
             .state

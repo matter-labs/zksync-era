@@ -29,6 +29,7 @@ zksync_test_account.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_vm_utils.workspace = true
+zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
 
 anyhow.workspace = true
