@@ -17,10 +17,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 
-use crate::{
-    error::ProcessorError,
-    metrics::{Method, MethodCallGuard},
-};
+use crate::{error::ProcessorError, metrics::Method};
 
 #[derive(Clone)]
 pub(crate) struct Processor {
@@ -47,8 +44,6 @@ impl Processor {
         Path(l1_batch_number): Path<u32>,
         Json(payload): Json<VerifyProofRequest>,
     ) -> Result<(), ProcessorError> {
-        let mut guard = MethodCallGuard::new(Method::VerifyProof);
-
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::info!(
             "Received request to verify proof for batch: {:?}",
@@ -67,8 +62,6 @@ impl Processor {
             return Err(ProcessorError::InvalidProof);
         }
 
-        guard.mark_successful();
-
         Ok(())
     }
 
@@ -78,11 +71,6 @@ impl Processor {
         request: Json<OptionalProofGenerationDataRequest>,
     ) -> Result<Json<ProofGenerationDataResponse>, ProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
-
-        let mut guard = match request.0 .0 {
-            Some(_) => MethodCallGuard::new(Method::GetSpecificProofGenerationData),
-            None => MethodCallGuard::new(Method::GetLatestProofGenerationData),
-        };
 
         let latest_available_batch = self
             .pool
@@ -112,13 +100,9 @@ impl Processor {
             .await;
 
         match proof_generation_data {
-            Ok(data) => {
-                guard.mark_successful();
-
-                Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-                    data,
-                )))))
-            }
+            Ok(data) => Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
+                data,
+            ))))),
             Err(err) => Err(err),
         }
     }
