@@ -314,7 +314,7 @@ pub trait AccountLoadNextExecutable {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction;
-    fn loadnext_custom_new_writes_call(
+    fn loadnext_custom_initial_writes_call(
         &mut self,
         address: Address,
         writes: u32,
@@ -356,7 +356,7 @@ impl AccountLoadNextExecutable for Account {
 
     /// Returns a transaction to the loadnext contract with custom amount of write requests.
     /// Increments the account nonce.
-    fn loadnext_custom_new_writes_call(
+    fn loadnext_custom_initial_writes_call(
         &mut self,
         address: Address,
         initial_writes: u32,
