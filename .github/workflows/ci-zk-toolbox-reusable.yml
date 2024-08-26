@@ -144,7 +144,7 @@ jobs:
           --server-db-name=zksync_server_localhost_custom_token \
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
-          --port-offset 2000 \
+          --port-offset 3000 \
           --chain chain_custom_token
 
       - name: Build test dependencies
