@@ -15,7 +15,9 @@ use std::{
 
 pub use ethabi::{
     self,
-    ethereum_types::{Address, Bloom as H2048, H128, H160, H256, H512, H520, H64, U128, U256, U64},
+    ethereum_types::{
+        Address, Bloom, BloomInput, H128, H160, H256, H512, H520, H64, U128, U256, U64,
+    },
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 
@@ -26,9 +28,10 @@ pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod settlement;
 pub mod tee_types;
 pub mod url;
-pub mod vm_version;
+pub mod vm;
 pub mod web3;
 
 /// Account place in the global state tree is uniquely identified by its address.

@@ -43,9 +43,9 @@ hex.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+tempfile.workspace = true
 test-casing.workspace = true
 futures.workspace = true
-tempfile.workspace = true
 
 zksync_eth_client.workspace = true
 zksync_system_constants.workspace = true

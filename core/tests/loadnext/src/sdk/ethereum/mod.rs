@@ -131,7 +131,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
-    pub fn query_client(&self) -> &DynClient<L1> {
+    pub fn query_client(&self) -> &dyn EthInterface {
         self.eth_client.as_ref()
     }
 
@@ -474,7 +474,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     .as_u64()
                     .ok_or(ClientError::Other)?
             } else {
-                600000u64
+                800000u64
             }
         };
 

@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
 use zksync_object_store::{Bucket, MockObjectStore};
-use zksync_state::ReadStorage;
+use zksync_state::interface::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     snapshots::SnapshotVersion,
@@ -67,6 +67,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             protocol_version: Some(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             gas_limit: 0,
+            logs_bloom: Default::default(),
         };
         storage
             .blocks_dal()
@@ -383,7 +384,7 @@ impl ObjectStore for ErroneousStore {
             .unwrap()
             .remove(&(bucket, key.to_owned()));
         Err(ObjectStoreError::Other {
-            is_transient: false,
+            is_retriable: false,
             source: "fatal error".into(),
         })
     }

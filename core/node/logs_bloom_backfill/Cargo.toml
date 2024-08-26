@@ -1,0 +1,19 @@
+[package]
+name = "zksync_logs_bloom_backfill"
+description = "ZKsync logs bloom backfill"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_types.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+tracing.workspace = true

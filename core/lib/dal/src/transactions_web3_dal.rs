@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::once};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::NaiveDateTime;
@@ -9,8 +9,8 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, event::DEPLOY_EVENT_SIGNATURE, Address, L2BlockNumber, L2ChainId,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, event::DEPLOY_EVENT_SIGNATURE, Address,
+    BloomInput, L2BlockNumber, L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 
 use crate::{
@@ -118,6 +118,13 @@ impl TransactionsWeb3Dal<'_, '_> {
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
+                let iter = logs.iter().flat_map(|log| {
+                    log.topics
+                        .iter()
+                        .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                        .chain(once(BloomInput::Raw(log.address.as_bytes())))
+                });
+                receipt.logs_bloom = build_bloom(iter);
                 receipt.logs = logs
                     .into_iter()
                     .map(|mut log| {
@@ -479,9 +486,8 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{
-        fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId};
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{

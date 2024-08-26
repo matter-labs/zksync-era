@@ -1,6 +1,5 @@
 use ethabi::Token;
 use itertools::Itertools;
-use zksync_state::WriteStorage;
 use zksync_types::{
     get_immutable_key, get_l2_message_root_init_logs, AccountTreeId, StorageKey, StorageLog,
     StorageLogKind, H256, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L2_BRIDGEHUB_ADDRESS,
@@ -16,6 +15,7 @@ use crate::{
         },
         HistoryEnabled,
     },
+    vm_m5::storage::Storage,
 };
 /// Some of the constants of the system are implicitly calculated, but they may affect the code and so
 /// we added additional checks on them to keep any unwanted changes of those apparent.
@@ -74,7 +74,7 @@ fn test_l2_message_root_init_logs() {
         .vm
         .storage
         .borrow_mut()
-        .modified_storage_keys()
+        .get_modified_storage_keys()
         .iter()
         .filter_map(|(&storage_key, &value)| {
             if *storage_key.address() == address {

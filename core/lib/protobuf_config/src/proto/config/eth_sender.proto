@@ -24,6 +24,7 @@ enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
   CUSTOM = 2;
+  RELAYED_L2_CALLDATA = 3;
 }
 
 message Sender {
