@@ -5,9 +5,7 @@ use zk_evm_1_5_0::{
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
-    zkevm_opcode_defs::{
-        ContractCodeSha256, VersionedHashDef, VersionedHashHeader, VersionedHashNormalizedPreimage,
-    },
+    zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
 use zksync_types::{H256, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
@@ -267,8 +265,8 @@ impl VersionedCodeHash {
         };
 
         let mut hash = [0u8; 32];
-        &mut hash[0..4].copy_from_slice(&header.0);
-        &mut hash[4..32].copy_from_slice(&preimage.0);
+        let _ = hash[0..4].copy_from_slice(&header.0);
+        let _ = hash[4..32].copy_from_slice(&preimage.0);
 
         // Hash[1] is used in both of the versions to denote whether the bytecode is being constructed.
         // We ignore this param.

@@ -277,7 +277,7 @@ fn tx_fee(gas_limit: u32) -> Fee {
 
 pub fn get_transfer_tx(nonce: u32) -> Transaction {
     let mut signed = L2Tx::new_signed(
-        PRIVATE_KEY.address(),
+        Some(PRIVATE_KEY.address()),
         vec![], // calldata
         Nonce(nonce),
         tx_fee(1_000_000),
@@ -310,7 +310,7 @@ pub fn get_load_test_deploy_tx() -> Transaction {
     factory_deps.push(LOAD_TEST_CONTRACT.bytecode.clone());
 
     let mut signed = L2Tx::new_signed(
-        CONTRACT_DEPLOYER_ADDRESS,
+        Some(CONTRACT_DEPLOYER_ADDRESS),
         create_calldata,
         Nonce(0),
         tx_fee(100_000_000),
@@ -348,7 +348,7 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
         .expect("cannot encode `execute` inputs");
 
     let mut signed = L2Tx::new_signed(
-        *LOAD_TEST_CONTRACT_ADDRESS,
+        Some(*LOAD_TEST_CONTRACT_ADDRESS),
         calldata,
         Nonce(nonce),
         tx_fee(gas_limit),

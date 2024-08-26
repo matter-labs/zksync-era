@@ -6,7 +6,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_contracts::known_codes_contract;
 use zksync_state::interface::WriteStorage;
-use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, U256};
+use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::{traits::VmTracer, utils::read_pointer};
@@ -39,7 +39,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
-        bootloader_state: &mut BootloaderState,
+        _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         // We check if ContractDeployer was called with provided evm bytecode.
         // It is assumed that by that time the user has already paid for its size.

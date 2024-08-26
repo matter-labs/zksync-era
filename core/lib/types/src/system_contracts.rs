@@ -187,7 +187,7 @@ static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
 });
 
 pub fn get_evm_simulator_hash() -> H256 {
-    EVM_SIMULATOR_HASH.clone()
+    *EVM_SIMULATOR_HASH
 }
 
 static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
