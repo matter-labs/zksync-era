@@ -19,7 +19,7 @@ jobs:
 
       - name: Start services
         run: |
-          ci_run ci_localnet_up
+          ci_localnet_up
           ci_run sccache --start-server
 
       - name: Build
