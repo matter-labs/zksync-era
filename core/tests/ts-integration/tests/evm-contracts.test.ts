@@ -12,10 +12,6 @@ import { deployContract, getEVMArtifact, getEVMContractFactory, getTestContract 
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 
-import fs, { PathLike } from 'fs';
-import csv from 'csv-parser';
-import { createObjectCsvWriter } from 'csv-writer';
-
 const contracts = {
     tester: getTestContract('TestEVMCreate'),
     erc20: getTestContract('ERC20'),
@@ -97,7 +93,7 @@ describe('EVM equivalence contract', () => {
                 const factory = getEVMContractFactory(alice, artifacts.counter);
                 const contract = await factory.deploy(args);
                 await contract.deploymentTransaction()?.wait();
-                const receipt = await alice.provider.getTransactionReceipt(
+                await alice.provider.getTransactionReceipt(
                     contract.deploymentTransaction()?.hash ??
                         (() => {
                             throw new Error('Deployment transaction has failed');
@@ -124,7 +120,7 @@ describe('EVM equivalence contract', () => {
                     ethers.keccak256(initBytecode)
                 );
 
-                const receipt = await (await evmCreateTester.create2(salt, initBytecode)).wait();
+                await (await evmCreateTester.create2(salt, initBytecode)).wait();
 
                 await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode);
 
@@ -163,7 +159,7 @@ describe('EVM equivalence contract', () => {
                     chainId: alice.provider._network.chainId,
                     data
                 };
-                const result = await (await alice.sendTransaction(dep_transaction)).wait();
+                await (await alice.sendTransaction(dep_transaction)).wait();
                 const expectedAddressCreate = ethers.getCreateAddress({
                     from: alice.address,
                     nonce: await alice.getNonce()
@@ -233,7 +229,7 @@ describe('EVM equivalence contract', () => {
                 nonce
             });
 
-            const result = await (await creatorContract.getFunction('create')()).wait();
+            await (await creatorContract.getFunction('create')()).wait();
 
             await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode);
         });
@@ -480,7 +476,7 @@ describe('EVM equivalence contract', () => {
                 await nativeUniswapPair.getFunction('swap')(0, 5000, alice.address, '0x')
             ).wait();
 
-            const evmLiquidityTransfer = await (
+            await (
                 await evmUniswapPair.getFunction('transfer')(
                     evmUniswapPair.getAddress(),
                     (await evmUniswapPair.getFunction('balanceOf')(alice.address)).toString()
@@ -560,91 +556,6 @@ describe('EVM equivalence contract', () => {
         }
     });
 });
-
-type BenchmarkResult = {
-    name: string;
-    used_zkevm_ergs: string;
-    used_evm_gas: string;
-    used_circuits: string;
-};
-
-async function saveBenchmark(name: string, filename: string, result: string) {
-    try {
-        const resultWithName = {
-            name: name,
-            used_zkevm_ergs: result,
-            used_evm_gas: '0',
-            used_circuits: '0'
-        };
-
-        let results: BenchmarkResult[] = [];
-
-        // Read existing CSV file
-        if (fs.existsSync(filename)) {
-            const existingResults: BenchmarkResult[] = await new Promise((resolve, reject) => {
-                const results: BenchmarkResult[] = [];
-                fs.createReadStream(filename)
-                    .pipe(csv())
-                    .on('data', (data) => results.push(data))
-                    .on('end', () => resolve(results))
-                    .on('error', reject);
-            });
-            results = existingResults.map((result) => ({
-                name: result.name,
-                used_zkevm_ergs: result.used_zkevm_ergs,
-                used_evm_gas: result.used_evm_gas,
-                used_circuits: result.used_circuits
-            }));
-        }
-
-        // Push the new result
-        results.push(resultWithName);
-
-        // Write results back to CSV
-        const csvWriter = createObjectCsvWriter({
-            path: filename,
-            header: [
-                { id: 'name', title: 'name' },
-                { id: 'used_zkevm_ergs', title: 'used_zkevm_ergs' },
-                { id: 'used_evm_gas', title: 'used_evm_gas' },
-                { id: 'used_circuits', title: 'used_circuits' }
-            ]
-        });
-        await csvWriter.writeRecords(results);
-
-        console.log('Benchmark saved successfully.');
-    } catch (error) {
-        console.error('Error saving benchmark:', error);
-    }
-}
-function zeroPad(num: number, places: number): string {
-    return String(num).padStart(places, '0');
-}
-
-async function startBenchmark(): Promise<string> {
-    try {
-        const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = zeroPad(now.getUTCMonth() + 1, 2); // Months are zero-based, so add 1
-        const day = zeroPad(now.getUTCDate(), 2);
-        const hour = zeroPad(now.getUTCHours(), 2);
-        const minute = zeroPad(now.getUTCMinutes(), 2);
-        const second = zeroPad(now.getUTCSeconds(), 2);
-        const formattedTime = `${year}-${month}-${day}-${hour}-${minute}-${second}`;
-        const directoryPath = 'benchmarks';
-
-        if (!fs.existsSync(directoryPath)) {
-            // If it doesn't exist, create it
-            fs.mkdirSync(directoryPath);
-        }
-
-        const filename = `benchmarks/benchmark_integration_${formattedTime}.csv`;
-        return filename;
-    } catch (error) {
-        console.error('Error creating benchmark:', error);
-        return '';
-    }
-}
 
 async function deploygasCallerContract(alice: zksync.Wallet, contract: any, ...args: Array<any>) {
     const counterFactory = getEVMContractFactory(alice, contract);
@@ -915,25 +826,3 @@ const opcodeDataDump: any = {};
 ].forEach((key) => {
     opcodeDataDump[Number(key).toString()] = [];
 });
-
-async function dumpOpcodeLogs(hash: string, provider: zksync.Provider): Promise<void> {
-    let tx_receipt =
-        (await provider.getTransactionReceipt(hash)) ??
-        (() => {
-            throw new Error('Get Transaction Receipt has failed');
-        })();
-    const logs = tx_receipt.logs;
-    logs.forEach((log) => {
-        if (log.topics[0] === '0x63307236653da06aaa7e128a306b128c594b4cf3b938ef212975ed10dad17515') {
-            //Overhead
-            overheadDataDump.push(Number(ethers.AbiCoder.defaultAbiCoder().decode(['uint256'], log.data).toString()));
-        } else if (log.topics[0] === '0xca5a69edf1b934943a56c00605317596b03e2f61c3f633e8657b150f102a3dfa') {
-            // Opcode
-            const parsed = ethers.AbiCoder.defaultAbiCoder().decode(['uint256', 'uint256'], log.data);
-            const opcode = Number(parsed[0].toString());
-            const cost = Number(parsed[1].toString());
-
-            opcodeDataDump[opcode.toString()].push(cost);
-        }
-    });
-}

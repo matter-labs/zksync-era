@@ -104,6 +104,7 @@ impl L2BlockUpdates {
         self.block_execution_metrics += execution_metrics;
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,

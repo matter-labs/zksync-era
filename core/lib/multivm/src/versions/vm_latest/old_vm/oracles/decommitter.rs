@@ -245,14 +245,14 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
 // TODO: consider moving this to the zk-evm crate
 enum VersionedCodeHash {
     ZkEVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
-    EVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
+    Evm(VersionedHashHeader, VersionedHashNormalizedPreimage),
 }
 
 impl VersionedCodeHash {
     fn from_query(query: &DecommittmentQuery) -> Self {
         match query.header.0[0] {
             1 => Self::ZkEVM(query.header, query.normalized_preimage),
-            2 => Self::EVM(query.header, query.normalized_preimage),
+            2 => Self::Evm(query.header, query.normalized_preimage),
             _ => panic!("Unsupported hash version"),
         }
     }
@@ -261,12 +261,12 @@ impl VersionedCodeHash {
     fn to_stored_hash(&self) -> U256 {
         let (header, preimage) = match self {
             Self::ZkEVM(header, preimage) => (header, preimage),
-            Self::EVM(header, preimage) => (header, preimage),
+            Self::Evm(header, preimage) => (header, preimage),
         };
 
         let mut hash = [0u8; 32];
-        let _ = hash[0..4].copy_from_slice(&header.0);
-        let _ = hash[4..32].copy_from_slice(&preimage.0);
+        hash[0..4].copy_from_slice(&header.0);
+        hash[4..32].copy_from_slice(&preimage.0);
 
         // Hash[1] is used in both of the versions to denote whether the bytecode is being constructed.
         // We ignore this param.
@@ -283,7 +283,7 @@ impl VersionedCodeHash {
                 let length_in_words = header.0[2] as u32 * 256 + header.0[3] as u32;
                 length_in_words * 32
             }
-            Self::EVM(header, _) => header.0[2] as u32 * 256 + header.0[3] as u32,
+            Self::Evm(header, _) => header.0[2] as u32 * 256 + header.0[3] as u32,
         }
     }
 }
