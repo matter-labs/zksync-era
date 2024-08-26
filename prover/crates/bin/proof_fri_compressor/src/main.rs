@@ -1,6 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
+use std::env;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -97,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
         &config.universal_setup_path,
         &config.universal_setup_download_url,
     );
-    // env::set_var("CRS_FILE", config.universal_setup_path.clone());
+    env::set_var("CRS_FILE", config.universal_setup_path.clone());
 
     tracing::info!("Starting proof compressor");
 
