@@ -32,6 +32,7 @@ jobs:
 
       - name: Setup db
         run: |
+          ci_run bash -c "chmod a+rwx /usr/src/zksync"
           ci_run zk_inception containers --observability false 
           ci_run zk_supervisor database prepare
 
