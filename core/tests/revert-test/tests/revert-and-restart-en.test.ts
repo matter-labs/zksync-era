@@ -155,21 +155,18 @@ class MainNode {
 
     public async terminate() {
         try {
-            // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
-            // console.log('Pid: ', data.stdout);
-            let parent = this.proc.pid;
+            let child = this.proc.pid;
             while (true) {
                 try {
-                    parent = +(await utils.exec(`pgrep -P ${parent}`)).stdout;
-                    console.log('Parent stdout', parent);
+                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+                    console.log('Parent stdout', child);
                 } catch (e) {
                     break;
                 }
             }
-            await utils.exec(`kill -9 ${parent}`);
+            await utils.exec(`kill -9 ${child}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
-            // console.log(`ignored error: ${ err.stderr }`);
         }
     }
 
@@ -239,18 +236,16 @@ class ExtNode {
 
     public async terminate() {
         try {
-            // let data = await utils.exec(`pgrep -P ${this.proc.pid}`);
-            // console.log('Pid: ', data.stdout);
-            let parent = this.proc.pid;
+            let child = this.proc.pid;
             while (true) {
                 try {
-                    parent = +(await utils.exec(`pgrep -P ${parent}`)).stdout;
-                    console.log('Parent stdout', parent);
+                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+                    console.log('Parent stdout', child);
                 } catch (e) {
                     break;
                 }
             }
-            await utils.exec(`kill -9 ${parent}`);
+            await utils.exec(`kill -9 ${child}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }

@@ -45,7 +45,16 @@ async function killServerAndWaitForShutdown(tester: Tester, serverProcess: Child
     if (serverProcess === undefined) {
         await utils.exec('killall -9 zksync_server');
     } else {
-        await utils.exec(`kill -9 ${serverProcess.pid}`);
+        let child = serverProcess.pid;
+        while (true) {
+            try {
+                child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+                console.log('Parent stdout', child);
+            } catch (e) {
+                break;
+            }
+        }
+        await utils.exec(`kill -9 ${child}`);
     }
     // Wait until it's really stopped.
     let iter = 0;
