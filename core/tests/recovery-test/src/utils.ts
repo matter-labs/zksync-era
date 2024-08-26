@@ -28,23 +28,13 @@ export function background({
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
-    let process = _spawn(command, {
+    return _spawn(command, {
         stdio,
         shell: true,
         detached: true,
         cwd,
         env
     });
-
-    process.stdout.on('data', (data) => {
-        let file = path.join(pathToHome, command_answer);
-        fs.appendFileSync(file, data);
-    });
-    process.stderr.on('data', (data) => {
-        let file = path.join(pathToHome, command_answer);
-        fs.appendFileSync(file, data);
-    });
-    return process;
 }
 
 export function runInBackground({

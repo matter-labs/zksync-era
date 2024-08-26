@@ -10,43 +10,6 @@ jobs:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
-  build:
-    runs-on: [ matterlabs-default-infra-runners ]
-
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
-
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Build
-        run: |
-          ci_run bash -c "cd zk_toolbox && cargo build --release"
-
-      # Compress with tar to avoid permission loss
-      # https://github.com/actions/upload-artifact?tab=readme-ov-file#permission-loss
-      - name: Tar zk_toolbox binaries
-        run: |
-          tar -C ./zk_toolbox/target/release -cvf zk_toolbox.tar zk_inception zk_supervisor
-
-      - name: Upload zk_toolbox binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: zk_toolbox
-          path: zk_toolbox.tar
-          compression-level: 0
-
   tests:
     runs-on: [ matterlabs-ci-runner ]
     needs: [ build ]
@@ -57,15 +20,6 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Download zk_toolbox binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: zk_toolbox
-          path: .
-
-      - name: Extract zk_toolbox binaries
-        run: |
-          tar -xvf zk_toolbox.tar -C ./bin
 
       - name: Setup environment
         run: |
@@ -77,6 +31,9 @@ jobs:
         run: |
           ci_localnet_up
           ci_run sccache --start-server
+
+      - name: Build zk_toolbox
+        run: ci_run bash -c "./bin/zkt"
 
       - name: Initialize ecosystem
         run: |
@@ -169,27 +126,6 @@ jobs:
 
           wait $PID1
           wait $PID2
-      #      - name: Run recovery tests (from snapshot)
-      #        run: |
-      #          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_snap_rollup.log &
-      #          PID1=$!
-      #
-      #          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_snap_validium.log &
-      #          PID2=$!
-      #
-      #          wait $PID1
-      #          wait $PID2
-      #
-      #      - name: Run recovery tests (from genesis)
-      #        run: |
-      #          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_rollup &> recovery_gen_rollup.log &
-      #          PID1=$!
-      #
-      #          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
-      #          PID2=$!
-      #
-      #          wait $PID1
-      #          wait $PID2
 
       - name: Run external node server
         run: |
