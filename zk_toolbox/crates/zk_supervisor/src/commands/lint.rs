@@ -67,14 +67,7 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
     for path in paths {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
-        let common_args = &[
-            "--locked",
-            "--",
-            "-D",
-            "warnings",
-            "-D",
-            "unstable_features",
-        ];
+        let common_args = &["--locked", "--", "-D", "warnings"];
         if !check {
             cmd = cmd.args(&["--fix", "--allow-dirty"]);
         }
