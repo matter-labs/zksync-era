@@ -19,7 +19,7 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
+          ci_run ci_localnet_up
           ci_run sccache --start-server
 
       - name: Build
@@ -32,9 +32,6 @@ jobs:
 
       - name: Setup db
         run: |
-          ci_run bash -c "mkdir -p /usr/src/zksync/volumes/reth/data"
-          ci_run bash -c "mkdir -p /usr/src/zksync/volumes/postgres"
-          ci_run bash -c "mkdir -p /usr/src/zksync/etc/reth/chaindata"
           ci_run zk_inception containers --observability false 
           ci_run zk_supervisor database prepare
 
