@@ -9,6 +9,7 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 publish = false
+exclude = ["./dump"]
 
 [dependencies]
 zksync_types.workspace = true
