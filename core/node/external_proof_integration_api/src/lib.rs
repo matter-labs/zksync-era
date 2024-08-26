@@ -5,7 +5,7 @@ mod processor;
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
-use axum::{extract::Path, routing::post, Json, Router};
+use axum::{extract::Path, middleware, routing::post, Json, Router};
 use tokio::sync::watch;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
@@ -71,4 +71,5 @@ async fn create_router(
                 },
             ),
         )
+        .layer(middleware::from_fn(metrics::call_outcome_tracker))
 }

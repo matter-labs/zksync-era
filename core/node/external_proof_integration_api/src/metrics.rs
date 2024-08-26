@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use axum::{extract::Request, middleware::Next, response::Response};
 use tokio::time::Instant;
 use vise::{EncodeLabelSet, EncodeLabelValue, Histogram, LabeledFamily, Metrics};
 
@@ -16,6 +17,7 @@ pub(crate) enum Method {
     GetLatestProofGenerationData,
     GetSpecificProofGenerationData,
     VerifyProof,
+    Unknown,
 }
 
 #[derive(Debug, Metrics)]
@@ -25,30 +27,37 @@ pub(crate) struct ProofIntegrationApiMetrics {
     pub call_latency: LabeledFamily<(Method, CallOutcome), Histogram<Duration>, 2>,
 }
 
-pub(crate) struct MethodCallGuard {
-    method_type: Method,
-    outcome: CallOutcome,
-    started_at: Instant,
-}
+pub(crate) async fn call_outcome_tracker(request: Request, next: Next) -> Response {
+    let start = Instant::now();
+    let path = request.uri().path();
 
-impl MethodCallGuard {
-    pub(crate) fn new(method_type: Method) -> Self {
-        MethodCallGuard {
-            method_type,
-            outcome: CallOutcome::Failure,
-            started_at: Instant::now(),
+    let method = if path.starts_with("/proof_generation_data") {
+        if let Some(char) = path.get(22..23) {
+            if char == "/" && path.get(23..).is_some() {
+                Method::GetSpecificProofGenerationData
+            } else {
+                Method::GetLatestProofGenerationData
+            }
+        } else {
+            Method::GetLatestProofGenerationData
         }
-    }
+    } else if path.starts_with("/verify_proof/") {
+        Method::VerifyProof
+    } else {
+        Method::Unknown
+    };
 
-    pub(crate) fn mark_successful(&mut self) {
-        self.outcome = CallOutcome::Success;
-    }
-}
+    let response = next.run(request).await;
 
-impl Drop for MethodCallGuard {
-    fn drop(&mut self) {
-        METRICS.call_latency[&(self.method_type, self.outcome)].observe(self.started_at.elapsed());
-    }
+    let outcome = if response.status().is_success() {
+        CallOutcome::Success
+    } else {
+        CallOutcome::Failure
+    };
+
+    METRICS.call_latency[&(method, outcome)].observe(start.elapsed());
+
+    response
 }
 
 #[vise::register]
