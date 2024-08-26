@@ -87,7 +87,7 @@ Create a new ecosystem and chain, setting necessary configurations for later ini
 - `--ecosystem-name <ECOSYSTEM_NAME>`
 - `--l1-network <L1_NETWORK>` — L1 Network
 
-  Possible values: `localhost`, `sepolia`, `mainnet`
+  Possible values: `localhost`, `sepolia`, `holesky`, `mainnet`
 
 - `--link-to-code <LINK_TO_CODE>` — Code link
 - `--chain-name <CHAIN_NAME>`
