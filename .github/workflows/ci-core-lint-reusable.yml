@@ -26,7 +26,7 @@ jobs:
         run: |
           ci_run bash -c "cd zk_toolbox && cargo build --release"
           cp ./zk_toolbox/target/release/zk_supervisor ./bin
-          yarn install
+          ci_run bash -c "yarn install"
 
 
       - name: Lints
