@@ -275,3 +275,15 @@ jobs:
       - name: Show revert_validium.log logs
         if: always()
         run: ci_run cat revert_validium.log || true
+
+      - name: Show revert_main.log logs
+        if: always()
+        run: |
+          ci_run cat core/tests/revert-test/era_revert_main.log || true
+          ci_run cat core/tests/revert-test/chain_validium_revert_main.log || true
+
+      - name: Show revert_ext.log logs
+        if: always()
+        run: |
+          ci_run cat core/tests/revert-test/era_revert_ext.log || true
+          ci_run cat core/tests/revert-test/chain_validium_revert_ext.log || true

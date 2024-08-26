@@ -344,6 +344,8 @@ describe('Block reverting test', function () {
             baseTokenAddress = contractsConfig.l1.base_token_addr;
             enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
+            mainLogs = fs.createWriteStream(`${fileConfig.chain}_${mainLogsPath}`, { flags: 'a' });
+            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogs}`, { flags: 'a' });
         } else {
             let env = fetchEnv(mainEnv);
             ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
@@ -352,14 +354,14 @@ describe('Block reverting test', function () {
             enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
             // TODO use env variable for this?
             operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
+            mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
+            extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
         }
 
         if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
             compileBinaries();
         }
         console.log(`PWD = ${process.env.PWD}`);
-        mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
-        extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
