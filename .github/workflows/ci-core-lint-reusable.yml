@@ -44,4 +44,4 @@ jobs:
           ci_run zk_supervisor lint -e js --check
           ci_run zk_supervisor lint -e ts --check
           ci_run zk_supervisor lint -e rs --check
-          ci_run zk_supervisor database check
+          ci_run zk_supervisor database check-sqlx-data
