@@ -413,8 +413,8 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 id = $2
             "#,
-            chain_id as i32,
-            eth_tx_id as i64,
+            chain_id as i64,
+            eth_tx_id as i32,
         )
         .execute(self.storage.conn())
         .await?;
