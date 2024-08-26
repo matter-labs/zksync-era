@@ -159,15 +159,18 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            const parent = await promisify(exec)(`pgrep -P ${this.childProcess.pid}`);
-            // console.log('Parent stdout', parent.stdout);
-            // console.log('Main PID', this.childProcess.pid);
-
-            // const ps = await promisify(exec)(`ps -a`);
-            // console.log(ps.stdout);
-
+            console.log('Main PID', this.childProcess.pid);
+            let parent = this.childProcess.pid;
+            while (true) {
+                try {
+                    parent = +(await promisify(exec)(`pgrep -P ${parent}`)).stdout;
+                    console.log('Parent stdout', parent);
+                } catch (e) {
+                    break;
+                }
+            }
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-            await promisify(exec)(`kill -${signalNumber} ${parent.stdout}`);
+            await promisify(exec)(`kill -${signalNumber} ${parent}`);
             console.log('exec');
             await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
         } catch (err) {
@@ -216,16 +219,19 @@ export class NodeProcess {
 
 async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
     await new Promise((resolve, reject) => {
+        childProcess.on('close', (code, signal) => {
+            console.log('close', code, signal);
+            resolve(undefined);
+        });
         childProcess.on('error', (error) => {
             reject(error);
         });
         childProcess.on('exit', (code) => {
+            console.log('exit', code);
             resolve(undefined);
-            // if (!checkExitCode || code === 0 || code === null || code === 1) {
-            //     resolve(undefined);
-            // } else {
-            //     reject(new Error(`Process exited with non-zero code: ${code}`));
-            // }
+        });
+        childProcess.on('disconnect', () => {
+            console.log('disconnect');
         });
     });
 }

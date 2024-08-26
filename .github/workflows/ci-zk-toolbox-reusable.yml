@@ -78,10 +78,6 @@ jobs:
           ci_localnet_up
           ci_run sccache --start-server
 
-      - name: Sleep
-        run: |
-          sleep 9999999
-
       - name: Initialize ecosystem
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
