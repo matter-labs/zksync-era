@@ -385,7 +385,12 @@ impl EthTxAggregator {
             }
             let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge, is_gateway)
+                .save_eth_tx(
+                    storage,
+                    &agg_op,
+                    contracts_are_pre_shared_bridge,
+                    is_gateway,
+                )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
