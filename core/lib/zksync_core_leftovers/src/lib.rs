@@ -6,7 +6,6 @@ use tokio::sync::oneshot;
 
 pub mod temp_config_store;
 
-// Trigger ci
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.
 pub fn setup_sigint_handler() -> oneshot::Receiver<()> {

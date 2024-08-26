@@ -80,25 +80,25 @@ jobs:
 
   ci-for-core-lint:
     name: CI for Core lint Components
-    needs: [changed_files, build-zk-toolbox]
-    if: ${{ always() && !cancelled() && needs.build-zk-toolbox.result == 'success' && contains(github.ref_name, 'release-please--branches') }}
+    needs: changed_files
+    if: contains(github.ref_name, 'release-please--branches')
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   ci-for-core:
     name: CI for Core Components
-    needs: [changed_files, build-zk-toolbox]
-    if: ${{ always() && !cancelled() && needs.build-zk-toolbox.result == 'success' && (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
-    needs: [changed_files, build-zk-toolbox]
-    if: ${{ always() && !cancelled() && needs.build-zk-toolbox.result == 'success' && (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
   ci-for-zk-toolbox:
-    needs: [changed_files, build-zk-toolbox]
-    if: ${{ always() && !cancelled() && needs.build-zk-toolbox.result == 'success' && (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for zk_toolbox
     uses: ./.github/workflows/ci-zk-toolbox-reusable.yml
 
@@ -180,12 +180,6 @@ jobs:
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    build-zk-toolbox:
-      needs: changed_files
-      if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-      name: Build zk_toolbox
-      uses: ./.github/workflows/build-zk-toolbox.yml
 
   ci-success:
     name: Github Status Check

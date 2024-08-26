@@ -10,17 +10,6 @@ jobs:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
-          fetch-depth: 0
-
-      - name: Download zk_toolbox binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: zk_toolbox
-          path: .
-
-      - name: Extract zk_toolbox binaries
-        run: |
-          tar -xvf zk_toolbox.tar -C ./bin
 
       - name: Setup environment
         run: |
@@ -28,11 +17,25 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
+      - name: Start services
+        run: |
+          mkdir -p ./volumes/postgres
+          run_retried docker compose pull zk postgres
+          docker compose up -d zk postgres
+          ci_run sccache --start-server
+
+      - name: Setup db
+        run: |
+          ci_run zk
+          ci_run run_retried rustup show
+          ci_run zk db migrate
+
       - name: Lints
         run: |
-          ci_run zks fmt --check
-          ci_run zks lint -e md --check
-          ci_run zks lint -e sol --check
-          ci_run zks lint -e js --check
-          ci_run zks lint -e ts --check
-          ci_run zks lint -e rs --check
+          ci_run zk fmt --check
+          ci_run zk lint rust --check
+          ci_run zk lint toolbox --check
+          ci_run zk lint js --check
+          ci_run zk lint ts --check
+          ci_run zk lint md --check
+          ci_run zk db check-sqlx-data
