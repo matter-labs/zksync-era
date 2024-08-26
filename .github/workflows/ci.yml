@@ -80,7 +80,7 @@ jobs:
 
   ci-for-core-lint:
     name: CI for Core lint Components
-    needs: changed_files
+    needs: [changed_files, ci-for-zk-toolbox-build]
     if: contains(github.ref_name, 'release-please--branches')
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
@@ -96,8 +96,14 @@ jobs:
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
-  ci-for-zk-toolbox:
+  ci-for-zk-toolbox-build:
     needs: changed_files
+    if: contains(github.ref_name, 'release-please--branches')
+    name: CI for building zk_toolbox
+    uses: ./.github/workflows/ci-zk-toolbox-build.yml
+
+  ci-for-zk-toolbox:
+    needs: [changed_files, ci-for-zk-toolbox-build]
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for zk_toolbox
     uses: ./.github/workflows/ci-zk-toolbox-reusable.yml

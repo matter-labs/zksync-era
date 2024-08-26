@@ -6,17 +6,12 @@ env:
   CLICOLOR: 1
 
 jobs:
-  build:
-    name: build
-    uses: ./.github/workflows/ci-zk-toolbox-build.yml
-
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   tests:
     runs-on: [matterlabs-ci-runner]
-    needs: [build]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
