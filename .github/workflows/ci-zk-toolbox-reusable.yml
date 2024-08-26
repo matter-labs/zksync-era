@@ -119,7 +119,7 @@ jobs:
       
       - name: Read address using awk and set as environment variable
         run: |
-          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' erc20.yaml)
+          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
           echo "address=$address"
           echo "address=$address" >> $GITHUB_ENV
     
