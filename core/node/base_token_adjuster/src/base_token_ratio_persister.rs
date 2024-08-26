@@ -1,4 +1,4 @@
-use std::{cmp::max, fmt::Debug, sync::Arc, time::Duration};
+use std::{cmp::max, fmt::Debug, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
@@ -13,6 +13,8 @@ use zksync_types::{
     web3::{contract::Tokenize, BlockNumber},
     Address, U256,
 };
+
+use crate::metrics::{OperationResult, OperationResultLabels, METRICS};
 
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioPersisterL1Params {
@@ -82,47 +84,7 @@ impl BaseTokenRatioPersister {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;
-
-        let Some(l1_params) = &self.l1_params else {
-            return Ok(());
-        };
-
-        let max_attempts = self.config.l1_tx_sending_max_attempts;
-        let sleep_duration = self.config.l1_tx_sending_sleep_duration();
-        let mut result: anyhow::Result<()> = Ok(());
-        let mut prev_base_fee_per_gas: Option<u64> = None;
-        let mut prev_priority_fee_per_gas: Option<u64> = None;
-
-        for attempt in 0..max_attempts {
-            let (base_fee_per_gas, priority_fee_per_gas) =
-                self.get_eth_fees(l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
-
-            result = self
-                .send_ratio_to_l1(l1_params, new_ratio, base_fee_per_gas, priority_fee_per_gas)
-                .await;
-            if let Some(err) = result.as_ref().err() {
-                tracing::info!(
-                "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
-                attempt + 1,
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                err
-            );
-                tokio::time::sleep(sleep_duration).await;
-                prev_base_fee_per_gas = Some(base_fee_per_gas);
-                prev_priority_fee_per_gas = Some(priority_fee_per_gas);
-            } else {
-                tracing::info!(
-                "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
-                new_ratio.numerator.get(),
-                new_ratio.denominator.get(),
-                base_fee_per_gas,
-                priority_fee_per_gas
-            );
-                return result;
-            }
-        }
-        result
+        self.retry_update_ratio_on_l1(new_ratio).await
     }
 
     fn get_eth_fees(
@@ -157,36 +119,110 @@ impl BaseTokenRatioPersister {
         (base_fee_per_gas, priority_fee_per_gas)
     }
 
-    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
-        let sleep_duration = Duration::from_secs(1);
-        let max_retries = 5;
-        let mut attempts = 0;
+    async fn retry_update_ratio_on_l1(&self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
+        let Some(l1_params) = &self.l1_params else {
+            return Ok(());
+        };
 
-        loop {
+        let max_attempts = self.config.l1_tx_sending_max_attempts;
+        let sleep_duration = self.config.l1_tx_sending_sleep_duration();
+        let mut prev_base_fee_per_gas: Option<u64> = None;
+        let mut prev_priority_fee_per_gas: Option<u64> = None;
+        let mut last_error = None;
+        for attempt in 0..max_attempts {
+            let (base_fee_per_gas, priority_fee_per_gas) =
+                self.get_eth_fees(l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
+
+            let start_time = Instant::now();
+            let result = self
+                .update_ratio_on_l1(l1_params, new_ratio, base_fee_per_gas, priority_fee_per_gas)
+                .await;
+
+            match result {
+                Ok(x) => {
+                    tracing::info!(
+                        "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                        new_ratio.numerator.get(),
+                        new_ratio.denominator.get(),
+                        base_fee_per_gas,
+                        priority_fee_per_gas
+                    );
+                    METRICS
+                        .l1_gas_used
+                        .set(x.unwrap_or(U256::zero()).low_u128() as u64);
+                    METRICS.l1_update_latency[&OperationResultLabels {
+                        result: OperationResult::Success,
+                    }]
+                        .observe(start_time.elapsed());
+
+                    return Ok(());
+                }
+                Err(err) => {
+                    tracing::info!(
+                        "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                        attempt,
+                        base_fee_per_gas,
+                        priority_fee_per_gas,
+                        err
+                    );
+                    METRICS.l1_update_latency[&OperationResultLabels {
+                        result: OperationResult::Failure,
+                    }]
+                        .observe(start_time.elapsed());
+
+                    tokio::time::sleep(sleep_duration).await;
+                    prev_base_fee_per_gas = Some(base_fee_per_gas);
+                    prev_priority_fee_per_gas = Some(priority_fee_per_gas);
+                    last_error = Some(err)
+                }
+            }
+        }
+
+        let error_message = "Failed to update base token multiplier on L1";
+        Err(last_error
+            .map(|x| x.context(error_message))
+            .unwrap_or_else(|| anyhow::anyhow!(error_message)))
+    }
+
+    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
+        let sleep_duration = self.config.price_fetching_sleep_duration();
+        let max_retries = self.config.price_fetching_max_attempts;
+        let mut last_error = None;
+
+        for attempt in 0..max_retries {
+            let start_time = Instant::now();
             match self
                 .price_api_client
                 .fetch_ratio(self.base_token_address)
                 .await
             {
                 Ok(ratio) => {
+                    METRICS.external_price_api_latency[&OperationResultLabels {
+                        result: OperationResult::Success,
+                    }]
+                        .observe(start_time.elapsed());
                     return Ok(ratio);
                 }
-                Err(err) if attempts < max_retries => {
-                    attempts += 1;
+                Err(err) => {
                     tracing::warn!(
-                        "Attempt {}/{} to fetch ratio from coingecko failed with err: {}. Retrying...",
-                        attempts,
+                        "Attempt {}/{} to fetch ratio from external price api failed with err: {}. Retrying...",
+                        attempt,
                         max_retries,
                         err
                     );
+                    last_error = Some(err);
+                    METRICS.external_price_api_latency[&OperationResultLabels {
+                        result: OperationResult::Failure,
+                    }]
+                        .observe(start_time.elapsed());
                     sleep(sleep_duration).await;
-                }
-                Err(err) => {
-                    return Err(err)
-                        .context("Failed to fetch base token ratio after multiple attempts");
                 }
             }
         }
+        let error_message = "Failed to fetch base token ratio after multiple attempts";
+        Err(last_error
+            .map(|x| x.context(error_message))
+            .unwrap_or_else(|| anyhow::anyhow!(error_message)))
     }
 
     async fn persist_ratio(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<usize> {
@@ -209,13 +245,13 @@ impl BaseTokenRatioPersister {
         Ok(id)
     }
 
-    async fn send_ratio_to_l1(
+    async fn update_ratio_on_l1(
         &self,
         l1_params: &BaseTokenRatioPersisterL1Params,
         api_ratio: BaseTokenAPIRatio,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<U256>> {
         let fn_set_token_multiplier = l1_params
             .chain_admin_contract
             .function("setTokenMultiplier")
@@ -276,7 +312,7 @@ impl BaseTokenRatioPersister {
                 .context("failed getting receipt for `setTokenMultiplier` transaction")?;
             if let Some(receipt) = maybe_receipt {
                 if receipt.status == Some(1.into()) {
-                    return Ok(());
+                    return Ok(receipt.gas_used);
                 }
                 return Err(anyhow::Error::msg(format!(
                     "`setTokenMultiplier` transaction {:?} failed with status {:?}",

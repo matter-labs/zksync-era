@@ -59,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
     let object_store_config = ProverObjectStoreConfig(
         general_config
             .prover_config
+            .clone()
             .expect("ProverConfig")
             .prover_object_store
             .context("ProverObjectStoreConfig")?,
@@ -75,6 +76,10 @@ async fn main() -> anyhow::Result<()> {
         config.compression_mode,
         config.max_attempts,
         protocol_version,
+        general_config
+            .prover_config
+            .expect("ProverConfig doesn't exist")
+            .setup_data_path,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
