@@ -1,3 +1,3 @@
 [submodule "contracts"]
 path = contracts
-url = https://github.com/matter-labs/era-contracts.git
+url = https://github.com/adi-foundation/zksync-era-contracts.git
