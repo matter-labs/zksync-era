@@ -165,7 +165,9 @@ impl VmRevertReasonParsingResult {
 
 #[cfg(test)]
 mod tests {
-    use std::{assert_matches::assert_matches, convert::TryFrom};
+    use std::convert::TryFrom;
+
+    use assert_matches::assert_matches;
 
     use super::VmRevertReason;
 

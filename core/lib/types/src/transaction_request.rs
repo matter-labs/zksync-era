@@ -980,8 +980,7 @@ pub fn validate_factory_deps(
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
+    use assert_matches::assert_matches;
     use zksync_crypto_primitives::K256PrivateKey;
 
     use super::*;

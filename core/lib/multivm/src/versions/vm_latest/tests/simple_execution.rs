@@ -1,4 +1,4 @@
-use std::assert_matches::assert_matches;
+use assert_matches::assert_matches;
 
 use crate::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
