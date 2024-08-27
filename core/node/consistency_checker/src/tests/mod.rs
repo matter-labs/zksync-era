@@ -173,6 +173,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
 }
 
 // TODO: restore test by introducing `commitBatches` into server-only code
+//
 // #[test]
 // fn extracting_commit_data_for_boojum_batch() {
 //     let contract = zksync_contracts::hyperchain_contract();
