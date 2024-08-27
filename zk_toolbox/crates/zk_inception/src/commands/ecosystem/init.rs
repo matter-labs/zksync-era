@@ -38,13 +38,14 @@ use super::{
 use crate::{
     accept_ownership::accept_owner,
     commands::{
-        chain,
+        chain::{self, args::init::PortOffset},
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
     },
     messages::{
-        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
+        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
@@ -118,7 +119,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-            port_offset: chain_config.id as u16 * 10,
+            port_offset: PortOffset::from_chain_id(chain_config.id as u16).as_u16(),
         };
 
         chain::init::init(
@@ -243,17 +244,30 @@ async fn deploy_ecosystem(
         }
     };
 
+    let ecosystem_preexisting_configs_path =
+        ecosystem_config
+            .get_preexisting_configs_path()
+            .join(format!(
+                "{}.yaml",
+                ecosystem_config.l1_network.to_string().to_lowercase()
+            ));
+
+    // currently there are not some preexisting ecosystem contracts in
+    // chains, so we need check if this file exists.
+    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
+        anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
+            &ecosystem_config.l1_network.to_string()
+        ))
+    }
+
     let ecosystem_contracts_path =
         ecosystem_contracts_path.unwrap_or_else(|| match ecosystem_config.l1_network {
             L1Network::Localhost => {
                 ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
             }
-            L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
-                .get_preexisting_configs_path()
-                .join(format!(
-                    "{}.yaml",
-                    ecosystem_config.l1_network.to_string().to_lowercase()
-                )),
+            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => {
+                ecosystem_preexisting_configs_path
+            }
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
