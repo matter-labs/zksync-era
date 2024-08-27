@@ -36,7 +36,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             NoDA
         };
 
-        return Ok(configs::DAClientConfig { client: config });
+        Ok(configs::DAClientConfig { client: config })
     }
 
     fn build(this: &Self::Type) -> Self {
@@ -56,7 +56,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             },
             ObjectStore(config) => Self {
                 config: Some(proto::data_availability_client::Config::ObjectStore(
-                    object_store_proto::ObjectStore::build(&config),
+                    object_store_proto::ObjectStore::build(config),
                 )),
             },
         }

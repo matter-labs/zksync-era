@@ -42,6 +42,7 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::wallets::Wallets>>(rng);
     test_encode_all_formats::<ReprConv<proto::genesis::Genesis>>(rng);
     test_encode_all_formats::<ReprConv<proto::en::ExternalNode>>(rng);
+    test_encode_all_formats::<ReprConv<proto::da_client::DataAvailabilityClient>>(rng);
     test_encode_all_formats::<ReprConv<proto::da_dispatcher::DataAvailabilityDispatcher>>(rng);
     test_encode_all_formats::<ReprConv<proto::vm_runner::ProtectiveReadsWriter>>(rng);
     test_encode_all_formats::<ReprConv<proto::vm_runner::BasicWitnessInputProducer>>(rng);
