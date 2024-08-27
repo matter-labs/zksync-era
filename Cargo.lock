@@ -7271,14 +7271,18 @@ dependencies = [
 name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "criterion",
  "iai",
+ "once_cell",
  "rand 0.8.5",
  "tokio",
  "vise",
+ "zksync_contracts",
+ "zksync_multivm",
  "zksync_types",
+ "zksync_utils",
  "zksync_vlog",
- "zksync_vm_benchmark_harness",
 ]
 
 [[package]]
@@ -8676,7 +8680,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.21.0"
+version = "24.22.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -9750,21 +9754,6 @@ dependencies = [
  "url",
  "vise",
  "vise-exporter",
-]
-
-[[package]]
-name = "zksync_vm_benchmark_harness"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "once_cell",
- "zk_evm 0.133.0",
- "zksync_contracts",
- "zksync_multivm",
- "zksync_state",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
