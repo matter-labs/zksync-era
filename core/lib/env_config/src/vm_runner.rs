@@ -83,6 +83,6 @@ mod tests {
 
         lock.remove_env(&["EXPERIMENTAL_VM_PLAYGROUND_DB_PATH"]);
         let config = ExperimentalVmConfig::from_env().unwrap();
-        assert!(config.playground.db_path.is_some());
+        assert!(config.playground.db_path.is_none());
     }
 }
