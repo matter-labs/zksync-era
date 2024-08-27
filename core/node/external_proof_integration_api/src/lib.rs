@@ -5,13 +5,18 @@ mod processor;
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
-use axum::{extract::Path, middleware, routing::post, Json, Router};
+use axum::{
+    extract::{Multipart, Path},
+    middleware,
+    routing::post,
+    Json, Router,
+};
 use tokio::sync::watch;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{OptionalProofGenerationDataRequest, VerifyProofRequest};
+use zksync_prover_interface::api::OptionalProofGenerationDataRequest;
 
 use crate::processor::Processor;
 
@@ -64,9 +69,9 @@ async fn create_router(
         .route(
             "/verify_proof/:l1_batch_number",
             post(
-                move |l1_batch_number: Path<u32>, payload: Json<VerifyProofRequest>| async move {
+                move |l1_batch_number: Path<u32>, multipart: Multipart| async move {
                     verify_proof_processor
-                        .verify_proof(l1_batch_number, payload)
+                        .verify_proof(l1_batch_number, multipart)
                         .await
                 },
             ),

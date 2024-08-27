@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use axum::{extract::Path, Json};
+use axum::{
+    extract::{Multipart, Path},
+    Json,
+};
 use zksync_basic_types::{
     basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
 };
@@ -42,7 +45,7 @@ impl Processor {
     pub(crate) async fn verify_proof(
         &self,
         Path(l1_batch_number): Path<u32>,
-        Json(payload): Json<VerifyProofRequest>,
+        mut multipart: Multipart,
     ) -> Result<(), ProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::info!(
@@ -50,7 +53,24 @@ impl Processor {
             l1_batch_number
         );
 
-        let serialized_proof = bincode::serialize(&payload.0)?;
+        let mut serialized_proof = vec![];
+
+        while let Some(mut data) = multipart.next_field().await.map_err(|err| {
+            tracing::error!("Failed to read field: {:?}", err);
+            ProcessorError::InvalidProof
+        })? {
+            while let Some(chunk) = data.chunk().await.map_err(|err| {
+                tracing::error!("Failed to read chunk: {:?}", err);
+                ProcessorError::InvalidProof
+            })? {
+                serialized_proof.extend_from_slice(&chunk);
+            }
+        }
+
+        let payload: VerifyProofRequest = bincode::deserialize(&serialized_proof)?;
+
+        tracing::info!("Received proof is size: {}", serialized_proof.len());
+
         let expected_proof = bincode::serialize(
             &self
                 .blob_store
