@@ -4,8 +4,7 @@ on:
 
 jobs:
   code_lint:
-    runs-on: [matterlabs-ci-runner]
-
+    runs-on: matterlabs-ci-runner-highmem-long
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
