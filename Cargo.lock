@@ -8931,6 +8931,7 @@ name = "zksync_multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "circuit_sequencer_api 0.133.0",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
