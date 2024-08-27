@@ -4,5 +4,5 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-    - uses: EmbarkStudios/cargo-deny-action@68cd9c5e3e16328a430a37c743167572e3243e7e
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@v1
