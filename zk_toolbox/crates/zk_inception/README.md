@@ -52,7 +52,7 @@ ZK Toolbox is a set of tools for working with zk stack.
 - `containers` — Run containers for local development
 - `contract-verifier` — Run contract verifier
 - `portal` — Run dapp-portal
-- `update` — Update zkSync
+- `update` — Update ZKsync
 
 ###### **Options:**
 
@@ -622,7 +622,7 @@ Run dapp-portal
 
 ## `zk_inception update`
 
-Update zkSync
+Update ZKsync
 
 **Usage:** `zk_inception update [OPTIONS]`
 
