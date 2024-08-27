@@ -85,9 +85,7 @@ impl WiringLayer for VmPlaygroundLayer {
         let storage = if let Some(path) = self.config.db_path {
             VmPlaygroundStorageOptions::Rocksdb(path)
         } else {
-            VmPlaygroundStorageOptions::Snapshots {
-                shadow: false, // FIXME: configurable?
-            }
+            VmPlaygroundStorageOptions::Snapshots { shadow: false }
         };
         let (playground, tasks) = VmPlayground::new(
             connection_pool,

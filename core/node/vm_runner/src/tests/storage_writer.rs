@@ -211,7 +211,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
     let (stop_sender, stop_receiver) = watch::channel(false);
     let io = Arc::new(RwLock::new(IoMock {
         current: L1BatchNumber(0),
-        max: 1, // FIXME
+        max: 5,
     }));
     let loader = PostgresLoader::new(pool.clone(), genesis_params.config().l2_chain_id)
         .await
@@ -225,7 +225,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
         .unwrap()
         .expect("no batch loaded");
     if insert_protective_reads {
-        assert_matches!(batch_storage, OwnedStorage::Boxed(_)); // since we use shadowing
+        assert_matches!(batch_storage, OwnedStorage::Boxed(_)); // since we use shadowed snapshot storage
     } else {
         assert_matches!(batch_storage, OwnedStorage::Postgres(_));
     }

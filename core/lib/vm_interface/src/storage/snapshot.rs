@@ -4,6 +4,13 @@ use zksync_types::{StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
+/// Self-sufficient storage snapshot for a particular VM execution (e.g., executing a single L1 batch).
+///
+/// # Important
+///
+/// Note that [`ReadStorage`] methods will not panic / log errors etc. if "unexpected" storage slots
+/// are accessed during VM execution; instead, it'll return default values for these storage slots. The caller is responsible
+/// for ensuring that the snapshot matches VM setup.
 #[derive(Debug, Clone)]
 pub struct StorageSnapshot {
     storage: HashMap<H256, (H256, u64)>,
@@ -11,7 +18,12 @@ pub struct StorageSnapshot {
 }
 
 impl StorageSnapshot {
-    // FIXME: document what `storage` is
+    /// Creates a new storage snapshot.
+    ///
+    /// # Arguments
+    ///
+    /// - `storage` must contain all storage slots read during VM execution, i.e. protective reads + repeated writes
+    ///   for batch execution.
     pub fn new(storage: HashMap<H256, (H256, u64)>, factory_deps: HashMap<H256, Vec<u8>>) -> Self {
         Self {
             storage,

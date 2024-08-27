@@ -78,7 +78,6 @@ impl VmRunner {
                     })?;
             }
             for tx in l2_block.txs {
-                tracing::info!("Executing {tx:?}"); // FIXME
                 let exec_result = batch_executor
                     .execute_tx(tx.clone())
                     .await
