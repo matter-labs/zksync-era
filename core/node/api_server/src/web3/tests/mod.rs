@@ -26,9 +26,12 @@ use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
 };
+use zksync_system_constants::{
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
 use zksync_types::{
     api,
-    block::L2BlockHeader,
+    block::{pack_block_info, L2BlockHeader},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
@@ -55,7 +58,7 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::{
-    execution_sandbox::testonly::MockTransactionExecutor,
+    execution_sandbox::testonly::MockOneshotExecutor,
     web3::testonly::{spawn_http_server, spawn_ws_server},
 };
 
@@ -135,8 +138,8 @@ trait HttpTest: Send + Sync {
         StorageInitialization::Genesis
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        MockTransactionExecutor::default()
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        MockOneshotExecutor::default()
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {
@@ -174,7 +177,7 @@ impl StorageInitialization {
     }
 
     async fn prepare_storage(
-        &self,
+        self,
         network_config: &NetworkConfig,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
@@ -189,17 +192,33 @@ impl StorageInitialization {
                     insert_genesis_batch(storage, &params).await?;
                 }
             }
-            Self::Recovery { logs, factory_deps } => {
+            Self::Recovery {
+                mut logs,
+                factory_deps,
+            } => {
+                let l2_block_info_key = StorageKey::new(
+                    AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+                );
+                let block_info = pack_block_info(
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                );
+                logs.push(StorageLog::new_write_log(
+                    l2_block_info_key,
+                    u256_to_h256(block_info),
+                ));
+
                 prepare_recovery_snapshot(
                     storage,
                     Self::SNAPSHOT_RECOVERY_BATCH,
                     Self::SNAPSHOT_RECOVERY_BLOCK,
-                    logs,
+                    &logs,
                 )
                 .await;
                 storage
                     .factory_deps_dal()
-                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, factory_deps)
+                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, &factory_deps)
                     .await?;
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
@@ -282,7 +301,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     }
 }
 
-/// Stores L2 block with a single transaction and returns the L2 block header + transaction hash.
+/// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
     number: L2BlockNumber,
@@ -297,6 +316,18 @@ async fn store_l2_block(
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
+
+    // Record L2 block info which is read by the VM sandbox logic
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let block_info = pack_block_info(number.0.into(), number.0.into());
+    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(number, &[l2_block_log])
+        .await?;
 
     let new_l2_block = create_l2_block(number.0);
     storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
