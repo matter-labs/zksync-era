@@ -2511,7 +2511,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1112c453c2e155b3e683204ffff52bcc6d6495d04b68d9e90cd24161270c5058"
 dependencies = [
- "alatrait",
+ "async-trait",
  "base64 0.21.7",
  "google-cloud-metadata",
  "google-cloud-token",
