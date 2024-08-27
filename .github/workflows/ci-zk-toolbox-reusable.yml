@@ -120,6 +120,10 @@ jobs:
           ci_run zk_inception server --ignore-prerequisites &>server.log &
           ci_run sleep 5
 
+      - name: sleep for debug
+        run: |
+          while true; do sleep 86400; done
+
       - name: Run integration tests
         run: |
           ci_run zk_supervisor test integration --ignore-prerequisites --verbose
