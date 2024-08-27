@@ -21,7 +21,7 @@ jobs:
 
       - name: setup-env
         run: |
-          echo BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL="http://vmagent.stage.matterlabs.corp/api/v1/import/prometheus/metrics/job/vm-benchmark" >> .env
+          echo BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL=${{ secrets.BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL }} >> .env
 
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
