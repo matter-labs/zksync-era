@@ -5,7 +5,6 @@ pragma solidity >=0.7.0;
 contract CounterWithParam {
     uint256 value;
 
-
     constructor(uint256 _startingValue) {
         value = _startingValue;
     }
@@ -13,14 +12,14 @@ contract CounterWithParam {
     function increment(uint256 x) public {
         value += x;
     }
-    
-    function incrementWithRevertPayable(uint256 x, bool shouldRevert) payable public returns (uint256) {
+
+    function incrementWithRevertPayable(uint256 x, bool shouldRevert) public payable returns (uint256) {
         return incrementWithRevert(x, shouldRevert);
     }
 
     function incrementWithRevert(uint256 x, bool shouldRevert) public returns (uint256) {
         value += x;
-        if(shouldRevert) {
+        if (shouldRevert) {
             revert("This method always reverts");
         }
         return value;

@@ -13,7 +13,7 @@ contract Creator {
         new Creation();
     }
 
-    function getCreationRuntimeCode() external pure returns(bytes memory){
+    function getCreationRuntimeCode() external pure returns (bytes memory) {
         return type(Creation).runtimeCode;
     }
 }

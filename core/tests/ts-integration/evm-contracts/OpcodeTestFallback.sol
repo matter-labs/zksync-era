@@ -3,7 +3,6 @@
 pragma solidity ^0.8.0;
 
 contract OpcodeTestFallback {
-
     function performCall() external {
         uint256 loaded = 1;
         uint256 tmp;
@@ -19,20 +18,20 @@ contract OpcodeTestFallback {
             // MULMOD
             loaded := exp(loaded, 2)
             loaded := signextend(loaded, 2)
-            tmp := lt(loaded, 2) 
-            tmp := gt(loaded, 2) 
-            tmp := slt(loaded, 2) 
-            tmp := sgt(loaded, 2) 
+            tmp := lt(loaded, 2)
+            tmp := gt(loaded, 2)
+            tmp := slt(loaded, 2)
+            tmp := sgt(loaded, 2)
             tmp := eq(loaded, 2)
             tmp := iszero(tmp)
-            tmp := and(1,1)
-            tmp := or(1,1)
-            tmp := xor(1,1)
+            tmp := and(1, 1)
+            tmp := or(1, 1)
+            tmp := xor(1, 1)
             tmp := not(tmp)
-            tmp := byte(tmp,1)
-            tmp := shl(tmp,1)
-            tmp := shr(tmp,1)
-            tmp := sar(tmp,1)
+            tmp := byte(tmp, 1)
+            tmp := shl(tmp, 1)
+            tmp := shr(tmp, 1)
+            tmp := sar(tmp, 1)
             tmp := keccak256(0, 0x40)
             tmp := address()
             tmp := balance(0x00)
@@ -61,10 +60,10 @@ contract OpcodeTestFallback {
             tmp := basefee()
             // POP
             tmp := mload(1)
-            mstore(1024,1)
-            mstore8(10242,1)
+            mstore(1024, 1)
+            mstore8(10242, 1)
             tmp := sload(0)
-            sstore(0,1)
+            sstore(0, 1)
             // JUMP
             // JUMPI
             // PC
@@ -86,17 +85,17 @@ contract OpcodeTestFallback {
             // INVALID
             // selfdestruct(sender)
             tmp := calldataload(0)
-            calldatacopy(10,0,1)
-            codecopy(10,0,1)
+            calldatacopy(10, 0, 1)
+            codecopy(10, 0, 1)
             tmp := extcodesize(0)
-            extcodecopy(address(),10,0,1)
-            returndatacopy(10,0,1)
+            extcodecopy(address(), 10, 0, 1)
+            returndatacopy(10, 0, 1)
             pop(extcodehash(0))
-            log0(0,30)
-            log1(0,30,30)
-            log2(0,30,30,30)
-            log3(0,30,30,30,30)
-            log4(0,30,30,30,30,30)
+            log0(0, 30)
+            log1(0, 30, 30)
+            log2(0, 30, 30, 30)
+            log3(0, 30, 30, 30, 30)
+            log4(0, 30, 30, 30, 30, 30)
         }
 
         // tmp = 0;
@@ -137,5 +136,4 @@ contract OpcodeTestFallback {
     fallback() external {
         this.performCall();
     }
-
 }

@@ -3,7 +3,6 @@
 pragma solidity ^0.8.0;
 
 contract OpcodeTest {
-
     function execute() external {
         uint256 loaded = 1;
         uint256 tmp;
@@ -19,20 +18,20 @@ contract OpcodeTest {
             // MULMOD
             loaded := exp(loaded, 2)
             loaded := signextend(loaded, 2)
-            tmp := lt(loaded, 2) 
-            tmp := gt(loaded, 2) 
-            tmp := slt(loaded, 2) 
-            tmp := sgt(loaded, 2) 
+            tmp := lt(loaded, 2)
+            tmp := gt(loaded, 2)
+            tmp := slt(loaded, 2)
+            tmp := sgt(loaded, 2)
             tmp := eq(loaded, 2)
             tmp := iszero(tmp)
-            tmp := and(1,1)
-            tmp := or(1,1)
-            tmp := xor(1,1)
+            tmp := and(1, 1)
+            tmp := or(1, 1)
+            tmp := xor(1, 1)
             tmp := not(tmp)
-            tmp := byte(tmp,1)
-            tmp := shl(tmp,1)
-            tmp := shr(tmp,1)
-            tmp := sar(tmp,1)
+            tmp := byte(tmp, 1)
+            tmp := shl(tmp, 1)
+            tmp := shr(tmp, 1)
+            tmp := sar(tmp, 1)
             tmp := keccak256(0, 0x40)
             tmp := address()
             tmp := balance(0x00)
@@ -61,10 +60,10 @@ contract OpcodeTest {
             tmp := basefee()
             // POP
             tmp := mload(1)
-            mstore(1024,1)
-            mstore8(10242,1)
+            mstore(1024, 1)
+            mstore8(10242, 1)
             tmp := sload(0)
-            sstore(0,1)
+            sstore(0, 1)
             // JUMP
             // JUMPI
             // PC
@@ -121,5 +120,4 @@ contract OpcodeTest {
         // tmp = 0x665544332211ff998877665544332211ffeeddccbbaa998877665544332211;
         // tmp = 0x77665544332211ff998877665544332211ffeeddccbbaa998877665544332211;
     }
-
 }

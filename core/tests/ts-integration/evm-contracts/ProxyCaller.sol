@@ -11,15 +11,15 @@ interface ICounterWithParam {
 }
 
 contract ProxyCaller {
-    function executeIncrememt(address dest, uint256 x) external{
+    function executeIncrememt(address dest, uint256 x) external {
         ICounterWithParam(dest).increment(x);
     }
 
-    function proxyGet(address dest) external view returns (uint256){
+    function proxyGet(address dest) external view returns (uint256) {
         return ICounterWithParam(dest).get();
     }
 
-    function proxyGetBytes(address dest) external returns(bytes memory returnData){
+    function proxyGetBytes(address dest) external returns (bytes memory returnData) {
         return ICounterWithParam(dest).getBytes();
     }
 }

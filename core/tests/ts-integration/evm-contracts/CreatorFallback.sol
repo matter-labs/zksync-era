@@ -13,6 +13,7 @@ contract CreatorFallback {
         new Creation();
         type(Creation).runtimeCode;
     }
+
     fallback() external {
         this.performCall();
     }
