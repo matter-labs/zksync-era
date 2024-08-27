@@ -183,6 +183,10 @@ jobs:
           --db-name=zksync_en_localhost_era_validium --l1-rpc-url=http://reth:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://reth:8545 --chain chain_custom_token
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_custom_token
+
 #      - name: Run recovery tests (from snapshot)
 #        run: |
 #          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> recovery_snap_rollup.log &
@@ -209,6 +213,7 @@ jobs:
         run: |
           ci_run zk_inception external-node run --ignore-prerequisites --chain era &> external_node_rollup.log &
           ci_run zk_inception external-node run --ignore-prerequisites --chain chain_validium &> external_node_validium.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain chain_custom_token &> external_node_custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests en
@@ -219,13 +224,18 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &> integration_en_validium.log &
           PID2=$!
 
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_custom_token &> integration_en_custom_token.log &
+          PID3=$!
+
           wait $PID1
           wait $PID2
+          wait $PID3
 
       - name: Run revert tests (external node)
         run: |
           ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain era &> revert_rollup.log
           ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_validium &> revert_validium.log
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_custom_token &> revert_custom_token.log
 
       # Upgrade tests should run last, because as soon as they 
       # finish the bootloader will be different
@@ -254,6 +264,10 @@ jobs:
         if: always()
         run: ci_run cat external_node_validium.log || true
 
+      - name: Show external_node_custom_token.log logs
+        if: always()
+        run: ci_run cat external_node_custom_token.log || true
+
       - name: Show integration_rollup.log logs
         if: always()
         run: ci_run cat integration_rollup.log || true
@@ -274,6 +288,10 @@ jobs:
         if: always()
         run: ci_run cat recovery_snap_validium.log || true
 
+      - name: Show recovery_snap_custom_token.log logs
+        if: always()
+        run: ci_run cat recovery_snap_custom_token.log || true
+
       - name: Show recovery_gen_rollup.log logs
         if: always()
         run: ci_run cat recovery_gen_rollup.log || true
@@ -281,6 +299,10 @@ jobs:
       - name: Show recovery_gen_validium.log logs
         if: always()
         run: ci_run cat recovery_gen_validium.log || true
+
+      - name: Show recovery_gen_custom_token.log logs
+        if: always()
+        run: ci_run cat recovery_gen_custom_token.log || true
 
       - name: Show integration_en_rollup.log logs
         if: always()
@@ -290,6 +312,10 @@ jobs:
         if: always()
         run: ci_run cat integration_en_validium.log || true
 
+      - name: Show integration_en_custom_token.log logs
+        if: always()
+        run: ci_run cat integration_en_custom_token.log || true
+
       - name: Show revert_rollup.log logs
         if: always()
         run: ci_run cat revert_rollup.log || true
@@ -297,3 +323,7 @@ jobs:
       - name: Show revert_validium.log logs
         if: always()
         run: ci_run cat revert_validium.log || true
+
+      - name: Show revert_custom_token.log logs
+        if: always()
+        run: ci_run cat revert_custom_token.log || true
