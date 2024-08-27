@@ -128,9 +128,6 @@ impl Tracer for CircuitsTracer {
     fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
 
-        if let Opcode::Ret(ReturnType::Revert) = OP::VALUE {
-            println!("RET {:?}", OP::VALUE);
-        }
         match OP::VALUE {
             Opcode::Nop
             | Opcode::Add
