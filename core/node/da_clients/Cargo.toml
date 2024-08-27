@@ -1,6 +1,6 @@
 [package]
-name = "zksync_default_da_clients"
-description = "ZKsync DA client implementations"
+name = "zksync_da_clients"
+description = "ZKsync data availability dispatcher"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,6 +9,7 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+publish = false
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -21,5 +22,12 @@ zksync_config.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
 zksync_da_client.workspace = true
-zksync_node_framework.workspace = true
 zksync_env_config.workspace = true
+futures.workspace = true
+
+# Avail dependencies
+avail-subxt.workspace = true
+avail-core.workspace = true
+subxt-signer.workspace = true
+reqwest.workspace = true
+alloy.workspace = true

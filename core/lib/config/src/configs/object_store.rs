@@ -1,11 +1,14 @@
 use serde::Deserialize;
 
+use crate::configs::deserialize_stringified_any;
+
 /// Configuration for the object store
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ObjectStoreConfig {
     #[serde(flatten)]
     pub mode: ObjectStoreMode,
     #[serde(default = "ObjectStoreConfig::default_max_retries")]
+    #[serde(deserialize_with = "deserialize_stringified_any")]
     pub max_retries: u16,
     /// Path to local directory that will be used to mirror store objects locally. If not specified, no mirroring will be used.
     /// The directory layout is identical to [`ObjectStoreMode::FileBacked`].

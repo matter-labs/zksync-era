@@ -36,6 +36,7 @@ zksync_house_keeper.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_eth_sender.workspace = true
 zksync_da_client.workspace = true
+zksync_da_clients.workspace = true
 zksync_da_dispatcher.workspace = true
 zksync_block_reverter.workspace = true
 zksync_state_keeper.workspace = true

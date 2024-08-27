@@ -8,6 +8,6 @@ pub struct DAClientResource(pub Box<dyn DataAvailabilityClient>);
 
 impl Resource for DAClientResource {
     fn name() -> String {
-        "common/da_client".into()
+        "common/qqq".into()
     }
 }

@@ -38,6 +38,7 @@ members = [
     "core/node/base_token_adjuster",
     "core/node/external_proof_integration_api",
     "core/node/logs_bloom_backfill",
+    "core/node/da_clients",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -50,7 +51,6 @@ members = [
     "core/lib/dal",
     "core/lib/env_config",
     "core/lib/da_client",
-    "core/lib/default_da_clients",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/l1_contract_interface",
@@ -199,6 +199,13 @@ trybuild = "1.0"
 vise = "0.2.0"
 vise-exporter = "0.2.0"
 
+# DA clients' dependencies
+# Avail
+avail-subxt = { git = "https://github.com/availproject/avail", tag = "v2.2.5.0-rc1" }
+avail-core = { git = "https://github.com/availproject/avail-core", tag = "core-node-1" }
+subxt-signer = { version = "0.34" }
+alloy = { version = "0.1", features = ["full"] }
+
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
@@ -250,7 +257,6 @@ zksync_db_connection = { version = "0.1.0", path = "core/lib/db_connection" }
 zksync_env_config = { version = "0.1.0", path = "core/lib/env_config" }
 zksync_eth_client = { version = "0.1.0", path = "core/lib/eth_client" }
 zksync_da_client = { version = "0.1.0", path = "core/lib/da_client" }
-zksync_default_da_clients = { version = "0.1.0", path = "core/lib/default_da_clients" }
 zksync_eth_signer = { version = "0.1.0", path = "core/lib/eth_signer" }
 zksync_health_check = { version = "0.1.0", path = "core/lib/health_check" }
 zksync_l1_contract_interface = { version = "0.1.0", path = "core/lib/l1_contract_interface" }
@@ -284,6 +290,7 @@ zksync_commitment_generator = { version = "0.1.0", path = "core/node/commitment_
 zksync_house_keeper = { version = "0.1.0", path = "core/node/house_keeper" }
 zksync_node_genesis = { version = "0.1.0", path = "core/node/genesis" }
 zksync_da_dispatcher = { version = "0.1.0", path = "core/node/da_dispatcher" }
+zksync_da_clients = { version = "0.1.0", path = "core/node/da_clients" }
 zksync_eth_sender = { version = "0.1.0", path = "core/node/eth_sender" }
 zksync_node_db_pruner = { version = "0.1.0", path = "core/node/db_pruner" }
 zksync_node_fee_model = { version = "0.1.0", path = "core/node/fee_model" }

@@ -17,9 +17,9 @@ use zksync_config::{
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{decode_yaml_repr, TempConfigStore},
@@ -199,6 +199,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),

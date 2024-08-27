@@ -3,14 +3,13 @@
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
+        Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
-use zksync_default_da_clients::{
-    no_da::wiring_layer::NoDAClientWiringLayer,
-    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
-};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -28,6 +27,10 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
+        da_clients::{
+            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
+        },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -509,16 +512,23 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(NoDAClientWiringLayer);
-        Ok(self)
-    }
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            tracing::warn!("No config for DA client, using the NoDA client");
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        };
 
-    #[allow(dead_code)]
-    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = DAObjectStoreConfig::from_env()?;
-        self.node
-            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
+        match da_client_config {
+            DAClient::Avail(config) => {
+                self.node.add_layer(AvailWiringLayer::new(config));
+            }
+            DAClient::ObjectStore(config) => {
+                self.node
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+        }
+
         Ok(self)
     }
 
@@ -759,7 +769,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
+                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;
