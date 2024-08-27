@@ -93,6 +93,12 @@ jobs:
           --ignore-prerequisites --verbose \
           --observability=false
 
+      - name: Read Custom Token address and set as environment variable
+        run: |
+          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+          echo "address=$address"
+          echo "address=$address" >> $GITHUB_ENV
+
       - name: Create and initialize Validium chain
         run: |
           ci_run zk_inception chain create \
@@ -116,12 +122,6 @@ jobs:
           --prover-db-name=zksync_prover_localhost_validium \
           --port-offset 2000 \
           --chain chain_validium
-      
-      - name: Read address using awk and set as environment variable
-        run: |
-          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
-          echo "address=$address"
-          echo "address=$address" >> $GITHUB_ENV
     
       - name: Create and initialize chain with Custom Token
         run: |
