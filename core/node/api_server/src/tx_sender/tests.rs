@@ -10,7 +10,7 @@ use zksync_utils::u256_to_h256;
 
 use super::*;
 use crate::{
-    execution_sandbox::testonly::MockTransactionExecutor, web3::testonly::create_test_tx_sender,
+    execution_sandbox::testonly::MockOneshotExecutor, web3::testonly::create_test_tx_sender,
 };
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn getting_nonce_for_account() {
         .await
         .unwrap();
 
-    let tx_executor = MockTransactionExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
@@ -81,7 +81,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     .await;
 
     let l2_chain_id = L2ChainId::default();
-    let tx_executor = MockTransactionExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     storage
@@ -136,7 +136,7 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap();
     drop(storage);
 
-    let mut tx_executor = MockTransactionExecutor::default();
+    let mut tx_executor = MockOneshotExecutor::default();
     tx_executor.set_tx_responses(move |received_tx, _| {
         assert_eq!(received_tx.hash(), tx_hash);
         ExecutionResult::Success { output: vec![] }

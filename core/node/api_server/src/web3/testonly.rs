@@ -8,11 +8,12 @@ use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_state::PostgresStorageCaches;
+use zksync_state_keeper::seal_criteria::NoopSealer;
 use zksync_types::L2ChainId;
 
 use super::{metrics::ApiTransportLabel, *};
 use crate::{
-    execution_sandbox::{testonly::MockTransactionExecutor, TransactionExecutor},
+    execution_sandbox::{testonly::MockOneshotExecutor, TransactionExecutor},
     tx_sender::TxSenderConfig,
 };
 
@@ -48,7 +49,9 @@ pub(crate) async fn create_test_tx_sender(
     .await
     .expect("failed building transaction sender");
 
-    Arc::get_mut(&mut tx_sender.0).unwrap().executor = tx_executor;
+    let tx_sender_inner = Arc::get_mut(&mut tx_sender.0).unwrap();
+    tx_sender_inner.executor = tx_executor;
+    tx_sender_inner.sealer = Arc::new(NoopSealer); // prevents "unexecutable transaction" errors
     (tx_sender, vm_barrier)
 }
 
@@ -99,7 +102,7 @@ impl ApiServerHandles {
 pub async fn spawn_http_server(
     api_config: InternalApiConfig,
     pool: ConnectionPool<Core>,
-    tx_executor: MockTransactionExecutor,
+    tx_executor: MockOneshotExecutor,
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
@@ -127,7 +130,7 @@ pub async fn spawn_ws_server(
         api_config,
         pool,
         websocket_requests_per_minute_limit,
-        MockTransactionExecutor::default(),
+        MockOneshotExecutor::default(),
         Arc::default(),
         stop_receiver,
     )
@@ -139,7 +142,7 @@ async fn spawn_server(
     api_config: InternalApiConfig,
     pool: ConnectionPool<Core>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tx_executor: MockTransactionExecutor,
+    tx_executor: MockOneshotExecutor,
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {

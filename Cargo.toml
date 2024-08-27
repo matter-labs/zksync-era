@@ -79,7 +79,6 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    "core/tests/vm-benchmark/harness",
     # Parts of prover workspace that are needed for Core workspace
     "prover/crates/lib/prover_dal",
 ]
@@ -238,7 +237,6 @@ zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
 zksync_vm_interface = { version = "0.1.0", path = "core/lib/vm_interface" }
 zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
-zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
 zksync_basic_types = { version = "0.1.0", path = "core/lib/basic_types" }
 zksync_circuit_breaker = { version = "0.1.0", path = "core/lib/circuit_breaker" }
 zksync_config = { version = "0.1.0", path = "core/lib/config" }
