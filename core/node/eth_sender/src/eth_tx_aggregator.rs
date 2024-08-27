@@ -499,11 +499,6 @@ impl EthTxAggregator {
                         .encode_input(&op.into_tokens())
                         .expect("Failed to encode execute transaction data")
                 } else {
-                    dbg!(self
-                        .functions
-                        .post_shared_bridge_execute
-                        .as_ref()
-                        .expect("Missing ABI for executeBatchesSharedBridge"));
                     args.extend(op.into_tokens());
                     self.functions
                         .post_shared_bridge_execute

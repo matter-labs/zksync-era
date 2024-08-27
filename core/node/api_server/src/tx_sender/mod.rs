@@ -107,6 +107,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
     pub(crate) vm_1_5_0_increased_memory: BaseSystemContracts,
+    /// Contracts to be used after the protocol defense upgrade
+    pub(crate) vm_protocol_defense: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -135,9 +137,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
             ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
-            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
-                self.vm_1_5_0_increased_memory
-            }
+            ProtocolVersionId::Version24 => self.vm_1_5_0_increased_memory,
+            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => self.vm_protocol_defense,
         }
     }
 }
@@ -181,6 +182,7 @@ impl ApiContracts {
                 vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
                 vm_1_5_0_increased_memory:
                     BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+                vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -194,6 +196,7 @@ impl ApiContracts {
                 vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
                 vm_1_5_0_increased_memory:
                     BaseSystemContracts::playground_post_1_5_0_increased_memory(),
+                vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
             },
         }
     }
