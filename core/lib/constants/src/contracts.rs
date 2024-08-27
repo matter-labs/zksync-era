@@ -151,6 +151,10 @@ pub const L2_MESSAGE_ROOT_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x01, 0x00, 0x05,
 ]);
+pub const SETTLEMENT_LAYER_RELAY_SENDER: Address = H160([
+    0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+    0x11, 0x11, 0x11, 0x11,
+]);
 
 pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     221, 242, 82, 173, 27, 226, 200, 155, 105, 194, 176, 104, 252, 55, 141, 170, 149, 43, 167, 241,
@@ -173,3 +177,9 @@ pub const SHARED_BRIDGE_ETHER_TOKEN_ADDRESS: Address = H160([
 /// Default `ERA_CHAIN_ID`. All hyperchains start with this chain id and later on during their registration
 /// an "initial upgrade" transaction overrides it with the correct value.
 pub const DEFAULT_ERA_CHAIN_ID: u32 = 270;
+
+/// Default max number of hyperchains used for testing
+pub const MAX_NUMBER_OF_HYPERCHAINS: u32 = 100;
+
+/// Test ZK chain id
+pub const TEST_ZK_CHAIN_ID: u32 = 272;

@@ -92,6 +92,11 @@ pub(crate) fn read_stm() -> (Vec<u8>, Contract) {
     (read_bytecode(path), load_contract(path))
 }
 
+pub(crate) fn read_admin_facet() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/facets/Admin.sol/AdminFacet.json";
+    (read_bytecode(path), load_contract(path))
+}
+
 pub(crate) fn read_mailbox_facet() -> (Vec<u8>, Contract) {
     let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/facets/Mailbox.sol/MailboxFacet.json";
     (read_bytecode(path), load_contract(path))
@@ -99,6 +104,16 @@ pub(crate) fn read_mailbox_facet() -> (Vec<u8>, Contract) {
 
 pub(crate) fn read_diamond_init() -> (Vec<u8>, Contract) {
     let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/DiamondInit.sol/DiamondInit.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_diamond_proxy() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/chain-deps/DiamondProxy.sol/DiamondProxy.json";
+    (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_diamond() -> (Vec<u8>, Contract) {
+    let path = "contracts/l1-contracts/artifacts-zk/contracts/state-transition/libraries/Diamond.sol/Diamond.json";
     (read_bytecode(path), load_contract(path))
 }
 
@@ -168,8 +183,4 @@ pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
     const PATH: &str =
         "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
     (read_bytecode(PATH), load_contract(PATH))
-}
-
-pub(crate) fn read_mailbox_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/mailbox/mailbox.sol/Mailbox.json")
 }

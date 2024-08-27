@@ -1,7 +1,5 @@
 use crate::{ethabi::Token, U256};
 
-// Data Types
-
 // uint256 txType;
 // uint256 from;
 // uint256 to;
@@ -73,6 +71,7 @@ impl Default for L2CanonicalTransaction {
 
 #[derive(Debug, Clone)]
 pub struct BridgeHubRequestL2TransactionOnGateway {
+    pub chaind_id: U256,
     pub transaction: L2CanonicalTransaction, // Corresponds to L2CanonicalTransaction calldata _transaction
     pub factory_deps: Vec<Vec<u8>>,          // Corresponds to bytes[] calldata _factoryDeps
     pub canonical_tx_hash: [u8; 32],         // Corresponds to bytes32 _canonicalTxHash
@@ -82,6 +81,7 @@ pub struct BridgeHubRequestL2TransactionOnGateway {
 impl Default for BridgeHubRequestL2TransactionOnGateway {
     fn default() -> Self {
         BridgeHubRequestL2TransactionOnGateway {
+            chaind_id: U256::from(272),
             transaction: L2CanonicalTransaction::default(),
             factory_deps: vec![],
             canonical_tx_hash: [0u8; 32],
@@ -131,6 +131,7 @@ impl BridgeHubRequestL2TransactionOnGateway {
         ];
 
         vec![
+            Token::Uint(self.chaind_id),
             Token::Tuple(transaction_tokens),
             Token::Array(
                 self.factory_deps

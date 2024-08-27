@@ -1,480 +1,186 @@
-use ethabi::{encode, Bytes, Contract, Function, Hash, Token};
-use tiny_keccak::{Hasher, Keccak}; // Import the Hasher trait
+use ethabi::{encode, Contract, Token};
+use tiny_keccak::{Hasher, Keccak};
 use zksync_basic_types::{Address, H160, H256};
-use zksync_contracts::{l1_messenger_contract, mailbox_contract};
 use zksync_system_constants::{
-    BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_MESSAGE_ROOT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    MAX_NUMBER_OF_HYPERCHAINS, SETTLEMENT_LAYER_RELAY_SENDER, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    TEST_ZK_CHAIN_ID,
 };
 use zksync_test_account::Account;
 use zksync_types::{
-    fee::Fee,
+    diamond::{compile_initial_cut_hash, facet_cut, Action, ChainCreationParams, VerifierParams},
     get_code_key, get_known_code_key,
-    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     mailbox::BridgeHubRequestL2TransactionOnGateway,
-    Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
+    Execute, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface},
-    utils::{bytecode::encode_call, StorageWritesDeduplicator},
     vm_latest::{
         tests::{
-            tester::{TxType, VmTesterBuilder},
+            tester::{TxType, VmTester, VmTesterBuilder},
             utils::{
-                read_bridgehub, read_diamond_init, read_mailbox_facet, read_message_root, read_stm,
-                read_transparent_proxy, verify_required_storage, BASE_SYSTEM_CONTRACTS,
+                read_admin_facet, read_bridgehub, read_diamond, read_diamond_init,
+                read_diamond_proxy, read_mailbox_facet, read_stm, read_transparent_proxy,
+                verify_required_storage, BASE_SYSTEM_CONTRACTS,
             },
         },
-        types::internals::TransactionData,
         HistoryEnabled,
     },
 };
 
-#[derive(Debug, Clone)]
-pub struct VerifierParams {
-    recursion_node_level_vk_hash: H256,
-    recursion_leaf_level_vk_hash: H256,
-    recursion_circuits_set_vks_hash: H256,
-}
-
-#[derive(Debug, Clone)]
-pub enum PubdataPricingMode {
-    Rollup,
-    Validium,
-}
-
-#[derive(Debug, Clone)]
-pub struct FeeParams {
-    pubdata_pricing_mode: PubdataPricingMode,
-    batch_overhead_l1_gas: U256,
-    max_pubdata_per_batch: U256,
-    priority_tx_max_pubdata: U256,
-    max_l2_gas_per_batch: U256,
-    minimal_l2_gas_price: U256,
-}
-
-#[derive(Debug, Clone)]
-pub struct FacetCut {
-    pub facet: Address,
-    pub action: Action,
-    pub is_freezable: bool,
-    pub selectors: Vec<[u8; 4]>, // Assuming selectors are 4-byte arrays as in Ethereum function selectors
-}
-
-impl FacetCut {
-    pub fn to_token(&self) -> Token {
-        Token::Tuple(vec![
-            Token::Address(self.facet),
-            Token::Uint(self.action.to_uint()), // Convert Action to U256 or Token::Uint as needed
-            Token::Bool(self.is_freezable),
-            Token::Array(
-                self.selectors
-                    .iter()
-                    .map(|selector| Token::FixedBytes(selector.to_vec()))
-                    .collect(),
-            ),
-        ])
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DiamondCut {
-    facet_cuts: Vec<FacetCut>,
-    init_address: Address,
-    init_calldata: Bytes,
-}
-
-impl DiamondCut {
-    pub fn to_token(&self) -> Token {
-        Token::Tuple(vec![
-            Token::Array(
-                self.facet_cuts
-                    .iter()
-                    .map(|facet_cut| facet_cut.to_token())
-                    .collect(),
-            ),
-            Token::Address(self.init_address),
-            Token::Bytes(self.init_calldata.clone()),
-        ])
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ChainCreationParams {
-    genesis_upgrade: Address, // Assuming this is an Ethereum address
-    genesis_batch_hash: H256, // 32-byte hash
-    genesis_index_repeated_storage_changes: U256, // Large unsigned integer
-    genesis_batch_commitment: H256, // 32-byte hash
-    diamond_cut: DiamondCut,  // List of facet cuts
-    force_deployments_data: Vec<u8>, // Assuming this is binary data
-}
-
-impl ChainCreationParams {
-    pub fn to_token(&self) -> Token {
-        Token::Tuple(vec![
-            Token::Address(self.genesis_upgrade),
-            Token::FixedBytes(self.genesis_batch_hash.as_bytes().to_vec()),
-            Token::Uint(self.genesis_index_repeated_storage_changes),
-            Token::FixedBytes(self.genesis_batch_commitment.as_bytes().to_vec()),
-            self.diamond_cut.to_token(), // Assuming `DiamondCut` has a `to_token` method
-            Token::Bytes(self.force_deployments_data.clone()),
-        ])
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DiamondInitData {
-    pub chain_id: U256,
-    pub bridgehub: Address,
-    pub state_transition_manager: Address,
-    pub protocol_version: U256,
-    pub admin: Address,
-    pub validator_timelock: Address,
-    pub base_token: Address,
-    pub base_token_bridge: Address,
-    pub stored_batch_zero: H256,
-    pub verifier: Address,
-    pub verifier_params: VerifierParams,
-    pub l2_bootloader_bytecode_hash: H256,
-    pub l2_default_account_bytecode_hash: H256,
-    pub priority_tx_max_gas_limit: U256,
-    pub fee_params: FeeParams,
-    pub blob_versioned_hash_retriever: Address,
-}
-
-impl DiamondInitData {
-    pub fn to_token(&self) -> Token {
-        Token::Tuple(vec![
-            Token::Uint(self.chain_id),
-            Token::Address(self.bridgehub),
-            Token::Address(self.state_transition_manager),
-            Token::Uint(self.protocol_version),
-            Token::Address(self.admin),
-            Token::Address(self.validator_timelock),
-            Token::Address(self.base_token),
-            Token::Address(self.base_token_bridge),
-            Token::FixedBytes(self.stored_batch_zero.as_bytes().to_vec()),
-            Token::Address(self.verifier),
-            Token::Tuple(vec![
-                Token::FixedBytes(
-                    self.verifier_params
-                        .recursion_node_level_vk_hash
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::FixedBytes(
-                    self.verifier_params
-                        .recursion_leaf_level_vk_hash
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::FixedBytes(
-                    self.verifier_params
-                        .recursion_circuits_set_vks_hash
-                        .as_bytes()
-                        .to_vec(),
-                ),
-            ]),
-            Token::FixedBytes(self.l2_bootloader_bytecode_hash.as_bytes().to_vec()),
-            Token::FixedBytes(self.l2_default_account_bytecode_hash.as_bytes().to_vec()),
-            Token::Uint(self.priority_tx_max_gas_limit),
-            Token::Tuple(vec![
-                Token::Uint(self.fee_params.batch_overhead_l1_gas),
-                Token::Uint(self.fee_params.max_pubdata_per_batch),
-                Token::Uint(self.fee_params.priority_tx_max_pubdata),
-                Token::Uint(self.fee_params.max_l2_gas_per_batch),
-                Token::Uint(self.fee_params.minimal_l2_gas_price),
-            ]),
-            Token::Address(self.blob_versioned_hash_retriever),
-        ])
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Action {
-    Add,
-    Replace,
-    Remove,
-}
-
-// Assuming `Action` enum has a method `to_uint` to convert it to `Token::Uint`
-impl Action {
-    pub fn to_uint(&self) -> U256 {
-        match self {
-            Action::Add => U256::from(0),
-            Action::Replace => U256::from(1),
-            Action::Remove => U256::from(2),
-        }
-    }
-}
-
-// Function to get the selectors
-fn get_all_selectors(contract: &Contract) -> Vec<[u8; 4]> {
-    contract
-        .functions
-        .iter()
-        .filter_map(|(signature, functions)| {
-            if signature != "getName()" {
-                // We assume the function has only one variant in this context
-                // We take the first variant in the Vec<Function>
-                Some(functions[0].short_signature())
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn facet_cut(
-    address: Address,
-    contract: &Contract,
-    action: Action,
-    is_freezable: bool,
-) -> FacetCut {
-    FacetCut {
-        facet: address,
-        selectors: get_all_selectors(contract),
-        action,
-        is_freezable,
-    }
-}
-
-fn compile_initial_cut_hash(
-    facet_cuts: Vec<FacetCut>,
-    verifier_params: VerifierParams,
-    l2_bootloader_bytecode_hash: H256,
-    l2_default_account_bytecode_hash: H256,
-    verifier: Address,
-    blob_versioned_hash_retriever: Address,
-    priority_tx_max_gas_limit: U256,
-    diamond_init: Address,
-    diamond_init_contract: Contract,
-    admin: Address,
-) -> DiamondCut {
-    // Define the fee parameters
-    let fee_params = FeeParams {
-        pubdata_pricing_mode: PubdataPricingMode::Rollup,
-        batch_overhead_l1_gas: U256::from(1000000), // Replace with actual value
-        max_pubdata_per_batch: U256::from(1000000), // Replace with actual value
-        priority_tx_max_pubdata: U256::from(1000000), // Replace with actual value
-        max_l2_gas_per_batch: U256::from(1000000),  // Replace with actual value
-        minimal_l2_gas_price: U256::from(1000),     // Replace with actual value
-    };
-
-    // Initialize the diamond with the required data
-    let diamond_init_data = DiamondInitData {
-        chain_id: U256::from(1),
-        bridgehub: L2_BRIDGEHUB_ADDRESS,
-        state_transition_manager: "0x0000000000000000000000000000000000002234"
-            .parse()
-            .unwrap(),
-        protocol_version: U256::from(21),
-        admin: admin.into(),
-        validator_timelock: "0x0000000000000000000000000000000000004234"
-            .parse()
-            .unwrap(),
-        base_token: "0x0000000000000000000000000000000000000001"
-            .parse()
-            .unwrap(),
-        base_token_bridge: "0x0000000000000000000000000000000000004234"
-            .parse()
-            .unwrap(),
-        stored_batch_zero: H256::from([
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x12, 0x34,
-        ]),
-        verifier,
-        verifier_params,
-        l2_bootloader_bytecode_hash,
-        l2_default_account_bytecode_hash,
-        priority_tx_max_gas_limit,
-        fee_params,
-        blob_versioned_hash_retriever,
-    };
-
-    let encoded_data;
-    let init_calldata_result = diamond_init_contract
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[diamond_init_data.to_token()]);
-
-    match init_calldata_result {
-        Ok(init_calldata) => {
-            // Proceed with using `init_calldata`
-            encoded_data = init_calldata;
-
-            // Calculate the start index
-            let start_index = 2 + (4 + 9 * 32) * 2;
-
-            let hex_calldata = hex::encode(encoded_data);
-
-            // Slice the string from the calculated index
-            let sliced_calldata = &hex_calldata[start_index..];
-
-            // Prepend "0x" to the sliced string
-            let result = format!("0x{}", sliced_calldata);
-
-            // Return the DiamondCut struct
-            DiamondCut {
-                facet_cuts,
-                init_address: diamond_init,
-                init_calldata: result.into(),
-            }
-        }
-        Err(e) => {
-            // Handle the error
-            println!("Error encoding calldata: {:?}", e);
-            unreachable!("asda");
-        }
-    }
-}
-
-#[test]
-fn test_l1_l2_complete_tx_execution() {
-    // In this test, we try to execute a transaction from L1 to L2 via Gateway
-    // Here instead of marking code hash via the bootloader means, we will be
-    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
-
-    // There are always at least 9 initial writes here, because we pay fees from l1:
-    // - `totalSupply` of ETH token
-    // - balance of the refund recipient
-    // - balance of the bootloader
-    // - `tx_rolling` hash
-    // - `gasPerPubdataByte`
-    // - `basePubdataSpent`
-    // - rolling hash of L2->L1 logs
-    // - transaction number in block counter
-    // - L2->L1 log counter in `L1Messenger`
-
-    // TODO(PLA-537): right now we are using 5 slots instead of 9 due to 0 fee for transaction.
-
-    // TODO:
-    // 1. Deploy STM
-    // 2. Deploy Mailbox Facet
-    // 3. Deploy Diamond Init
-    // 4. Prepare STM initialize Data
-    // 5. Deploy STM proxy
-    // 5. Deploy new Chain via call from Bridgehub
-    // 6. Test tx as before
-    let basic_initial_writes = 5;
-
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
-        .with_empty_in_memory_storage()
-        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
-        .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
-        .build();
-
-    // Deploy STM
-
+fn send_prank_tx_and_verify(
+    vm: &mut VmTester<HistoryEnabled>,
+    contract_address: Address,
+    factory_deps: Vec<Vec<u8>>,
+    calldata: Vec<u8>,
+    prank_address: Address,
+) {
     let account: &mut Account = &mut vm.rich_accounts[0];
-    let (stm_contract_code, stm_contract_abi) = read_stm();
-    // Set the constructor data to L2 bridgehub address and max number of hyperchains to 100
-    let max_number_of_hyperchains = U256::from(100);
-    let constructor_data = &[
-        Token::Address(L2_BRIDGEHUB_ADDRESS),
-        Token::Uint(max_number_of_hyperchains),
-    ];
-    let stm_deploy_tx = account.get_deploy_tx(
-        &stm_contract_code,
-        Some(constructor_data),
-        TxType::L1 { serial_id: 1 },
-    );
-    let stm_address = stm_deploy_tx.address.clone();
 
-    vm.vm.push_transaction(stm_deploy_tx.tx.clone());
+    let tx = account.get_l1_prank_tx(
+        Execute {
+            contract_address,
+            value: U256::zero(),
+            factory_deps,
+            calldata,
+        },
+        0,
+        prank_address,
+    );
+    vm.vm.push_transaction(tx);
+
+    let res = vm.vm.execute(VmExecutionMode::OneTx);
+
+    match res.result {
+        ExecutionResult::Success { output } => {
+            println!("Transaction was successful. Output: {:?}", output);
+        }
+        ExecutionResult::Revert { output } => {
+            eprintln!("Transaction reverted. Reason: {:?}", output);
+            panic!("Transaction wasn't successful: {:?}", output);
+        }
+        ExecutionResult::Halt { reason } => {
+            eprintln!("Transaction halted. Reason: {:?}", reason);
+            panic!("Transaction wasn't successful: {:?}", reason);
+        }
+    }
+}
+
+fn deploy_and_verify_contract(
+    vm: &mut VmTester<HistoryEnabled>,
+    contract_code: &Vec<u8>,
+    constructor_data: Option<&[Token]>,
+    deploy_nonce: &mut u64,
+) -> Address {
+    let account: &mut Account = &mut vm.rich_accounts[0];
+
+    let deploy_tx = account.get_deploy_tx(
+        contract_code,
+        constructor_data,
+        TxType::L1 {
+            serial_id: *deploy_nonce,
+        },
+    );
+    *deploy_nonce += 1;
+    let contract_address = deploy_tx.address.clone();
+
+    vm.vm.push_transaction(deploy_tx.tx.clone());
 
     let res = vm.vm.execute(VmExecutionMode::OneTx);
 
     // The code hash of the deployed contract should be marked as republished.
-    let known_codes_key = get_known_code_key(&stm_deploy_tx.bytecode_hash);
+    let known_codes_key = get_known_code_key(&deploy_tx.bytecode_hash);
 
     // The contract should be deployed successfully.
-    let account_code_key = get_code_key(&stm_deploy_tx.address);
+    let account_code_key = get_code_key(&deploy_tx.address);
 
     let expected_slots = vec![
         (u256_to_h256(U256::from(1u32)), known_codes_key),
-        (stm_deploy_tx.bytecode_hash, account_code_key),
+        (deploy_tx.bytecode_hash, account_code_key),
     ];
     assert!(!res.result.is_failed());
 
     verify_required_storage(&vm.vm.state, expected_slots);
 
-    // Deploy Mailbox Facet
+    contract_address
+}
 
-    let (mailbox_facet_contract_code, mailbox_facet_abi) = read_mailbox_facet();
-    let era_chain_id = U256::from(1);
-    let constructor_data = &[Token::Uint(era_chain_id)];
-    let mailbox_facet_deploy_tx = account.get_deploy_tx(
-        &mailbox_facet_contract_code,
-        Some(constructor_data),
-        TxType::L1 { serial_id: 1 },
+fn send_l2_tx_and_verify(
+    vm: &mut VmTester<HistoryEnabled>,
+    contract_address: Address,
+    calldata: Vec<u8>,
+) {
+    let account: &mut Account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address,
+            calldata,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
     );
-    let mailbox_facet_address = mailbox_facet_deploy_tx.address.clone();
-
-    vm.vm.push_transaction(mailbox_facet_deploy_tx.tx.clone());
+    vm.vm.push_transaction(tx);
 
     let res = vm.vm.execute(VmExecutionMode::OneTx);
 
-    // // The code hash of the deployed contract should be marked as republished.
-    // let known_codes_key = get_known_code_key(&deploy_tx_mailbox_facet.bytecode_hash);
-
-    // // The contract should be deployed successfully.
-    // let account_code_key = get_code_key(&deploy_tx_mailbox_facet.address);
-
-    // let expected_slots = vec![
-    //     (u256_to_h256(U256::from(1u32)), known_codes_key),
-    //     (deploy_tx_mailbox_facet.bytecode_hash, account_code_key),
-    // ];
-
-    // match res.result {
-    //     ExecutionResult::Success { output } => {
-    //         println!("Transaction was successful. Output: {:?}", output);
-    //     }
-    //     ExecutionResult::Revert { output } => {
-    //         eprintln!("Transaction reverted. Reason: {:?}", output);
-    //         panic!("Transaction wasn't successful: {:?}", output);
-    //     }
-    //     ExecutionResult::Halt { reason } => {
-    //         eprintln!("Transaction halted. Reason: {:?}", reason);
-    //         panic!("Transaction wasn't successful: {:?}", reason);
-    //     }
-    // }
-
     assert!(!res.result.is_failed());
+}
 
-    // verify_required_storage(&vm.vm.state, expected_slots);
+fn prepare_environment_and_deploy_contracts(
+    vm: &mut VmTester<HistoryEnabled>,
+    deploy_account_address: Address,
+) -> Contract {
+    let mut deploy_nonce = 0;
+
+    // Deploy STM
+
+    let (stm_contract_code, stm_contract) = read_stm();
+    // Set the constructor data to L2 bridgehub address and max number of hyperchains to 100
+    let max_number_of_hyperchains = U256::from(MAX_NUMBER_OF_HYPERCHAINS);
+    let constructor_data = &[
+        Token::Address(L2_BRIDGEHUB_ADDRESS),
+        Token::Uint(max_number_of_hyperchains),
+    ];
+
+    let stm_address = deploy_and_verify_contract(
+        vm,
+        &stm_contract_code,
+        Some(constructor_data),
+        &mut deploy_nonce,
+    );
+
+    // Deploy Mailbox Facet
+
+    let (mailbox_facet_contract_code, mailbox_facet_contract) = read_mailbox_facet();
+    let era_chain_id = U256::from(1);
+    let constructor_data = &[Token::Uint(era_chain_id)];
+
+    let mailbox_facet_address = deploy_and_verify_contract(
+        vm,
+        &mailbox_facet_contract_code,
+        Some(constructor_data),
+        &mut deploy_nonce,
+    );
+
+    // Deploy Admin Facet
+
+    let (admin_facet_contract_code, admin_facet_contract) = read_admin_facet();
+    let admin_facet_address =
+        deploy_and_verify_contract(vm, &admin_facet_contract_code, None, &mut deploy_nonce);
 
     // Deploy Diamond Init
 
-    let (diamond_init_contract_code, diamond_init_contract) = read_diamond_init();
-    let diamond_init_deploy_tx = account.get_deploy_tx(
-        &diamond_init_contract_code,
-        None,
-        TxType::L1 { serial_id: 1 },
-    );
-    let diamond_init_address = diamond_init_deploy_tx.address.clone();
+    let (diamond_contract_code, _diamond_contract) = read_diamond();
+    let (diamond_init_contract_code, _diamond_init_contract) = read_diamond_init();
+    let (diamond_proxy_contract_code, _diamond_proxy_contract) = read_diamond_proxy();
+    let diamond_init_address =
+        deploy_and_verify_contract(vm, &diamond_init_contract_code, None, &mut deploy_nonce);
 
-    vm.vm.push_transaction(diamond_init_deploy_tx.tx.clone());
-
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
-
-    assert!(!res.result.is_failed());
-
-    // Initialize STM
-
-    let action = Action::Add;
-    let mailbox_facet_cut = facet_cut(mailbox_facet_address, &mailbox_facet_abi, action, true);
-
-    println!("{:?}", mailbox_facet_cut);
-
-    let genesis_batch_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
-    let genesis_rollup_leaf_index = "1";
-    let genesis_batch_commitment =
-        "0x0000000000000000000000000000000000000000000000000000000000000001";
+    // Collect Data to Initialize STM
 
     let verifier_params = VerifierParams {
         recursion_node_level_vk_hash: H256::from([0u8; 32]),
@@ -495,176 +201,84 @@ fn test_l1_l2_complete_tx_execution() {
 
     let priority_tx_max_gas_limit = U256::from(72000000);
 
-    let diamond_cut = compile_initial_cut_hash(
-        vec![mailbox_facet_cut],
-        verifier_params,
-        l2_bootloader_bytecode_hash,
-        l2_default_account_bytecode_hash,
-        account.address,
-        account.address,
-        priority_tx_max_gas_limit,
-        diamond_init_address,
-        diamond_init_contract,
-        account.address,
-    );
-
     let protocol_version = 21;
 
-    // Should affect in this scenario
     let force_deployments_data = vec![];
     let hex_one_32_bytes = [
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x01,
     ];
-    let genesis_batch_commitment = H256::from(hex_one_32_bytes);
+
+    let action = Action::Add;
+    let mailbox_facet_cut = facet_cut(
+        mailbox_facet_address,
+        &mailbox_facet_contract,
+        action.clone(),
+        true,
+    );
+    let admin_facet_cut = facet_cut(admin_facet_address, &admin_facet_contract, action, false);
+
+    let diamond_cut = compile_initial_cut_hash(
+        vec![admin_facet_cut, mailbox_facet_cut],
+        verifier_params,
+        l2_bootloader_bytecode_hash,
+        l2_default_account_bytecode_hash,
+        deploy_account_address,
+        deploy_account_address,
+        priority_tx_max_gas_limit,
+        diamond_init_address,
+        deploy_account_address,
+    );
 
     let chain_creation_params = ChainCreationParams {
-        genesis_upgrade: account.address,
+        genesis_upgrade: deploy_account_address,
         genesis_batch_hash: H256::from(hex_one_32_bytes),
-        genesis_index_repeated_storage_changes: U256::from(genesis_rollup_leaf_index),
-        genesis_batch_commitment,
+        genesis_index_repeated_storage_changes: U256::from(hex_one_32_bytes),
+        genesis_batch_commitment: H256::from(hex_one_32_bytes),
         diamond_cut: diamond_cut.clone(),
         force_deployments_data,
     };
 
     let stm_initialize_data = Token::Tuple(vec![
-        Token::Address(account.address),
-        Token::Address(account.address),
+        Token::Address(deploy_account_address),
+        Token::Address(deploy_account_address),
         chain_creation_params.to_token(),
         Token::Uint(U256::from(protocol_version)),
     ]);
 
-    println!(
-        "STM Initialize Data (Simple) Token: {:?}",
-        stm_initialize_data
-    );
-
-    let init_calldata = stm_contract_abi
+    let init_calldata = stm_contract
         .function("initialize")
         .unwrap()
         .encode_input(&[stm_initialize_data])
         .unwrap();
 
-    // let tx = account.get_l2_tx_for_execute(
-    //     Execute {
-    //         contract_address: stm_address,
-    //         calldata: init_calldata,
-    //         value: U256::zero(),
-    //         factory_deps: vec![],
-    //     },
-    //     None,
-    // );
-    // vm.vm.push_transaction(tx);
-
-    // let result = vm.vm.execute(VmExecutionMode::OneTx);
-    // // Check if the transaction failed
-    // match result.result {
-    //     ExecutionResult::Success { output } => {
-    //         println!("Transaction was successful. Output: {:?}", output);
-    //     }
-    //     ExecutionResult::Revert { output } => {
-    //         println!("Transaction reverted. Reason: {:?}", output);
-    //         panic!("Transaction wasn't successful: {:?}", output);
-    //     }
-    //     ExecutionResult::Halt { reason } => {
-    //         println!("Transaction halted. Reason: {:?}", reason);
-    //         panic!("Transaction wasn't successful: {:?}", reason);
-    //     }
-    // }
-
     // Deploy Transaprent Upgradeable Proxy
 
-    let message_root_contract_bytecode = read_message_root();
-    let constructor_data = &[Token::Address(L2_BRIDGEHUB_ADDRESS)];
-    let message_root_deploy_tx = account.get_deploy_tx(
-        &message_root_contract_bytecode,
-        Some(constructor_data),
-        TxType::L1 { serial_id: 1 },
-    );
-    let message_root_address = message_root_deploy_tx.address.clone();
-
-    vm.vm.push_transaction(message_root_deploy_tx.tx.clone());
-
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
-
-    assert!(!res.result.is_failed());
-
-    // Deploy Transaprent Upgradeable Proxy
-
-    let (transparent_proxy_contract_bytecode, transparent_proxy_contract) =
-        read_transparent_proxy();
+    let (transparent_proxy_contract_code, _transparent_proxy_contract) = read_transparent_proxy();
     let constructor_data = &[
         Token::Address(stm_address),
-        Token::Address(account.address),
+        Token::Address(deploy_account_address),
         Token::Bytes(init_calldata),
     ];
-    let stm_proxy_deploy_tx = account.get_deploy_tx(
-        &transparent_proxy_contract_bytecode,
+    let stm_proxy_address = deploy_and_verify_contract(
+        vm,
+        &transparent_proxy_contract_code,
         Some(constructor_data),
-        TxType::L1 { serial_id: 1 },
+        &mut deploy_nonce,
     );
-    let stm_proxy_address = stm_proxy_deploy_tx.address.clone();
-
-    vm.vm.push_transaction(stm_proxy_deploy_tx.tx.clone());
-
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
-
-    // Check if the transaction failed
-    match res.result {
-        ExecutionResult::Success { output } => {
-            println!("Transaction was successful. Output: {:?}", output);
-        }
-        ExecutionResult::Revert { output } => {
-            println!("Transaction reverted. Reason: {:?}", output);
-            panic!("Transaction wasn't successful: {:?}", output);
-        }
-        ExecutionResult::Halt { reason } => {
-            println!("Transaction halted. Reason: {:?}", reason);
-            panic!("Transaction wasn't successful: {:?}", reason);
-        }
-    }
-
-    // assert!(!res.result.is_failed());
 
     // Call BH to mint new chain
 
-    let (bridgehub_contract_bytecode, bridgehub_contract) = read_bridgehub();
+    let (_bridgehub_contract_bytecode, bridgehub_contract) = read_bridgehub();
 
-    // Initialize
+    // Initialize BH
     let initialize_calldata = bridgehub_contract
         .function("initialize")
         .unwrap()
-        .encode_input(&[Token::Address(account.address)])
+        .encode_input(&[Token::Address(deploy_account_address)])
         .unwrap();
-
-    let tx = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: L2_BRIDGEHUB_ADDRESS,
-            calldata: initialize_calldata,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-    vm.vm.push_transaction(tx);
-
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-
-    // Check if the transaction failed
-    match result.result {
-        ExecutionResult::Success { output } => {
-            println!("Transaction was successful. Output: {:?}", output);
-        }
-        ExecutionResult::Revert { output } => {
-            println!("Transaction reverted. Reason: {:?}", output);
-            panic!("Transaction wasn't successful: {:?}", output);
-        }
-        ExecutionResult::Halt { reason } => {
-            println!("Transaction halted. Reason: {:?}", reason);
-            panic!("Transaction wasn't successful: {:?}", reason);
-        }
-    }
+    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, initialize_calldata);
 
     // Set addresses
 
@@ -673,38 +287,11 @@ fn test_l1_l2_complete_tx_execution() {
         .unwrap()
         .encode_input(&[
             Token::Address(L2_ASSET_ROUTER_ADDRESS),
-            Token::Address(account.address),
-            Token::Address(message_root_address),
+            Token::Address(deploy_account_address),
+            Token::Address(L2_MESSAGE_ROOT_ADDRESS),
         ])
         .unwrap();
-
-    let tx = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: L2_BRIDGEHUB_ADDRESS,
-            calldata: set_addresses_calldata,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-    vm.vm.push_transaction(tx);
-
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-
-    // Check if the transaction failed
-    match result.result {
-        ExecutionResult::Success { output } => {
-            println!("Transaction was successful. Output: {:?}", output);
-        }
-        ExecutionResult::Revert { output } => {
-            println!("Transaction reverted. Reason: {:?}", output);
-            panic!("Transaction wasn't successful: {:?}", output);
-        }
-        ExecutionResult::Halt { reason } => {
-            println!("Transaction halted. Reason: {:?}", reason);
-            panic!("Transaction wasn't successful: {:?}", reason);
-        }
-    }
+    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, set_addresses_calldata);
 
     // Set Asset Handler Address
 
@@ -714,41 +301,16 @@ fn test_l1_l2_complete_tx_execution() {
         .unwrap()
         .encode_input(&[asset_id.clone(), Token::Address(stm_proxy_address)])
         .unwrap();
+    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, set_asset_handler_calldata);
 
-    let tx = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: L2_BRIDGEHUB_ADDRESS,
-            calldata: set_asset_handler_calldata,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-    vm.vm.push_transaction(tx);
-
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-
-    // Check if the transaction failed
-    match result.result {
-        ExecutionResult::Success { output } => {
-            println!("Transaction was successful. Output: {:?}", output);
-        }
-        ExecutionResult::Revert { output } => {
-            println!("Transaction reverted. Reason: {:?}", output);
-            panic!("Transaction wasn't successful: {:?}", output);
-        }
-        ExecutionResult::Halt { reason } => {
-            println!("Transaction halted. Reason: {:?}", reason);
-            panic!("Transaction wasn't successful: {:?}", reason);
-        }
-    }
+    // Deploy New Chain via BH BridgeMint
 
     // Define the dummy data
-    let chain_id: Token = Token::Uint(256.into());
+    let chain_id: Token = Token::Uint(TEST_ZK_CHAIN_ID.into());
 
     // Create the tokens for each parameter
     let base_token_token = Token::Address(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS);
-    let admin_token = Token::Address(account.address);
+    let admin_token = Token::Address(deploy_account_address);
     let protocol_version_token = Token::Uint(U256::from(21));
     let diamond_cut_token = encode(&[diamond_cut.to_token()]);
 
@@ -757,9 +319,8 @@ fn test_l1_l2_complete_tx_execution() {
         base_token_token,
         admin_token,
         protocol_version_token,
-        Token::Bytes(diamond_cut_token),
+        Token::Bytes(diamond_cut_token.clone()),
     ]);
-    println!("{:?}", stm_data);
 
     // Step 1: Define the data
     let total_batches_executed: U256 = 10u64.into(); // Dummy value
@@ -845,7 +406,8 @@ fn test_l1_l2_complete_tx_execution() {
         sub_h160(l2_address, OFFSET)
     }
 
-    let sender = Token::Address(undo_l1_to_l2_alias(account.address)); // Replace with actual sender address
+    let sender = Token::Address(undo_l1_to_l2_alias(deploy_account_address)); // Replace with actual sender address
+    let asset_id = Token::FixedBytes(vec![0, 32]);
     let additional_data = asset_id;
 
     // Encode the data
@@ -856,9 +418,6 @@ fn test_l1_l2_complete_tx_execution() {
     let mut output = [0u8; 32];
     hasher.update(&encoded_data);
     hasher.finalize(&mut output);
-
-    // Print the keccak256 hash
-    println!("keccak256 hash: 0x{}", hex::encode(output));
 
     let asset_info = output;
 
@@ -871,96 +430,173 @@ fn test_l1_l2_complete_tx_execution() {
             Token::Bytes(encoded_bridgehub_mint_data),
         ])
         .unwrap();
-
-    let tx = account.get_l1_prank_tx(
-        Execute {
-            contract_address: L2_BRIDGEHUB_ADDRESS,
-            value: U256::zero(),
-            factory_deps: vec![],
-            calldata: chain_mint_calldata,
-        },
-        0,
+    send_prank_tx_and_verify(
+        vm,
+        L2_BRIDGEHUB_ADDRESS,
+        vec![
+            diamond_proxy_contract_code,
+            diamond_init_contract_code,
+            diamond_contract_code,
+        ],
+        chain_mint_calldata,
         L2_ASSET_ROUTER_ADDRESS,
     );
 
-    vm.vm.push_transaction(tx);
+    bridgehub_contract
+}
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+#[test]
+fn test_l1_l2_complete_tx_execution_many_small_factory_deps() {
+    // In this test, we try to execute a transaction from L1 to L2 via Gateway
+    // Here instead of marking code hash via the bootloader means, we will be
+    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
 
-    // Check if the transaction failed
-    match result.result {
-        ExecutionResult::Success { output } => {
-            println!("Transaction was successful. Output: {:?}", output);
-        }
-        ExecutionResult::Revert { output } => {
-            println!("Transaction reverted. Reason: {:?}", output);
-            panic!("Transaction wasn't successful: {:?}", output);
-        }
-        ExecutionResult::Halt { reason } => {
-            println!("Transaction halted. Reason: {:?}", reason);
-            panic!("Transaction wasn't successful: {:?}", reason);
-        }
-    }
-    // assert!(!result.result.is_failed());
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
 
-    // // Then, we call the mailbox to simulate BH to ZK chain mailbox call
-    // let mailbox_contract = mailbox_contract();
-    // let request_params = BridgeHubRequestL2TransactionOnGateway::default();
+    let default_account: Account = vm.rich_accounts[0].clone();
 
-    // // For 1 bytes array passed the largest tested size that doesn't fail is 9_632_000
-    // let vector_size: usize = 9_632_000; // Size of each vector
-    // let num_vectors = 1; // Number of vectors
+    let bridgehub_contract =
+        prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
 
-    // let factory_deps: Vec<Vec<u8>> = (0..num_vectors).map(|_| vec![0u8; vector_size]).collect();
+    // Collect Data for Test
 
-    // // Update request_params with the current factory_deps
-    // let mut modified_request_params = request_params.clone();
-    // modified_request_params.factory_deps = factory_deps.clone();
+    let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
-    // let encoded_data = mailbox_contract
-    //     .function("bridgehubRequestL2TransactionOnGateway")
-    //     .unwrap()
-    //     .encode_input(&modified_request_params.to_tokens())
-    //     .unwrap();
+    // Generate a large number of vectors
+    let small_vector_size: usize = 32; // Size of each vector
+    let num_vectors = 10_676; // Number of vectors
 
-    // println!("Factory deps first byte array size: {}", factory_deps[0].len());
-    // println!("Encoded data size: {}", encoded_data.len());
+    let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
+        .map(|_| vec![0u8; small_vector_size])
+        .collect();
 
-    // // Creating a Fee instance with the specified gas limit
-    // let fee = Fee {
-    //     gas_limit: U256::from(72000000),
-    //     max_fee_per_gas: U256::from(1000000000),
-    //     max_priority_fee_per_gas: U256::from(1000000000),
-    //     gas_per_pubdata_limit: U256::from(1000000000),
-    // };
+    // Update request_params with the current factory_deps
+    let mut modified_request_params = request_params.clone();
+    modified_request_params.factory_deps = factory_deps.clone();
 
-    // let tx = account.get_l2_tx_for_execute(
-    //     Execute {
-    //         contract_address: mailbox_address,
-    //         calldata: encoded_data,
-    //         value: U256::zero(),
-    //         factory_deps: vec![],
-    //     },
-    //     Some(fee),
-    // );
-    // vm.vm.push_transaction(tx);
-    // let result = vm.vm.execute(VmExecutionMode::OneTx);
-    // // Check if the transaction failed
-    // match result.result {
-    //     ExecutionResult::Success { output } => {
-    //         println!("Transaction was successful. Output: {:?}", output);
-    //     }
-    //     ExecutionResult::Revert { output } => {
-    //         println!("Transaction reverted. Reason: {:?}", output);
-    //         panic!("Transaction wasn't successful: {:?}", output);
-    //     }
-    //     ExecutionResult::Halt { reason } => {
-    //         println!("Transaction halted. Reason: {:?}", reason);
-    //         panic!("Transaction wasn't successful: {:?}", reason);
-    //     }
-    // }
+    let encoded_data = bridgehub_contract
+        .function("forwardTransactionOnGateway")
+        .unwrap()
+        .encode_input(&modified_request_params.to_tokens())
+        .unwrap();
 
-    // println!("Transaction failed: {:?}", result.result.error_message());
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
 
-    // assert!(!result.result.is_failed(), "Transaction wasn't successful");
+    send_prank_tx_and_verify(
+        &mut vm,
+        L2_BRIDGEHUB_ADDRESS,
+        vec![],
+        encoded_data,
+        SETTLEMENT_LAYER_RELAY_SENDER,
+    );
+}
+
+#[test]
+fn test_l1_l2_complete_tx_execution_few_large_factory_deps() {
+    // In this test, we try to execute a transaction from L1 to L2 via Gateway
+    // Here instead of marking code hash via the bootloader means, we will be
+    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let default_account: Account = vm.rich_accounts[0].clone();
+
+    let bridgehub_contract =
+        prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
+
+    // Collect Data for Test
+
+    let request_params = BridgeHubRequestL2TransactionOnGateway::default();
+
+    // Generate a large number of vectors
+    let small_vector_size: usize = 45_824; // Size of each vector
+    let num_vectors = 32; // Number of vectors
+
+    let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
+        .map(|_| vec![0u8; small_vector_size])
+        .collect();
+
+    // Update request_params with the current factory_deps
+    let mut modified_request_params = request_params.clone();
+    modified_request_params.factory_deps = factory_deps.clone();
+
+    let encoded_data = bridgehub_contract
+        .function("forwardTransactionOnGateway")
+        .unwrap()
+        .encode_input(&modified_request_params.to_tokens())
+        .unwrap();
+
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
+
+    send_prank_tx_and_verify(
+        &mut vm,
+        L2_BRIDGEHUB_ADDRESS,
+        vec![],
+        encoded_data,
+        SETTLEMENT_LAYER_RELAY_SENDER,
+    );
+}
+
+#[test]
+fn test_l1_l2_complete_tx_execution_one_large_factory_dep() {
+    // In this test, we try to execute a transaction from L1 to L2 via Gateway
+    // Here instead of marking code hash via the bootloader means, we will be
+    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let default_account: Account = vm.rich_accounts[0].clone();
+
+    let bridgehub_contract =
+        prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
+
+    // Collect Data for Test
+
+    let request_params = BridgeHubRequestL2TransactionOnGateway::default();
+
+    // Generate a large number of vectors
+    let small_vector_size: usize = 1_470_560; // Size of each vector
+    let num_vectors = 1; // Number of vectors
+
+    let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
+        .map(|_| vec![0u8; small_vector_size])
+        .collect();
+
+    // Update request_params with the current factory_deps
+    let mut modified_request_params = request_params.clone();
+    modified_request_params.factory_deps = factory_deps.clone();
+
+    let encoded_data = bridgehub_contract
+        .function("forwardTransactionOnGateway")
+        .unwrap()
+        .encode_input(&modified_request_params.to_tokens())
+        .unwrap();
+
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
+
+    send_prank_tx_and_verify(
+        &mut vm,
+        L2_BRIDGEHUB_ADDRESS,
+        vec![],
+        encoded_data,
+        SETTLEMENT_LAYER_RELAY_SENDER,
+    );
 }

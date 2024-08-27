@@ -135,14 +135,18 @@ impl Account {
             value: U256::zero(),
         };
 
+        let mut nonce = 0;
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
-            TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
+            TxType::L1 { serial_id } => {
+                nonce = serial_id;
+                self.get_l1_tx(execute, serial_id)
+            }
         };
 
         let address =
             // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
+            deployed_address_create(self.address, nonce.into());
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,
