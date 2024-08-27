@@ -72,6 +72,10 @@ jobs:
           --port-offset 2000 \
           --chain chain_validium
 
+      - name: Check Database
+        run: |
+          ci_run zk_supervisor database check-sqlx-data
+
       - name: Build test dependencies
         run: |
           ci_run zk_supervisor test build
