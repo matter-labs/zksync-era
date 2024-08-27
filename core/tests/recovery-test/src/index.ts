@@ -102,7 +102,7 @@ async function executeNodeCommand(env: { [key: string]: string }, command: strin
         env
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
     }
@@ -116,7 +116,7 @@ export async function executeCommandWithLogs(command: string, logsPath: string) 
         shell: true
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
         await logs.close();
@@ -213,25 +213,22 @@ export class NodeProcess {
     }
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
-        let processWait = waitForProcess(this.childProcess, signal === 'INT');
+        let processWait = waitForProcess(this.childProcess);
         await this.stop(signal);
         await processWait;
         console.log('stopped');
     }
 }
 
-function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
-    console.log('check', childProcess.pid);
+function waitForProcess(childProcess: ChildProcess) {
     return new Promise((resolve, reject) => {
         childProcess.on('close', (code, signal) => {
-            console.log('close', code, signal);
             resolve(undefined);
         });
         childProcess.on('error', (error) => {
             reject(error);
         });
         childProcess.on('exit', (code) => {
-            console.log('exit', code);
             resolve(undefined);
         });
         childProcess.on('disconnect', () => {
