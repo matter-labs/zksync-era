@@ -2,7 +2,6 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
-    sync::Arc,
 };
 
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
@@ -44,7 +43,7 @@ impl<Shadow: VmInterface> VmWithReporting<Shadow> {
     fn report(self, dump: VmDump, err: anyhow::Error) {
         let batch_number = dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-        (self.dump_handler)(dump);
+        self.dump_handler.handle(dump);
 
         if self.panic_on_divergence {
             panic!("{err:?}");
@@ -114,7 +113,7 @@ where
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
-            dump_handler: Arc::new(drop), // We don't want to log the dump (it's too large), so there's no trivial way to handle it
+            dump_handler: VmDumpHandler::default(),
             panic_on_divergence: true,
         };
         Self {

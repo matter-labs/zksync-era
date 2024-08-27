@@ -1,10 +1,10 @@
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
-    dump::{VmDump, VmDumpHandler},
+    dump::VmDumpHandler,
     interface::{
         storage::{ReadStorage, StorageView},
         Call, CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
@@ -25,7 +25,7 @@ use crate::{
 
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
     save_call_traces: bool,
     /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
@@ -37,20 +37,6 @@ pub struct MainBatchExecutor {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     dump_handler: Option<VmDumpHandler>,
-}
-
-impl fmt::Debug for MainBatchExecutor {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("MainBatchExecutor")
-            .field("save_call_traces", &self.save_call_traces)
-            .field(
-                "optional_bytecode_compression",
-                &self.optional_bytecode_compression,
-            )
-            .field("fast_vm_mode", &self.fast_vm_mode)
-            .finish_non_exhaustive()
-    }
 }
 
 impl MainBatchExecutor {
@@ -72,7 +58,7 @@ impl MainBatchExecutor {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_dump_handler(&mut self, handler: Arc<dyn Fn(VmDump) + Send + Sync>) {
+    pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
         tracing::info!("Set VM dumps handler");
         self.dump_handler = Some(handler);
     }
@@ -115,26 +101,13 @@ struct TransactionOutput {
 ///
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
 /// be constructed.
+#[derive(Debug)]
 struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     dump_handler: Option<VmDumpHandler>,
     commands: mpsc::Receiver<Command>,
-}
-
-impl fmt::Debug for CommandReceiver {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CommandReceiver")
-            .field("save_call_traces", &self.save_call_traces)
-            .field(
-                "optional_bytecode_compression",
-                &self.optional_bytecode_compression,
-            )
-            .field("fast_vm_mode", &self.fast_vm_mode)
-            .finish_non_exhaustive()
-    }
 }
 
 impl CommandReceiver {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{
@@ -35,9 +35,6 @@ impl<S: ReadStorage> VmTrackingContracts for vm_fast::Vm<S> {
         self.decommitted_hashes().collect()
     }
 }
-
-/// Handler for [`VmDump`].
-pub type VmDumpHandler = Arc<dyn Fn(VmDump) + Send + Sync>;
 
 // FIXME: use storage snapshots (https://github.com/matter-labs/zksync-era/pull/2724)
 /// Part of the VM dump representing the storage oracle for a particular VM run.
@@ -132,7 +129,7 @@ impl VmDump {
         self.l1_batch_env.number
     }
 
-    /// Plays back this dump on the specified VM. This prints some debug data to stdout, so should only be used in tests.
+    /// Plays back this dump on the specified VM.
     pub fn play_back<Vm: VmFactory<StorageView<InMemoryStorage>>>(self) -> Vm {
         let storage = self.storage.into_storage();
         let storage = StorageView::new(storage).to_rc_ptr();
@@ -169,12 +166,41 @@ impl VmDump {
     }
 }
 
+/// Handler for [`VmDump`].
+#[derive(Clone)]
+pub struct VmDumpHandler(Arc<dyn Fn(VmDump) + Send + Sync>);
+
+impl fmt::Debug for VmDumpHandler {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_tuple("VmDumpHandler").field(&"_").finish()
+    }
+}
+
+/// Default no-op handler.
+impl Default for VmDumpHandler {
+    fn default() -> Self {
+        Self(Arc::new(drop))
+    }
+}
+
+impl VmDumpHandler {
+    /// Creates a new handler from the provided closure.
+    pub fn new(f: impl Fn(VmDump) + Send + Sync + 'static) -> Self {
+        Self(Arc::new(f))
+    }
+
+    pub(crate) fn handle(&self, dump: VmDump) {
+        self.0(dump);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct L2BlocksSnapshot {
     block_count: usize,
     tx_count_in_last_block: usize,
 }
 
+/// VM wrapper that can create [`VmDump`]s during execution.
 #[derive(Debug)]
 pub(crate) struct DumpingVm<S, Vm> {
     storage: StoragePtr<StorageView<S>>,

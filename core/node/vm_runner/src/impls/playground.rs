@@ -15,7 +15,7 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_multivm::dump::VmDump;
+use zksync_multivm::dump::{VmDump, VmDumpHandler};
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
@@ -91,14 +91,15 @@ impl VmPlayground {
         if let Some(store) = dumps_object_store {
             tracing::info!("Using object store for VM dumps: {store:?}");
 
-            batch_executor.set_dump_handler(Arc::new(move |dump| {
+            let handler = VmDumpHandler::new(move |dump| {
                 if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &dump)) {
                     let l1_batch_number = dump.l1_batch_number();
                     tracing::error!(
                         "Saving VM dump for L1 batch #{l1_batch_number} failed: {err:#}"
                     );
                 }
-            }));
+            });
+            batch_executor.set_dump_handler(handler);
         }
 
         let io = VmPlaygroundIo {
