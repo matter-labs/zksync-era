@@ -144,7 +144,7 @@ jobs:
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_validium &> revert_validium.log
+          ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain chain_validium &> revert_validium.log
           ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain era &> revert_rollup.log
 
 
