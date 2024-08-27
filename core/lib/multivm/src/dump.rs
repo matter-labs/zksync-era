@@ -5,18 +5,41 @@ use zksync_types::{
     block::L2BlockExecutionData, web3, L1BatchNumber, L2BlockNumber, Transaction, H256, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_interface::storage::WriteStorage;
 
-use crate::interface::{
-    storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView},
-    BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
-    VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+use crate::{
+    interface::{
+        storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView},
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
+    },
+    vm_fast, vm_latest, HistoryMode,
 };
+
+/// VM that tracks decommitment of bytecodes during execution. This is required to create a [`VmDump`].
+pub(crate) trait VmTrackingContracts: VmInterface {
+    /// Returns hashes of all decommitted bytecodes.
+    fn used_contract_hashes(&self) -> Vec<U256>;
+}
+
+impl<S: WriteStorage, H: HistoryMode> VmTrackingContracts for vm_latest::Vm<S, H> {
+    fn used_contract_hashes(&self) -> Vec<U256> {
+        self.get_used_contracts()
+    }
+}
+
+impl<S: ReadStorage> VmTrackingContracts for vm_fast::Vm<S> {
+    fn used_contract_hashes(&self) -> Vec<U256> {
+        self.decommitted_hashes().collect()
+    }
+}
 
 /// Handler for [`VmDump`].
 pub type VmDumpHandler = Arc<dyn Fn(VmDump) + Send + Sync>;
 
-// FIXME: unite with storage snapshots
+// FIXME: use storage snapshots (https://github.com/matter-labs/zksync-era/pull/2724)
 /// Part of the VM dump representing the storage oracle for a particular VM run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -162,7 +185,7 @@ pub(crate) struct DumpingVm<S, Vm> {
     l2_blocks_snapshot: Option<L2BlocksSnapshot>,
 }
 
-impl<S: ReadStorage, Vm: VmInterface> DumpingVm<S, Vm> {
+impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
     fn last_block_mut(&mut self) -> &mut L2BlockExecutionData {
         self.l2_blocks.last_mut().unwrap()
     }
@@ -176,12 +199,12 @@ impl<S: ReadStorage, Vm: VmInterface> DumpingVm<S, Vm> {
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
             l2_blocks: self.l2_blocks.clone(),
-            storage: VmStorageDump::new(&self.storage, vec![]), // FIXME
+            storage: VmStorageDump::new(&self.storage, self.inner.used_contract_hashes()),
         }
     }
 }
 
-impl<S: ReadStorage, Vm: VmInterface> VmInterface for DumpingVm<S, Vm> {
+impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     type TracerDispatcher = Vm::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -264,7 +287,11 @@ impl<S: ReadStorage, Vm: VmInterface> VmInterface for DumpingVm<S, Vm> {
     }
 }
 
-impl<S: ReadStorage, Vm: VmInterfaceHistoryEnabled> VmInterfaceHistoryEnabled for DumpingVm<S, Vm> {
+impl<S, Vm> VmInterfaceHistoryEnabled for DumpingVm<S, Vm>
+where
+    S: ReadStorage,
+    Vm: VmInterfaceHistoryEnabled + VmTrackingContracts,
+{
     fn make_snapshot(&mut self) {
         self.l2_blocks_snapshot = Some(L2BlocksSnapshot {
             block_count: self.l2_blocks.len(),
@@ -296,7 +323,11 @@ impl<S: ReadStorage, Vm: VmInterfaceHistoryEnabled> VmInterfaceHistoryEnabled fo
     }
 }
 
-impl<S: ReadStorage, Vm: VmFactory<StorageView<S>>> VmFactory<StorageView<S>> for DumpingVm<S, Vm> {
+impl<S, Vm> VmFactory<StorageView<S>> for DumpingVm<S, Vm>
+where
+    S: ReadStorage,
+    Vm: VmFactory<StorageView<S>> + VmTrackingContracts,
+{
     fn new(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
