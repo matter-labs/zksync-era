@@ -215,7 +215,7 @@ export class NodeProcess {
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
         await this.stop(signal);
-        await waitForProcess(this.childProcess, signal === 'INT');
+        // await waitForProcess(this.childProcess, signal === 'INT');
         console.log('stopped');
     }
 }
