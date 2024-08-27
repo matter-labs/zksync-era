@@ -267,7 +267,7 @@ pub fn send_prank_tx_and_verify(
 
 pub fn deploy_and_verify_contract(
     vm: &mut VmTester<HistoryEnabled>,
-    contract_code: &Vec<u8>,
+    contract_code: &[u8],
     constructor_data: Option<&[Token]>,
     deploy_nonce: &mut u64,
 ) -> Address {
@@ -281,7 +281,7 @@ pub fn deploy_and_verify_contract(
         },
     );
     *deploy_nonce += 1;
-    let contract_address = deploy_tx.address.clone();
+    let contract_address = deploy_tx.address;
 
     vm.vm.push_transaction(deploy_tx.tx.clone());
 
@@ -297,7 +297,20 @@ pub fn deploy_and_verify_contract(
         (u256_to_h256(U256::from(1u32)), known_codes_key),
         (deploy_tx.bytecode_hash, account_code_key),
     ];
-    assert!(!res.result.is_failed());
+
+    match res.result {
+        ExecutionResult::Success { output } => {
+            println!("Transaction was successful. Output: {:?}", output);
+        }
+        ExecutionResult::Revert { output } => {
+            eprintln!("Transaction reverted. Reason: {:?}", output);
+            panic!("Transaction wasn't successful: {:?}", output);
+        }
+        ExecutionResult::Halt { reason } => {
+            eprintln!("Transaction halted. Reason: {:?}", reason);
+            panic!("Transaction wasn't successful: {:?}", reason);
+        }
+    }
 
     verify_required_storage(&vm.vm.state, expected_slots);
 
