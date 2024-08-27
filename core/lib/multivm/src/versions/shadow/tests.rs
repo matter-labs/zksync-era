@@ -15,7 +15,6 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::{
-    dump::VmAction,
     interface::{storage::InMemoryStorage, ExecutionResult},
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
@@ -94,19 +93,9 @@ impl Harness {
 
     fn assert_dump(dump: &VmDump) {
         assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
-        assert_matches!(
-            dump.actions.as_slice(),
-            [
-                VmAction::Transaction(_),
-                VmAction::Block(_),
-                VmAction::Transaction(_),
-                VmAction::Transaction(_),
-                VmAction::Block(_),
-                VmAction::Transaction(_),
-                VmAction::Transaction(_),
-                VmAction::Block(_),
-            ]
-        );
+        let tx_counts_per_block: Vec<_> =
+            dump.l2_blocks.iter().map(|block| block.txs.len()).collect();
+        assert_eq!(tx_counts_per_block, [1, 2, 2, 0]);
         assert!(!dump.storage.read_storage_keys.is_empty());
         assert!(!dump.storage.factory_deps.is_empty());
 
@@ -255,14 +244,15 @@ fn sanity_check_shadow_vm() {
 
 #[test]
 fn shadow_vm_basics() {
-    let (mut vm, harness) = sanity_check_vm::<ShadowVm<_, HistoryDisabled>>();
-    let dump = vm.dump_state();
+    let (vm, harness) = sanity_check_vm::<ShadowVm<_, HistoryDisabled>>();
+    let dump = vm.main.dump_state();
     Harness::assert_dump(&dump);
 
     // Test standard playback functionality.
     let replayed_dump = dump
         .clone()
         .play_back::<ShadowVm<_, HistoryDisabled>>()
+        .main
         .dump_state();
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
@@ -279,21 +269,7 @@ fn shadow_vm_basics() {
         dump_storage,
     );
 
-    for action in dump.actions.clone() {
-        match action {
-            VmAction::Transaction(tx) => {
-                let (compression_result, _) =
-                    vm.execute_transaction_with_bytecode_compression(*tx, true);
-                compression_result.unwrap();
-            }
-            VmAction::Block(block) => {
-                vm.start_new_l2_block(block);
-            }
-        }
-        vm.dump_state(); // Check that a dump can be created at any point in batch execution
-    }
-    vm.finish_batch();
-
-    let new_dump = vm.dump_state();
+    VmDump::play_back_blocks(dump.l2_blocks.clone(), &mut vm);
+    let new_dump = vm.main.dump_state();
     pretty_assertions::assert_eq!(new_dump, dump);
 }

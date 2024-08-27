@@ -5,10 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, U256};
+use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
 use crate::{
-    dump::{VmDump, VmDumpHandler, VmStorageDump},
+    dump::{DumpingVm, VmDump, VmDumpHandler},
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
@@ -24,15 +24,13 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-struct VmWithReporting<S, Shadow> {
+struct VmWithReporting<Shadow> {
     vm: Shadow,
-    main_vm_storage: StoragePtr<StorageView<S>>,
-    partial_dump: VmDump,
     dump_handler: VmDumpHandler,
     panic_on_divergence: bool,
 }
 
-impl<S: fmt::Debug, Shadow: fmt::Debug> fmt::Debug for VmWithReporting<S, Shadow> {
+impl<Shadow: fmt::Debug> fmt::Debug for VmWithReporting<Shadow> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("VmWithReporting")
@@ -42,19 +40,11 @@ impl<S: fmt::Debug, Shadow: fmt::Debug> fmt::Debug for VmWithReporting<S, Shadow
     }
 }
 
-impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
-    fn finalize_dump(&mut self, used_contract_hashes: Vec<U256>) {
-        self.partial_dump.set_storage(VmStorageDump::new(
-            &self.main_vm_storage,
-            used_contract_hashes,
-        ));
-    }
-
-    fn report(mut self, used_contract_hashes: Vec<U256>, err: anyhow::Error) {
-        let batch_number = self.partial_dump.l1_batch_number();
+impl<Shadow: VmInterface> VmWithReporting<Shadow> {
+    fn report(self, dump: VmDump, err: anyhow::Error) {
+        let batch_number = dump.l1_batch_number();
         tracing::error!("VM execution diverged on batch #{batch_number}!");
-        self.finalize_dump(used_contract_hashes);
-        (self.dump_handler)(self.partial_dump);
+        (self.dump_handler)(dump);
 
         if self.panic_on_divergence {
             panic!("{err:?}");
@@ -69,8 +59,8 @@ impl<S: ReadStorage, Shadow: VmInterface> VmWithReporting<S, Shadow> {
 
 #[derive(Debug)]
 pub struct ShadowVm<S: ReadStorage, H: HistoryMode, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
-    main: vm_latest::Vm<StorageView<S>, H>,
-    shadow: RefCell<Option<VmWithReporting<S, Shadow>>>,
+    main: DumpingVm<S, vm_latest::Vm<StorageView<S>, H>>,
+    shadow: RefCell<Option<VmWithReporting<Shadow>>>,
 }
 
 impl<S, H, Shadow> ShadowVm<S, H, Shadow>
@@ -101,15 +91,7 @@ where
         self.shadow
             .take()
             .unwrap()
-            .report(self.main.get_used_contracts(), err);
-    }
-
-    #[cfg(test)]
-    fn dump_state(&mut self) -> VmDump {
-        let mut borrow = self.shadow.borrow_mut();
-        let borrow = borrow.as_mut().expect("VM execution diverged");
-        borrow.finalize_dump(self.main.get_used_contracts());
-        borrow.partial_dump.clone()
+            .report(self.main.dump_state(), err);
     }
 }
 
@@ -128,12 +110,10 @@ where
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = vm_latest::Vm::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage.clone());
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
-            main_vm_storage: storage,
-            partial_dump: VmDump::new(batch_env, system_env),
             dump_handler: Arc::new(drop), // We don't want to log the dump (it's too large), so there's no trivial way to handle it
             panic_on_divergence: true,
         };
@@ -169,7 +149,6 @@ where
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.partial_dump.push_transaction(tx.clone());
             shadow.vm.push_transaction(tx.clone());
         }
         self.main.push_transaction(tx);
@@ -246,7 +225,6 @@ where
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.main.start_new_l2_block(l2_block_env);
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.partial_dump.push_block(l2_block_env);
             shadow.vm.start_new_l2_block(l2_block_env);
         }
     }
@@ -279,7 +257,6 @@ where
             .main
             .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.partial_dump.push_transaction(tx.clone());
             let shadow_result = shadow
                 .vm
                 .execute_transaction_with_bytecode_compression(tx, with_compression);
@@ -311,7 +288,6 @@ where
             with_compression,
         );
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.partial_dump.push_transaction(tx.clone());
             let shadow_result = shadow.vm.inspect_transaction_with_bytecode_compression(
                 Shadow::TracerDispatcher::default(),
                 tx,
