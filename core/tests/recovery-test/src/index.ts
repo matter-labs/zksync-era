@@ -222,13 +222,13 @@ export class NodeProcess {
 
 function waitForProcess(childProcess: ChildProcess) {
     return new Promise((resolve, reject) => {
-        childProcess.on('close', (code, signal) => {
+        childProcess.on('close', (_code, _signal) => {
             resolve(undefined);
         });
         childProcess.on('error', (error) => {
             reject(error);
         });
-        childProcess.on('exit', (code) => {
+        childProcess.on('exit', (_code) => {
             resolve(undefined);
         });
         childProcess.on('disconnect', () => {

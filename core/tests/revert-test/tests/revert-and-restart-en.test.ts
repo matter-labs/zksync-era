@@ -20,7 +20,6 @@ import {
 } from 'utils/build/file-configs';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
-import { promisify } from 'node:util';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
