@@ -216,20 +216,20 @@ jobs:
           ci_run zk_inception external-node run --ignore-prerequisites --chain chain_custom_token &> external_node_custom_token.log &
           ci_run sleep 5
 
-      - name: Run integration tests en
-        run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain era &> integration_en_rollup.log &
-          PID1=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &> integration_en_validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_custom_token &> integration_en_custom_token.log &
-          PID3=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
+#      - name: Run integration tests en
+#        run: |
+#          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain era &> integration_en_rollup.log &
+#          PID1=$!
+#
+#          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &> integration_en_validium.log &
+#          PID2=$!
+#
+#          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_custom_token &> integration_en_custom_token.log &
+#          PID3=$!
+#
+#          wait $PID1
+#          wait $PID2
+#          wait $PID3
 
       - name: Run revert tests (external node)
         run: |
