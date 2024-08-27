@@ -25,6 +25,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 
+/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Clone)]
 pub struct AvailClient {
     config: AvailConfig,

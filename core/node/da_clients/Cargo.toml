@@ -1,6 +1,6 @@
 [package]
 name = "zksync_da_clients"
-description = "ZKsync data availability dispatcher"
+description = "ZKsync data availability clients"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
