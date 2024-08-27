@@ -1,4 +1,4 @@
-use crate::commands::lint_utils::Extension;
+use crate::commands::lint_utils::Target;
 
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
@@ -152,28 +152,25 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
 
 // Lint related messages
-pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String {
-    let extensions: Vec<String> = extensions.iter().map(|e| format!(".{}", e)).collect();
-    format!(
-        "Running linters for files with extensions: {:?}",
-        extensions
-    )
+pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!(".{}", e)).collect();
+    format!("Running linters for targets: {:?}", targets)
 }
 
-pub(super) fn msg_running_linter_for_extension_spinner(extension: &Extension) -> String {
-    format!("Running linter for files with extension: .{}", extension)
+pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
+    format!("Running linter for files with extension: .{}", target)
 }
 
-pub(super) fn msg_running_fmt_for_extension_spinner(extension: Extension) -> String {
-    format!("Running prettier for: {extension:?}")
+pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
+    format!("Running prettier for: {target:?}")
 }
 
 pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
     format!("Running rustfmt for: {dir:?}")
 }
 
-pub(super) fn msg_running_fmt_for_extensions_spinner(extensions: &[Extension]) -> String {
-    format!("Running prettier for: {extensions:?} and rustfmt")
+pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
+    format!("Running prettier for: {targets:?} and rustfmt")
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
