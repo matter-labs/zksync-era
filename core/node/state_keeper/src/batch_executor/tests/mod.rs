@@ -1,9 +1,10 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
+use tester::AccountFailedCall;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_test_account::Account;
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
+    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId, U256,
 };
 
 use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
@@ -306,6 +307,32 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
             .await
             .unwrap(),
     );
+    executor.finish_batch().await.unwrap();
+}
+
+#[test_casing(3, FAST_VM_MODES)]
+#[tokio::test]
+async fn deploy_failedcall(vm_mode: FastVmMode) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, vm_mode);
+    tester.genesis().await;
+    tester
+        .fund_exact(
+            &[alice.address()],
+            U256::from(2_000_000_000) * U256::from(2_000_000_00) * U256::from(1_0),
+        )
+        .await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let tx = alice.deploy_failedcall_tx();
+
+    let execute_tx = executor.execute_tx(tx.tx).await.unwrap();
+    assert_executed(&execute_tx);
+
     executor.finish_batch().await.unwrap();
 }
 

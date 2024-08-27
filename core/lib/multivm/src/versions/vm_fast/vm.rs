@@ -3,7 +3,8 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface, Tracer, VirtualMachine,
+    ExecutionEnd, Opcode, OpcodeType, Program, ReturnType, Settings, StateInterface, Tracer,
+    VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -127,6 +128,9 @@ impl Tracer for CircuitsTracer {
     fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
         self.main_vm_cycles += 1;
 
+        if let Opcode::Ret(ReturnType::Revert) = OP::VALUE {
+            println!("RET {:?}", OP::VALUE);
+        }
         match OP::VALUE {
             Opcode::Nop
             | Opcode::Add
