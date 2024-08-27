@@ -14,7 +14,6 @@ use zksync_types::{
         L1BatchDetails, L2ToL1LogProof, LeafAggProof, LeafChainProof, Proof, ProtocolVersion,
         StorageProof, TransactionDetails,
     },
-    event::MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT,
     ethabi,
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -41,13 +40,6 @@ use crate::{
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
-
-pub static MESSAGE_ROOT_ADDED_CHAIN_EVENT: Lazy<H256> = Lazy::new(|| {
-    ethabi::long_signature(
-        "AddedChain",
-        &[ethabi::ParamType::Uint(256), ethabi::ParamType::Uint(256)],
-    )
-});
 
 pub static MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT: Lazy<H256> = Lazy::new(|| {
     ethabi::long_signature(
