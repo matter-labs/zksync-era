@@ -235,6 +235,15 @@ fn prepare_environment_and_deploy_contracts(
         .unwrap();
     send_l2_tx_and_verify(vm, bridgehub_proxy_address, set_addresses_calldata);
 
+    // Add STM
+
+    let add_stm_calldata = bridgehub_contract
+        .function("addStateTransitionManager")
+        .unwrap()
+        .encode_input(&[Token::Address(stm_proxy_address)])
+        .unwrap();
+    send_l2_tx_and_verify(vm, bridgehub_proxy_address, add_stm_calldata);
+
     // Set Asset Handler Address
 
     let asset_id = Token::FixedBytes(vec![0, 32]);
