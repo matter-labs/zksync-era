@@ -31,8 +31,8 @@ jobs:
       - name: Lints
         run: |
           ci_run zk_supervisor fmt --check
-          ci_run zk_supervisor lint -e md --check
-          ci_run zk_supervisor lint -e sol --check
-          ci_run zk_supervisor lint -e js --check
-          ci_run zk_supervisor lint -e ts --check
-          ci_run zk_supervisor lint -e rs --check
+          ci_run zk_supervisor lint -t md --check
+          ci_run zk_supervisor lint -t sol --check
+          ci_run zk_supervisor lint -t js --check
+          ci_run zk_supervisor lint -t ts --check
+          ci_run zk_supervisor lint -t rs --check
