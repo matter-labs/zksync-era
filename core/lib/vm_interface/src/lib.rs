@@ -23,7 +23,10 @@ pub use crate::{
             BytecodeCompressionError, Halt, TxRevertReason, VmRevertReason,
             VmRevertReasonParsingError,
         },
-        inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
+        inputs::{
+            L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionMode,
+            VmExecutionMode,
+        },
         outputs::{
             BootloaderMemory, Call, CallType, CircuitStatistic, CompressedBytecodeInfo,
             CurrentExecutionState, DeduplicatedWritesMetrics, ExecutionResult, FinishedL1Batch,
