@@ -17,10 +17,8 @@ const CONFIG_PATH: &str = "etc/lint-config";
 pub struct LintArgs {
     #[clap(long, short = 'c')]
     pub check: bool,
-    #[clap(long, short = 'e')]
+    #[clap(long, short = 't')]
     pub targets: Vec<Target>,
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub contracts: Option<bool>,
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
@@ -33,17 +31,13 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
     logger::info(msg_running_linters_for_files(&targets));
 
     let ecosystem = EcosystemConfig::from_file(shell)?;
-    let contracts = args.contracts.unwrap_or(false);
 
     for target in targets {
         match target {
             Target::Rs => lint_rs(shell, &ecosystem, args.check)?,
+            Target::Contracts => lint_contracts(shell, &ecosystem, args.check)?,
             ext => lint(shell, &ecosystem, &ext, args.check)?,
         }
-    }
-
-    if contracts {
-        lint_contracts(shell, &ecosystem, args.check)?;
     }
 
     Ok(())
@@ -79,6 +73,7 @@ fn get_linter(target: &Target) -> Vec<String> {
         Target::Sol => vec!["solhint".to_string()],
         Target::Js => vec!["eslint".to_string()],
         Target::Ts => vec!["eslint".to_string(), "--ext".to_string(), "ts".to_string()],
+        Target::Contracts => vec![],
     }
 }
 

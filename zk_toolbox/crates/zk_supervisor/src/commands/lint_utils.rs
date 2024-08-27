@@ -39,6 +39,7 @@ pub enum Target {
     Js,
     Ts,
     Rs,
+    Contracts,
 }
 
 pub fn get_unignored_files(shell: &Shell, target: &Target) -> anyhow::Result<Vec<String>> {
