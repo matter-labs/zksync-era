@@ -15,6 +15,7 @@ export function background({
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
+    console.log(`Run command ${command}`);
     return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
 
@@ -94,6 +95,7 @@ export function runExternalNodeInBackground({
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
 // returns { stdout, stderr }
 const promisified = promisify(_exec);
+
 export function exec(command: string, options: ProcessEnvOptions) {
     command = command.replace(/\n/g, ' ');
     return promisified(command, options);
