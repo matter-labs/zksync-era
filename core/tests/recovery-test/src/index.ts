@@ -171,7 +171,6 @@ export class NodeProcess {
             }
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
             await promisify(exec)(`kill -${signalNumber} ${parent}`);
-            console.log('exec');
             await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
         } catch (err) {
             const typedErr = err as ChildProcessError;
@@ -213,6 +212,7 @@ export class NodeProcess {
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
         await this.stop(signal);
+        console.log('stopped');
         await waitForProcess(this.childProcess, signal === 'INT');
     }
 }
@@ -231,7 +231,7 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
             resolve(undefined);
         });
         childProcess.on('disconnect', () => {
-            console.log('disconnect');
+            resolve(undefined);
         });
     });
 }
