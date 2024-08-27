@@ -160,18 +160,21 @@ export class NodeProcess {
         }
         try {
             console.log('Main PID', this.childProcess.pid);
-            let parent = this.childProcess.pid;
+            let childs = [this.childProcess.pid];
             while (true) {
                 try {
-                    parent = +(await promisify(exec)(`pgrep -P ${parent}`)).stdout;
-                    console.log('Parent stdout', parent);
+                    let child = childs.at(-1);
+                    childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
+                    console.log('Parent stdout', childs);
                 } catch (e) {
                     break;
                 }
             }
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-            await promisify(exec)(`kill -${signalNumber} ${parent}`);
-            await promisify(exec)(`kill -${signalNumber}  ${this.childProcess.pid}`);
+            for (let i = childs.length - 1; i >= 0; i--) {
+                console.log(`kill ${childs[i]}`);
+                await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+            }
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {
@@ -212,12 +215,13 @@ export class NodeProcess {
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
         await this.stop(signal);
-        console.log('stopped');
         await waitForProcess(this.childProcess, signal === 'INT');
+        console.log('stopped');
     }
 }
 
 async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
+    console.log('check', childProcess.pid);
     await new Promise((resolve, reject) => {
         childProcess.on('close', (code, signal) => {
             console.log('close', code, signal);
