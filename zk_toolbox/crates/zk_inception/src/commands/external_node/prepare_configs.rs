@@ -61,6 +61,7 @@ fn prepare_configs(
                 .http_url,
         )?,
         main_node_rate_limit_rps: None,
+        gateway_url: None,
     };
     let mut general_en = general.clone();
 

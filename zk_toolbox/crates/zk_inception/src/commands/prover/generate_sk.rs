@@ -17,9 +17,9 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let cmd = Cmd::new(cmd!(
         shell,
         "cargo run --features gpu --release --bin key_generator -- 
-            generate-sk all --recompute-if-missing 
-            --setup-path=vk_setup_data_generator_server_fri/data 
-            --path={link_to_prover}/vk_setup_data_generator_server_fri/data"
+            generate-sk-gpu all --recompute-if-missing
+            --setup-path=crates/bin/vk_setup_data_generator_server_fri/data
+            --path={link_to_prover}/crates/bin/vk_setup_data_generator_server_fri/data"
     ));
     cmd.run()?;
     spinner.finish();

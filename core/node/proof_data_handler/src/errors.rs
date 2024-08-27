@@ -10,6 +10,12 @@ pub(crate) enum RequestProcessorError {
     Dal(DalError),
 }
 
+impl From<DalError> for RequestProcessorError {
+    fn from(err: DalError) -> Self {
+        RequestProcessorError::Dal(err)
+    }
+}
+
 impl IntoResponse for RequestProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {

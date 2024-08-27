@@ -9,7 +9,7 @@ use tokio::{
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state::{OwnedStorage, PostgresStorage, ReadStorage};
+use zksync_state::{interface::ReadStorage, OwnedStorage, PostgresStorage};
 use zksync_test_account::Account;
 use zksync_types::{AccountTreeId, L1BatchNumber, L2ChainId, StorageKey};
 
@@ -301,12 +301,8 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
                 .unwrap();
             let mut pg_storage =
                 PostgresStorage::new(rt_handle.clone(), conn, last_l2_block_number, true);
-            let (_, vm_storage) = rt_handle
+            let (_, mut vm_storage) = rt_handle
                 .block_on(vm_runner_storage.load_batch_eventually(L1BatchNumber(i + 1)))?;
-            let mut vm_storage = match vm_storage {
-                OwnedStorage::Lending(ref storage) => rt_handle.block_on(storage.borrow()).unwrap(),
-                OwnedStorage::Static(storage) => storage,
-            };
 
             // Check that both storages have identical key-value pairs written in them
             for storage_log in &storage_logs {

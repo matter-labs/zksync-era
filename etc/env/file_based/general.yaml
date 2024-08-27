@@ -140,7 +140,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: vk_setup_data_generator_server_fri/data
+  setup_data_path: crates/bin/vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
@@ -272,12 +272,34 @@ prover_group:
       aggregation_round: 1
     - circuit_id: 18
       aggregation_round: 1
+prover_job_monitor:
+  prometheus_port: 3317
+  max_db_connections: 9
+  graceful_shutdown_timeout_ms: 5000
+  gpu_prover_archiver_run_interval_ms: 86400000
+  gpu_prover_archiver_archive_prover_after_ms: 172800000
+  prover_jobs_archiver_run_interval_ms: 1800000
+  prover_jobs_archiver_archive_jobs_after_ms: 172800000
+  proof_compressor_job_requeuer_run_interval_ms: 10000
+  prover_job_requeuer_run_interval_ms: 10000
+  witness_generator_job_requeuer_run_interval_ms: 10000
+  proof_compressor_queue_reporter_run_interval_ms: 10000
+  prover_queue_reporter_run_interval_ms: 10000
+  witness_generator_queue_reporter_run_interval_ms: 10000
+  witness_job_queuer_run_interval_ms: 10000
+
+
 base_token_adjuster:
   price_polling_interval_ms: 30000
   price_cache_update_interval_ms: 2000
+  max_tx_gas: 80000
+  default_priority_fee_per_gas: 1000000
 external_price_api_client:
-  source: "no-op"
+  source: "forced"
   client_timeout_ms: 10000
+  forced_numerator: 3
+  forced_denominator: 2
+
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
@@ -328,6 +350,8 @@ experimental_vm:
   playground:
     db_path: "./db/main/vm_playground"
     fast_vm_mode: SHADOW
+    first_processed_batch: 0
+    window_size: 1
 
 snapshot_recovery:
   enabled: false
