@@ -5,7 +5,7 @@ use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, L2ChainId, SLChainId, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::u256_to_h256;
@@ -201,6 +201,7 @@ pub struct LeafAggProof {
     pub chain_id_leaf_proof_mask: U256,
     pub local_msg_root: H256,
     pub sl_batch_number: U256,
+    pub sl_chain_id: U256,
 }
 
 impl LeafAggProof {
@@ -212,6 +213,7 @@ impl LeafAggProof {
             batch_leaf_proof_mask,
             chain_id_leaf_proof_mask,
             sl_batch_number,
+            sl_chain_id,
             ..
         } = self;
 
@@ -223,6 +225,8 @@ impl LeafAggProof {
         let sl_encoded_data =
             sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
         encoded_result.push(u256_to_h256(sl_encoded_data));
+
+        encoded_result.push(u256_to_h256(sl_chain_id));
 
         (batch_leaf_proof_len, encoded_result)
     }

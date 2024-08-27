@@ -520,7 +520,6 @@ impl EthSenderTester {
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
                 false,
-                self.is_l2,
             )
             .await
             .unwrap()
