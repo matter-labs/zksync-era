@@ -144,14 +144,14 @@ jobs:
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_validium &> revert_validium.log &
-          PID2=$!
-          
-          ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain era &> revert_rollup.log &
-          PID1=$!
-          
-          wait $PID1
-          wait $PID2
+               ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_validium &> revert_validium.log
+          #          PID2=$!
+               
+               ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain era &> revert_rollup.log
+      #          PID1=$!
+
+      #          wait $PID1
+      #          wait $PID2
 
       # Upgrade tests should run last, because as soon as they 
       # finish the bootloader will be different
