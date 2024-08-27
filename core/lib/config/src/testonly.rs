@@ -1045,6 +1045,7 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
             l1_receipt_checking_sleep_ms: self.sample(rng),
             l1_tx_sending_max_attempts: self.sample(rng),
             l1_tx_sending_sleep_ms: self.sample(rng),
+            l1_update_deviation: self.sample(rng),
             price_fetching_max_attempts: self.sample(rng),
             price_fetching_sleep_ms: self.sample(rng),
             halt_on_error: self.sample(rng),

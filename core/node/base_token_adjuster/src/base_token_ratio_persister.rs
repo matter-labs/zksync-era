@@ -1,6 +1,13 @@
-use std::{cmp::max, fmt::Debug, sync::Arc, time::Instant};
+use std::{
+    cmp::max,
+    fmt::Debug,
+    ops::{Div, Mul},
+    sync::{Arc, RwLock},
+    time::Instant,
+};
 
 use anyhow::Context as _;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -33,6 +40,7 @@ pub struct BaseTokenRatioPersister {
     base_token_address: Address,
     price_api_client: Arc<dyn PriceAPIClient>,
     l1_params: Option<BaseTokenRatioPersisterL1Params>,
+    last_persisted_l1_ratio: Arc<RwLock<Option<BigDecimal>>>,
 }
 
 impl BaseTokenRatioPersister {
@@ -50,6 +58,7 @@ impl BaseTokenRatioPersister {
             base_token_address,
             price_api_client,
             l1_params,
+            last_persisted_l1_ratio: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -124,6 +133,21 @@ impl BaseTokenRatioPersister {
             return Ok(());
         };
 
+        if let Some(ref prev_ratio) = *self.last_persisted_l1_ratio.read().unwrap() {
+            let current_ratio = BigDecimal::from(new_ratio.numerator.get())
+                .div(BigDecimal::from(new_ratio.denominator.get()));
+            let deviation = (prev_ratio - current_ratio.clone())
+                .abs()
+                .div(prev_ratio.clone())
+                .mul(BigDecimal::from(100))
+                .to_u32()
+                .unwrap();
+
+            if deviation < self.config.l1_update_deviation {
+                return Ok(());
+            }
+        }
+
         let max_attempts = self.config.l1_tx_sending_max_attempts;
         let sleep_duration = self.config.l1_tx_sending_sleep_duration();
         let mut prev_base_fee_per_gas: Option<u64> = None;
@@ -154,6 +178,11 @@ impl BaseTokenRatioPersister {
                         result: OperationResult::Success,
                     }]
                         .observe(start_time.elapsed());
+
+                    *self.last_persisted_l1_ratio.write().unwrap() = Some(
+                        BigDecimal::from(new_ratio.numerator.get())
+                            .div(BigDecimal::from(new_ratio.denominator.get())),
+                    );
 
                     return Ok(());
                 }
