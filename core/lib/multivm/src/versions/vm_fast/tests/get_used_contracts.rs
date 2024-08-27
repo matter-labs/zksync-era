@@ -176,9 +176,8 @@ fn get_used_contracts_with_out_of_gas_far_call() {
     let (vm, counter_bytecode_hash, exec_result) = execute_proxy_counter(10_000);
     assert_matches!(exec_result.result, ExecutionResult::Revert { .. });
     let decommitted_hashes = vm.vm.decommitted_hashes().collect::<HashSet<_>>();
-    // FIXME: this diverges from the old VM behavior
     assert!(
-        !decommitted_hashes.contains(&counter_bytecode_hash),
+        decommitted_hashes.contains(&counter_bytecode_hash),
         "{decommitted_hashes:?}"
     );
 }
