@@ -24,9 +24,7 @@ jobs:
 
       - name: Build
         run: |
-          ci_run "cd zk_toolbox && cargo build --release"
-          cp ./zk_toolbox/target/release/zk_supervisor ./bin
-          cp ./zk_toolbox/target/release/zk_inception ./bin
+          ci_run ./bin/zkt
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
 
