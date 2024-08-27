@@ -71,7 +71,7 @@ export class TestMaster {
             this.l2Provider.pollingInterval = 5000;
         }
 
-        this.mainWallet = new zksync.Wallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+        this.mainWallet = new BumpUpFeeWallet(suiteWalletPK, this.l2Provider, this.l1Provider);
     }
 
     /**
@@ -112,7 +112,7 @@ export class TestMaster {
      */
     newEmptyAccount(): zksync.Wallet {
         const randomPK = ethers.Wallet.createRandom().privateKey;
-        const newWallet = new zksync.Wallet(randomPK, this.l2Provider, this.l1Provider);
+        const newWallet = new BumpUpFeeWallet(randomPK, this.l2Provider, this.l1Provider);
         this.subAccounts.push(newWallet);
         return newWallet;
     }
