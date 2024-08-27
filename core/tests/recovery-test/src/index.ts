@@ -214,15 +214,16 @@ export class NodeProcess {
     }
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
+        let processWait = waitForProcess(this.childProcess, signal === 'INT');
         await this.stop(signal);
-        // await waitForProcess(this.childProcess, signal === 'INT');
+        await processWait;
         console.log('stopped');
     }
 }
 
-async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
+function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
     console.log('check', childProcess.pid);
-    await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
         childProcess.on('close', (code, signal) => {
             console.log('close', code, signal);
             resolve(undefined);
