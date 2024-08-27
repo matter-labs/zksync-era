@@ -342,7 +342,7 @@ Lint code:
 zks lint
 ```
 
-By default, this command runs the linter on all files. To target specific file types, use the `--extension` option.
+By default, this command runs the linter on all files. To target specific file types, use the `--target` option.
 Supported extensions include:
 
 - `rs`: Rust files.
@@ -350,3 +350,4 @@ Supported extensions include:
 - `sol`: Solidity files.
 - `js`: JavaScript files.
 - `ts`: TypeScript files.
+- `contracts`: files in `contracts` directory.

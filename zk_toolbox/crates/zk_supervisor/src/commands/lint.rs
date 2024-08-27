@@ -23,7 +23,14 @@ pub struct LintArgs {
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
     let targets = if args.targets.is_empty() {
-        vec![Target::Rs, Target::Md, Target::Sol, Target::Js, Target::Ts]
+        vec![
+            Target::Rs,
+            Target::Md,
+            Target::Sol,
+            Target::Js,
+            Target::Ts,
+            Target::Contracts,
+        ]
     } else {
         args.targets.clone()
     };
