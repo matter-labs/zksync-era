@@ -7,7 +7,7 @@ use std::{
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
 use crate::{
-    dump::{DumpingVm, VmDump, VmDumpHandler},
+    dump::{DumpingVm, VmDump, VmDumpHandler, VmTrackingContracts},
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
@@ -15,9 +15,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
-    vm_fast, vm_latest,
-    vm_latest::HistoryEnabled,
-    HistoryMode,
+    vm_fast,
 };
 
 #[cfg(test)]
@@ -56,16 +54,20 @@ impl<Shadow: VmInterface> VmWithReporting<Shadow> {
     }
 }
 
+/// Shadowed VM that executes 2 VMs for each operation and compares their outputs.
+///
+/// If a divergence is detected, the VM state is dumped using [a pluggable handler](Self::set_dump_handler()),
+/// after which the VM either panics, or drops the shadowed VM, depending on [`Self::set_panic_on_divergence()`] setting.
 #[derive(Debug)]
-pub struct ShadowVm<S: ReadStorage, H: HistoryMode, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
-    main: DumpingVm<S, vm_latest::Vm<StorageView<S>, H>>,
+pub struct ShadowVm<S, Main, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
+    main: DumpingVm<S, Main>,
     shadow: RefCell<Option<VmWithReporting<Shadow>>>,
 }
 
-impl<S, H, Shadow> ShadowVm<S, H, Shadow>
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    H: HistoryMode,
+    Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
     pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
@@ -94,10 +96,10 @@ where
     }
 }
 
-impl<S, H, Shadow> ShadowVm<S, H, Shadow>
+impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    H: HistoryMode,
+    Main: VmFactory<StorageView<S>> + VmTrackingContracts,
     Shadow: VmInterface,
 {
     pub fn with_custom_shadow<ShadowS>(
@@ -123,10 +125,10 @@ where
     }
 }
 
-impl<S, H> VmFactory<StorageView<S>> for ShadowVm<S, H>
+impl<S, Main> VmFactory<StorageView<S>> for ShadowVm<S, Main>
 where
     S: ReadStorage,
-    H: HistoryMode,
+    Main: VmFactory<StorageView<S>> + VmTrackingContracts,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -138,13 +140,13 @@ where
 }
 
 /// **Important.** This doesn't properly handle tracers; they are not passed to the shadow VM!
-impl<S, H, Shadow> VmInterface for ShadowVm<S, H, Shadow>
+impl<S, Main, Shadow> VmInterface for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
-    H: HistoryMode,
+    Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
-    type TracerDispatcher = <vm_latest::Vm<StorageView<S>, H> as VmInterface>::TracerDispatcher;
+    type TracerDispatcher = <Main as VmInterface>::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
@@ -507,9 +509,11 @@ impl UniqueStorageLogs {
     }
 }
 
-impl<S> VmInterfaceHistoryEnabled for ShadowVm<S, HistoryEnabled>
+impl<S, Main, Shadow> VmInterfaceHistoryEnabled for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
+    Main: VmInterfaceHistoryEnabled + VmTrackingContracts,
+    Shadow: VmInterfaceHistoryEnabled,
 {
     fn make_snapshot(&mut self) {
         if let Some(shadow) = self.shadow.get_mut() {

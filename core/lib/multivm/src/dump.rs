@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// VM that tracks decommitment of bytecodes during execution. This is required to create a [`VmDump`].
-pub(crate) trait VmTrackingContracts: VmInterface {
+pub trait VmTrackingContracts: VmInterface {
     /// Returns hashes of all decommitted bytecodes.
     fn used_contract_hashes(&self) -> Vec<U256>;
 }

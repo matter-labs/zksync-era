@@ -20,7 +20,7 @@ use crate::{
     versions::testonly::{
         default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
     },
-    vm_latest::{self, HistoryDisabled},
+    vm_latest::{self, HistoryEnabled},
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
@@ -233,7 +233,7 @@ fn sanity_check_shadow_vm() {
     // We need separate storage views since they are mutated by the VM execution
     let main_storage = StorageView::new(&storage).to_rc_ptr();
     let shadow_storage = StorageView::new(&storage).to_rc_ptr();
-    let mut vm = ShadowVm::<_, HistoryDisabled, ReferenceVm<_>>::with_custom_shadow(
+    let mut vm = ShadowVm::<_, ReferenceVm<_>, ReferenceVm<_>>::with_custom_shadow(
         l1_batch_env,
         system_env,
         main_storage,
@@ -244,14 +244,14 @@ fn sanity_check_shadow_vm() {
 
 #[test]
 fn shadow_vm_basics() {
-    let (vm, harness) = sanity_check_vm::<ShadowVm<_, HistoryDisabled>>();
+    let (vm, harness) = sanity_check_vm::<ShadowVm<_, ReferenceVm>>();
     let dump = vm.main.dump_state();
     Harness::assert_dump(&dump);
 
     // Test standard playback functionality.
     let replayed_dump = dump
         .clone()
-        .play_back::<ShadowVm<_, HistoryDisabled>>()
+        .play_back::<ShadowVm<_, ReferenceVm>>()
         .main
         .dump_state();
     pretty_assertions::assert_eq!(replayed_dump, dump);
@@ -262,7 +262,7 @@ fn shadow_vm_basics() {
     let storage = StorageView::new(storage).to_rc_ptr();
     let dump_storage = dump.storage.clone().into_storage();
     let dump_storage = StorageView::new(dump_storage).to_rc_ptr();
-    let mut vm = ShadowVm::<_, HistoryDisabled, ReferenceVm>::with_custom_shadow(
+    let mut vm = ShadowVm::<_, ReferenceVm, ReferenceVm>::with_custom_shadow(
         dump.l1_batch_env.clone(),
         dump.system_env.clone(),
         storage,
