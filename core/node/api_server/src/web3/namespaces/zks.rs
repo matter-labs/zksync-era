@@ -768,21 +768,26 @@ impl ZksNamespace {
             .concat(),
         ));
         println!("kl todo chain_tree_slot = {:#?}", chain_tree_slot);
-        let length_storage_key = self.get_message_root_log_key(chain_tree_slot);
+
+        let chain_sides_slot = u256_to_h256(h256_to_u256(chain_tree_slot) + 1);
+        println!("kl todo chain_sides_slot = {:#?}", chain_sides_slot);
+
+        let length_storage_key = self.get_message_root_log_key(chain_sides_slot);
         let length_encoding = storage
             .storage_web3_dal()
             .get_historical_value_unchecked(length_storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
-        println!("kl todo length_encoding = {:#?}", length_encoding);
-        let length = length_encoding.0[31] - 1 / 2;
+
+        let length = length_encoding.0[31] / 2;
         let chain_root_slot = H256::from_slice(&keccak256(
             &[
                 u256_to_h256(U256::from(length)).0,
-                chain_tree_slot.to_fixed_bytes(),
+                chain_sides_slot.to_fixed_bytes(),
             ]
             .concat(),
         ));
+        println!("kl todo length_encoding = {:#?}", length_encoding);
         println!("kl todo chain_root_slot = {:#?}", chain_root_slot);
         let chain_root = storage
             .storage_web3_dal()
