@@ -24,12 +24,7 @@ pub(crate) async fn run(shell: &Shell, args: SnapshotCommands) -> anyhow::Result
 async fn create(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
-        .load_chain(
-            global_config()
-                .chain_name
-                .clone()
-                .or(Some(ecosystem.default_chain.clone())),
-        )
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let config_path = chain.path_to_general_config();
@@ -41,5 +36,5 @@ async fn create(shell: &Shell) -> anyhow::Result<()> {
         .env("RUST_LOG", "snapshots_creator=debug");
 
     cmd = cmd.with_force_run();
-    cmd.run().context("MSG")
+    cmd.run().context("Snapshot")
 }

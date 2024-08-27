@@ -3,6 +3,8 @@ services:
   reth:
     restart: always
     image: "ghcr.io/paradigmxyz/reth:v0.2.0-beta.2"
+    ports:
+      - 127.0.0.1:8545:8545
     volumes:
       - type: bind
         source: ./volumes/reth/data
@@ -11,10 +13,9 @@ services:
         source: ./etc/reth/chaindata
         target: /chaindata
 
-    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --chain /chaindata/reth_config
-    ports:
-      - 127.0.0.1:8545:8545
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
 
+  
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=200'
@@ -54,3 +55,4 @@ services:
       - "host:host-gateway"
     profiles:
       - runner
+    network_mode: host

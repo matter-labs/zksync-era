@@ -8,6 +8,7 @@ import { expect } from 'chai';
 import fs from 'fs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
+import { ChildProcessWithoutNullStreams } from 'child_process';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -40,8 +41,20 @@ function parseSuggestedValues(suggestedValuesString: string): {
     };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('killall -9 zksync_server');
+async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams | undefined) {
+    if (serverProcess === undefined) {
+        await utils.exec('killall -9 zksync_server');
+    } else {
+        let child = serverProcess.pid;
+        while (true) {
+            try {
+                child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+            } catch (e) {
+                break;
+            }
+        }
+        await utils.exec(`kill -9 ${child}`);
+    }
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -74,7 +87,7 @@ describe('Block reverting test', function () {
     let operatorAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
-
+    let serverProcess: ChildProcessWithoutNullStreams | undefined;
     const fileConfig = shouldLoadConfigFromFile();
 
     const pathToHome = path.join(__dirname, '../../../..');
@@ -130,10 +143,10 @@ describe('Block reverting test', function () {
 
     step('run server and execute some transactions', async () => {
         // Make sure server isn't running.
-        await killServerAndWaitForShutdown(tester).catch(ignoreError);
+        await killServerAndWaitForShutdown(tester, serverProcess).catch(ignoreError);
 
         // Run server in background.
-        runServerInBackground({
+        serverProcess = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
@@ -202,13 +215,16 @@ describe('Block reverting test', function () {
         blocksCommittedBeforeRevert = blocksCommitted;
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester);
+        await killServerAndWaitForShutdown(tester, serverProcess);
     });
 
     step('revert blocks', async () => {
         let fileConfigFlags = '';
         if (fileConfig.loadFromFile) {
-            const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
+            const configPaths = getAllConfigsPath({
+                pathToHome,
+                chain: fileConfig.chain
+            });
             fileConfigFlags = `
                 --config-path=${configPaths['general.yaml']}
                 --contracts-config-path=${configPaths['contracts.yaml']}
@@ -247,7 +263,7 @@ describe('Block reverting test', function () {
 
     step('execute transaction after revert', async () => {
         // Run server.
-        runServerInBackground({
+        serverProcess = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
@@ -295,10 +311,10 @@ describe('Block reverting test', function () {
         await checkedRandomTransfer(alice, 1n);
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester);
+        await killServerAndWaitForShutdown(tester, serverProcess);
 
         // Run again.
-        runServerInBackground({
+        serverProcess = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
             cwd: pathToHome,
