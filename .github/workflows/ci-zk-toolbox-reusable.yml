@@ -84,10 +84,10 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain era &> integration_rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> integration_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_validium &> integration_validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain chain_validium &> integration_validium.log &
           PID2=$!
 
           wait $PID1
@@ -133,10 +133,10 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain era &> integration_en_rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> integration_en_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --external-node --chain chain_validium &> integration_en_validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain chain_validium &> integration_en_validium.log &
           PID2=$!
 
           wait $PID1
@@ -144,8 +144,8 @@ jobs:
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --no-deps  --ignore-prerequisites --verbose --chain era &> revert_rollup.log
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_validium &> revert_validium.log
+          ci_run zk_supervisor test revert --no-deps  --ignore-prerequisites --chain era &> revert_rollup.log
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_validium &> revert_validium.log
 
       # Upgrade tests should run last, because as soon as they 
       # finish the bootloader will be different
