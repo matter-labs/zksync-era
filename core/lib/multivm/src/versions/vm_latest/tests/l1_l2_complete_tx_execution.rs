@@ -1,8 +1,7 @@
 use ethabi::{encode, Contract, Token};
 use zksync_basic_types::{web3::keccak256, Address, H256};
 use zksync_system_constants::{
-    L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
-    SETTLEMENT_LAYER_RELAY_SENDER, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    L2_ASSET_ROUTER_ADDRESS, SETTLEMENT_LAYER_RELAY_SENDER, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -19,8 +18,8 @@ use crate::{
             tester::{VmTester, VmTesterBuilder},
             utils::{
                 deploy_and_verify_contract, read_admin_facet, read_bridgehub, read_diamond,
-                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_stm,
-                read_transparent_proxy, send_l2_tx_and_verify, send_prank_tx_and_verify,
+                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root,
+                read_stm, read_transparent_proxy, send_l2_tx_and_verify, send_prank_tx_and_verify,
                 undo_l1_to_l2_alias, BASE_SYSTEM_CONTRACTS,
             },
         },
@@ -31,21 +30,76 @@ use crate::{
 fn prepare_environment_and_deploy_contracts(
     vm: &mut VmTester<HistoryEnabled>,
     deploy_account_address: Address,
-) -> Contract {
+) -> (Address, Contract) {
     let mut deploy_nonce = 0;
+
+    // Deploy Bridgehub
+
+    let (bridgehub_contract_bytecode, bridgehub_contract) = read_bridgehub();
+    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set
+    let max_number_of_hyperchains = U256::from(100);
+    let constructor_data = &[
+        l1_chain_id.clone(),
+        Token::Address(deploy_account_address),
+        Token::Uint(max_number_of_hyperchains),
+    ];
+    let bridgehub_address = deploy_and_verify_contract(
+        vm,
+        0,
+        &bridgehub_contract_bytecode,
+        Some(constructor_data),
+        &mut deploy_nonce,
+    );
+
+    // Initialize BH
+
+    let initialize_calldata = bridgehub_contract
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[Token::Address(deploy_account_address)])
+        .unwrap();
+    let (transparent_proxy_contract_code, _transparent_proxy_contract) = read_transparent_proxy();
+    let admin_account_address = vm.rich_accounts[1].address;
+    let constructor_data = &[
+        Token::Address(bridgehub_address),
+        Token::Address(admin_account_address),
+        Token::Bytes(initialize_calldata),
+    ];
+    let mut admin_deploy_nonce = 0;
+    let bridgehub_proxy_address = deploy_and_verify_contract(
+        vm,
+        1,
+        &transparent_proxy_contract_code,
+        Some(constructor_data),
+        &mut admin_deploy_nonce,
+    );
+
+    // Deploy Message Root
+
+    let message_root_contract_bytecode = read_message_root();
+    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set
+    let max_number_of_hyperchains = U256::from(100);
+    let constructor_data = &[Token::Address(bridgehub_proxy_address)];
+    let message_root_address = deploy_and_verify_contract(
+        vm,
+        0,
+        &message_root_contract_bytecode,
+        Some(constructor_data),
+        &mut deploy_nonce,
+    );
 
     // Deploy STM
 
     let (stm_contract_code, stm_contract) = read_stm();
     // Set the constructor data to L2 bridgehub address and max number of hyperchains to 100
-    let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[
-        Token::Address(L2_BRIDGEHUB_ADDRESS),
+        Token::Address(bridgehub_proxy_address),
         Token::Uint(max_number_of_hyperchains),
     ];
 
     let stm_address = deploy_and_verify_contract(
         vm,
+        0,
         &stm_contract_code,
         Some(constructor_data),
         &mut deploy_nonce,
@@ -54,11 +108,12 @@ fn prepare_environment_and_deploy_contracts(
     // Deploy Mailbox Facet
 
     let (mailbox_facet_contract_code, mailbox_facet_contract) = read_mailbox_facet();
-    let era_chain_id = U256::from(1);
-    let constructor_data = &[Token::Uint(era_chain_id)];
+    let era_chain_id = Token::Uint(1.into());
+    let constructor_data = &[era_chain_id, l1_chain_id.clone()];
 
     let mailbox_facet_address = deploy_and_verify_contract(
         vm,
+        0,
         &mailbox_facet_contract_code,
         Some(constructor_data),
         &mut deploy_nonce,
@@ -67,8 +122,14 @@ fn prepare_environment_and_deploy_contracts(
     // Deploy Admin Facet
 
     let (admin_facet_contract_code, admin_facet_contract) = read_admin_facet();
-    let admin_facet_address =
-        deploy_and_verify_contract(vm, &admin_facet_contract_code, None, &mut deploy_nonce);
+    let constructor_data = &[l1_chain_id.clone()];
+    let admin_facet_address = deploy_and_verify_contract(
+        vm,
+        0,
+        &admin_facet_contract_code,
+        Some(constructor_data),
+        &mut deploy_nonce,
+    );
 
     // Deploy Diamond Init
 
@@ -76,7 +137,7 @@ fn prepare_environment_and_deploy_contracts(
     let (diamond_init_contract_code, _diamond_init_contract) = read_diamond_init();
     let (diamond_proxy_contract_code, _diamond_proxy_contract) = read_diamond_proxy();
     let diamond_init_address =
-        deploy_and_verify_contract(vm, &diamond_init_contract_code, None, &mut deploy_nonce);
+        deploy_and_verify_contract(vm, 0, &diamond_init_contract_code, None, &mut deploy_nonce);
 
     // Collect Data to Initialize STM
 
@@ -151,6 +212,7 @@ fn prepare_environment_and_deploy_contracts(
     ];
     let stm_proxy_address = deploy_and_verify_contract(
         vm,
+        0,
         &transparent_proxy_contract_code,
         Some(constructor_data),
         &mut deploy_nonce,
@@ -160,14 +222,6 @@ fn prepare_environment_and_deploy_contracts(
 
     let (_bridgehub_contract_bytecode, bridgehub_contract) = read_bridgehub();
 
-    // Initialize BH
-    let initialize_calldata = bridgehub_contract
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[Token::Address(deploy_account_address)])
-        .unwrap();
-    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, initialize_calldata);
-
     // Set addresses
 
     let set_addresses_calldata = bridgehub_contract
@@ -175,11 +229,11 @@ fn prepare_environment_and_deploy_contracts(
         .unwrap()
         .encode_input(&[
             Token::Address(L2_ASSET_ROUTER_ADDRESS),
-            Token::Address(deploy_account_address),
-            Token::Address(L2_MESSAGE_ROOT_ADDRESS),
+            Token::Address(undo_l1_to_l2_alias(deploy_account_address)),
+            Token::Address(message_root_address),
         ])
         .unwrap();
-    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, set_addresses_calldata);
+    send_l2_tx_and_verify(vm, bridgehub_proxy_address, set_addresses_calldata);
 
     // Set Asset Handler Address
 
@@ -189,7 +243,7 @@ fn prepare_environment_and_deploy_contracts(
         .unwrap()
         .encode_input(&[asset_id.clone(), Token::Address(stm_proxy_address)])
         .unwrap();
-    send_l2_tx_and_verify(vm, L2_BRIDGEHUB_ADDRESS, set_asset_handler_calldata);
+    send_l2_tx_and_verify(vm, bridgehub_proxy_address, set_asset_handler_calldata);
 
     // Deploy New Chain via BH BridgeMint
 
@@ -269,9 +323,6 @@ fn prepare_environment_and_deploy_contracts(
         Token::Bytes(chain_mint_data),
     ]);
 
-    // Define the L1_CHAIN_ID, sender, and _additionalData
-    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set
-
     let sender = Token::Address(undo_l1_to_l2_alias(deploy_account_address)); // Replace with actual sender address
     let asset_id = Token::FixedBytes(vec![0, 32]);
     let additional_data = asset_id;
@@ -293,7 +344,7 @@ fn prepare_environment_and_deploy_contracts(
         .unwrap();
     send_prank_tx_and_verify(
         vm,
-        L2_BRIDGEHUB_ADDRESS,
+        bridgehub_proxy_address,
         vec![
             diamond_proxy_contract_code,
             diamond_init_contract_code,
@@ -303,7 +354,7 @@ fn prepare_environment_and_deploy_contracts(
         L2_ASSET_ROUTER_ADDRESS,
     );
 
-    bridgehub_contract
+    (bridgehub_proxy_address, bridgehub_contract)
 }
 
 #[test]
@@ -316,12 +367,12 @@ fn test_l1_l2_complete_tx_execution_many_small_factory_deps() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_random_rich_accounts(2)
         .build();
 
     let default_account: Account = vm.rich_accounts[0].clone();
 
-    let bridgehub_contract =
+    let (bridgehub_proxy_address, bridgehub_contract) =
         prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
 
     // Collect Data for Test
@@ -351,7 +402,7 @@ fn test_l1_l2_complete_tx_execution_many_small_factory_deps() {
 
     send_prank_tx_and_verify(
         &mut vm,
-        L2_BRIDGEHUB_ADDRESS,
+        bridgehub_proxy_address,
         vec![],
         encoded_data,
         SETTLEMENT_LAYER_RELAY_SENDER,
@@ -368,12 +419,12 @@ fn test_l1_l2_complete_tx_execution_few_large_factory_deps() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_random_rich_accounts(2)
         .build();
 
     let default_account: Account = vm.rich_accounts[0].clone();
 
-    let bridgehub_contract =
+    let (bridgehub_proxy_address, bridgehub_contract) =
         prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
 
     // Collect Data for Test
@@ -403,7 +454,7 @@ fn test_l1_l2_complete_tx_execution_few_large_factory_deps() {
 
     send_prank_tx_and_verify(
         &mut vm,
-        L2_BRIDGEHUB_ADDRESS,
+        bridgehub_proxy_address,
         vec![],
         encoded_data,
         SETTLEMENT_LAYER_RELAY_SENDER,
@@ -420,12 +471,12 @@ fn test_l1_l2_complete_tx_execution_one_large_factory_dep() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_random_rich_accounts(2)
         .build();
 
     let default_account: Account = vm.rich_accounts[0].clone();
 
-    let bridgehub_contract =
+    let (bridgehub_proxy_address, bridgehub_contract) =
         prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
 
     // Collect Data for Test
@@ -455,7 +506,7 @@ fn test_l1_l2_complete_tx_execution_one_large_factory_dep() {
 
     send_prank_tx_and_verify(
         &mut vm,
-        L2_BRIDGEHUB_ADDRESS,
+        bridgehub_proxy_address,
         vec![],
         encoded_data,
         SETTLEMENT_LAYER_RELAY_SENDER,

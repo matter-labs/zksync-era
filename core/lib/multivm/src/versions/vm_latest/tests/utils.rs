@@ -267,11 +267,12 @@ pub fn send_prank_tx_and_verify(
 
 pub fn deploy_and_verify_contract(
     vm: &mut VmTester<HistoryEnabled>,
+    account_number: usize,
     contract_code: &[u8],
     constructor_data: Option<&[Token]>,
     deploy_nonce: &mut u64,
 ) -> Address {
-    let account: &mut Account = &mut vm.rich_accounts[0];
+    let account: &mut Account = &mut vm.rich_accounts[account_number];
 
     let deploy_tx = account.get_deploy_tx(
         contract_code,
@@ -337,5 +338,17 @@ pub fn send_l2_tx_and_verify(
 
     let res = vm.vm.execute(VmExecutionMode::OneTx);
 
-    assert!(!res.result.is_failed());
+    match res.result {
+        ExecutionResult::Success { output } => {
+            println!("Transaction was successful. Output: {:?}", output);
+        }
+        ExecutionResult::Revert { output } => {
+            eprintln!("Transaction reverted. Reason: {:?}", output);
+            panic!("Transaction wasn't successful: {:?}", output);
+        }
+        ExecutionResult::Halt { reason } => {
+            eprintln!("Transaction halted. Reason: {:?}", reason);
+            panic!("Transaction wasn't successful: {:?}", reason);
+        }
+    }
 }
