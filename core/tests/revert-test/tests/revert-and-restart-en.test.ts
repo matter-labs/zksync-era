@@ -216,6 +216,7 @@ class MainNode {
         let tester: Tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         while (true) {
             try {
+                console.log(`Web3 ${apiWeb3JsonRpcHttpUrl}`);
                 await tester.syncWallet.provider.getBlockNumber();
                 break;
             } catch (err) {
