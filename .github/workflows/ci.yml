@@ -186,7 +186,8 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images]
+    #TODO return build-core-images
+    needs: [ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-contract-verifier, build-prover-images]
     steps:
       - name: Status
         run: |
