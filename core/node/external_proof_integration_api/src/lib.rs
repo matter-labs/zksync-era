@@ -8,15 +8,14 @@ use anyhow::Context;
 use axum::{
     extract::{Multipart, Path},
     middleware,
-    routing::post,
-    Json, Router,
+    routing::{get, post},
+    Router,
 };
 use tokio::sync::watch;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::OptionalProofGenerationDataRequest;
 
 use crate::processor::Processor;
 
@@ -55,16 +54,19 @@ async fn create_router(
     let mut processor =
         Processor::new(blob_store.clone(), connection_pool.clone(), commitment_mode);
     let verify_proof_processor = processor.clone();
+    let specific_proof_processor = processor.clone();
     Router::new()
         .route(
             "/proof_generation_data",
-            post(
-                // we use post method because the returned data is not idempotent,
-                // i.e we return different result on each call.
-                move |payload: Json<OptionalProofGenerationDataRequest>| async move {
-                    processor.get_proof_generation_data(payload).await
-                },
-            ),
+            get(move || async move { processor.get_proof_generation_data().await }),
+        )
+        .route(
+            "/proof_generation_data/:l1_batch_number",
+            get(move |l1_batch_number: Path<u32>| async move {
+                specific_proof_processor
+                    .proof_generation_data_for_existing_batch(l1_batch_number)
+                    .await
+            }),
         )
         .route(
             "/verify_proof/:l1_batch_number",
