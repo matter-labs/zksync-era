@@ -1,5 +1,24 @@
 # Changelog
 
+## [24.22.0](https://github.com/matter-labs/zksync-era/compare/core-v24.21.0...core-v24.22.0) (2024-08-27)
+
+
+### Features
+
+* add flag to enable/disable DA inclusion verification ([#2647](https://github.com/matter-labs/zksync-era/issues/2647)) ([b425561](https://github.com/matter-labs/zksync-era/commit/b4255618708349c51f60f5c7fc26f9356d32b6ff))
+* **Base token:** add cbt metrics ([#2720](https://github.com/matter-labs/zksync-era/issues/2720)) ([58438eb](https://github.com/matter-labs/zksync-era/commit/58438eb174c30edf62e2ff8abb74567de2a4bea8))
+* Change default_protective_reads_persistence_enabled to false ([#2716](https://github.com/matter-labs/zksync-era/issues/2716)) ([8d0eee7](https://github.com/matter-labs/zksync-era/commit/8d0eee7ca8fe117b2ee286c6080bfa0057ee31ae))
+* **vm:** Extract oneshot VM executor interface ([#2671](https://github.com/matter-labs/zksync-era/issues/2671)) ([951d5f2](https://github.com/matter-labs/zksync-era/commit/951d5f208e5d16a5d95878dd345a8bd2a4144aa7))
+* **zk_toolbox:** Add holesky testnet as layer1 network ([#2632](https://github.com/matter-labs/zksync-era/issues/2632)) ([d9266e5](https://github.com/matter-labs/zksync-era/commit/d9266e5ef3910732666c00c1324256fb5b54452d))
+
+
+### Bug Fixes
+
+* **api:** `tx.gas_price` field ([#2734](https://github.com/matter-labs/zksync-era/issues/2734)) ([aea3726](https://github.com/matter-labs/zksync-era/commit/aea3726c88b4e881bcd0f4a60ff32a730f200938))
+* **base_token_adjuster:** bug with a wrong metrics namespace ([#2744](https://github.com/matter-labs/zksync-era/issues/2744)) ([64b2ff8](https://github.com/matter-labs/zksync-era/commit/64b2ff8b81dcc146cd0535eb0d2d898c18ad5f7f))
+* **eth-sender:** missing Gateway migration changes ([#2732](https://github.com/matter-labs/zksync-era/issues/2732)) ([a4170e9](https://github.com/matter-labs/zksync-era/commit/a4170e9e7f321a1062495ec586e0ce9186269088))
+* **proof_data_handler:** TEE blob fetching error handling ([#2674](https://github.com/matter-labs/zksync-era/issues/2674)) ([c162510](https://github.com/matter-labs/zksync-era/commit/c162510598b45dc062c2c91085868f8aa966360e))
+
 ## [24.21.0](https://github.com/matter-labs/zksync-era/compare/core-v24.20.0...core-v24.21.0) (2024-08-22)
 
 
