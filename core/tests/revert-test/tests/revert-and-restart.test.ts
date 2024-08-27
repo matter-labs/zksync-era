@@ -49,7 +49,6 @@ async function killServerAndWaitForShutdown(tester: Tester, serverProcess: Child
         while (true) {
             try {
                 child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                console.log('Parent stdout', child);
             } catch (e) {
                 break;
             }

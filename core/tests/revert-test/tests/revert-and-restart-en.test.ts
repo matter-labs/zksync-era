@@ -159,7 +159,6 @@ class MainNode {
             while (true) {
                 try {
                     child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                    console.log('Parent stdout', child);
                 } catch (e) {
                     break;
                 }
@@ -240,7 +239,6 @@ class ExtNode {
             while (true) {
                 try {
                     child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                    console.log('Parent stdout', child);
                 } catch (e) {
                     break;
                 }
@@ -320,6 +318,8 @@ describe('Block reverting test', function () {
     let extLogs: fs.WriteStream;
     let depositAmount: bigint;
     let enableConsensus: boolean;
+    let mainNode: MainNode;
+    let extNode: ExtNode;
 
     before('initialize test', async () => {
         if (fileConfig.loadFromFile) {
@@ -340,7 +340,7 @@ describe('Block reverting test', function () {
             enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
             mainLogs = fs.createWriteStream(`${fileConfig.chain}_${mainLogsPath}`, { flags: 'a' });
-            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogs}`, { flags: 'a' });
+            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogsPath}`, { flags: 'a' });
         } else {
             let env = fetchEnv(mainEnv);
             ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
@@ -356,7 +356,6 @@ describe('Block reverting test', function () {
         if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
             compileBinaries();
         }
-        console.log(`PWD = ${process.env.PWD}`);
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
@@ -368,7 +367,7 @@ describe('Block reverting test', function () {
         await MainNode.terminateAll();
 
         console.log('Start main node');
-        let mainNode = await MainNode.spawn(
+        mainNode = await MainNode.spawn(
             mainLogs,
             enableConsensus,
             true,
@@ -377,7 +376,7 @@ describe('Block reverting test', function () {
             baseTokenAddress
         );
         console.log('Start ext node');
-        let extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
+        extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
 
         await mainNode.tester.fundSyncWallet();
         await extNode.tester.fundSyncWallet();
@@ -562,8 +561,8 @@ describe('Block reverting test', function () {
     });
 
     after('terminate nodes', async () => {
-        await MainNode.terminateAll();
-        await ExtNode.terminateAll();
+        await mainNode.terminate();
+        await extNode.terminate();
 
         if (fileConfig.loadFromFile) {
             replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);

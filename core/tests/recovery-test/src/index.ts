@@ -165,7 +165,6 @@ export class NodeProcess {
                 try {
                     let child = childs.at(-1);
                     childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
-                    console.log('Parent stdout', childs);
                 } catch (e) {
                     break;
                 }

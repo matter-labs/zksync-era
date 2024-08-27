@@ -15,6 +15,7 @@ export function background({
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
+    console.log(`Run command ${command}`);
     return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
 
