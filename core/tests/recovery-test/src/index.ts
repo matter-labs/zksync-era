@@ -102,7 +102,7 @@ async function executeNodeCommand(env: { [key: string]: string }, command: strin
         env
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
     }
@@ -116,7 +116,7 @@ export async function executeCommandWithLogs(command: string, logsPath: string) 
         shell: true
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
         await logs.close();
@@ -137,6 +137,42 @@ export class NodeProcess {
 
         try {
             await promisify(exec)(`killall -q -${signal} zksync_external_node`);
+        } catch (err) {
+            const typedErr = err as ChildProcessError;
+            if (typedErr.code === 1) {
+                // No matching processes were found; this is fine.
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    async stop(signal: 'INT' | 'KILL' = 'INT') {
+        interface ChildProcessError extends Error {
+            readonly code: number | null;
+        }
+
+        let signalNumber;
+        if (signal == 'KILL') {
+            signalNumber = 9;
+        } else {
+            signalNumber = 15;
+        }
+        try {
+            let childs = [this.childProcess.pid];
+            while (true) {
+                try {
+                    let child = childs.at(-1);
+                    childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
+                } catch (e) {
+                    break;
+                }
+            }
+            // We always run the test using additional tools, that means we have to kill not the main process, but the child process
+            for (let i = childs.length - 1; i >= 0; i--) {
+                console.log(`kill ${childs[i]}`);
+                await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+            }
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {
@@ -176,22 +212,26 @@ export class NodeProcess {
     }
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
-        await NodeProcess.stopAll(signal);
-        await waitForProcess(this.childProcess, signal === 'INT');
+        let processWait = waitForProcess(this.childProcess);
+        await this.stop(signal);
+        await processWait;
+        console.log('stopped');
     }
 }
 
-async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
-    await new Promise((resolve, reject) => {
+function waitForProcess(childProcess: ChildProcess) {
+    return new Promise((resolve, reject) => {
+        childProcess.on('close', (_code, _signal) => {
+            resolve(undefined);
+        });
         childProcess.on('error', (error) => {
             reject(error);
         });
-        childProcess.on('exit', (code) => {
-            if (!checkExitCode || code === 0) {
-                resolve(undefined);
-            } else {
-                reject(new Error(`Process exited with non-zero code: ${code}`));
-            }
+        childProcess.on('exit', (_code) => {
+            resolve(undefined);
+        });
+        childProcess.on('disconnect', () => {
+            resolve(undefined);
         });
     });
 }

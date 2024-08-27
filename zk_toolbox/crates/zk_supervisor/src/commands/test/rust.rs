@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{cmd::Cmd, db::wait_for_db, logger};
+use common::{cmd::Cmd, config::global_config, db::wait_for_db, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -17,7 +17,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
         .clone()
-        .load_chain(Some(ecosystem.default_chain))
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let general_config = chain.get_general_config()?;
     let postgres = general_config
