@@ -9,6 +9,7 @@ pub use self::{
 };
 
 mod in_memory;
+mod storage_witness;
 mod view;
 
 /// Functionality to read from the VM storage.
