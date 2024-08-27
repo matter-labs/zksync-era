@@ -50,6 +50,10 @@ const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/I
 const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+const VALIDATOR_TIMELOCK_CONTRACT_FILE: (&str, &str) = (
+    "state-transition",
+    "ValidatorTimelock.sol/ValidatorTimelock.json",
+);
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
@@ -151,6 +155,10 @@ pub fn multicall_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+}
+
+pub fn validator_timelock_contract() -> Contract {
+    load_contract_for_both_compilers(VALIDATOR_TIMELOCK_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]

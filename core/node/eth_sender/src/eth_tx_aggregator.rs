@@ -405,14 +405,17 @@ impl EthTxAggregator {
         let is_batches_synced = &*self.functions.is_batches_synced.name;
 
         let params = op.into_tokens().pop().unwrap();
-        let res: bool = CallFunctionArgs::new(is_batches_synced, params)
-            .for_contract(
-                self.timelock_contract_address,
-                &self.functions.zksync_contract,
-            )
-            .call(self.eth_client.as_ref().as_ref())
-            .await
-            .map_err(|e| Error::InvalidOutputType(e.to_string()))?;
+        let res: bool = CallFunctionArgs::new(
+            is_batches_synced,
+            (U256::from(self.rollup_chain_id.as_u64()), params),
+        )
+        .for_contract(
+            self.timelock_contract_address,
+            &self.functions.validator_timelock_contract,
+        )
+        .call(self.eth_client.as_ref().as_ref())
+        .await
+        .map_err(|e| Error::InvalidOutputType(e.to_string()))?;
         Ok(res)
     }
 

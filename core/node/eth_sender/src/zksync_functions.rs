@@ -1,4 +1,6 @@
-use zksync_contracts::{hyperchain_contract, multicall_contract, verifier_contract};
+use zksync_contracts::{
+    hyperchain_contract, multicall_contract, validator_timelock_contract, verifier_contract,
+};
 use zksync_types::ethabi::{Contract, Function};
 
 #[derive(Debug)]
@@ -17,10 +19,10 @@ pub(super) struct ZkSyncFunctions {
     pub(super) is_batches_synced: Function,
 
     pub(super) verifier_contract: Contract,
-    pub(super) zksync_contract: Contract,
     pub(super) verification_key_hash: Function,
 
     pub(super) multicall_contract: Contract,
+    pub(super) validator_timelock_contract: Contract,
     pub(super) aggregate3: Function,
 }
 
@@ -47,6 +49,7 @@ impl Default for ZkSyncFunctions {
         let zksync_contract = hyperchain_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
+        let validator_timelock_contract = validator_timelock_contract();
 
         let pre_shared_bridge_commit = get_function(&zksync_contract, "commitBatches");
         let post_shared_bridge_commit =
@@ -65,7 +68,8 @@ impl Default for ZkSyncFunctions {
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
         let aggregate3 = get_function(&multicall_contract, "aggregate3");
-        let is_batches_synced = get_function(&zksync_contract, "isBatchesSynced");
+        let is_batches_synced =
+            get_function(&validator_timelock_contract, "isBatchesSyncedSharedBridge");
         let verification_key_hash = get_function(&verifier_contract, "verificationKeyHash");
 
         ZkSyncFunctions {
@@ -82,9 +86,9 @@ impl Default for ZkSyncFunctions {
             get_protocol_version,
             is_batches_synced,
             verifier_contract,
-            zksync_contract,
             verification_key_hash,
             multicall_contract,
+            validator_timelock_contract,
             aggregate3,
         }
     }
