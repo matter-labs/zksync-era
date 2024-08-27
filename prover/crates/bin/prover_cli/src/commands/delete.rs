@@ -7,7 +7,7 @@ use zksync_types::L1BatchNumber;
 use crate::cli::ProverCLIConfig;
 
 #[derive(ClapArgs)]
-pub(crate) struct Args {
+pub struct Args {
     /// Delete data from all batches
     #[clap(
         short,
@@ -22,7 +22,7 @@ pub(crate) struct Args {
     batch: L1BatchNumber,
 }
 
-pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
+pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
     let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Are you sure you want to delete the data?")
         .default("no".to_owned())

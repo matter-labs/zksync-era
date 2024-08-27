@@ -129,7 +129,7 @@ jobs:
       packages: write
       contents: read
     needs: [changed_files, get_short_sha, zk_environment]
-    runs-on: ubuntu-latest
+    runs-on: matterlabs-ci-runner
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0

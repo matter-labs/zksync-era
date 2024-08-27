@@ -9,10 +9,12 @@ use circuit_definitions::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
     },
+    encodings::memory_query::MemoryQueueStateWitnesses,
     zkevm_circuits::scheduler::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
 };
+use keys::RamPermutationQueueWitnessKey;
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
@@ -34,10 +36,16 @@ pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSe
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct CircuitAuxData {
+    pub circuit_subsequence_number: u32,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
     Base(ZkSyncBaseLayerCircuit),
     Recursive(ZkSyncRecursiveLayerCircuit),
+    BasePartial((ZkSyncBaseLayerCircuit, CircuitAuxData)),
 }
 
 impl StoredObject for CircuitWrapper {
@@ -213,4 +221,28 @@ impl StoredObject for AuxOutputWitnessWrapper {
 
 pub fn get_current_pod_name() -> String {
     env::var("POD_NAME").unwrap_or("UNKNOWN_POD".to_owned())
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct RamPermutationQueueWitness {
+    pub witness: MemoryQueueStateWitnesses<GoldilocksField>,
+}
+
+impl StoredObject for RamPermutationQueueWitness {
+    const BUCKET: Bucket = Bucket::ProverJobsFri;
+    type Key<'a> = RamPermutationQueueWitnessKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let RamPermutationQueueWitnessKey {
+            block_number,
+            circuit_subsequence_number,
+            is_sorted,
+        } = key;
+        format!(
+            "queue_witness_{block_number}_{circuit_subsequence_number}_{}.bin",
+            is_sorted as u64
+        )
+    }
+
+    serialize_using_bincode!();
 }

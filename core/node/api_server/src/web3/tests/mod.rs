@@ -18,7 +18,8 @@ use zksync_config::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+    VmExecutionMetrics,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -34,8 +35,8 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog,
-    VmEvent, H256, U256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
+    U256, U64,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{

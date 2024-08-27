@@ -1,10 +1,11 @@
 use std::{
     collections::HashMap,
     fmt, io,
+    marker::PhantomData,
     panic::Location,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Mutex,
+        Arc, Mutex, Weak,
     },
     time::{Instant, SystemTime},
 };
@@ -98,14 +99,14 @@ impl TracedConnections {
     }
 }
 
-struct PooledConnection<'a> {
+struct PooledConnection {
     connection: PoolConnection<Postgres>,
     tags: Option<ConnectionTags>,
     created_at: Instant,
-    traced: Option<(&'a TracedConnections, usize)>,
+    traced: (Weak<TracedConnections>, usize),
 }
 
-impl fmt::Debug for PooledConnection<'_> {
+impl fmt::Debug for PooledConnection {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("PooledConnection")
@@ -115,7 +116,7 @@ impl fmt::Debug for PooledConnection<'_> {
     }
 }
 
-impl Drop for PooledConnection<'_> {
+impl Drop for PooledConnection {
     fn drop(&mut self) {
         if let Some(tags) = &self.tags {
             let lifetime = self.created_at.elapsed();
@@ -132,15 +133,17 @@ impl Drop for PooledConnection<'_> {
                 );
             }
         }
-        if let Some((connections, id)) = self.traced {
-            connections.mark_as_dropped(id);
+
+        let (traced_connections, id) = &self.traced;
+        if let Some(connections) = traced_connections.upgrade() {
+            connections.mark_as_dropped(*id);
         }
     }
 }
 
 #[derive(Debug)]
 enum ConnectionInner<'a> {
-    Pooled(PooledConnection<'a>),
+    Pooled(PooledConnection),
     Transaction {
         transaction: Transaction<'a, Postgres>,
         tags: Option<&'a ConnectionTags>,
@@ -156,7 +159,7 @@ pub trait DbMarker: 'static + Send + Sync + Clone {}
 #[derive(Debug)]
 pub struct Connection<'a, DB: DbMarker> {
     inner: ConnectionInner<'a>,
-    _marker: std::marker::PhantomData<DB>,
+    _marker: PhantomData<DB>,
 }
 
 impl<'a, DB: DbMarker> Connection<'a, DB> {
@@ -166,21 +169,23 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
     pub(crate) fn from_pool(
         connection: PoolConnection<Postgres>,
         tags: Option<ConnectionTags>,
-        traced_connections: Option<&'a TracedConnections>,
+        traced_connections: Option<&Arc<TracedConnections>>,
     ) -> Self {
         let created_at = Instant::now();
         let inner = ConnectionInner::Pooled(PooledConnection {
             connection,
             tags,
             created_at,
-            traced: traced_connections.map(|connections| {
+            traced: if let Some(connections) = traced_connections {
                 let id = connections.acquire(tags, created_at);
-                (connections, id)
-            }),
+                (Arc::downgrade(connections), id)
+            } else {
+                (Weak::new(), 0)
+            },
         });
         Self {
             inner,
-            _marker: Default::default(),
+            _marker: PhantomData,
         }
     }
 
@@ -196,7 +201,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
         };
         Ok(Connection {
             inner,
-            _marker: Default::default(),
+            _marker: PhantomData,
         })
     }
 

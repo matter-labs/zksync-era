@@ -10,7 +10,7 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state::{OwnedPostgresStorage, OwnedStorage};
+use zksync_state::OwnedStorage;
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
@@ -58,8 +58,8 @@ impl StorageLoader for PostgresLoader {
             return Ok(None);
         };
 
-        let storage = OwnedPostgresStorage::new(self.0.clone(), l1_batch_number - 1);
-        Ok(Some((data, storage.into())))
+        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+        Ok(Some((data, storage)))
     }
 }
 

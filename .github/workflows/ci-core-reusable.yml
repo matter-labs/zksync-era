@@ -249,6 +249,8 @@ jobs:
           ci_run zk config compile test-chain --diff 5
           ci_run zk init hyper
           ci_run zk server --time-to-live 120 &>server2.log
+          sleep 120
+          ci_run zk server --tx-aggregation-paused --time-to-live 60 &>server2.log
           ci_run zk contract migrate-to-sync-layer 
           ci_run zk contract prepare-sync-layer-validators
           ci_run zk contract update-config-for-sync-layer

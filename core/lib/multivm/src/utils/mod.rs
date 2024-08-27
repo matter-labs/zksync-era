@@ -9,6 +9,7 @@ use crate::interface::L1BatchEnv;
 
 pub(crate) mod bytecode;
 mod deduplicator;
+pub(crate) mod events;
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub fn derive_base_fee_and_gas_per_pubdata(
