@@ -135,6 +135,7 @@ impl Account {
             value: U256::zero(),
         };
 
+        // Although serial_id != to deployment_once, it will be reused for the purpose of testing
         let mut nonce = 0;
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
@@ -146,7 +147,9 @@ impl Account {
 
         let address =
             // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, nonce.into());
+            // However, as we deploy multiple contracts, we increment the serial_id to achieve the 
+            // desired deployment_nonce number and the correct address is returned.
+            deployed_address_create(self.address, U256::from(nonce)).into();
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,

@@ -51,7 +51,7 @@ fn test_l1_tx_execution() {
 
     let contract_code = read_test_contract();
     let account = &mut vm.rich_accounts[0];
-    let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 1 });
+    let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     let tx_data: TransactionData = deploy_tx.tx.clone().into();
 
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
