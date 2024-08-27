@@ -212,6 +212,7 @@ impl CommandReceiver {
         l2_block_env: L2BlockEnv,
         vm: &mut VmInstance<S, HistoryEnabled>,
     ) {
+        // println!("kl todo start next L2 block");
         vm.start_new_l2_block(l2_block_env);
     }
 

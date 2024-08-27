@@ -45,6 +45,7 @@ pub(super) fn apply_tx_to_memory(
     execution_mode: TxExecutionMode,
     start_new_l2_block: bool,
 ) -> usize {
+    // println!("kl todo apply tx to memory");
     let bootloader_description_offset =
         BOOTLOADER_TX_DESCRIPTION_OFFSET + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
     let tx_description_offset = TX_DESCRIPTION_OFFSET + tx_offset;

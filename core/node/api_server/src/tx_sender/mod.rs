@@ -402,6 +402,8 @@ impl TxSender {
 
         let stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        // println!("kl submit_tx 2");
+
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = self
             .0
@@ -415,6 +417,8 @@ impl TxSender {
                 computational_gas_limit,
             )
             .await;
+        // println!("kl submit_tx 3");
+
         stage_latency.observe();
 
         if let Err(err) = validation_result {
@@ -426,13 +430,17 @@ impl TxSender {
 
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
+        // println!("kl submit_tx 4");
+
         self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
+        // println!("kl submit_tx 5");
+
         let submission_res_handle = self
             .0
             .tx_sink
             .submit_tx(&tx, execution_output.metrics)
             .await?;
-
+        // println!("kl submit_tx 6");
         match submission_res_handle {
             L2TxSubmissionResult::AlreadyExecuted => {
                 let initiator_account = tx.initiator_account();
@@ -445,7 +453,7 @@ impl TxSender {
                 Err(SubmitTxError::NonceIsTooLow(
                     expected_nonce,
                     expected_nonce + self.0.sender_config.max_nonce_ahead,
-                    0, // tx.nonce().0,
+                    tx.nonce().0,
                 ))
             }
             L2TxSubmissionResult::Duplicate => {

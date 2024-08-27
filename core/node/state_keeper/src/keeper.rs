@@ -187,6 +187,7 @@ impl ZkSyncStateKeeper {
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
+            // println!("kl todo run_inner");
             self.output_handler
                 .handle_l1_batch(Arc::new(updates_manager))
                 .await

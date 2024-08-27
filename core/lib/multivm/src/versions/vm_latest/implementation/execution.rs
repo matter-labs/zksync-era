@@ -25,6 +25,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
+        // println!("kl todo inspect_inner");
         if let VmExecutionMode::OneTx = execution_mode {
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
@@ -37,6 +38,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             enable_refund_tracer,
             custom_pubdata_tracer,
         );
+        // println!("kl todo inspect_inner 2 {:?}", result.logs);
+
         result
     }
 
@@ -49,6 +52,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_refund_tracer: bool,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
+        println!("kl todo inspect_and_collect_results");
         let refund_tracers = with_refund_tracer
             .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(

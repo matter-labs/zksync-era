@@ -69,6 +69,7 @@ impl UpdatesManager {
 
         // We rely on the fact that fictive L2 block and L1 batch data is saved in the same transaction.
         let mut strategy = SealStrategy::Sequential(transaction);
+        // println!("kl todo seal l1 batch");
         l2_block_command
             .seal_inner(&mut strategy, true)
             .await
@@ -323,6 +324,7 @@ impl<'pool> SealStrategy<'pool> {
 impl L2BlockSealCommand {
     pub(super) async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let l2_block_number = self.l2_block.number;
+        println!("kl todo seal");
         self.seal_inner(&mut SealStrategy::Parallel(&pool), false)
             .await
             .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))

@@ -160,6 +160,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
     }
 
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        // println!("kl todo handle_l2_block");
         let command = updates_manager.seal_l2_block_command(
             self.l2_shared_bridge_addr,
             self.l2_native_token_vault_proxy_addr,
@@ -177,6 +178,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         self.wait_for_all_commands().await;
 
         let batch_number = updates_manager.l1_batch.number;
+        // println!("kl todo handle_l1_batch");
         updates_manager
             .seal_l1_batch(
                 self.pool.clone(),

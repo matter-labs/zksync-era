@@ -61,6 +61,8 @@ impl VmRunner {
         mut updates_manager: UpdatesManager,
         mut output_handler: Box<dyn StateKeeperOutputHandler>,
     ) -> anyhow::Result<()> {
+        println!("kl todo process_batch");
+
         let latency = METRICS.run_vm_time.start();
         for (i, l2_block) in l2_blocks.into_iter().enumerate() {
             if i > 0 {
@@ -78,6 +80,7 @@ impl VmRunner {
                     })?;
             }
             for tx in l2_block.txs {
+                println!("kl todo: tx: {:?}", tx.hash());
                 let exec_result = batch_executor
                     .execute_tx(tx.clone())
                     .await
