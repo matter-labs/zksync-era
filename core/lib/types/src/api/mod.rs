@@ -199,12 +199,24 @@ pub struct L2ToL1LogProof {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LeafAggProof {
-    pub batch_leaf_proof: Vec<H256>,
-    pub batch_leaf_proof_mask: U256,
-    pub chain_id_leaf_proof: Vec<H256>,
-    pub chain_id_leaf_proof_mask: U256,
+    pub leaf_chain_proof: LeafChainProof,
+    pub chain_agg_proof: ChainAggProof,
     pub local_msg_root: H256,
     pub sl_batch_number: U256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LeafChainProof {
+    pub batch_leaf_proof: Vec<H256>,
+    pub batch_leaf_proof_mask: U256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainAggProof {
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: U256,
 }
 
 impl LeafAggProof {
@@ -212,12 +224,21 @@ impl LeafAggProof {
         let mut encoded_result = vec![];
 
         let LeafAggProof {
-            batch_leaf_proof,
-            batch_leaf_proof_mask,
-            chain_id_leaf_proof_mask,
+            leaf_chain_proof,
+            chain_agg_proof,
             sl_batch_number,
             ..
         } = self;
+
+        let LeafChainProof {
+            batch_leaf_proof,
+            batch_leaf_proof_mask,
+        } = leaf_chain_proof;
+
+        let ChainAggProof {
+            chain_id_leaf_proof: _,
+            chain_id_leaf_proof_mask,
+        } = chain_agg_proof;
 
         let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
 
