@@ -58,8 +58,6 @@ pub(crate) struct Store {
     block_payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
     /// L2 block QCs received from consensus
     block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
-    /// L1 batch QCs received from consensus
-    batch_certificates: ctx::channel::UnboundedSender<attester::BatchQC>,
     /// Range of L2 blocks for which we have a QC persisted.
     blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
     /// Range of L1 batches we have persisted.
@@ -74,7 +72,6 @@ pub struct StoreRunner {
     blocks_persisted: PersistedBlockState,
     batches_persisted: sync::watch::Sender<storage::BatchStoreState>,
     block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
-    batch_certificates: ctx::channel::UnboundedReceiver<attester::BatchQC>,
 }
 
 impl Store {
@@ -99,13 +96,11 @@ impl Store {
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
         let batches_persisted = sync::watch::channel(batches_persisted).0;
         let (block_certs_send, block_certs_recv) = ctx::channel::unbounded();
-        let (batch_certs_send, batch_certs_recv) = ctx::channel::unbounded();
 
         Ok((
             Store {
                 pool: pool.clone(),
                 block_certificates: block_certs_send,
-                batch_certificates: batch_certs_send,
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
                 batches_persisted: batches_persisted.subscribe(),
@@ -115,7 +110,6 @@ impl Store {
                 blocks_persisted: PersistedBlockState(blocks_persisted),
                 batches_persisted,
                 block_certificates: block_certs_recv,
-                batch_certificates: batch_certs_recv,
             },
         ))
     }
@@ -172,7 +166,6 @@ impl StoreRunner {
             blocks_persisted,
             batches_persisted,
             mut block_certificates,
-            mut batch_certificates,
         } = self;
 
         let res = scope::run!(ctx, |ctx, s| async {
@@ -254,60 +247,6 @@ impl StoreRunner {
                         &batches_persisted,
                     )
                     .await?;
-                }
-            });
-
-            #[tracing::instrument(skip_all)]
-            async fn insert_batch_certificates_iteration(
-                ctx: &ctx::Ctx,
-                pool: &ConnectionPool,
-                batch_certificates: &mut ctx::channel::UnboundedReceiver<attester::BatchQC>,
-            ) -> ctx::Result<()> {
-                const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-
-                let cert = batch_certificates
-                    .recv(ctx)
-                    .instrument(tracing::info_span!("wait_for_batch_certificate"))
-                    .await?;
-
-                loop {
-                    use consensus_dal::InsertCertificateError as E;
-                    // Try to insert the cert.
-                    let res = pool
-                        .connection(ctx)
-                        .await?
-                        .insert_batch_certificate(ctx, &cert)
-                        .await;
-
-                    match res {
-                        Ok(()) => {
-                            break;
-                        }
-                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
-                            // The L1 batch isn't available yet.
-                            // We can wait until it's produced/received, or we could modify gossip
-                            // so that we don't even accept votes until we have the corresponding batch.
-                            ctx.sleep(POLL_INTERVAL)
-                                .instrument(tracing::info_span!("wait_for_batch"))
-                                .await?;
-                        }
-                        Err(InsertCertificateError::Inner(err)) => {
-                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
-                        }
-                        Err(InsertCertificateError::Canceled(err)) => {
-                            return Err(ctx::Error::Canceled(err))
-                        }
-                    }
-                }
-
-                Ok(())
-            }
-
-            s.spawn::<()>(async {
-                // Loop inserting batch certificates into storage
-                loop {
-                    insert_batch_certificates_iteration(ctx, &pool, &mut batch_certificates)
-                        .await?;
                 }
             });
 
@@ -524,39 +463,6 @@ impl storage::PersistentBatchStore for Store {
         self.batches_persisted.clone()
     }
 
-    /// Get the next L1 batch number which has to be signed by attesters.
-    async fn next_batch_to_attest(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(self
-            .conn(ctx)
-            .await?
-            .attestation_status(ctx)
-            .await
-            .wrap("next_batch_to_attest")?
-            .map(|s| s.next_batch_to_attest))
-    }
-
-    /// Get the L1 batch QC from storage with the highest number.
-    ///
-    /// This might have gaps before it. Until there is a way to catch up with missing
-    /// certificates by fetching from the main node, returning the last inserted one
-    /// is the best we can do.
-    async fn last_batch_qc(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<attester::BatchQC>> {
-        let Some(number) = self
-            .conn(ctx)
-            .await?
-            .get_last_batch_certificate_number(ctx)
-            .await
-            .wrap("get_last_batch_certificate_number")?
-        else {
-            return Ok(None);
-        };
-
-        self.get_batch_qc(ctx, number).await
-    }
-
     /// Returns the batch with the given number.
     async fn get_batch(
         &self,
@@ -568,54 +474,6 @@ impl storage::PersistentBatchStore for Store {
             .get_batch(ctx, number)
             .await
             .wrap("get_batch")
-    }
-
-    /// Returns the [attester::Batch] with the given number, which is the `message` that
-    /// appears in [attester::BatchQC], and represents the content that needs to be signed
-    /// by the attesters.
-    async fn get_batch_to_sign(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::Batch>> {
-        let mut conn = self.conn(ctx).await?;
-
-        let Some(hash) = conn.batch_hash(ctx, number).await.wrap("batch_hash()")? else {
-            return Ok(None);
-        };
-
-        let Some(genesis) = conn.genesis(ctx).await.wrap("genesis()")? else {
-            return Ok(None);
-        };
-
-        Ok(Some(attester::Batch {
-            number,
-            hash,
-            genesis: genesis.hash(),
-        }))
-    }
-
-    /// Returns the QC of the batch with the given number.
-    async fn get_batch_qc(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::BatchQC>> {
-        self.conn(ctx)
-            .await?
-            .batch_certificate(ctx, number)
-            .await
-            .wrap("batch_certificate")
-    }
-
-    /// Store the given QC in the storage.
-    ///
-    /// Storing a QC is allowed even if it creates a gap in the L1 batch history.
-    /// If we need the last batch QC that still needs to be signed then the queries need to look for gaps.
-    async fn store_qc(&self, _ctx: &ctx::Ctx, qc: attester::BatchQC) -> ctx::Result<()> {
-        // Storing asynchronously because we might get the QC before the L1 batch itself.
-        self.batch_certificates.send(qc);
-        Ok(())
     }
 
     /// Queue the batch to be persisted in storage.

@@ -3,7 +3,6 @@ use zksync_contracts::load_sys_contract_interface;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     ethabi,
-    event::L1MessengerL2ToL1Log,
     l2_to_l1_log::l2_to_l1_logs_tree_size,
     web3::keccak256,
     writes::{compress_state_diffs, StateDiffRecord},
@@ -11,6 +10,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
+use crate::utils::events::L1MessengerL2ToL1Log;
 /// Struct based on which the pubdata blob is formed
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PubdataInput {

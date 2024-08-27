@@ -14,7 +14,7 @@ mod drop;
 mod migrate;
 mod new_migration;
 mod prepare;
-mod reset;
+pub mod reset;
 mod setup;
 
 #[derive(Subcommand, Debug)]

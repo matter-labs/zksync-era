@@ -69,6 +69,8 @@ mod tests {
                     l1_batch_min_age_before_execute_seconds: Some(1000),
                     max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                     pubdata_sending_mode: PubdataSendingMode::Calldata,
+                    tx_aggregation_only_prove_and_execute: false,
+                    tx_aggregation_paused: false,
                     ignore_db_nonce: None,
                     priority_tree_start_index: None,
                 }),
@@ -133,6 +135,8 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
 
         "#;
