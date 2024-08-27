@@ -20,6 +20,7 @@ impl AvailWiringLayer {
 }
 
 #[derive(Debug, IntoContext)]
+#[context(crate = crate)]
 pub struct Output {
     pub client: DAClientResource,
 }
