@@ -217,7 +217,7 @@ class MainNode {
         while (true) {
             try {
                 console.log(`Web3 ${apiWeb3JsonRpcHttpUrl}`);
-                await tester.syncWallet.provider.getBlockNumber();
+                await tester.syncWallet.provider.getBridgehubContractAddress();
                 break;
             } catch (err) {
                 if (proc.exitCode != null) {
