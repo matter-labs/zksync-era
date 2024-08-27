@@ -159,7 +159,6 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            console.log('Main PID', this.childProcess.pid);
             let childs = [this.childProcess.pid];
             while (true) {
                 try {
