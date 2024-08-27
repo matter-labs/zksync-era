@@ -149,7 +149,7 @@ impl Account {
             // For L1Tx we usually use nonce 0
             // However, as we deploy multiple contracts, we increment the serial_id to achieve the 
             // desired deployment_nonce number and the correct address is returned.
-            deployed_address_create(self.address, U256::from(nonce)).into();
+            deployed_address_create(self.address, U256::from(nonce));
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,
