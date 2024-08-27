@@ -195,14 +195,14 @@ impl Account {
         .unwrap()
     }
 
-    pub fn get_l1_prank_tx(
+    pub fn get_l1_tx_custom_sender(
         &self,
         execute: Execute,
         serial_id: u64,
         prank_address: Address,
     ) -> Transaction {
         let max_fee_per_gas = U256::from(0u32);
-        let gas_limit = U256::from(20_000_000);
+        let gas_limit = U256::from(72_000_000);
         let factory_deps = execute.factory_deps;
         abi::Transaction::L1 {
             tx: abi::L2CanonicalTransaction {

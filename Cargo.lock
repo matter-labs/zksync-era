@@ -8910,7 +8910,6 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "thiserror",
- "tiny-keccak 2.0.2",
  "tokio",
  "tracing",
  "vise",

@@ -41,7 +41,6 @@ tracing.workspace = true
 vise.workspace = true
 
 [dev-dependencies]
-tiny-keccak.workspace = true
 tokio = { workspace = true, features = ["time"] }
 zksync_basic_types.workspace = true
 zksync_test_account.workspace = true

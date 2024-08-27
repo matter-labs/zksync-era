@@ -258,6 +258,7 @@ pub fn facet_cut(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn compile_initial_cut_hash(
     facet_cuts: Vec<FacetCut>,
     verifier_params: VerifierParams,
@@ -287,7 +288,7 @@ pub fn compile_initial_cut_hash(
             .parse()
             .unwrap(),
         protocol_version: U256::from(21),
-        admin: admin.into(),
+        admin,
         validator_timelock: "0x0000000000000000000000000000000000004234"
             .parse()
             .unwrap(),
