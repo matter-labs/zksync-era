@@ -29,14 +29,6 @@ fn get_function(contract: &Contract, name: &str) -> Function {
         .unwrap_or_else(|| panic!("{} function entry not found", name))
 }
 
-fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
-    contract
-        .functions
-        .get(name)
-        .cloned()
-        .map(|mut functions| functions.pop().unwrap())
-}
-
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
         let zksync_contract = hyperchain_contract();

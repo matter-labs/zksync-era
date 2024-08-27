@@ -5,7 +5,7 @@ use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, L2ChainId, SLChainId, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::u256_to_h256;
