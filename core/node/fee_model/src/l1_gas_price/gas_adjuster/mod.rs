@@ -86,7 +86,7 @@ impl GasAdjuster {
 
             anyhow::ensure!(
                 matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-                "Only relayed L2 calldata is available for L2 mode"
+                "Only relayed L2 calldata is available for L2 mode, got: {pubdata_sending_mode:?}"
             );
         } else {
             anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
