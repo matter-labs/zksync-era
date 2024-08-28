@@ -34,7 +34,7 @@ describe('genesis recovery', () => {
         ZKSYNC_ENV: externalNodeEnvProfile,
         EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
     };
-    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;;
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
