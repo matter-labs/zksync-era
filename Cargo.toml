@@ -107,7 +107,7 @@ categories = ["cryptography"]
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
-axum = { version = "0.7.5", features = ["multipart"] }
+axum = "0.7.5"
 backon = "0.4.4"
 bigdecimal = "0.4.5"
 bincode = "1"

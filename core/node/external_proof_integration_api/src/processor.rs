@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     extract::{Multipart, Path},
     http::header,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use zksync_basic_types::{
     basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
@@ -19,6 +19,32 @@ use zksync_prover_interface::{
 };
 
 use crate::error::ProcessorError;
+
+pub(crate) struct ProofGenerationDataResponse(ProofGenerationData);
+
+impl IntoResponse for ProofGenerationDataResponse {
+    fn into_response(self) -> Response {
+        let l1_batch_number = self.0.l1_batch_number;
+        let data = match bincode::serialize(&self.0) {
+            Ok(data) => data,
+            Err(err) => {
+                return ProcessorError::Serialization(err).into_response();
+            }
+        };
+
+        let headers = [
+            (header::CONTENT_TYPE, "application/octet-stream"),
+            (
+                header::CONTENT_DISPOSITION,
+                &format!(
+                    "attachment; filename=\"witness_inputs_{}.bin\"",
+                    l1_batch_number.0
+                ),
+            ),
+        ];
+        (headers, data).into_response()
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Processor {
@@ -53,15 +79,15 @@ impl Processor {
 
         let mut serialized_proof = vec![];
 
-        while let Some(mut data) = multipart.next_field().await.map_err(|err| {
-            tracing::error!("Failed to read field: {:?}", err);
-            ProcessorError::InvalidProof
-        })? {
-            while let Some(chunk) = data.chunk().await.map_err(|err| {
-                tracing::error!("Failed to read chunk: {:?}", err);
-                ProcessorError::InvalidProof
-            })? {
-                serialized_proof.extend_from_slice(&chunk);
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|_| ProcessorError::InvalidProof)?
+        {
+            if field.name() == Some("proof")
+                && field.content_type() == Some("application/octet-stream")
+            {
+                serialized_proof.extend_from_slice(&field.bytes().await.unwrap());
             }
         }
 
@@ -84,7 +110,9 @@ impl Processor {
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) async fn get_proof_generation_data(&mut self) -> impl IntoResponse {
+    pub(crate) async fn get_proof_generation_data(
+        &mut self,
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
         tracing::info!("Received request for proof generation data");
 
         let latest_available_batch = self
@@ -101,22 +129,7 @@ impl Processor {
             .await;
 
         match proof_generation_data {
-            Ok(data) => {
-                let data = bincode::serialize(&data)?;
-
-                let headers = [
-                    (header::CONTENT_TYPE, "application/octet-stream"),
-                    (
-                        header::CONTENT_DISPOSITION,
-                        &format!(
-                            "attachment; filename=\"witness_inputs_{}.bin\"",
-                            latest_available_batch.0
-                        ),
-                    ),
-                ];
-
-                Ok((headers, data).into_response())
-            }
+            Ok(data) => Ok(ProofGenerationDataResponse(data)),
             Err(err) => Err(err),
         }
     }
@@ -125,7 +138,7 @@ impl Processor {
     pub(crate) async fn proof_generation_data_for_existing_batch(
         &self,
         Path(l1_batch_number): Path<u32>,
-    ) -> impl IntoResponse {
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::info!(
             "Received request for proof generation data for batch: {:?}",
@@ -155,22 +168,7 @@ impl Processor {
             .await;
 
         match proof_generation_data {
-            Ok(data) => {
-                let data = bincode::serialize(&data)?;
-
-                let headers = [
-                    (header::CONTENT_TYPE, "text/bin; charset=utf-8"),
-                    (
-                        header::CONTENT_DISPOSITION,
-                        &format!(
-                            "attachment; filename=\"witness_inputs_{}.bin\"",
-                            latest_available_batch.0
-                        ),
-                    ),
-                ];
-
-                Ok((headers, data).into_response())
-            }
+            Ok(data) => Ok(ProofGenerationDataResponse(data)),
             Err(err) => Err(err),
         }
     }

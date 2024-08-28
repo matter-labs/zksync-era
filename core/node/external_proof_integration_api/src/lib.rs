@@ -1,13 +1,14 @@
 mod error;
 mod metrics;
+mod middleware;
 mod processor;
 
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::{Multipart, Path},
-    middleware,
+    extract::{Multipart, Path, Request},
+    middleware::Next,
     routing::{get, post},
     Router,
 };
@@ -17,7 +18,11 @@ use zksync_config::configs::external_proof_integration_api::ExternalProofIntegra
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 
-use crate::processor::Processor;
+use crate::{
+    metrics::{CallOutcome, Method},
+    middleware::MetricsMiddleware,
+    processor::Processor,
+};
 
 pub async fn run_server(
     config: ExternalProofIntegrationApiConfig,
@@ -27,7 +32,7 @@ pub async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
-    tracing::debug!("Starting external prover API server on {bind_address}");
+    tracing::info!("Starting external prover API server on {bind_address}");
     let app = create_router(blob_store, connection_pool, commitment_mode).await;
 
     let listener = tokio::net::TcpListener::bind(bind_address)
@@ -55,10 +60,25 @@ async fn create_router(
         Processor::new(blob_store.clone(), connection_pool.clone(), commitment_mode);
     let verify_proof_processor = processor.clone();
     let specific_proof_processor = processor.clone();
+
+    let middleware_factory = |method: Method| {
+        axum::middleware::from_fn(move |req: Request, next: Next| async move {
+            let middleware = MetricsMiddleware::new(method);
+            let response = next.run(req).await;
+            let outcome = match response.status().is_success() {
+                true => CallOutcome::Success,
+                false => CallOutcome::Failure,
+            };
+            middleware.observe(outcome);
+            response
+        })
+    };
+
     Router::new()
         .route(
             "/proof_generation_data",
-            get(move || async move { processor.get_proof_generation_data().await }),
+            get(move || async move { processor.get_proof_generation_data().await })
+                .layer(middleware_factory(Method::GetLatestProofGenerationData)),
         )
         .route(
             "/proof_generation_data/:l1_batch_number",
@@ -66,7 +86,8 @@ async fn create_router(
                 specific_proof_processor
                     .proof_generation_data_for_existing_batch(l1_batch_number)
                     .await
-            }),
+            })
+            .layer(middleware_factory(Method::GetSpecificProofGenerationData)),
         )
         .route(
             "/verify_proof/:l1_batch_number",
@@ -76,7 +97,7 @@ async fn create_router(
                         .verify_proof(l1_batch_number, multipart)
                         .await
                 },
-            ),
+            )
+            .layer(middleware_factory(Method::VerifyProof)),
         )
-        .layer(middleware::from_fn(metrics::call_outcome_tracker))
 }

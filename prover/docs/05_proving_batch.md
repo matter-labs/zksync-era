@@ -145,7 +145,7 @@ send the data to the endpoint `{address}/verify_batch/{batch_number}`.
 Example:
 
 ```shell
-curl -v  -F upload=@{path_to_proof_binary} {address_of_API}/verify_proof/{l1_batch_number}
+curl -v  -F proof=@{path_to_proof_binary} {address_of_API}/verify_proof/{l1_batch_number}
 ```
 
 API will respond with status 200 if the proof is valid and with the error message otherwise.
