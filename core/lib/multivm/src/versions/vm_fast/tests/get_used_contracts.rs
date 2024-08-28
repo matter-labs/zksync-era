@@ -144,7 +144,7 @@ fn execute_proxy_counter(gas: u32) -> (VmTester, U256, VmExecutionResultAndLogs)
     let increment = proxy_counter_abi.function("increment").unwrap();
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: deploy_tx.address,
+            contract_address: Some(deploy_tx.address),
             calldata: increment
                 .encode_input(&[Token::Uint(1.into()), Token::Uint(gas.into())])
                 .unwrap(),
