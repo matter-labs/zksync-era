@@ -41,8 +41,9 @@ pub(crate) fn mock_multicall_response() -> Token {
     Token::Array(vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![5u8; 32])]),
         Token::Tuple(vec![
             Token::Bool(true),
             Token::Bytes(
