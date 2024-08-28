@@ -9677,6 +9677,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
@@ -9760,6 +9761,7 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "hex",
  "serde",
  "thiserror",
