@@ -383,8 +383,14 @@ impl EthTxAggregator {
                 );
                 return Ok(());
             }
+            let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge, false)
+                .save_eth_tx(
+                    storage,
+                    &agg_op,
+                    contracts_are_pre_shared_bridge,
+                    is_gateway,
+                )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
@@ -556,9 +562,9 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match op_type {
-            AggregatedActionType::Commit => self.custom_commit_sender_addr,
-            _ => None,
+        let sender_addr = match (op_type, is_gateway) {
+            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =

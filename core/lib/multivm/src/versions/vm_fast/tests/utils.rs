@@ -130,3 +130,8 @@ pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
         "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
     (read_bytecode(PATH), load_contract(PATH))
 }
+
+pub(crate) fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}

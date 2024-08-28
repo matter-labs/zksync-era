@@ -20,7 +20,7 @@ Install `zk_inception` from Git:
 cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor --force
 ```
 
-Or manually build from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
+Or manually build from a local copy of the [ZKsync](https://github.com/matter-labs/zksync-era/) repository:
 
 ```bash
 ./bin/zkt
@@ -37,7 +37,7 @@ Foundry is used for deploying smart contracts. Pass flags for Foundry integratio
 
 ZK Stack allows you to create a new ecosystem or connect to an existing one. An ecosystem includes components like the
 BridgeHub, shared bridges, and state transition managers.
-[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html).
+[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges).
 
 #### Global Config
 
@@ -260,7 +260,7 @@ needed.
 
 ## ZK Supervisor
 
-Tools for developing zkSync.
+Tools for developing ZKsync.
 
 ### Database
 
@@ -296,7 +296,7 @@ Possible commands:
 
 ### Tests
 
-Run zkSync tests:
+Run ZKsync tests:
 
 ```bash
 zk_supervisor test
@@ -342,7 +342,7 @@ Lint code:
 zks lint
 ```
 
-By default, this command runs the linter on all files. To target specific file types, use the `--extension` option.
+By default, this command runs the linter on all files. To target specific file types, use the `--target` option.
 Supported extensions include:
 
 - `rs`: Rust files.
@@ -350,3 +350,4 @@ Supported extensions include:
 - `sol`: Solidity files.
 - `js`: JavaScript files.
 - `ts`: TypeScript files.
+- `contracts`: files in `contracts` directory.
