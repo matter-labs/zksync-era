@@ -4,8 +4,13 @@ use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
-pub fn up(shell: &Shell, docker_compose_file: &str) -> anyhow::Result<()> {
-    Ok(Cmd::new(cmd!(shell, "docker compose -f {docker_compose_file} up -d")).run()?)
+pub fn up(shell: &Shell, docker_compose_file: &str, detach: bool) -> anyhow::Result<()> {
+    let args = if detach { vec!["-d"] } else { vec![] };
+    Ok(Cmd::new(cmd!(
+        shell,
+        "docker compose -f {docker_compose_file} up {args...}"
+    ))
+    .run()?)
 }
 
 pub fn down(shell: &Shell, docker_compose_file: &str) -> anyhow::Result<()> {

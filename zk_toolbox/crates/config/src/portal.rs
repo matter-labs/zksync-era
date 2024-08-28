@@ -5,28 +5,27 @@ use types::TokenInfo;
 use xshell::Shell;
 
 use crate::{
-    consts::{LOCAL_CONFIGS_PATH, PORTAL_CONFIG_FILE},
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    consts::{
+        LOCAL_APPS_PATH, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH,
+        PORTAL_CHAIN_CONFIG_FILE, PORTAL_RUNTIME_CONFIG_FILE,
+    },
+    traits::{ReadConfig, SaveConfig, ZkToolboxConfig},
 };
 
+/// Portal configuration file. This file is auto-generated during the "portal" command
+/// and is used to inject the runtime configuration into the portal app.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PortalRuntimeConfig {
     pub node_type: String,
-    pub hyperchains_config: HyperchainsConfig,
+    pub hyperchains_config: Vec<PortalChainConfig>,
 }
 
+/// Portal chain configuration file. This file is created on the chain level
+/// and is used to configure the portal for a specific chain. It serves as a building block for
+/// the portal runtime config.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HyperchainsConfig(pub Vec<HyperchainConfig>);
-
-impl HyperchainsConfig {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HyperchainConfig {
+pub struct PortalChainConfig {
     pub network: NetworkConfig,
     pub tokens: Vec<TokenConfig>,
 }
@@ -35,8 +34,8 @@ pub struct HyperchainConfig {
 #[serde(rename_all = "camelCase")]
 pub struct NetworkConfig {
     pub id: u64,         // L2 Network ID
-    pub key: String,     // L2 Network key
-    pub name: String,    // L2 Network name
+    pub key: String,     // L2 Network key (chain name used during the initialization)
+    pub name: String,    // L2 Network name (displayed in the app dropdown)
     pub rpc_url: String, // L2 RPC URL
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_explorer_url: Option<String>, // L2 Block Explorer URL
@@ -82,15 +81,19 @@ pub struct TokenConfig {
 }
 
 impl PortalRuntimeConfig {
+    pub fn new(portal_chain_configs: Vec<PortalChainConfig>) -> Self {
+        Self {
+            node_type: "hyperchain".to_string(),
+            hyperchains_config: portal_chain_configs,
+        }
+    }
+
     pub fn get_config_path(ecosystem_base_path: &Path) -> PathBuf {
         ecosystem_base_path
             .join(LOCAL_CONFIGS_PATH)
-            .join(PORTAL_CONFIG_FILE)
+            .join(LOCAL_GENERATED_PATH)
+            .join(PORTAL_RUNTIME_CONFIG_FILE)
     }
-}
-
-impl FileConfigWithDefaultName for PortalRuntimeConfig {
-    const FILE_NAME: &'static str = PORTAL_CONFIG_FILE;
 }
 
 impl SaveConfig for PortalRuntimeConfig {
@@ -122,3 +125,16 @@ impl ReadConfig for PortalRuntimeConfig {
         Ok(config)
     }
 }
+
+impl PortalChainConfig {
+    pub fn get_config_path(ecosystem_base_path: &Path, chain_name: &str) -> PathBuf {
+        ecosystem_base_path
+            .join(LOCAL_CHAINS_PATH)
+            .join(chain_name)
+            .join(LOCAL_CONFIGS_PATH)
+            .join(LOCAL_APPS_PATH)
+            .join(PORTAL_CHAIN_CONFIG_FILE)
+    }
+}
+
+impl ZkToolboxConfig for PortalChainConfig {}

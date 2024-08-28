@@ -30,11 +30,26 @@ pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compo
 pub const ERA_OBSERBAVILITY_DIR: &str = "era-observability";
 /// Era observability repo link
 pub const ERA_OBSERBAVILITY_GIT_REPO: &str = "https://github.com/matter-labs/era-observability";
+pub(crate) const LOCAL_APPS_PATH: &str = "apps/";
+pub(crate) const LOCAL_CHAINS_PATH: &str = "chains/";
 pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
+pub(crate) const LOCAL_GENERATED_PATH: &str = ".generated/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
 
-/// Name of portal config file
-pub const PORTAL_CONFIG_FILE: &str = "portal.config.js";
+/// Name of apps config file
+pub const APPS_CONFIG_FILE: &str = "apps.yaml";
+/// Name of portal runtime config file (auto-generated)
+pub const PORTAL_RUNTIME_CONFIG_FILE: &str = "portal.config.js";
+/// Name of chain-level portal config JSON file
+pub const PORTAL_CHAIN_CONFIG_FILE: &str = "portal.config.json";
+/// Name of explorer runtime config file (auto-generated)
+pub const EXPLORER_RUNTIME_CONFIG_FILE: &str = "explorer.config.js";
+/// Name of chain-level explorer config JSON file
+pub const EXPLORER_CHAIN_CONFIG_FILE: &str = "explorer.config.json";
+/// Name of explorer docker compose file (auto-generated)
+pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
+/// Name of chain-level explorer backend docker compose file
+pub const EXPLORER_BACKEND_DOCKER_COMPOSE_FILE: &str = "explorer-backend-docker-compose.yml";
 
 /// Path to ecosystem contacts
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";

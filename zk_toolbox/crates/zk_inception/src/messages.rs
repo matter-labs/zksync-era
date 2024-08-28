@@ -194,6 +194,14 @@ pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide server database name for chain {chain_name}")
 }
 
+pub(super) fn msg_explorer_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide explorer database url for chain {chain_name}")
+}
+
+pub(super) fn msg_explorer_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide explorer database name for chain {chain_name}")
+}
+
 /// Chain initialize bridges related messages
 pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contracts";
 
@@ -226,12 +234,23 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Portal related messages
-pub(super) const MSG_PORTAL_CONFIG_IS_EMPTY_ERR: &str = "Hyperchains config is empty";
+pub(super) const MSG_PORTAL_FAILED_TO_CREATE_ANY_CHAIN_CONFIG_ERR: &str =
+    "Failed to create any valid hyperchain config";
 pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
 pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
     "Failed to run portal docker container";
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
+}
+
+/// Explorer related messages
+pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop explorer database";
+pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {
+    format!("Initializing explorer database for {chain} chain")
+}
+pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
+    format!("Starting explorer on http://{host}:{port}")
 }
 
 /// Forge utils related messages
