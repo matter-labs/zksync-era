@@ -14,9 +14,8 @@
 use zksync_types::Transaction;
 
 use crate::{
-    storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
-    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
-    VmMemoryMetrics,
+    storage::StoragePtr, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
+    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {
@@ -37,10 +36,6 @@ pub trait VmInterface {
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
-
-    /// Get bootloader memory.
-    // FIXME: remove as well
-    fn get_bootloader_memory(&self) -> BootloaderMemory;
 
     /// Get last transaction's compressed bytecodes.
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo>;

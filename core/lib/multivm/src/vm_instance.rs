@@ -4,9 +4,9 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     versions::shadow::ShadowVm,
@@ -68,10 +68,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         dispatch_vm!(self.inspect(dispatcher.into(), execution_mode))
-    }
-
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        dispatch_vm!(self.get_bootloader_memory())
     }
 
     /// Get compressed bytecodes of the last executed transaction

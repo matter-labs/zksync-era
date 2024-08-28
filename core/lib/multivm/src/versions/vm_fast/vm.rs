@@ -30,7 +30,7 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
+        storage::ReadStorage, BytecodeCompressionError, CompressedBytecodeInfo,
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
         Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
         VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
@@ -559,10 +559,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         (compression_result, result)
     }
 
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        self.bootloader_state.bootloader_memory()
-    }
-
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
@@ -582,7 +578,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     fn finish_batch(&mut self) -> FinishedL1Batch {
         let result = self.execute(VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
+        let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,

@@ -6,9 +6,9 @@ use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_latest::HistoryEnabled,
     vm_refunds_enhancement::{
@@ -85,11 +85,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.inspect_inner(dispatcher, execution_mode)
     }
 
-    /// Get current state of bootloader memory.
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        self.bootloader_state.bootloader_memory()
-    }
-
     /// Get compressed bytecodes of the last executed transaction
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         self.bootloader_state.get_last_tx_compressed_bytecodes()
@@ -132,7 +127,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn finish_batch(&mut self) -> FinishedL1Batch {
         let result = self.execute(VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
+        let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,

@@ -9,10 +9,9 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_fast,
 };
@@ -78,13 +77,6 @@ where
             .with_context(|| format!("executing VM with mode {execution_mode:?}"))
             .unwrap();
         main_result
-    }
-
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        let main_memory = self.main.get_bootloader_memory();
-        let shadow_memory = self.shadow.get_bootloader_memory();
-        DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory).unwrap();
-        main_memory
     }
 
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {

@@ -7,10 +7,9 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
@@ -74,10 +73,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
             VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
-    }
-
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        vec![]
     }
 
     fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
