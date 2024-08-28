@@ -48,7 +48,7 @@ jobs:
           compression-level: 0
 
   tests:
-    runs-on: [matterlabs-ci-runner-highmem-long]
+    runs-on: [matterlabs-ci-runner-high-performance]
     needs: [build]
 
     steps:
