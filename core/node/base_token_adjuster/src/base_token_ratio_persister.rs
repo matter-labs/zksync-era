@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, ToPrimitive};
+use bigdecimal::{BigDecimal, ToPrimitive, Zero};
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -136,14 +136,9 @@ impl BaseTokenRatioPersister {
         if let Some(ref prev_ratio) = *self.last_persisted_l1_ratio.read().unwrap() {
             let current_ratio = BigDecimal::from(new_ratio.numerator.get())
                 .div(BigDecimal::from(new_ratio.denominator.get()));
-            let deviation = (prev_ratio - current_ratio.clone())
-                .abs()
-                .div(prev_ratio.clone())
-                .mul(BigDecimal::from(100))
-                .to_u32()
-                .unwrap();
+            let deviation = Self::compute_deviation(prev_ratio.clone(), current_ratio);
 
-            if deviation < self.config.l1_update_deviation_percentage {
+            if deviation < BigDecimal::from(self.config.l1_update_deviation_percentage) {
                 return Ok(());
             }
         }
@@ -357,5 +352,43 @@ impl BaseTokenRatioPersister {
             "Unable to retrieve `setTokenMultiplier` transaction status in {} attempts",
             max_attempts
         )))
+    }
+
+    fn compute_deviation(prev: BigDecimal, next: BigDecimal) -> BigDecimal {
+        if prev.eq(&BigDecimal::zero()) {
+            return BigDecimal::from(100);
+        }
+
+        (prev.clone() - next.clone())
+            .abs()
+            .div(prev.clone())
+            .mul(BigDecimal::from(100))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bigdecimal::{BigDecimal, Zero};
+
+    use crate::BaseTokenRatioPersister;
+
+    #[test]
+    fn test_compute_deviation() {
+        let prev_ratio = BigDecimal::from(4);
+        let current_ratio = BigDecimal::from(5);
+        let deviation =
+            BaseTokenRatioPersister::compute_deviation(prev_ratio.clone(), current_ratio.clone());
+        assert_eq!(deviation, BigDecimal::from(25));
+
+        let deviation = BaseTokenRatioPersister::compute_deviation(current_ratio, prev_ratio);
+        assert_eq!(deviation, BigDecimal::from(20));
+    }
+
+    #[test]
+    fn test_compute_deviation_when_prev_is_zero() {
+        let prev_ratio = BigDecimal::zero();
+        let current_ratio = BigDecimal::from(1).div(BigDecimal::from(2));
+        let deviation = BaseTokenRatioPersister::compute_deviation(prev_ratio, current_ratio);
+        assert_eq!(deviation, BigDecimal::from(100));
     }
 }
