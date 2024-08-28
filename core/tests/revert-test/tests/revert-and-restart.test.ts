@@ -88,6 +88,7 @@ describe('Block reverting test', function () {
 
     const pathToHome = path.join(__dirname, '../../../..');
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
@@ -138,6 +139,9 @@ describe('Block reverting test', function () {
     });
 
     step('run server and execute some transactions', async () => {
+        // Make sure server isn't running.
+        await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
+
         // Run server in background.
         serverProcess = runServerInBackground({
             components: [components],
@@ -321,7 +325,7 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        if (!fileConfig.loadFromFile || !process.env.NO_KILL) {
+        if (autoKill) {
             await utils.exec('killall zksync_server').catch(ignoreError);
         }
     });

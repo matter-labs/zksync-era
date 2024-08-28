@@ -150,7 +150,7 @@ async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) {}
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) { }
 
     public async terminate() {
         try {
@@ -235,7 +235,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) { }
 
     public async terminate() {
         try {
@@ -327,6 +327,8 @@ describe('Block reverting test', function () {
     let mainNode: MainNode;
     let extNode: ExtNode;
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+
     before('initialize test', async () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
@@ -363,12 +365,13 @@ describe('Block reverting test', function () {
             compileBinaries();
         }
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
     });
 
     step('run', async () => {
-        if (!fileConfig.loadFromFile || !process.env.NO_KILL) {
+        if (autoKill) {
             console.log('Make sure that nodes are not running');
             await ExtNode.terminateAll();
             await MainNode.terminateAll();

@@ -34,6 +34,7 @@ describe('genesis recovery', () => {
         ZKSYNC_ENV: externalNodeEnvProfile,
         EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
     };
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;;
 
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
@@ -72,7 +73,7 @@ describe('genesis recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        if (!fileConfig.loadFromFile || !process.env.NO_KILL) {
+        if (autoKill) {
             await NodeProcess.stopAll('KILL');
         }
     });
