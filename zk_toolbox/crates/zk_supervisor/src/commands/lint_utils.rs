@@ -2,7 +2,7 @@ use clap::ValueEnum;
 use strum::EnumIter;
 use xshell::{cmd, Shell};
 
-const IGNORED_DIRS: [&str; 18] = [
+const IGNORED_DIRS: [&str; 19] = [
     "target",
     "node_modules",
     "volumes",
@@ -22,6 +22,7 @@ const IGNORED_DIRS: [&str; 18] = [
     "cache-zk",
     // Ignore directories with OZ and forge submodules.
     "contracts/l1-contracts/lib",
+    "contracts/lib",
 ];
 
 const IGNORED_FILES: [&str; 4] = [
