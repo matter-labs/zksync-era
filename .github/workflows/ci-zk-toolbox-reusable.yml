@@ -163,13 +163,13 @@ jobs:
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain era &> recovery_gen_rollup.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> recovery_gen_rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain chain_custom_token &> recovery_gen_custom_token.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain chain_custom_token &> recovery_gen_custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -203,13 +203,13 @@ jobs:
           ci_run killall -INT zksync_server
           ci_run killall -INT zksync_external_node
           
-          ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain chain_validium &> revert_validium.log &
+          ci_run zk_supervisor test revert --no-deps --no-kill --ignore-prerequisites --chain chain_validium &> revert_validium.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain era &> revert_rollup.log &
+          ci_run zk_supervisor test revert --no-deps --no-kill --external-node --ignore-prerequisites --chain era &> revert_rollup.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_custom_token &> revert_custom_token.log &
+          ci_run zk_supervisor test revert --no-deps --no-kill --external-node --ignore-prerequisites --chain chain_custom_token &> revert_custom_token.log &
           PID3=$!
           
           wait $PID1

@@ -321,7 +321,7 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        if (process.env.AUTO_KILL) {
+        if (!process.env.NO_KILL) {
             await utils.exec('killall zksync_server').catch(ignoreError);
         }
     });
