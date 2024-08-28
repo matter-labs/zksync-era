@@ -1,7 +1,7 @@
 use zksync_types::U256;
 
 use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         tests::{

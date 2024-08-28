@@ -36,7 +36,7 @@ pub use crate::{
         },
         tracer,
     },
-    vm::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
+    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled},
 };
 
 pub mod storage;

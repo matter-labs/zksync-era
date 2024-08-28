@@ -100,7 +100,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             self.system_env.execution_mode.glue_into(),
         );
         // Bytecode compression isn't supported
-        (Ok(vec![]), self.execute(VmExecutionMode::OneTx))
+        (Ok(vec![]), self.inspect((), VmExecutionMode::OneTx))
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

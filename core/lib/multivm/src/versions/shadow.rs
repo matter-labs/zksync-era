@@ -51,18 +51,6 @@ where
         self.main.push_transaction(tx);
     }
 
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        let main_result = self.main.execute(execution_mode);
-        let shadow_result = self.shadow.execute(execution_mode);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result, &shadow_result);
-        errors
-            .into_result()
-            .with_context(|| format!("executing VM with mode {execution_mode:?}"))
-            .unwrap();
-        main_result
-    }
-
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,

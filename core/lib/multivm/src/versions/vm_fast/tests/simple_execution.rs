@@ -1,5 +1,5 @@
 use crate::{
-    interface::{ExecutionResult, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_fast::tests::tester::{TxType, VmTesterBuilder},
 };
 

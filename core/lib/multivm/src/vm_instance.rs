@@ -55,12 +55,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatch_vm!(self.push_transaction(tx))
     }
 
-    /// Execute the batch without stops after each tx.
-    /// This method allows to execute the part  of the VM cycle after executing all txs.
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        dispatch_vm!(self.execute(execution_mode))
-    }
-
     /// Execute next transaction with custom tracers
     fn inspect(
         &mut self,

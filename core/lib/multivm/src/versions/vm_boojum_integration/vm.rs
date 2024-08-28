@@ -127,7 +127,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
+        let result = self.inspect(TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

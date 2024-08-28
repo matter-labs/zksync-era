@@ -572,7 +572,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
+        let result = self.inspect((), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
