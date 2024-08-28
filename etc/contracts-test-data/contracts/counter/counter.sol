@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 contract Counter {
     uint256 value;
 
-    function increment(uint256 x) public {
+    function increment(uint256 x) external {
         value += x;
     }
 

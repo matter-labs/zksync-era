@@ -20,7 +20,7 @@ Install `zk_inception` from Git:
 cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor --force
 ```
 
-Or manually build from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
+Or manually build from a local copy of the [ZKsync](https://github.com/matter-labs/zksync-era/) repository:
 
 ```bash
 ./bin/zkt
@@ -260,7 +260,7 @@ needed.
 
 ## ZK Supervisor
 
-Tools for developing zkSync.
+Tools for developing ZKsync.
 
 ### Database
 
@@ -296,7 +296,7 @@ Possible commands:
 
 ### Tests
 
-Run zkSync tests:
+Run ZKsync tests:
 
 ```bash
 zk_supervisor test
