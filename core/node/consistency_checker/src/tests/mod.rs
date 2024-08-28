@@ -299,6 +299,7 @@ impl SaveAction<'_> {
                         AggregatedActionType::Commit,
                         commit_tx_hash,
                         chrono::Utc::now(),
+                        None,
                     )
                     .await
                     .unwrap();

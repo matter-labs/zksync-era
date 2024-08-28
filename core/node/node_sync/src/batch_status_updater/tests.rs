@@ -8,7 +8,7 @@ use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
-use zksync_types::{Address, ProtocolVersionId};
+use zksync_types::L2BlockNumber;
 
 use super::*;
 use crate::metrics::L1BatchStage;
@@ -104,11 +104,11 @@ impl L1BatchStagesMap {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_block_details(L2BlockNumber(number.0))
+                .get_l1_batch_details(L1BatchNumber(number.0))
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));
-            let expected_details = mock_block_details(number.0, stage);
+            let expected_details = mock_batch_details(number.0, stage);
 
             assert_eq!(
                 local_details.base.commit_tx_hash,
@@ -119,12 +119,20 @@ impl L1BatchStagesMap {
                 expected_details.base.committed_at
             );
             assert_eq!(
+                local_details.base.commit_chain_id,
+                expected_details.base.commit_chain_id,
+            );
+            assert_eq!(
                 local_details.base.prove_tx_hash,
                 expected_details.base.prove_tx_hash
             );
             assert_eq!(
                 local_details.base.proven_at,
                 expected_details.base.proven_at
+            );
+            assert_eq!(
+                local_details.base.prove_chain_id,
+                expected_details.base.prove_chain_id,
             );
             assert_eq!(
                 local_details.base.execute_tx_hash,
@@ -134,14 +142,17 @@ impl L1BatchStagesMap {
                 local_details.base.executed_at,
                 expected_details.base.executed_at
             );
+            assert_eq!(
+                local_details.base.execute_chain_id,
+                expected_details.base.execute_chain_id,
+            );
         }
     }
 }
 
-fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
-    api::BlockDetails {
-        number: L2BlockNumber(number),
-        l1_batch_number: L1BatchNumber(number),
+fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
+    api::L1BatchDetails {
+        number: L1BatchNumber(number),
         base: api::BlockDetailsBase {
             timestamp: number.into(),
             l1_tx_count: 0,
@@ -151,18 +162,19 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
             commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
+            commit_chain_id: Some(SLChainId(0)),
             prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
             proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
+            prove_chain_id: Some(SLChainId(0)),
             execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
+            execute_chain_id: Some(SLChainId(0)),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         },
-        operator_address: Address::zero(),
-        protocol_version: Some(ProtocolVersionId::default()),
     }
 }
 
@@ -177,23 +189,15 @@ impl From<L1BatchStagesMap> for MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn resolve_l1_batch_to_l2_block(
+    async fn batch_details(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<L2BlockNumber>> {
-        let map = self.0.lock().await;
-        Ok(map.get(number).is_some().then_some(L2BlockNumber(number.0)))
-    }
-
-    async fn block_details(
-        &self,
-        number: L2BlockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
+    ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
         let map = self.0.lock().await;
         let Some(stage) = map.get(L1BatchNumber(number.0)) else {
             return Ok(None);
         };
-        Ok(Some(mock_block_details(number.0, stage)))
+        Ok(Some(mock_batch_details(number.0, stage)))
     }
 }
 
@@ -202,6 +206,7 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
         number,
         l1_tx_hash: H256::zero(),
         happened_at: DateTime::default(),
+        tx_chain_id: Some(SLChainId(0)),
     }
 }
 

@@ -6,7 +6,7 @@ use zksync_db_connection::{connection::Connection, interpolate_query, match_quer
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, H256, U256,
+    Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -464,6 +464,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
+        tx_chain_id: Option<SLChainId>,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -489,10 +490,11 @@ impl EthSenderDal<'_, '_> {
 
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
-                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, chain_id, contract_address, predicted_gas_cost, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, $2, '', 0, now(), now()) \
                 RETURNING id",
-                tx_type.to_string()
+                tx_type.to_string(),
+                tx_chain_id.map(|chain_id| chain_id.0 as i64)
             )
             .fetch_one(transaction.conn())
             .await?;

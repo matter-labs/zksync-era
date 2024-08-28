@@ -291,7 +291,7 @@ impl ExternalNodeBuilder {
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
 
-        if self.config.optional.gateway_client_url.is_some() {
+        if self.config.optional.gateway_url.is_some() {
             layer = layer.with_migration_details(
                 self.config
                     .remote
@@ -329,7 +329,7 @@ impl ExternalNodeBuilder {
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
         let mut layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
 
-        if self.config.optional.gateway_client_url.is_some() {
+        if self.config.optional.gateway_url.is_some() {
             layer = layer.with_migration_details(
                 self.config
                     .remote
