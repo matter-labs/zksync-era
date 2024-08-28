@@ -41,20 +41,16 @@ function parseSuggestedValues(suggestedValuesString: string): {
     };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams | undefined) {
-    if (serverProcess === undefined) {
-        await utils.exec('killall -9 zksync_server');
-    } else {
-        let child = serverProcess.pid;
-        while (true) {
-            try {
-                child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-            } catch (e) {
-                break;
-            }
+async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams) {
+    let child = serverProcess.pid;
+    while (true) {
+        try {
+            child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+        } catch (e) {
+            break;
         }
-        await utils.exec(`kill -9 ${child}`);
     }
+    await utils.exec(`kill -9 ${child}`);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -92,6 +88,7 @@ describe('Block reverting test', function () {
 
     const pathToHome = path.join(__dirname, '../../../..');
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
@@ -138,12 +135,14 @@ describe('Block reverting test', function () {
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
+        logs = fs.createWriteStream(`revert_${fileConfig.chain}.log`, { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        await killServerAndWaitForShutdown(tester, serverProcess).catch(ignoreError);
+        if (autoKill) {
+            // Make sure server isn't running.
+            await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
+        }
 
         // Run server in background.
         serverProcess = runServerInBackground({
@@ -215,7 +214,7 @@ describe('Block reverting test', function () {
         blocksCommittedBeforeRevert = blocksCommitted;
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester, serverProcess);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
     });
 
     step('revert blocks', async () => {
@@ -311,7 +310,7 @@ describe('Block reverting test', function () {
         await checkedRandomTransfer(alice, 1n);
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester, serverProcess);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
 
         // Run again.
         serverProcess = runServerInBackground({
@@ -328,7 +327,9 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        await utils.exec('killall zksync_server').catch(ignoreError);
+        if (autoKill) {
+            await utils.exec('killall zksync_server').catch(ignoreError);
+        }
     });
 });
 

@@ -169,6 +169,8 @@ class MainNode {
     }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_server');
@@ -201,7 +203,9 @@ class MainNode {
         if (enableConsensus) {
             components += ',consensus';
         }
-
+        if (baseTokenAddress != zksync.utils.LEGACY_ETH_ADDRESS) {
+            components += ',base_token_ratio_persister';
+        }
         let proc = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
@@ -250,6 +254,8 @@ class ExtNode {
     }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_external_node');
@@ -321,6 +327,8 @@ describe('Block reverting test', function () {
     let mainNode: MainNode;
     let extNode: ExtNode;
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+
     before('initialize test', async () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
@@ -357,14 +365,17 @@ describe('Block reverting test', function () {
             compileBinaries();
         }
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
     });
 
     step('run', async () => {
-        console.log('Make sure that nodes are not running');
-        await ExtNode.terminateAll();
-        await MainNode.terminateAll();
+        if (autoKill) {
+            console.log('Make sure that nodes are not running');
+            await ExtNode.terminateAll();
+            await MainNode.terminateAll();
+        }
 
         console.log('Start main node');
         mainNode = await MainNode.spawn(

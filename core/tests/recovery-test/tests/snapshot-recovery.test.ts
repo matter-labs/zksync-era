@@ -93,6 +93,8 @@ describe('snapshot recovery', () => {
         EN_EXPERIMENTAL_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER: '4'
     };
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
@@ -136,7 +138,9 @@ describe('snapshot recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        await NodeProcess.stopAll('KILL');
+        if (autoKill) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     before('create test wallet', async () => {
