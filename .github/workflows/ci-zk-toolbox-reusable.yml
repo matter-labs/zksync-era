@@ -125,7 +125,7 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain chain_validium &> integration_validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --verbose --chain chain_custom_token &> integration_custom_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain chain_custom_token &> integration_custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -200,9 +200,18 @@ jobs:
 
       - name: Run revert tests (external node)
         run: |
-          ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain chain_validium &> revert_validium.log
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain era &> revert_rollup.log
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --verbose --chain chain_custom_token &> revert_custom_token.log
+          ci_run zk_supervisor test revert --no-deps --ignore-prerequisites --chain chain_validium &> revert_validium.log &
+          PID1=$!
+
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain era &> revert_rollup.log &
+          PID2=$!
+
+          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain chain_custom_token &> revert_custom_token.log &
+          PID3=$!
+          
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
 
       # Upgrade tests should run last, because as soon as they 
