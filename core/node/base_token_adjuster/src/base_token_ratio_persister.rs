@@ -368,6 +368,8 @@ impl BaseTokenRatioPersister {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Div;
+
     use bigdecimal::{BigDecimal, Zero};
 
     use crate::BaseTokenRatioPersister;
