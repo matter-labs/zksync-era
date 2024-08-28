@@ -23,7 +23,6 @@ enum FastVmMode {
   OLD = 0;
   NEW = 1;
   SHADOW = 2;
-  SHADOW_LENIENT = 3;
 }
 
 // Experimental VM configuration

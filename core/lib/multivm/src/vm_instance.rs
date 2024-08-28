@@ -265,7 +265,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         storage,
                     ))
                 }
-                FastVmMode::Shadow | FastVmMode::ShadowLenient => {
+                FastVmMode::Shadow => {
                     let vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
                     Self::ShadowedVmFast(vm)
                 }

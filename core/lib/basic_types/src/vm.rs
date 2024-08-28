@@ -32,12 +32,9 @@ pub enum FastVmMode {
     /// Run only the old VM.
     #[default]
     Old,
-    /// Run only the new Vm.
+    /// Run only the new VM.
     New,
     /// Run both the new and old VM and compare their outputs for each transaction execution.
     /// The VM will panic on divergence.
     Shadow,
-    /// Run both the new and old VM and compare their outputs for each transaction execution.
-    /// The new VM will get dropped on divergence.
-    ShadowLenient, // FIXME: remove
 }
