@@ -6,9 +6,7 @@ vulnerability = "deny"
 unmaintained = "warn"
 yanked = "warn"
 notice = "warn"
-ignore = [
-    "RUSTSEC-2024-0363", # allows sqlx@0.8.0 until fix is released, more here -- https://github.com/launchbadge/sqlx/issues/3440
-]
+ignore = []
 
 [licenses]
 unlicensed = "deny"

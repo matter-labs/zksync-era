@@ -940,6 +940,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             polling_interval_ms: self.sample(rng),
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
+            use_dummy_inclusion_data: self.sample(rng),
         }
     }
 }
@@ -1045,6 +1046,8 @@ impl Distribution<configs::base_token_adjuster::BaseTokenAdjusterConfig> for Enc
             l1_receipt_checking_sleep_ms: self.sample(rng),
             l1_tx_sending_max_attempts: self.sample(rng),
             l1_tx_sending_sleep_ms: self.sample(rng),
+            price_fetching_max_attempts: self.sample(rng),
+            price_fetching_sleep_ms: self.sample(rng),
             halt_on_error: self.sample(rng),
         }
     }
