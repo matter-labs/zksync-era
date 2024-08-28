@@ -1,6 +1,7 @@
 #![doc = include_str!("../doc/TeeProofGenerationDal.md")]
 use std::time::Duration;
 
+use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -19,11 +20,13 @@ pub struct TeeProofGenerationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-#[derive(Debug, sqlx::Type)]
-#[sqlx(type_name = "tee_proofs_job_status")]
+#[derive(Debug, EnumString, Display)]
 enum TeeProofGenerationJobStatus {
+    #[strum(serialize = "unpicked")]
     Unpicked,
+    #[strum(serialize = "picked_by_prover")]
     PickedByProver,
+    #[strum(serialize = "generated")]
     Generated,
 }
 
