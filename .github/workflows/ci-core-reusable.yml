@@ -58,13 +58,14 @@ jobs:
           ci_run zk db setup
           ci_run zk compiler all
           ci_run zk contract build
+          ci_run ./bin/zkt
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: |
-          ci_run zk test rust
+          ci_run zk_supervisor test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
