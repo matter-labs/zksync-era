@@ -18,6 +18,7 @@ async fn prettier(shell: Shell, target: Target, check: bool) -> anyhow::Result<(
     let files = get_unignored_files(&shell, &target)?;
 
     if files.is_empty() {
+        logger::info(format!("No files for {target} found"));
         return Ok(());
     }
 
