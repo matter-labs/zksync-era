@@ -94,6 +94,7 @@ describe('Block reverting test', function () {
     let logs: fs.FileHandle;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
@@ -144,7 +145,7 @@ describe('Block reverting test', function () {
 
     step('run server and execute some transactions', async () => {
         // Make sure server isn't running.
-        // await killServerAndWaitForShutdown(tester, serverProcess).catch(ignoreError);
+        await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
 
         // Run server in background.
         logs = await fs.open(await logsPath('server.log'), 'a');
@@ -327,6 +328,12 @@ describe('Block reverting test', function () {
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
+    });
+
+    after('Try killing server', async () => {
+        if (autoKill) {
+            await utils.exec('killall zksync_server').catch(ignoreError);
+        }
     });
 });
 

@@ -165,13 +165,13 @@ jobs:
       - name: Run recovery tests (from genesis)
         run: |
           mkdir -p logs/recovery/gen
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain era &> logs/recovery/gen/rollup.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> logs/recovery/gen/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain validium &> logs/recovery/gen/validium.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> logs/recovery/gen/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain custom_token &> logs/recovery/gen/custom_token.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> logs/recovery/gen/custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -207,13 +207,13 @@ jobs:
           ci_run killall -INT zksync_external_node
           
           mkdir -p logs/revert/en/
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain validium &> logs/revert/en/validium.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> logs/revert/en/validium.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain era &> logs/revert/en/rollup.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> logs/revert/en/rollup.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain custom_token &> logs/revert/en/custom_token.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> logs/revert/en/custom_token.log &
           PID3=$!
           
           wait $PID1
