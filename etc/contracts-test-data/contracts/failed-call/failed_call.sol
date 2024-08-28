@@ -9,7 +9,11 @@ contract FailedCall {
     constructor() {
         address MSG_VALUE_SIMULATOR = 0x0000000000000000000000000000000000008009;
 
-        (bool s, bytes memory data) = deadBeef.call(abi.encodeWithSignature("deadBeef()"));
+		while (gasleft() > 20000) {
+            // Burn gas so that there's about `gasToPass` left before the external call.
+        }
+
+        (bool s, bytes memory data) = MSG_VALUE_SIMULATOR.call(abi.encodeWithSignature("deadBeef()"));
 
         success = s;
         data_first_byte = data[0];
