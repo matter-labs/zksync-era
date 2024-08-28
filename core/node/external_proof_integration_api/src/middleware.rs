@@ -2,6 +2,7 @@ use tokio::time::Instant;
 
 use crate::metrics::{CallOutcome, Method, METRICS};
 
+#[derive(Debug)]
 pub(crate) struct MetricsMiddleware {
     method: Method,
     started_at: Instant,

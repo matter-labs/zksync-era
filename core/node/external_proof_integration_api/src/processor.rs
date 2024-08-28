@@ -72,10 +72,23 @@ impl Processor {
         mut multipart: Multipart,
     ) -> Result<(), ProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        tracing::info!(
+        tracing::debug!(
             "Received request to verify proof for batch: {:?}",
             l1_batch_number
         );
+
+        let latest_available_batch = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_latest_proven_batch()
+            .await?;
+
+        if l1_batch_number > latest_available_batch {
+            return Err(ProcessorError::BatchNotReady(l1_batch_number));
+        }
 
         let mut serialized_proof = vec![];
 
@@ -88,6 +101,7 @@ impl Processor {
                 && field.content_type() == Some("application/octet-stream")
             {
                 serialized_proof.extend_from_slice(&field.bytes().await.unwrap());
+                break;
             }
         }
 
@@ -99,7 +113,8 @@ impl Processor {
             &self
                 .blob_store
                 .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
-                .await?,
+                .await
+                .map_err(|_| ProcessorError::ProofWasPurged)?,
         )?;
 
         if serialized_proof != expected_proof {
@@ -109,11 +124,10 @@ impl Processor {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all)]
     pub(crate) async fn get_proof_generation_data(
         &mut self,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        tracing::info!("Received request for proof generation data");
+        tracing::debug!("Received request for proof generation data");
 
         let latest_available_batch = self
             .pool
@@ -124,23 +138,17 @@ impl Processor {
             .get_latest_proven_batch()
             .await?;
 
-        let proof_generation_data = self
-            .proof_generation_data_for_existing_batch_internal(latest_available_batch)
-            .await;
-
-        match proof_generation_data {
-            Ok(data) => Ok(ProofGenerationDataResponse(data)),
-            Err(err) => Err(err),
-        }
+        self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
+            .await
+            .map(ProofGenerationDataResponse)
     }
 
-    #[tracing::instrument(skip(self))]
     pub(crate) async fn proof_generation_data_for_existing_batch(
         &self,
         Path(l1_batch_number): Path<u32>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        tracing::info!(
+        tracing::debug!(
             "Received request for proof generation data for batch: {:?}",
             l1_batch_number
         );
@@ -163,17 +171,11 @@ impl Processor {
             return Err(ProcessorError::BatchNotReady(l1_batch_number));
         }
 
-        let proof_generation_data = self
-            .proof_generation_data_for_existing_batch_internal(latest_available_batch)
-            .await;
-
-        match proof_generation_data {
-            Ok(data) => Ok(ProofGenerationDataResponse(data)),
-            Err(err) => Err(err),
-        }
+        self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
+            .await
+            .map(ProofGenerationDataResponse)
     }
 
-    #[tracing::instrument(skip(self))]
     async fn proof_generation_data_for_existing_batch_internal(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -182,12 +184,13 @@ impl Processor {
             .blob_store
             .get(l1_batch_number)
             .await
-            .map_err(ProcessorError::ObjectStore)?;
+            .map_err(ProcessorError::ObjectStore)
+            .map_err(ProcessorError::ProofWasPurged)?;
         let merkle_paths: WitnessInputMerklePaths = self
             .blob_store
             .get(l1_batch_number)
             .await
-            .map_err(ProcessorError::ObjectStore)?;
+            .map_err(ProcessorError::ProofWasPurged)?;
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await.map_err(ProcessorError::Dal)?;
