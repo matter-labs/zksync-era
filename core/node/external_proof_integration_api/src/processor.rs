@@ -113,8 +113,7 @@ impl Processor {
             &self
                 .blob_store
                 .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
-                .await
-                .map_err(|_| ProcessorError::ProofWasPurged)?,
+                .await?,
         )?;
 
         if serialized_proof != expected_proof {
@@ -184,13 +183,8 @@ impl Processor {
             .blob_store
             .get(l1_batch_number)
             .await
-            .map_err(ProcessorError::ObjectStore)
-            .map_err(ProcessorError::ProofWasPurged)?;
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(ProcessorError::ProofWasPurged)?;
+            .map_err(ProcessorError::ObjectStore)?;
+        let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await.map_err(ProcessorError::Dal)?;
