@@ -258,6 +258,7 @@ impl ProposedUpgrade {
             ParamType::Array(ParamType::Bytes.into()), // factory deps
             ParamType::FixedBytes(32),                 // bootloader code hash
             ParamType::FixedBytes(32),                 // default account code hash
+            ParamType::FixedBytes(32),                 // evm simulator code hash
             ParamType::Address,                        // verifier address
             VerifierParams::schema(),                  // verifier params
             ParamType::Bytes,                          // l1 custom data
@@ -279,6 +280,7 @@ impl ProposedUpgrade {
             ),
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
+            Token::FixedBytes(self.evm_simulator_hash.into()),
             Token::Address(self.verifier),
             self.verifier_params.encode(),
             Token::Bytes(self.l1_contracts_upgrade_calldata.clone()),
@@ -292,7 +294,7 @@ impl ProposedUpgrade {
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 10);
+        anyhow::ensure!(tokens.len() == 11);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
