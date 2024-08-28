@@ -59,6 +59,13 @@ interface TokenInfo {
     readonly l2_address: string;
 }
 
+async function logsPath(name: string): Promise<string> {
+    let chain = fileConfig ? fileConfig.chain! : 'default';
+    let dir = path.join(pathToHome, 'logs/recovery/snapshot', chain);
+    await fs.mkdir(dir, { recursive: true });
+    return path.join(dir, name);
+}
+
 /**
  * Tests snapshot recovery and node state pruning.
  *
@@ -183,7 +190,8 @@ describe('snapshot recovery', () => {
         } else {
             command = `zk run snapshots-creator`;
         }
-        await executeCommandWithLogs(command, 'snapshot-creator.log');
+
+        await executeCommandWithLogs(command, await logsPath('snapshot-creator.log'));
     });
 
     step('validate snapshot', async () => {
@@ -243,7 +251,7 @@ describe('snapshot recovery', () => {
     step('initialize external node', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
-            'snapshot-recovery.log',
+            await logsPath('external_node.log'),
             pathToHome,
             NodeComponents.STANDARD,
             fileConfig.loadFromFile,

@@ -191,7 +191,7 @@ export class NodeProcess {
         useZkInception?: boolean,
         chain?: string
     ) {
-        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
+        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
 
         let childProcess = runExternalNodeInBackground({
             components: [components],

@@ -5,10 +5,10 @@ import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
-import fs from 'fs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
+import fs from 'node:fs/promises';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -72,21 +72,27 @@ function ignoreError(_err: any, context?: string) {
     console.info(message);
 }
 
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
+
+async function logsPath(name: string): Promise<string> {
+    let chain = fileConfig ? fileConfig.chain! : 'default';
+    let dir = path.join(pathToHome, 'logs/revert', chain);
+    let a = await fs.mkdir(dir, { recursive: true });
+    return path.join(dir, name);
+}
 
 describe('Block reverting test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let mainContract: IZkSyncHyperchain;
     let blocksCommittedBeforeRevert: bigint;
-    let logs: fs.WriteStream;
     let operatorAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
+    let logs: fs.FileHandle;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
-    const fileConfig = shouldLoadConfigFromFile();
-
-    const pathToHome = path.join(__dirname, '../../../..');
 
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
@@ -134,7 +140,6 @@ describe('Block reverting test', function () {
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
@@ -142,6 +147,7 @@ describe('Block reverting test', function () {
         // await killServerAndWaitForShutdown(tester, serverProcess).catch(ignoreError);
 
         // Run server in background.
+        logs = await fs.open(await logsPath('server.log'), 'a');
         serverProcess = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
