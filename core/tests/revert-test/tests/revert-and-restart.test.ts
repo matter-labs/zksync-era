@@ -138,9 +138,6 @@ describe('Block reverting test', function () {
     });
 
     step('run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        // await killServerAndWaitForShutdown(tester, serverProcess).catch(ignoreError);
-
         // Run server in background.
         serverProcess = runServerInBackground({
             components: [components],
@@ -321,6 +318,12 @@ describe('Block reverting test', function () {
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
+    });
+
+    after('Try killing server', async () => {
+        if (process.env.AUTO_KILL) {
+            await utils.exec('killall zksync_server').catch(ignoreError);
+        }
     });
 });
 

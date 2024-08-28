@@ -168,6 +168,17 @@ class MainNode {
         }
     }
 
+    // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
+    public static async terminateAll() {
+        try {
+            await utils.exec('killall -INT zksync_server');
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
+
     // Spawns a main node.
     // if enableConsensus is set, consensus component will be started in the main node.
     // if enableExecute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
@@ -237,6 +248,17 @@ class ExtNode {
                 }
             }
             await utils.exec(`kill -9 ${child}`);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
+
+    // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
+    public static async terminateAll() {
+        try {
+            await utils.exec('killall -INT zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -346,9 +368,11 @@ describe('Block reverting test', function () {
     });
 
     step('run', async () => {
-        // console.log('Make sure that nodes are not running');
-        // await ExtNode.terminateAll();
-        // await MainNode.terminateAll();
+        if (process.env.AUTO_KILL) {
+            console.log('Make sure that nodes are not running');
+            await ExtNode.terminateAll();
+            await MainNode.terminateAll();
+        }
 
         console.log('Start main node');
         mainNode = await MainNode.spawn(
