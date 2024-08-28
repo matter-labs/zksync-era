@@ -14,5 +14,5 @@ pub struct RevertArgs {
     #[clap(short, long, help = MSG_NO_DEPS_HELP)]
     pub no_deps: bool,
     #[clap(short, long, help = MSG_NO_KILL_HELP)]
-    pub auto_kill: bool,
+    pub no_kill: bool,
 }
