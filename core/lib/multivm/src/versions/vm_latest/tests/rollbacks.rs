@@ -30,78 +30,65 @@ fn test_vm_rollbacks() {
     let mut account = vm.rich_accounts[0].clone();
     let counter = read_test_contract();
     let tx_0 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let _tx_1 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let tx_1 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
     let tx_2 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let _ = TransactionTestInfo::new_processed(tx_0.clone(), false);
-    let _ =
-        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignatureLength.into());
-    TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongMagicValue.into());
-    TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignature.into());
-    // The correct nonce is 0, this tx will fail
-    TransactionTestInfo::new_rejected(tx_2.clone(), TxModifier::WrongNonce.into());
-    // This tx will succeed
-    TransactionTestInfo::new_processed(tx_0.clone(), false);
-    // The correct nonce is 1, this tx will fail
-    TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::NonceReused.into());
-    let _result_without_rollbacks = vm.execute_and_verify_txs(
-        &[], // &vec![
-             // TransactionTestInfo::new_processed(tx_0.clone(), false),
-             // TransactionTestInfo::new_processed(tx_1.clone(), false),
-             // TransactionTestInfo::new_processed(tx_2.clone(), false),
-             // ]
-    );
+
+    let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
+        TransactionTestInfo::new_processed(tx_0.clone(), false),
+        TransactionTestInfo::new_processed(tx_1.clone(), false),
+        TransactionTestInfo::new_processed(tx_2.clone(), false),
+    ]);
 
     // reset vm
     vm.reset_with_empty_storage();
 
-    // let result_with_rollbacks = vm.execute_and_verify_txs(&vec![
-    //     TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignatureLength.into()),
-    //     TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongMagicValue.into()),
-    //     TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignature.into()),
-    //     // The correct nonce is 0, this tx will fail
-    //     TransactionTestInfo::new_rejected(
-    //         tx_2.clone(),
-    //         TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(0)).into(),
-    //     ),
-    //     // This tx will succeed
-    //     TransactionTestInfo::new_processed(tx_0.clone(), false),
-    //     // The correct nonce is 1, this tx will fail
-    //     TransactionTestInfo::new_rejected(
-    //         tx_0.clone(),
-    //         TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
-    //     ),
-    //     // The correct nonce is 1, this tx will fail
-    //     TransactionTestInfo::new_rejected(
-    //         tx_2.clone(),
-    //         TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(1)).into(),
-    //     ),
-    //     // This tx will succeed
-    //     TransactionTestInfo::new_processed(tx_1, false),
-    //     // The correct nonce is 2, this tx will fail
-    //     TransactionTestInfo::new_rejected(
-    //         tx_0.clone(),
-    //         TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
-    //     ),
-    //     // This tx will succeed
-    //     TransactionTestInfo::new_processed(tx_2.clone(), false),
-    //     // This tx will fail
-    //     TransactionTestInfo::new_rejected(
-    //         tx_2.clone(),
-    //         TxModifier::NonceReused(tx_2.initiator_account(), tx_2.nonce().unwrap()).into(),
-    //     ),
-    //     TransactionTestInfo::new_rejected(
-    //         tx_0.clone(),
-    //         TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
-    //     ),
-    // ]);
+    let result_with_rollbacks = vm.execute_and_verify_txs(&vec![
+        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignatureLength.into()),
+        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongMagicValue.into()),
+        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignature.into()),
+        // The correct nonce is 0, this tx will fail
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(0)).into(),
+        ),
+        // This tx will succeed
+        TransactionTestInfo::new_processed(tx_0.clone(), false),
+        // The correct nonce is 1, this tx will fail
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
+        // The correct nonce is 1, this tx will fail
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(1)).into(),
+        ),
+        // This tx will succeed
+        TransactionTestInfo::new_processed(tx_1, false),
+        // The correct nonce is 2, this tx will fail
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
+        // This tx will succeed
+        TransactionTestInfo::new_processed(tx_2.clone(), false),
+        // This tx will fail
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::NonceReused(tx_2.initiator_account(), tx_2.nonce().unwrap()).into(),
+        ),
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
+    ]);
 
     // assert_eq!(result_without_rollbacks, result_with_rollbacks);
 }
 
 #[test]
 fn test_vm_loadnext_rollbacks() {
-    // TODO add mut
-    let vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -111,7 +98,7 @@ fn test_vm_loadnext_rollbacks() {
     let loadnext_contract = get_loadnext_contract();
     let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
     let DeployContractsTx {
-        tx: _loadnext_deploy_tx,
+        tx: loadnext_deploy_tx,
         address,
         ..
     } = account.get_deploy_tx_with_factory_deps(
@@ -121,7 +108,7 @@ fn test_vm_loadnext_rollbacks() {
         TxType::L2,
     );
 
-    let _loadnext_tx_1 = account.get_l2_tx_for_execute(
+    let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
             contract_address: address,
             calldata: LoadnextContractExecutionParams {
@@ -139,7 +126,7 @@ fn test_vm_loadnext_rollbacks() {
         None,
     );
 
-    let _loadnext_tx_2 = account.get_l2_tx_for_execute(
+    let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
             contract_address: address,
             calldata: LoadnextContractExecutionParams {
@@ -156,20 +143,14 @@ fn test_vm_loadnext_rollbacks() {
         },
         None,
     );
-    // TODO
-    // let _result_without_rollbacks = vm.execute_and_verify_txs(&vec![
-    //     TransactionTestInfo::new_processed(loadnext_deploy_tx.clone(), false),
-    //     TransactionTestInfo::new_processed(loadnext_tx_1.clone(), false),
-    //     TransactionTestInfo::new_processed(loadnext_tx_2.clone(), false),
-    // ]);
 
-    // let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
-    //     TransactionTestInfo::new_processed(loadnext_deploy_tx.clone(), false),
-    //     TransactionTestInfo::new_processed(loadnext_tx_1.clone(), false),
-    //     TransactionTestInfo::new_processed(loadnext_tx_2.clone(), false),
-    // ]);
+    let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
+        TransactionTestInfo::new_processed(loadnext_deploy_tx.clone(), false),
+        TransactionTestInfo::new_processed(loadnext_tx_1.clone(), false),
+        TransactionTestInfo::new_processed(loadnext_tx_2.clone(), false),
+    ]);
 
-    // // reset vm
+    // TODO: reset vm
     // vm.reset_with_empty_storage();
 
     // let result_with_rollbacks = vm.execute_and_verify_txs(&vec![
