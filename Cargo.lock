@@ -7288,7 +7288,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -8935,6 +8935,7 @@ name = "zksync_multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "circuit_sequencer_api 0.133.0",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
@@ -9677,6 +9678,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
@@ -9760,6 +9762,7 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "hex",
  "serde",
  "thiserror",
