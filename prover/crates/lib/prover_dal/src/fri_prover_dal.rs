@@ -585,11 +585,14 @@ impl FriProverDal<'_, '_> {
         sqlx::query_scalar!(
             r#"
             WITH deleted AS (
-                DELETE FROM prover_jobs_fri
+                DELETE FROM prover_jobs_fri AS p
+                USING proof_compression_jobs_fri AS c
                 WHERE
-                    status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')
-                    AND updated_at < NOW() - $1::INTERVAL
-                RETURNING *
+                    p.status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')
+                    AND p.updated_at < NOW() - $1::INTERVAL
+                    AND p.l1_batch_number = c.l1_batch_number
+                    AND c.status = 'sent_to_server'
+                RETURNING p.*
             ),
             inserted_count AS (
                 INSERT INTO prover_jobs_fri_archive
