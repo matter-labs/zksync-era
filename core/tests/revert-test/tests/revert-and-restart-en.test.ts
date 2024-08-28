@@ -362,9 +362,9 @@ describe('Block reverting test', function () {
     });
 
     step('run', async () => {
-        console.log('Make sure that nodes are not running');
-        await ExtNode.terminateAll();
-        await MainNode.terminateAll();
+        // console.log('Make sure that nodes are not running');
+        // await ExtNode.terminateAll();
+        // await MainNode.terminateAll();
 
         console.log('Start main node');
         mainNode = await MainNode.spawn(
