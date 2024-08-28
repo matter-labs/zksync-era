@@ -5,3 +5,4 @@ pub use self::{
 
 mod base_token_ratio_persister;
 mod base_token_ratio_provider;
+mod metrics;
