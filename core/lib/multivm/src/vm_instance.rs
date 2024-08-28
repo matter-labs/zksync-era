@@ -266,8 +266,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     ))
                 }
                 FastVmMode::Shadow | FastVmMode::ShadowLenient => {
-                    let mut vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
-                    vm.set_panic_on_divergence(matches!(mode, FastVmMode::Shadow));
+                    let vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
                     Self::ShadowedVmFast(vm)
                 }
             },

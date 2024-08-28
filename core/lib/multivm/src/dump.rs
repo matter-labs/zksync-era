@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{
@@ -163,34 +163,6 @@ impl VmDump {
             }
         }
         vm.finish_batch();
-    }
-}
-
-/// Handler for [`VmDump`].
-#[derive(Clone)]
-pub struct VmDumpHandler(Arc<dyn Fn(VmDump) + Send + Sync>);
-
-impl fmt::Debug for VmDumpHandler {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_tuple("VmDumpHandler").field(&"_").finish()
-    }
-}
-
-/// Default no-op handler.
-impl Default for VmDumpHandler {
-    fn default() -> Self {
-        Self(Arc::new(drop))
-    }
-}
-
-impl VmDumpHandler {
-    /// Creates a new handler from the provided closure.
-    pub fn new(f: impl Fn(VmDump) + Send + Sync + 'static) -> Self {
-        Self(Arc::new(f))
-    }
-
-    pub(crate) fn handle(&self, dump: VmDump) {
-        self.0(dump);
     }
 }
 

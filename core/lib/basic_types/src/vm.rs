@@ -39,5 +39,5 @@ pub enum FastVmMode {
     Shadow,
     /// Run both the new and old VM and compare their outputs for each transaction execution.
     /// The new VM will get dropped on divergence.
-    ShadowLenient,
+    ShadowLenient, // FIXME: remove
 }

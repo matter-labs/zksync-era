@@ -2,12 +2,13 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
+    sync::Arc,
 };
 
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
 use crate::{
-    dump::{DumpingVm, VmDump, VmDumpHandler, VmTrackingContracts},
+    dump::{DumpingVm, VmDump, VmTrackingContracts},
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
@@ -21,10 +22,40 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+/// Handler for [`VmDump`].
+#[derive(Clone)]
+pub struct DivergenceHandler(Arc<dyn Fn(DivergenceErrors, VmDump) + Send + Sync>);
+
+impl fmt::Debug for DivergenceHandler {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_tuple("VmDumpHandler").field(&"_").finish()
+    }
+}
+
+/// Default handler that panics.
+impl Default for DivergenceHandler {
+    fn default() -> Self {
+        Self(Arc::new(|err, _| {
+            // There's no easy way to output the VM dump; it's too large to be logged.
+            panic!("{err}");
+        }))
+    }
+}
+
+impl DivergenceHandler {
+    /// Creates a new handler from the provided closure.
+    pub fn new(f: impl Fn(DivergenceErrors, VmDump) + Send + Sync + 'static) -> Self {
+        Self(Arc::new(f))
+    }
+
+    fn handle(&self, err: DivergenceErrors, dump: VmDump) {
+        self.0(err, dump);
+    }
+}
+
 struct VmWithReporting<Shadow> {
     vm: Shadow,
-    dump_handler: VmDumpHandler,
-    panic_on_divergence: bool,
+    divergence_handler: DivergenceHandler,
 }
 
 impl<Shadow: fmt::Debug> fmt::Debug for VmWithReporting<Shadow> {
@@ -32,25 +63,17 @@ impl<Shadow: fmt::Debug> fmt::Debug for VmWithReporting<Shadow> {
         formatter
             .debug_struct("VmWithReporting")
             .field("vm", &self.vm)
-            .field("panic_on_divergence", &self.panic_on_divergence)
             .finish_non_exhaustive()
     }
 }
 
 impl<Shadow: VmInterface> VmWithReporting<Shadow> {
-    fn report(self, dump: VmDump, err: anyhow::Error) {
-        let batch_number = dump.l1_batch_number();
-        tracing::error!("VM execution diverged on batch #{batch_number}!");
-        self.dump_handler.handle(dump);
-
-        if self.panic_on_divergence {
-            panic!("{err:?}");
-        } else {
-            tracing::error!("{err:#}");
-            tracing::warn!(
-                "New VM is dropped; following VM actions will be executed only on the main VM"
-            );
-        }
+    fn report(self, err: DivergenceErrors, dump: VmDump) {
+        tracing::error!("{err}");
+        self.divergence_handler.handle(err, dump);
+        tracing::warn!(
+            "New VM is dropped; following VM actions will be executed only on the main VM"
+        );
     }
 }
 
@@ -70,29 +93,23 @@ where
     Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
-    pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
+    pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.dump_handler = handler;
-        }
-    }
-
-    pub(crate) fn set_panic_on_divergence(&mut self, panic: bool) {
-        if let Some(shadow) = self.shadow.get_mut() {
-            shadow.panic_on_divergence = panic;
+            shadow.divergence_handler = handler;
         }
     }
 
     /// Mutable ref is not necessary, but it automatically drops potential borrows.
-    fn report(&mut self, err: anyhow::Error) {
+    fn report(&mut self, err: DivergenceErrors) {
         self.report_shared(err);
     }
 
     /// The caller is responsible for dropping any `shadow` borrows beforehand.
-    fn report_shared(&self, err: anyhow::Error) {
+    fn report_shared(&self, err: DivergenceErrors) {
         self.shadow
             .take()
             .unwrap()
-            .report(self.main.dump_state(), err);
+            .report(err, self.main.dump_state());
     }
 }
 
@@ -115,8 +132,7 @@ where
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
-            dump_handler: VmDumpHandler::default(),
-            panic_on_divergence: true,
+            divergence_handler: DivergenceHandler::default(),
         };
         Self {
             main,
@@ -159,7 +175,7 @@ where
         let main_result = self.main.execute(execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
             let shadow_result = shadow.vm.execute(execution_mode);
-            let mut errors = DivergenceErrors::default();
+            let mut errors = DivergenceErrors::new();
             errors.check_results_match(&main_result, &shadow_result);
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
@@ -179,7 +195,7 @@ where
             let shadow_result = shadow
                 .vm
                 .inspect(Shadow::TracerDispatcher::default(), execution_mode);
-            let mut errors = DivergenceErrors::default();
+            let mut errors = DivergenceErrors::new();
             errors.check_results_match(&main_result, &shadow_result);
 
             if let Err(err) = errors.into_result() {
@@ -261,7 +277,7 @@ where
             let shadow_result = shadow
                 .vm
                 .execute_transaction_with_bytecode_compression(tx, with_compression);
-            let mut errors = DivergenceErrors::default();
+            let mut errors = DivergenceErrors::new();
             errors.check_results_match(&main_result.1, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
@@ -294,7 +310,7 @@ where
                 tx,
                 with_compression,
             );
-            let mut errors = DivergenceErrors::default();
+            let mut errors = DivergenceErrors::new();
             errors.check_results_match(&main_result.1, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
@@ -328,7 +344,7 @@ where
         let main_batch = self.main.finish_batch();
         if let Some(shadow) = self.shadow.get_mut() {
             let shadow_batch = shadow.vm.finish_batch();
-            let mut errors = DivergenceErrors::default();
+            let mut errors = DivergenceErrors::new();
             errors.check_results_match(
                 &main_batch.block_tip_execution_result,
                 &shadow_batch.block_tip_execution_result,
@@ -361,17 +377,45 @@ where
     }
 }
 
-#[must_use = "Should be converted to a `Result`"]
-#[derive(Debug, Default)]
-pub struct DivergenceErrors(Vec<anyhow::Error>);
+#[derive(Debug)]
+pub struct DivergenceErrors {
+    divergences: Vec<String>,
+    context: Option<String>,
+}
+
+impl fmt::Display for DivergenceErrors {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(context) = &self.context {
+            write!(
+                formatter,
+                "VM execution diverged: {context}: [{}]",
+                self.divergences.join(", ")
+            )
+        } else {
+            write!(
+                formatter,
+                "VM execution diverged: [{}]",
+                self.divergences.join(", ")
+            )
+        }
+    }
+}
 
 impl DivergenceErrors {
-    fn single<T: fmt::Debug + PartialEq>(
-        context: &str,
-        main: &T,
-        shadow: &T,
-    ) -> anyhow::Result<()> {
-        let mut this = Self::default();
+    fn new() -> Self {
+        Self {
+            divergences: vec![],
+            context: None,
+        }
+    }
+
+    fn context(mut self, context: String) -> Self {
+        self.context = Some(context);
+        self
+    }
+
+    fn single<T: fmt::Debug + PartialEq>(context: &str, main: &T, shadow: &T) -> Result<(), Self> {
+        let mut this = Self::new();
         this.check_match(context, main, shadow);
         this.into_result()
     }
@@ -406,8 +450,8 @@ impl DivergenceErrors {
     fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {
         if main != shadow {
             let comparison = pretty_assertions::Comparison::new(main, shadow);
-            let err = anyhow::anyhow!("`{context}` mismatch: {comparison}");
-            self.0.push(err);
+            let err = format!("`{context}` mismatch: {comparison}");
+            self.divergences.push(err);
         }
     }
 
@@ -459,14 +503,11 @@ impl DivergenceErrors {
             .collect()
     }
 
-    fn into_result(self) -> anyhow::Result<()> {
-        if self.0.is_empty() {
+    fn into_result(self) -> Result<(), Self> {
+        if self.divergences.is_empty() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "divergence between old VM and new VM execution: [{:?}]",
-                self.0
-            ))
+            Err(self)
         }
     }
 }

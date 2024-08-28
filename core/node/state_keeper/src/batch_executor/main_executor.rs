@@ -4,12 +4,12 @@ use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
-    dump::VmDumpHandler,
     interface::{
         storage::{ReadStorage, StorageView},
         Call, CompressedBytecodeInfo, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
+    shadow,
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
@@ -36,7 +36,7 @@ pub struct MainBatchExecutor {
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    dump_handler: Option<VmDumpHandler>,
+    divergence_handler: Option<shadow::DivergenceHandler>,
 }
 
 impl MainBatchExecutor {
@@ -45,7 +45,7 @@ impl MainBatchExecutor {
             save_call_traces,
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
-            dump_handler: None,
+            divergence_handler: None,
         }
     }
 
@@ -58,9 +58,9 @@ impl MainBatchExecutor {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_dump_handler(&mut self, handler: VmDumpHandler) {
-        tracing::info!("Set VM dumps handler");
-        self.dump_handler = Some(handler);
+    pub fn set_divergence_handler(&mut self, handler: shadow::DivergenceHandler) {
+        tracing::info!("Set VM divergence handler");
+        self.divergence_handler = Some(handler);
     }
 }
 
@@ -78,7 +78,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutor<S> for MainBatchExecutor {
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            dump_handler: self.dump_handler.clone(),
+            divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
         };
 
@@ -106,7 +106,7 @@ struct CommandReceiver {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    dump_handler: Option<VmDumpHandler>,
+    divergence_handler: Option<shadow::DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
 }
 
@@ -128,8 +128,8 @@ impl CommandReceiver {
         );
 
         if let VmInstance::ShadowedVmFast(vm) = &mut vm {
-            if let Some(handler) = self.dump_handler.take() {
-                vm.set_dump_handler(handler);
+            if let Some(handler) = self.divergence_handler.take() {
+                vm.set_divergence_handler(handler);
             }
         }
 

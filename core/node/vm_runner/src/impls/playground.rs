@@ -1,9 +1,9 @@
 use std::{
+    hash::{DefaultHasher, Hash, Hasher},
     io,
     num::NonZeroU32,
     path::{Path, PathBuf},
     sync::Arc,
-    time::SystemTime,
 };
 
 use anyhow::Context as _;
@@ -15,7 +15,7 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_multivm::dump::{VmDump, VmDumpHandler};
+use zksync_multivm::{dump::VmDump, shadow};
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
 use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
@@ -91,15 +91,17 @@ impl VmPlayground {
         if let Some(store) = dumps_object_store {
             tracing::info!("Using object store for VM dumps: {store:?}");
 
-            let handler = VmDumpHandler::new(move |dump| {
-                if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &dump)) {
+            let handler = shadow::DivergenceHandler::new(move |err, dump| {
+                let err_message = err.to_string();
+                if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &err_message, &dump))
+                {
                     let l1_batch_number = dump.l1_batch_number();
                     tracing::error!(
                         "Saving VM dump for L1 batch #{l1_batch_number} failed: {err:#}"
                     );
                 }
             });
-            batch_executor.set_dump_handler(handler);
+            batch_executor.set_divergence_handler(handler);
         }
 
         let io = VmPlaygroundIo {
@@ -138,13 +140,17 @@ impl VmPlayground {
         ))
     }
 
-    async fn dump_vm_state(object_store: &dyn ObjectStore, dump: &VmDump) -> anyhow::Result<()> {
-        let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("bogus clock");
-        let timestamp = timestamp.as_millis();
-        let batch_number = dump.l1_batch_number();
-        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{timestamp}.json");
+    async fn dump_vm_state(
+        object_store: &dyn ObjectStore,
+        err_message: &str,
+        dump: &VmDump,
+    ) -> anyhow::Result<()> {
+        // Deduplicate VM dumps by the error hash so that we don't create a lot of dumps for the same error.
+        let mut hasher = DefaultHasher::new();
+        err_message.hash(&mut hasher);
+        let err_hash = hasher.finish();
+        let batch_number = dump.l1_batch_number().0;
+        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{err_hash:x}.json");
 
         tracing::info!("Dumping diverged VM state to `{dump_filename}`");
         let dump = serde_json::to_string(&dump).context("failed serializing VM dump")?;

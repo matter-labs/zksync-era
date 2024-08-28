@@ -13,8 +13,8 @@ pub use crate::{
         tracers::{MultiVMTracer, MultiVmTracerPointer},
     },
     versions::{
-        vm_1_3_2, vm_1_4_1, vm_1_4_2, vm_boojum_integration, vm_fast, vm_latest, vm_m5, vm_m6,
-        vm_refunds_enhancement, vm_virtual_blocks,
+        shadow, vm_1_3_2, vm_1_4_1, vm_1_4_2, vm_boojum_integration, vm_fast, vm_latest, vm_m5,
+        vm_m6, vm_refunds_enhancement, vm_virtual_blocks,
     },
     vm_instance::VmInstance,
 };
@@ -23,5 +23,5 @@ pub mod dump;
 mod glue;
 pub mod tracers;
 pub mod utils;
-pub mod versions;
+mod versions;
 mod vm_instance;
