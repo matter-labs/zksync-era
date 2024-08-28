@@ -136,7 +136,9 @@ describe('snapshot recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        await NodeProcess.stopAll('KILL');
+        if (process.env.AUTO_KILL) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     before('create test wallet', async () => {
