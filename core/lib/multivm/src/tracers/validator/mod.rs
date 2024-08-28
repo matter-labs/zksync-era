@@ -10,13 +10,11 @@ use zksync_types::{
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
-pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+use self::types::{NewTrustedValidationItems, ValidationTracerMode};
+pub use self::types::{ValidationError, ValidationTracerParams, ViolatedValidationRule};
 use crate::{
     glue::tracers::IntoOldVmTracer,
     interface::storage::{StoragePtr, WriteStorage},
-    tracers::validator::types::{
-        NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule,
-    },
 };
 
 mod types;

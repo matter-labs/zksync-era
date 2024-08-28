@@ -40,6 +40,7 @@ impl From<NonceHolderTestMode> for u8 {
 #[test]
 fn test_nonce_holder() {
     let mut account = Account::random();
+    let hex_addr = hex::encode(account.address.to_fixed_bytes());
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -103,7 +104,7 @@ fn test_nonce_holder() {
     // run_nonce_test(
     //     1u32,
     //     NonceHolderTestMode::SetValueUnderNonce,
-    //     Some("Previous nonce has not been used".to_string()),
+    //     Some("Error function_selector = 0x13595475, data = 0x13595475".to_string()),
     //     "Allowed to set value under non sequential value",
     // );
 
@@ -144,7 +145,7 @@ fn test_nonce_holder() {
     // run_nonce_test(
     //     10u32,
     //     NonceHolderTestMode::IncreaseMinNonceBy5,
-    //     Some("Reusing the same nonce twice".to_string()),
+    //     Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000a")),
     //     "Allowed to reuse nonce below the minimal one",
     // );
 
@@ -160,7 +161,7 @@ fn test_nonce_holder() {
     // run_nonce_test(
     //     13u32,
     //     NonceHolderTestMode::IncreaseMinNonceBy5,
-    //     Some("Reusing the same nonce twice".to_string()),
+    //     Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000d")),
     //     "Allowed to reuse the same nonce twice",
     // );
 
@@ -176,7 +177,7 @@ fn test_nonce_holder() {
     // run_nonce_test(
     //     16u32,
     //     NonceHolderTestMode::IncreaseMinNonceTooMuch,
-    //     Some("The value for incrementing the nonce is too high".to_string()),
+    //     Some("Error function_selector = 0x45ac24a6, data = 0x45ac24a600000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000040000000000000000000000".to_string()),
     //     "Allowed for incrementing min nonce too much",
     // );
 
@@ -184,7 +185,7 @@ fn test_nonce_holder() {
     // run_nonce_test(
     //     16u32,
     //     NonceHolderTestMode::LeaveNonceUnused,
-    //     Some("The nonce was not set as used".to_string()),
+    //     Some(format!("Error function_selector = 0x1f2f8478, data = 0x1f2f8478000000000000000000000000{hex_addr}0000000000000000000000000000000000000000000000000000000000000010")),
     //     "Allowed to leave nonce as unused",
     // );
 }

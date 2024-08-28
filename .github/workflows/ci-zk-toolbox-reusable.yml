@@ -115,6 +115,10 @@ jobs:
       #     --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
       #     --prover-db-name=zksync_prover_localhost_rollup
 
+      # - name: Check Database
+      #   run: |
+      #     ci_run zk_supervisor database check-sqlx-data
+
       # - name: Run server
       #   run: |
       #     ci_run zk_inception server --ignore-prerequisites &>server.log &

@@ -2,7 +2,7 @@ use clap::ValueEnum;
 use strum::EnumIter;
 use xshell::{cmd, Shell};
 
-const IGNORED_DIRS: [&str; 18] = [
+const IGNORED_DIRS: [&str; 19] = [
     "target",
     "node_modules",
     "volumes",
@@ -22,6 +22,7 @@ const IGNORED_DIRS: [&str; 18] = [
     "cache-zk",
     // Ignore directories with OZ and forge submodules.
     "contracts/l1-contracts/lib",
+    "contracts/lib",
 ];
 
 const IGNORED_FILES: [&str; 4] = [
@@ -33,15 +34,16 @@ const IGNORED_FILES: [&str; 4] = [
 
 #[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
 #[strum(serialize_all = "lowercase")]
-pub enum Extension {
+pub enum Target {
     Md,
     Sol,
     Js,
     Ts,
     Rs,
+    Contracts,
 }
 
-pub fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Result<Vec<String>> {
+pub fn get_unignored_files(shell: &Shell, target: &Target) -> anyhow::Result<Vec<String>> {
     let mut files = Vec::new();
     let output = cmd!(shell, "git ls-files --recurse-submodules").read()?;
 
@@ -49,7 +51,7 @@ pub fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Resu
         let path = line.to_string();
         if !IGNORED_DIRS.iter().any(|dir| path.contains(dir))
             && !IGNORED_FILES.contains(&path.as_str())
-            && path.ends_with(&format!(".{}", extension))
+            && path.ends_with(&format!(".{}", target))
         {
             files.push(path);
         }

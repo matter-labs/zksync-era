@@ -3,7 +3,9 @@ pub use self::{
     multivm_dispatcher::TracerDispatcher,
     prestate_tracer::PrestateTracer,
     storage_invocation::StorageInvocations,
-    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+    validator::{
+        ValidationError, ValidationTracer, ValidationTracerParams, ViolatedValidationRule,
+    },
 };
 
 mod call_tracer;
