@@ -7,6 +7,11 @@ use super::ReadStorage;
 
 /// Self-sufficient storage snapshot for a particular VM execution (e.g., executing a single L1 batch).
 ///
+/// `StorageSnapshot` works similarly to [`InMemoryStorage`](super::InMemoryStorage), but has different semantics
+/// and use cases. `InMemoryStorage` is intended to be a modifiable storage to be used primarily in tests / benchmarks.
+/// In contrast, `StorageSnapshot` cannot be modified once created and is intended to represent a snapshot
+/// for a particular VM execution.
+///
 /// # Important
 ///
 /// Note that [`ReadStorage`] methods will not panic / log errors etc. if "unexpected" storage slots
