@@ -204,7 +204,6 @@ vise-exporter = "0.2.0"
 avail-subxt = { git = "https://github.com/availproject/avail", tag = "v2.2.5.0-rc1" }
 avail-core = { git = "https://github.com/availproject/avail-core", tag = "core-node-1" }
 subxt-signer = { version = "0.34" }
-alloy = { version = "0.1", features = ["full"] }
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.

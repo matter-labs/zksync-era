@@ -30,4 +30,3 @@ avail-subxt.workspace = true
 avail-core.workspace = true
 subxt-signer.workspace = true
 reqwest.workspace = true
-alloy.workspace = true

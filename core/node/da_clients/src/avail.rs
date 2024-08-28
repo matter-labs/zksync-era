@@ -3,10 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use alloy::{
-    primitives::{B256, U256},
-    sol,
-};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use avail_core::AppId;
@@ -17,7 +13,6 @@ use avail_subxt::{
     },
     tx, AvailClient as AvailSubxtClient,
 };
-use serde::Deserialize;
 use subxt_signer::{bip39::Mnemonic, sr25519::Keypair};
 use zksync_config::AvailConfig;
 use zksync_da_client::{
@@ -30,44 +25,7 @@ use zksync_da_client::{
 pub struct AvailClient {
     config: AvailConfig,
     client: Arc<AvailSubxtClient>,
-    #[allow(unused)]
-    api_client: Arc<reqwest::Client>,
     keypair: Keypair,
-}
-
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct BridgeAPIResponse {
-    blob_root: B256,
-    bridge_root: B256,
-    data_root_index: U256,
-    data_root_proof: Vec<B256>,
-    leaf: B256,
-    leaf_index: U256,
-    leaf_proof: Vec<B256>,
-    range_hash: B256,
-}
-
-// Not used in the V1 implementation
-sol! {
-    struct MerkleProofInput {
-        // proof of inclusion for the data root
-        bytes32[] dataRootProof;
-        // proof of inclusion of leaf within blob/bridge root
-        bytes32[] leafProof;
-        // abi.encodePacked(startBlock, endBlock) of header range commitment on vectorx
-        bytes32 rangeHash;
-        // index of the data root in the commitment tree
-        uint256 dataRootIndex;
-        // blob root to check proof against, or reconstruct the data root
-        bytes32 blobRoot;
-        // bridge root to check proof against, or reconstruct the data root
-        bytes32 bridgeRoot;
-        // leaf being proven
-        bytes32 leaf;
-        // index of the leaf in the blob/bridge root tree
-        uint256 leafIndex;
-    }
 }
 
 impl AvailClient {
@@ -82,12 +40,9 @@ impl AvailClient {
 
         let keypair = Keypair::from_phrase(&mnemonic, None).map_err(to_non_retriable_da_error)?;
 
-        let api_client = reqwest::Client::new();
-
         Ok(Self {
             config,
             client: client.into(),
-            api_client: api_client.into(),
             keypair,
         })
     }
