@@ -88,7 +88,7 @@ the workspace initialization process. These hooks will not allow to commit the c
 Currently the following criteria are checked:
 
 - Rust code should always be formatted via `cargo fmt`.
-- Other code should always be formatted via `zk fmt`.
+- Other code should always be formatted via `zk fmt` (`zk fmt` includes `cargo fmt`).
 - Dummy Prover should not be staged for commit (see below for the explanation).
 
 ## Using Dummy Prover
@@ -132,6 +132,8 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
   zk test i fees      # Has to be run in the 2nd terminal
   pkill zksync_server # Kills background server started by tests
   ```
+
+  You will find server logs in `core/tests/ts-integration/fees.log`
 
 - Running the benchmarks:
 
