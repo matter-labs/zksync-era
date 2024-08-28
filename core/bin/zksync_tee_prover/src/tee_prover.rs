@@ -150,7 +150,7 @@ pub struct TeeProverConfig {
 impl Default for TeeProverConfig {
     fn default() -> Self {
         Self {
-            max_retries: 5,
+            max_retries: 10,
             initial_retry_backoff: Duration::from_secs(1),
             retry_backoff_multiplier: 2.0,
             max_backoff: Duration::from_secs(128),
