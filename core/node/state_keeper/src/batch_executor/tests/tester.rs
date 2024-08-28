@@ -262,12 +262,6 @@ impl Tester {
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
     pub(super) async fn fund(&self, addresses: &[Address]) {
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
-        self.fund_exact(addresses, eth_amount).await
-    }
-
-    /// Adds funds for specified account list.
-    /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
-    pub(super) async fn fund_exact(&self, addresses: &[Address], eth_amount: U256) {
         let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
 
         for address in addresses {

@@ -318,12 +318,7 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
 
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
-    tester
-        .fund_exact(
-            &[alice.address()],
-            U256::from(2_000_000_000) * U256::from(2_000_000_00) * U256::from(1_0),
-        )
-        .await;
+    tester.fund(&[alice.address()]).await;
     let mut executor = tester
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
