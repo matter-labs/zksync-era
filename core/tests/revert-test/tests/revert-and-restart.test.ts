@@ -134,7 +134,7 @@ describe('Block reverting test', function () {
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
+        logs = fs.createWriteStream(`revert_${fileConfig.chain}.log`, { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
