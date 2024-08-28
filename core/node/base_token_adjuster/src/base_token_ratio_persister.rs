@@ -143,7 +143,7 @@ impl BaseTokenRatioPersister {
                 .to_u32()
                 .unwrap();
 
-            if deviation < self.config.l1_update_deviation {
+            if deviation < self.config.l1_update_deviation_percentage {
                 return Ok(());
             }
         }
