@@ -39,7 +39,7 @@ describe('base ERC20 contract checks', () => {
         // checking that the numerator and denominator have appropriate values (there is 10% randomness, so we have 15% tolerance)
         expect(numerator).toBeGreaterThan(314 * 0.85);
         expect(numerator).toBeLessThan(314 * 1.15);
-        expect(denominator).toBe(100);
+        expect(denominator).toBe(1000);
     });
 
     test('Can perform a deposit', async () => {

@@ -201,7 +201,7 @@ testFees('Test fees', () => {
             testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup
                 ? 100_000_000 // 0.1 gwei (the minimum)
                 : 110_000_000; // 0.11 gwei, in validium we need to add compute overhead
-        const expectedCustomGasPrice = expectedETHGasPrice * 3.14;
+        const expectedCustomGasPrice = expectedETHGasPrice * 0.314;
 
         const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;

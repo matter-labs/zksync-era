@@ -7,5 +7,5 @@ source = "forced"
 
 [external_price_api_client.forced]
 numerator = 314
-denominator = 100
+denominator = 1000
 fluctuation = 10
