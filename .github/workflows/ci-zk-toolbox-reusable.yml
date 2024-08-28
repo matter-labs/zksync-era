@@ -94,10 +94,10 @@ jobs:
 
           ci_run zk_inception chain init \
           --deploy-paymaster \
-          --l1-rpc-url=http://reth:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
           --port-offset 3000 \
           --chain chain_custom_token
@@ -142,7 +142,7 @@ jobs:
           --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --chain chain_validium
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
 
-          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@postgres:5432 \
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain chain_custom_token
           ci_run zk_inception external-node init --ignore-prerequisites --chain chain_custom_token
 
