@@ -18,23 +18,20 @@ jobs:
 
       - name: Start services
         run: |
-          mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
-      - name: Setup db
+      - name: Build
         run: |
-          ci_run zk
-          ci_run run_retried rustup show
-          ci_run zk db migrate
+          ci_run ./bin/zkt
+          ci_run yarn install
+          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
-          ci_run zk fmt --check
-          ci_run zk lint rust --check
-          ci_run zk lint toolbox --check
-          ci_run zk lint js --check
-          ci_run zk lint ts --check
-          ci_run zk lint md --check
-          ci_run zk db check-sqlx-data
+          ci_run zk_supervisor fmt --check
+          ci_run zk_supervisor lint -t md --check
+          ci_run zk_supervisor lint -t sol --check
+          ci_run zk_supervisor lint -t js --check
+          ci_run zk_supervisor lint -t ts --check
+          ci_run zk_supervisor lint -t rs --check
