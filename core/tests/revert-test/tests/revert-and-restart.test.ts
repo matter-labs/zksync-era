@@ -77,9 +77,9 @@ const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
 
 async function logsPath(name: string): Promise<string> {
-    let chain = fileConfig ? fileConfig.chain! : 'default';
+    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
     let dir = path.join(pathToHome, 'logs/revert', chain);
-    let a = await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(dir, { recursive: true });
     return path.join(dir, name);
 }
 

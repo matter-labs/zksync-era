@@ -29,9 +29,9 @@ jobs:
         run: |
           ci_localnet_up
           ci_run sccache --start-server
-          ci_run mkdir -p logs/server
-          ci_run mkdir -p logs/integration_tests
-          ci_run mkdir -p logs/external_node
+          mkdir -p logs/server
+          mkdir -p logs/integration_tests
+          mkdir -p logs/external_node
 
       - name: Build zk_toolbox
         run: ci_run bash -c "./bin/zkt"
@@ -109,7 +109,7 @@ jobs:
 
       - name: Run servers
         run: |
-          ci_run mkdir -p logs/server
+          mkdir -p logs/server
           ci_run zk_inception server --ignore-prerequisites --chain era &> logs/server/server_rollup.log &
           ci_run zk_inception server --ignore-prerequisites --chain validium &> logs/server/validium.log &
           ci_run zk_inception server --ignore-prerequisites --chain custom_token &> logs/server/custom_token.log &
@@ -117,7 +117,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run mkdir -p logs/integration_tests
+          mkdir -p logs/integration_tests
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> logs/integration_tests/rollup.log &
           PID1=$!
 
@@ -147,7 +147,7 @@ jobs:
 
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run mkdir -p logs/recovery/snap
+          mkdir -p logs/recovery/snap
 
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> logs/recovery/snap/rollup.log &
           PID1=$!
@@ -164,7 +164,7 @@ jobs:
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run mkdir -p logs/recovery/gen
+          mkdir -p logs/recovery/gen
           ci_run zk_supervisor test recovery --no-deps --ignore-prerequisites --verbose --chain era &> logs/recovery/gen/rollup.log &
           PID1=$!
 
@@ -187,7 +187,7 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run mkdir -p logs/integration_tests/en/
+          mkdir -p logs/integration_tests/en/
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> logs/integration_tests/en/rollup.log &
           PID1=$!
 
@@ -206,7 +206,7 @@ jobs:
           ci_run killall -INT zksync_server
           ci_run killall -INT zksync_external_node
           
-          ci_run mkdir -p logs/revert/en/
+          mkdir -p logs/revert/en/
           ci_run zk_supervisor test revert --no-deps --external-node --ignore-prerequisites --chain validium &> logs/revert/en/validium.log &
           PID1=$!
 
@@ -231,6 +231,7 @@ jobs:
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: logs
           path: logs

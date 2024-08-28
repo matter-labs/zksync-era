@@ -52,7 +52,7 @@ if (deploymentMode == 'Validium') {
 }
 
 function logsPath(name: string): string {
-    let chain = fileConfig ? fileConfig.chain! : 'default';
+    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
     let dir = path.join(pathToHome, 'logs/revert/en', chain);
     fs.mkdirSync(dir, { recursive: true });
     return path.join(dir, name);

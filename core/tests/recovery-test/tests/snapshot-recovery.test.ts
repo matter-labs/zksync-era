@@ -60,7 +60,7 @@ interface TokenInfo {
 }
 
 async function logsPath(name: string): Promise<string> {
-    let chain = fileConfig ? fileConfig.chain! : 'default';
+    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
     let dir = path.join(pathToHome, 'logs/recovery/snapshot', chain);
     await fs.mkdir(dir, { recursive: true });
     return path.join(dir, name);
