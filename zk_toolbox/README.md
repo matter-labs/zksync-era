@@ -37,7 +37,7 @@ Foundry is used for deploying smart contracts. Pass flags for Foundry integratio
 
 ZK Stack allows you to create a new ecosystem or connect to an existing one. An ecosystem includes components like the
 BridgeHub, shared bridges, and state transition managers.
-[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html).
+[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges).
 
 #### Global Config
 

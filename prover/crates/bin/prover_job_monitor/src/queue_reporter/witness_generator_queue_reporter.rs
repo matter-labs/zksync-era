@@ -35,12 +35,15 @@ impl WitnessGeneratorQueueReporter {
             );
         }
 
-        SERVER_METRICS.witness_generator_jobs_by_round
-            [&("queued", round.to_string(), protocol_version.to_string())]
+        SERVER_METRICS.witness_generator_jobs_by_round[&(
+            "queued",
+            format!("{:?}", round),
+            protocol_version.to_string(),
+        )]
             .set(stats.queued as u64);
         SERVER_METRICS.witness_generator_jobs_by_round[&(
             "in_progress",
-            round.to_string(),
+            format!("{:?}", round),
             protocol_version.to_string(),
         )]
             .set(stats.in_progress as u64);

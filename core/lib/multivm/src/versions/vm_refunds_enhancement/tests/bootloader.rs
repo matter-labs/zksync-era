@@ -45,10 +45,10 @@ fn test_bootloader_out_of_gas() {
 
     let res = vm.vm.execute(VmExecutionMode::Batch);
 
-    assert!(matches!(
+    assert_matches!(
         res.result,
         ExecutionResult::Halt {
             reason: Halt::BootloaderOutOfGas
         }
-    ));
+    );
 }

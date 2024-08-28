@@ -6306,6 +6306,7 @@ dependencies = [
  "human-panic",
  "serde",
  "serde_json",
+ "serde_yaml",
  "strum",
  "tokio",
  "types",

@@ -145,6 +145,10 @@ jobs:
           --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain custom_token
           ci_run zk_inception external-node init --ignore-prerequisites --chain custom_token
 
+          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain chain_custom_token
+          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_custom_token
+
       - name: Run recovery tests (from snapshot)
         run: |
           mkdir -p logs/recovery/snap
