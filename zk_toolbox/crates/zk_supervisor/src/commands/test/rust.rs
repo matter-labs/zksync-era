@@ -122,7 +122,7 @@ async fn reset_test_databases(
     for dal in dals {
         let mut url = dal.url.clone();
         url.set_path("");
-        wait_for_db(&url, 10).await?;
+        wait_for_db(&url, 3).await?;
         database::reset::reset_database(shell, link_to_code, dal.clone()).await?;
     }
 
