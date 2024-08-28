@@ -4,7 +4,7 @@ use tester::AccountFailedCall;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_test_account::Account;
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId, U256,
+    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
 };
 
 use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
