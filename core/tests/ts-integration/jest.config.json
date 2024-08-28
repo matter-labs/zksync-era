@@ -6,6 +6,7 @@
     "transform": {
         "^.+\\.ts?$": "ts-jest"
     },
+    "maxWorkers": "50%",
     "//": "!!! Do not increase the test timeout blindly!!!",
     "//": "Timeout is set to match ~4 L1 operations with 10 blocks confirmation",
     "//": "If you need bigger timeout, consider either disabling the test outside of fast mode or increasing timeout on a single test",
