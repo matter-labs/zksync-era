@@ -205,7 +205,7 @@ impl CommandReceiver {
         }
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
-        let gas_remaining = vm.gas_remaining();
+        let gas_remaining = tx_result.statistics.gas_remaining;
 
         Ok(TxExecutionResult::Success {
             tx_result: Box::new(tx_result),

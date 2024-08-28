@@ -65,9 +65,6 @@ pub trait VmInterface {
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
 
-    /// How much gas is left in the current stack frame.
-    fn gas_remaining(&self) -> u32;
-
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
     fn finish_batch(&mut self) -> FinishedL1Batch;

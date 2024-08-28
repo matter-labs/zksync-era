@@ -345,6 +345,10 @@ impl<S: ReadStorage> Vm<S> {
     pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
         self.inner.world_diff.decommitted_hashes()
     }
+
+    fn gas_remaining(&self) -> u32 {
+        self.inner.state.current_frame.gas
+    }
 }
 
 // We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
@@ -529,7 +533,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 contracts_used: 0,
                 cycles_used: 0,
                 gas_used: 0,
-                gas_remaining: 0,
+                gas_remaining: self.gas_remaining(),
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
@@ -565,10 +569,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         todo!("Unused during batch execution")
-    }
-
-    fn gas_remaining(&self) -> u32 {
-        self.inner.state.current_frame.gas
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

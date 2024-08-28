@@ -114,13 +114,6 @@ where
         self.main.record_vm_memory_metrics()
     }
 
-    fn gas_remaining(&self) -> u32 {
-        let main_gas = self.main.gas_remaining();
-        let shadow_gas = self.shadow.gas_remaining();
-        DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas).unwrap();
-        main_gas
-    }
-
     fn finish_batch(&mut self) -> FinishedL1Batch {
         let main_batch = self.main.finish_batch();
         let shadow_batch = self.shadow.finish_batch();
@@ -159,16 +152,6 @@ where
 pub struct DivergenceErrors(Vec<anyhow::Error>);
 
 impl DivergenceErrors {
-    fn single<T: fmt::Debug + PartialEq>(
-        context: &str,
-        main: &T,
-        shadow: &T,
-    ) -> anyhow::Result<()> {
-        let mut this = Self::default();
-        this.check_match(context, main, shadow);
-        this.into_result()
-    }
-
     fn check_results_match(
         &mut self,
         main_result: &VmExecutionResultAndLogs,
@@ -194,6 +177,11 @@ impl DivergenceErrors {
         let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
+        self.check_match(
+            "gas_remaining",
+            &main_result.statistics.gas_remaining,
+            &shadow_result.statistics.gas_remaining,
+        );
     }
 
     fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {

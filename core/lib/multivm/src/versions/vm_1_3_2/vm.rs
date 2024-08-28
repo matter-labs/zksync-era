@@ -177,10 +177,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn gas_remaining(&self) -> u32 {
-        self.vm.gas_remaining()
-    }
-
     fn finish_batch(&mut self) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(

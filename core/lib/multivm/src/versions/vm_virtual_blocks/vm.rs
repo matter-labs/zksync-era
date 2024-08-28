@@ -36,6 +36,10 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub(super) fn gas_remaining(&self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
+    }
+
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         let (raw_events, l1_messages) = self.state.event_sink.flatten();
         let events: Vec<_> = merge_events(raw_events)
@@ -109,10 +113,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         }
-    }
-
-    fn gas_remaining(&self) -> u32 {
-        self.state.local_state.callstack.current.ergs_remaining
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
