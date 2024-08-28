@@ -40,7 +40,7 @@ impl From<NonceHolderTestMode> for u8 {
 #[test]
 fn test_nonce_holder() {
     let mut account = Account::random();
-    let hex_addr = hex::encode(account.address.to_fixed_bytes());
+    // let hex_addr = hex::encode(account.address.to_fixed_bytes());
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()

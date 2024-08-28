@@ -60,10 +60,10 @@ impl<H: HistoryMode> VmTester<H> {
         self.test_contract = Some(deployed_address);
     }
 
-    pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
-        self.reset_state(false);
-    }
+    // pub(crate) fn reset_with_empty_storage(&mut self) {
+    //     self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
+    //     self.reset_state(false);
+    // }
 
     /// Reset the state of the VM to the initial state.
     /// If `use_latest_l2_block` is true, then the VM will use the latest L2 block from storage,
