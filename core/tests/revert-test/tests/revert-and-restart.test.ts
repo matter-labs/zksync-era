@@ -139,8 +139,10 @@ describe('Block reverting test', function () {
     });
 
     step('run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
+        if (autoKill) {
+            // Make sure server isn't running.
+            await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
+        }
 
         // Run server in background.
         serverProcess = runServerInBackground({
