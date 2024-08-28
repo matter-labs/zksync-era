@@ -74,10 +74,10 @@ impl TeeProofGenerationDal<'_, '_> {
             RETURNING
                 tee_proof_generation_details.l1_batch_number
             "#,
-            TeeProofGenerationJobStatus::PickedByProver as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::PickedByProver.to_string(),
             tee_type.to_string(),
             TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            TeeProofGenerationJobStatus::Unpicked as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::Unpicked.to_string(),
             processing_timeout,
             min_batch_number
         );
@@ -110,7 +110,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 l1_batch_number = $2
                 AND tee_type = $3
             "#,
-            TeeProofGenerationJobStatus::Unpicked as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::Unpicked.to_string(),
             batch_number,
             tee_type.to_string()
         )
@@ -146,7 +146,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 l1_batch_number = $6
             "#,
             tee_type.to_string(),
-            TeeProofGenerationJobStatus::Generated as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::Generated.to_string(),
             pubkey,
             signature,
             proof,
@@ -190,7 +190,7 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             batch_number,
             tee_type.to_string(),
-            TeeProofGenerationJobStatus::Unpicked as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::Unpicked.to_string(),
         );
         let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
             .with_arg("l1_batch_number", &batch_number)
@@ -256,7 +256,7 @@ impl TeeProofGenerationDal<'_, '_> {
 
         let mut query = sqlx::query_as(&query)
             .bind(i64::from(batch_number.0))
-            .bind(TeeProofGenerationJobStatus::Generated as TeeProofGenerationJobStatus);
+            .bind(TeeProofGenerationJobStatus::Generated.to_string());
 
         if let Some(tee_type) = tee_type {
             query = query.bind(tee_type.to_string());
@@ -284,7 +284,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 1
             "#,
             TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
-            TeeProofGenerationJobStatus::Unpicked as TeeProofGenerationJobStatus,
+            TeeProofGenerationJobStatus::Unpicked.to_string(),
         );
         let batch_number = Instrumented::new("get_oldest_unpicked_batch")
             .with(query)

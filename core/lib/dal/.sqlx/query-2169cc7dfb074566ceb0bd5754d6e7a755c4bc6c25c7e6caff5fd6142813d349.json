@@ -7,18 +7,7 @@
       "Left": [
         "Int8",
         "Text",
-        {
-          "Custom": {
-            "name": "tee_proofs_job_status",
-            "kind": {
-              "Enum": [
-                "Generated",
-                "PickedByProver",
-                "Unpicked"
-              ]
-            }
-          }
-        }
+        "Text"
       ]
     },
     "nullable": []

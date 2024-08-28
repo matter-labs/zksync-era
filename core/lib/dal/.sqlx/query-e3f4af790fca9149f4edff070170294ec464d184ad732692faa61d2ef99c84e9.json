@@ -11,18 +11,7 @@
     ],
     "parameters": {
       "Left": [
-        {
-          "Custom": {
-            "name": "tee_proofs_job_status",
-            "kind": {
-              "Enum": [
-                "Generated",
-                "PickedByProver",
-                "Unpicked"
-              ]
-            }
-          }
-        },
+        "Text",
         "Text",
         {
           "Custom": {
@@ -38,18 +27,7 @@
             }
           }
         },
-        {
-          "Custom": {
-            "name": "tee_proofs_job_status",
-            "kind": {
-              "Enum": [
-                "Generated",
-                "PickedByProver",
-                "Unpicked"
-              ]
-            }
-          }
-        },
+        "Text",
         "Interval",
         "Int8"
       ]
