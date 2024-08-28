@@ -26,6 +26,12 @@ const DEFAULT_L1_TX_SENDING_MAX_ATTEMPTS: u32 = 3;
 /// Default number of milliseconds to sleep between receipt checking attempts
 const DEFAULT_L1_RECEIPT_CHECKING_SLEEP_MS: u64 = 30_000;
 
+/// Default maximum number of attempts to fetch price from a remote API
+const DEFAULT_PRICE_FETCHING_MAX_ATTEMPTS: u32 = 3;
+
+/// Default number of milliseconds to sleep between price fetching attempts
+const DEFAULT_PRICE_FETCHING_SLEEP_MS: u64 = 5_000;
+
 /// Default number of milliseconds to sleep between transaction sending attempts
 const DEFAULT_L1_TX_SENDING_SLEEP_MS: u64 = 30_000;
 
@@ -73,6 +79,14 @@ pub struct BaseTokenAdjusterConfig {
     #[serde(default = "BaseTokenAdjusterConfig::default_l1_tx_sending_sleep_ms")]
     pub l1_tx_sending_sleep_ms: u64,
 
+    /// Maximum number of attempts to fetch quote from a remote API before failing over
+    #[serde(default = "BaseTokenAdjusterConfig::default_price_fetching_max_attempts")]
+    pub price_fetching_max_attempts: u32,
+
+    /// Number of seconds to sleep between price fetching attempts
+    #[serde(default = "BaseTokenAdjusterConfig::default_price_fetching_sleep_ms")]
+    pub price_fetching_sleep_ms: u64,
+
     /// Defines whether base_token_adjuster should halt the process if there was an error while
     /// fetching or persisting the quote. Generally that should be set to false to not to halt
     /// the server process if an external api is not available or if L1 is congested.
@@ -93,6 +107,8 @@ impl Default for BaseTokenAdjusterConfig {
             l1_receipt_checking_sleep_ms: Self::default_l1_receipt_checking_sleep_ms(),
             l1_tx_sending_max_attempts: Self::default_l1_tx_sending_max_attempts(),
             l1_tx_sending_sleep_ms: Self::default_l1_tx_sending_sleep_ms(),
+            price_fetching_sleep_ms: Self::default_price_fetching_sleep_ms(),
+            price_fetching_max_attempts: Self::default_price_fetching_max_attempts(),
             halt_on_error: Self::default_halt_on_error(),
         }
     }
@@ -135,6 +151,10 @@ impl BaseTokenAdjusterConfig {
         Duration::from_millis(self.l1_tx_sending_sleep_ms)
     }
 
+    pub fn price_fetching_sleep_duration(&self) -> Duration {
+        Duration::from_millis(self.price_fetching_sleep_ms)
+    }
+
     pub fn default_l1_receipt_checking_max_attempts() -> u32 {
         DEFAULT_L1_RECEIPT_CHECKING_MAX_ATTEMPTS
     }
@@ -149,6 +169,14 @@ impl BaseTokenAdjusterConfig {
 
     pub fn default_l1_tx_sending_sleep_ms() -> u64 {
         DEFAULT_L1_TX_SENDING_SLEEP_MS
+    }
+
+    pub fn default_price_fetching_sleep_ms() -> u64 {
+        DEFAULT_PRICE_FETCHING_SLEEP_MS
+    }
+
+    pub fn default_price_fetching_max_attempts() -> u32 {
+        DEFAULT_PRICE_FETCHING_MAX_ATTEMPTS
     }
 
     pub fn default_max_tx_gas() -> u64 {

@@ -75,6 +75,7 @@ pub struct RecursionTipWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
 }
 
 impl RecursionTipWitnessGenerator {
@@ -83,12 +84,14 @@ impl RecursionTipWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_path: String,
     ) -> Self {
         Self {
             config,
             object_store,
             prover_connection_pool,
             protocol_version,
+            setup_data_path,
         }
     }
 
@@ -172,6 +175,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
                 l1_batch_number,
                 final_node_proof_job_ids,
                 &*self.object_store,
+                self.setup_data_path.clone(),
             )
             .await
             .context("prepare_job()")?,
@@ -284,6 +288,7 @@ pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
     final_node_proof_job_ids: Vec<(u8, u32)>,
     object_store: &dyn ObjectStore,
+    setup_data_path: String,
 ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
     let started_at = Instant::now();
     let recursion_tip_proofs =
@@ -291,7 +296,7 @@ pub async fn prepare_job(
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
         .observe(started_at.elapsed());
 
-    let keystore = Keystore::default();
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
     let node_vk = keystore
         .load_recursive_layer_verification_key(
             ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
