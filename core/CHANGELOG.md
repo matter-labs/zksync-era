@@ -1,5 +1,18 @@
 # Changelog
 
+## [24.23.0](https://github.com/matter-labs/zksync-era/compare/core-v24.22.0...core-v24.23.0) (2024-08-28)
+
+
+### Features
+
+* Refactor metrics/make API use binaries ([#2735](https://github.com/matter-labs/zksync-era/issues/2735)) ([8ed086a](https://github.com/matter-labs/zksync-era/commit/8ed086afecfcad30bfda44fc4d29a00beea71cca))
+
+
+### Bug Fixes
+
+* **api:** Fix duplicate DB connection acquired in `eth_call` ([#2763](https://github.com/matter-labs/zksync-era/issues/2763)) ([74b764c](https://github.com/matter-labs/zksync-era/commit/74b764c12e6daa410c611cec42455a00e68ed912))
+* **vm:** Fix used bytecodes divergence ([#2741](https://github.com/matter-labs/zksync-era/issues/2741)) ([923e33e](https://github.com/matter-labs/zksync-era/commit/923e33e81bba83f72b97ca9590c5cdf2da2a311b))
+
 ## [24.22.0](https://github.com/matter-labs/zksync-era/compare/core-v24.21.0...core-v24.22.0) (2024-08-27)
 
 
