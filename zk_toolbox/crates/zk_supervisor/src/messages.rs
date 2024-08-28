@@ -84,6 +84,9 @@ pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
+pub(super) const MSG_TEST_RUST_LINK_TO_CODE_HELP: &str = "Link to code";
+pub(super) const MSG_TEST_SERVER_URL_HELP: &str = "Test database URL";
+pub(super) const MSG_TEST_PROVER_URL_HELP: &str = "Test prover database URL";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
