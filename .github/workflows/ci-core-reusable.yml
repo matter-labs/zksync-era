@@ -70,7 +70,7 @@ jobs:
           ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [matterlabs-ci-runner-highmem-long]
+    runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       fail-fast: false
       matrix:
