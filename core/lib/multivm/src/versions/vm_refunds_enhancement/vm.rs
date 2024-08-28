@@ -1,5 +1,6 @@
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
+use zksync_vm_interface::FinishedL1Batch;
 
 use crate::{
     glue::GlueInto,
@@ -34,6 +35,39 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    fn get_current_execution_state(&self) -> CurrentExecutionState {
+        let (raw_events, l1_messages) = self.state.event_sink.flatten();
+        let events: Vec<_> = merge_events(raw_events)
+            .into_iter()
+            .map(|e| e.into_vm_event(self.batch_env.number))
+            .collect();
+
+        let l2_to_l1_logs = l1_messages
+            .into_iter()
+            .map(|log| UserL2ToL1Log(log.glue_into()))
+            .collect();
+
+        let storage_log_queries = self.state.storage.get_final_log_queries();
+
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+
+        CurrentExecutionState {
+            events,
+            deduplicated_storage_logs: deduped_storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            used_contract_hashes: self.get_used_contracts(),
+            user_l2_to_l1_logs: l2_to_l1_logs,
+            system_logs: vec![],
+            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
+            pubdata_costs: Vec::new(),
+        }
+    }
+}
+
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
 
@@ -65,40 +99,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.bootloader_state.start_new_l2_block(l2_block_env);
     }
 
-    /// Get current state of virtual machine.
-    /// This method should be used only after the batch execution.
-    /// Otherwise it can panic.
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (raw_events, l1_messages) = self.state.event_sink.flatten();
-        let events: Vec<_> = merge_events(raw_events)
-            .into_iter()
-            .map(|e| e.into_vm_event(self.batch_env.number))
-            .collect();
-
-        let l2_to_l1_logs = l1_messages
-            .into_iter()
-            .map(|log| UserL2ToL1Log(log.glue_into()))
-            .collect();
-
-        let storage_log_queries = self.state.storage.get_final_log_queries();
-
-        let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
-
-        CurrentExecutionState {
-            events,
-            deduplicated_storage_logs: deduped_storage_log_queries
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
-            used_contract_hashes: self.get_used_contracts(),
-            user_l2_to_l1_logs: l2_to_l1_logs,
-            system_logs: vec![],
-            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
-            pubdata_costs: Vec::new(),
-        }
-    }
-
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
@@ -127,6 +127,19 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.record_vm_memory_metrics_inner()
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.execute(VmExecutionMode::Batch);
+        let execution_state = self.get_current_execution_state();
+        let bootloader_memory = self.get_bootloader_memory();
+        FinishedL1Batch {
+            block_tip_execution_result: result,
+            final_execution_state: execution_state,
+            final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: None,
+            state_diffs: None,
+        }
     }
 }
 

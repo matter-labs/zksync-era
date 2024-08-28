@@ -1,33 +1,25 @@
 use std::collections::HashSet;
 
-use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
-use itertools::Itertools;
-use zk_evm_1_3_1::aux_structures::LogQuery;
-use zksync_types::{
-    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    vm::VmVersion,
-    Transaction,
-};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_types::{vm::VmVersion, Transaction};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
-        CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
-    vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
+    vm_m6::{storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
 };
 
 #[derive(Debug)]
 pub struct Vm<S: Storage, H: HistoryMode> {
     pub(crate) vm: VmInstance<S, H::VmM6Mode>,
     pub(crate) system_env: SystemEnv,
-    pub(crate) batch_env: L1BatchEnv,
     pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
@@ -48,7 +40,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         let inner_vm = crate::vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
             vm_sub_version,
             oracle_tools,
-            batch_env.clone().glue_into(),
+            batch_env.glue_into(),
             block_properties,
             system_env.execution_mode.glue_into(),
             &system_env.base_system_smart_contracts.clone().glue_into(),
@@ -57,7 +49,6 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         Self {
             vm: inner_vm,
             system_env,
-            batch_env,
             last_tx_compressed_bytecodes: vec![],
         }
     }
@@ -121,68 +112,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn start_new_l2_block(&mut self, _l2_block_env: L2BlockEnv) {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
-    }
-
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (raw_events, l1_messages) = self.vm.state.event_sink.flatten();
-        let events = merge_events(raw_events)
-            .into_iter()
-            .map(|e| e.into_vm_event(self.batch_env.number))
-            .collect();
-        let l2_to_l1_logs = l1_messages
-            .into_iter()
-            .map(|m| {
-                UserL2ToL1Log(L2ToL1Log {
-                    shard_id: m.shard_id,
-                    is_service: m.is_first,
-                    tx_number_in_block: m.tx_number_in_block,
-                    sender: m.address,
-                    key: u256_to_h256(m.key),
-                    value: u256_to_h256(m.value),
-                })
-            })
-            .collect();
-
-        let used_contract_hashes = self
-            .vm
-            .state
-            .decommittment_processor
-            .known_bytecodes
-            .inner()
-            .keys()
-            .cloned()
-            .collect();
-
-        let storage_log_queries = self.vm.get_final_log_queries();
-
-        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
-        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
-        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
-            &storage_log_queries
-                .iter()
-                .map(|log| {
-                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
-                })
-                .collect_vec(),
-        )
-        .1
-        .into_iter()
-        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
-        .collect();
-
-        CurrentExecutionState {
-            events,
-            deduplicated_storage_logs: deduplicated_logs
-                .into_iter()
-                .map(GlueInto::glue_into)
-                .collect(),
-            used_contract_hashes,
-            user_l2_to_l1_logs: l2_to_l1_logs,
-            // Fields below are not produced by `vm6`
-            system_logs: vec![],
-            storage_refunds: vec![],
-            pubdata_costs: vec![],
-        }
     }
 
     fn inspect_transaction_with_bytecode_compression(

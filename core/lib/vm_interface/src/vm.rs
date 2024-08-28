@@ -15,8 +15,8 @@ use zksync_types::Transaction;
 
 use crate::{
     storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
-    CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmMemoryMetrics,
+    FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    VmMemoryMetrics,
 };
 
 pub trait VmInterface {
@@ -39,6 +39,7 @@ pub trait VmInterface {
     ) -> VmExecutionResultAndLogs;
 
     /// Get bootloader memory.
+    // FIXME: remove as well
     fn get_bootloader_memory(&self) -> BootloaderMemory;
 
     /// Get last transaction's compressed bytecodes.
@@ -46,9 +47,6 @@ pub trait VmInterface {
 
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
-
-    /// Get the current state of the virtual machine.
-    fn get_current_execution_state(&self) -> CurrentExecutionState;
 
     /// Execute transaction with optional bytecode compression.
     fn execute_transaction_with_bytecode_compression(
@@ -85,18 +83,7 @@ pub trait VmInterface {
 
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
-        let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
-        FinishedL1Batch {
-            block_tip_execution_result: result,
-            final_execution_state: execution_state,
-            final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: None,
-            state_diffs: None,
-        }
-    }
+    fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
 /// Encapsulates creating VM instance based on the provided environment.

@@ -104,14 +104,6 @@ where
         self.main.start_new_l2_block(l2_block_env);
     }
 
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let main_state = self.main.get_current_execution_state();
-        let shadow_state = self.shadow.get_current_execution_state();
-        DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state)
-            .unwrap();
-        main_state
-    }
-
     fn execute_transaction_with_bytecode_compression(
         &mut self,
         tx: Transaction,

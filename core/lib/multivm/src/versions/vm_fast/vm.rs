@@ -407,6 +407,39 @@ impl<S: ReadStorage> Vm<S> {
         me
     }
 
+    // visible for testing
+    pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
+        let world_diff = &self.inner.world_diff;
+        let events = merge_events(world_diff.events(), self.batch_env.number);
+
+        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
+            .into_iter()
+            .map(Into::into)
+            .map(UserL2ToL1Log)
+            .collect();
+
+        CurrentExecutionState {
+            events,
+            deduplicated_storage_logs: world_diff
+                .get_storage_changes()
+                .map(|((address, key), (_, value))| StorageLog {
+                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
+                    value: u256_to_h256(value),
+                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
+                })
+                .collect(),
+            used_contract_hashes: self.decommitted_hashes().collect(),
+            system_logs: world_diff
+                .l2_to_l1_logs()
+                .iter()
+                .map(|x| x.glue_into())
+                .collect(),
+            user_l2_to_l1_logs,
+            storage_refunds: world_diff.storage_refunds().to_vec(),
+            pubdata_costs: world_diff.pubdata_costs().to_vec(),
+        }
+    }
+
     fn delete_history_if_appropriate(&mut self) {
         if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
             self.inner.delete_history();
@@ -536,38 +569,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env)
-    }
-
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let world_diff = &self.inner.world_diff;
-        let events = merge_events(world_diff.events(), self.batch_env.number);
-
-        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
-            .into_iter()
-            .map(Into::into)
-            .map(UserL2ToL1Log)
-            .collect();
-
-        CurrentExecutionState {
-            events,
-            deduplicated_storage_logs: world_diff
-                .get_storage_changes()
-                .map(|((address, key), (_, value))| StorageLog {
-                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(value),
-                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
-                })
-                .collect(),
-            used_contract_hashes: self.decommitted_hashes().collect(),
-            system_logs: world_diff
-                .l2_to_l1_logs()
-                .iter()
-                .map(|x| x.glue_into())
-                .collect(),
-            user_l2_to_l1_logs,
-            storage_refunds: world_diff.storage_refunds().to_vec(),
-            pubdata_costs: world_diff.pubdata_costs().to_vec(),
-        }
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

@@ -4,10 +4,9 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     versions::shadow::ShadowVm,
@@ -82,10 +81,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_vm!(self.start_new_l2_block(l2_block_env))
-    }
-
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        dispatch_vm!(self.get_current_execution_state())
     }
 
     /// Execute transaction with optional bytecode compression.
