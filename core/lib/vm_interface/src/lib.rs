@@ -20,8 +20,8 @@
 pub use crate::{
     types::{
         errors::{
-            BytecodeCompressionError, Halt, TxRevertReason, VmRevertReason,
-            VmRevertReasonParsingError,
+            BytecodeCompressionError, BytecodeCompressionResult, Halt, TxRevertReason,
+            VmRevertReason, VmRevertReasonParsingError,
         },
         inputs::{
             L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionMode,

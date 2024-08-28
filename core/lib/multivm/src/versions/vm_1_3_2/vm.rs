@@ -7,9 +7,9 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv,
+        L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
+        VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
@@ -20,7 +20,6 @@ use crate::{
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) vm: VmInstance<S, H::Vm1_3_2Mode>,
     pub(crate) system_env: SystemEnv,
-    pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
@@ -75,10 +74,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.last_tx_compressed_bytecodes.clone()
-    }
-
     fn start_new_l2_block(&mut self, _l2_block_env: L2BlockEnv) {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
     }
@@ -88,16 +83,14 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
                 .execution_mode
                 .set_invocation_limit(storage_invocations);
         }
-        self.last_tx_compressed_bytecodes = vec![];
+
+        let compressed_bytecodes: Vec<_>;
         let bytecodes = if with_compression {
             let deps = &tx.execute.factory_deps;
             let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -114,18 +107,17 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                     bytecode::compress(bytecode.clone()).ok()
                 }
             });
-            let compressed_bytecodes: Vec<_> = filtered_deps.collect();
+            compressed_bytecodes = filtered_deps.collect();
 
-            self.last_tx_compressed_bytecodes
-                .clone_from(&compressed_bytecodes);
             crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                 &mut self.vm,
                 &tx,
                 self.system_env.execution_mode.glue_into(),
-                Some(compressed_bytecodes),
+                Some(compressed_bytecodes.clone()),
             );
             bytecode_hashes
         } else {
+            compressed_bytecodes = vec![];
             crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                 &mut self.vm,
                 &tx,
@@ -164,7 +156,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         } else {
-            (Ok(()), result)
+            (Ok(compressed_bytecodes), result)
         }
     }
 
@@ -219,7 +211,6 @@ impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
         Self {
             vm: inner_vm,
             system_env,
-            last_tx_compressed_bytecodes: vec![],
         }
     }
 }

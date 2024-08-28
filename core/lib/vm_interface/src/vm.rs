@@ -14,8 +14,8 @@
 use zksync_types::Transaction;
 
 use crate::{
-    storage::StoragePtr, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
+    storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {
@@ -37,21 +37,16 @@ pub trait VmInterface {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
-    /// Get last transaction's compressed bytecodes.
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo>;
-
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
 
+    // FIXME: move to extension trait
     /// Execute transaction with optional bytecode compression.
     fn execute_transaction_with_bytecode_compression(
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         self.inspect_transaction_with_bytecode_compression(
             Self::TracerDispatcher::default(),
             tx,
@@ -65,10 +60,7 @@ pub trait VmInterface {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    );
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs);
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;

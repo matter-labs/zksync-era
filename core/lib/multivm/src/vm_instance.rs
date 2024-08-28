@@ -4,8 +4,8 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
@@ -70,25 +70,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatch_vm!(self.inspect(dispatcher.into(), execution_mode))
     }
 
-    /// Get compressed bytecodes of the last executed transaction
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        dispatch_vm!(self.get_last_tx_compressed_bytecodes())
-    }
-
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_vm!(self.start_new_l2_block(l2_block_env))
-    }
-
-    /// Execute transaction with optional bytecode compression.
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: zksync_types::Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        dispatch_vm!(self.execute_transaction_with_bytecode_compression(tx, with_compression))
     }
 
     /// Inspect transaction with optional bytecode compression.
@@ -97,10 +80,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         dispatch_vm!(self.inspect_transaction_with_bytecode_compression(
             dispatcher.into(),
             tx,

@@ -8,9 +8,10 @@ use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_boojum_integration::{
@@ -91,11 +92,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.inspect_inner(tracer, execution_mode)
     }
 
-    /// Get compressed bytecodes of the last executed transaction
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.bootloader_state.get_last_tx_compressed_bytecodes()
-    }
-
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env);
     }
@@ -106,10 +102,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
@@ -118,7 +111,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         } else {
-            (Ok(()), result)
+            (
+                Ok(self.bootloader_state.get_last_tx_compressed_bytecodes()),
+                result,
+            )
         }
     }
 

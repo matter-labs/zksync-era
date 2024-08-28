@@ -545,7 +545,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (
-        Result<(), BytecodeCompressionError>,
+        Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     ) {
         self.push_transaction_inner(tx, 0, with_compression);
@@ -554,13 +554,9 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {
-            Ok(())
+            Ok(self.bootloader_state.get_last_tx_compressed_bytecodes())
         };
         (compression_result, result)
-    }
-
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.bootloader_state.get_last_tx_compressed_bytecodes()
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {

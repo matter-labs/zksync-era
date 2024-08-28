@@ -9,9 +9,9 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_fast,
 };
@@ -79,47 +79,9 @@ where
         main_result
     }
 
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        let main_bytecodes = self.main.get_last_tx_compressed_bytecodes();
-        let shadow_bytecodes = self.shadow.get_last_tx_compressed_bytecodes();
-        DivergenceErrors::single(
-            "get_last_tx_compressed_bytecodes",
-            &main_bytecodes,
-            &shadow_bytecodes,
-        )
-        .unwrap();
-        main_bytecodes
-    }
-
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.shadow.start_new_l2_block(l2_block_env);
         self.main.start_new_l2_block(l2_block_env);
-    }
-
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        let tx_hash = tx.hash();
-        let main_result = self
-            .main
-            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
-        let shadow_result = self
-            .shadow
-            .execute_transaction_with_bytecode_compression(tx, with_compression);
-        let mut errors = DivergenceErrors::default();
-        errors.check_results_match(&main_result.1, &shadow_result.1);
-        errors
-            .into_result()
-            .with_context(|| {
-                format!("executing transaction {tx_hash:?}, with_compression={with_compression:?}")
-            })
-            .unwrap();
-        main_result
     }
 
     fn inspect_transaction_with_bytecode_compression(
@@ -127,10 +89,7 @@ where
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
         let main_result = self.main.inspect_transaction_with_bytecode_compression(
             tracer,

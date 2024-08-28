@@ -4,10 +4,9 @@ use zksync_utils::h256_to_u256;
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
-        storage::StoragePtr, BytecodeCompressionError, CompressedBytecodeInfo, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_m5::{
         storage::Storage,
@@ -19,7 +18,6 @@ use crate::{
 pub struct Vm<S: Storage, H: HistoryMode> {
     pub(crate) vm: VmInstance<S>,
     pub(crate) system_env: SystemEnv,
-    pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -49,7 +47,6 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         Self {
             vm: inner_vm,
             system_env,
-            last_tx_compressed_bytecodes: vec![],
             _phantom: Default::default(),
         }
     }
@@ -87,10 +84,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.last_tx_compressed_bytecodes.clone()
-    }
-
     fn start_new_l2_block(&mut self, _l2_block_env: L2BlockEnv) {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
     }
@@ -100,16 +93,14 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
         );
-        (Ok(()), self.execute(VmExecutionMode::OneTx))
+        // Bytecode compression isn't supported
+        (Ok(vec![]), self.execute(VmExecutionMode::OneTx))
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
