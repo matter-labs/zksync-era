@@ -2,7 +2,10 @@ use clap::Parser;
 
 use crate::{
     dals::SelectedDals,
-    messages::{MSG_DATABASE_COMMON_CORE_HELP, MSG_DATABASE_COMMON_PROVER_HELP},
+    messages::{
+        MSG_DATABASE_COMMON_CORE_HELP, MSG_DATABASE_COMMON_CORE_URL_HELP,
+        MSG_DATABASE_COMMON_PROVER_HELP, MSG_DATABASE_COMMON_PROVER_URL_HELP,
+    },
 };
 
 pub mod new_migration;
@@ -13,17 +16,13 @@ pub struct DatabaseCommonArgs {
         short, long, default_missing_value = "true", num_args = 0..=1, help = MSG_DATABASE_COMMON_PROVER_HELP
     )]
     pub prover: Option<bool>,
-    #[clap(
-        short, long, default_missing_value = "true", num_args = 0..=1, help = "Prover url"
-    )]
+    #[clap(long, help = MSG_DATABASE_COMMON_PROVER_URL_HELP)]
     pub prover_url: Option<String>,
     #[clap(
         short, long, default_missing_value = "true", num_args = 0..=1, help = MSG_DATABASE_COMMON_CORE_HELP
     )]
     pub core: Option<bool>,
-    #[clap(
-        short, long, default_missing_value = "true", num_args = 0..=1, help = "Core url"
-    )]
+    #[clap(long, help = MSG_DATABASE_COMMON_CORE_URL_HELP)]
     pub core_url: Option<String>,
 }
 
