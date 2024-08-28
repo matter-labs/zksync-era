@@ -150,7 +150,7 @@ async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) { }
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) {}
 
     public async terminate() {
         try {
@@ -235,7 +235,7 @@ class MainNode {
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) { }
+    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) {}
 
     public async terminate() {
         try {
@@ -368,7 +368,7 @@ describe('Block reverting test', function () {
     });
 
     step('run', async () => {
-        if (!process.env.NO_KILL) {
+        if (!fileConfig.loadFromFile || !process.env.NO_KILL) {
             console.log('Make sure that nodes are not running');
             await ExtNode.terminateAll();
             await MainNode.terminateAll();

@@ -72,7 +72,7 @@ describe('genesis recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        if (!process.env.NO_KILL) {
+        if (!fileConfig.loadFromFile || !process.env.NO_KILL) {
             await NodeProcess.stopAll('KILL');
         }
     });
