@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_contracts::consensus as contracts;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::{validator,attester};
 use zksync_consensus_crypto::ByteFmt;
-use zksync_types::ethabi;
+use crate::storage::ConnectionPool;
 use crate::vm::VM;
 
 #[cfg(test)]
@@ -23,20 +23,39 @@ fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester:
     })
 }
 
-pub(crate) struct Contract(contracts::ConsensusRegistry);
+pub type Address = contracts::Address<contracts::ConsensusRegistry>;
 
-impl Contract {
-    pub fn at(address: ethabi::Address) -> Self {
-        Self(contracts::ConsensusRegistry::at(address))
+pub(crate) struct Registry {
+    contract: contracts::ConsensusRegistry,
+    genesis: validator::Genesis,
+    vm: VM,
+}
+
+impl Registry {
+    pub async fn new(genesis: validator::Genesis, pool: ConnectionPool) -> Self {
+        Self {
+            contract: contracts::ConsensusRegistry::load(),
+            genesis,
+            vm: VM::new(pool).await,
+        }
     }
 
-    /// Reads attester committee from the registry contract.
-    pub async fn get_attester_committee(&self, ctx: &ctx::Ctx, vm: &VM, batch: attester::BatchNumber) -> ctx::Result<attester::Committee> {
-        let raw = vm.call(ctx, batch, self.0.call(contracts::GetAttesterCommittee)).await.wrap("vm.call()")?;
+    /// Attester committee for the given batch.
+    /// It reads committee from the contract.
+    /// Falls back to committee specified in the genesis.
+    pub async fn attester_committee_for(&self, ctx: &ctx::Ctx, address: Option<Address>, attested_batch: attester::BatchNumber) -> ctx::Result<Option<attester::Committee>> {
+        let Some(batch_defining_committee) = attested_batch.prev() else {
+            // Batch 0 doesn't need attestation.
+            return Ok(None);
+        };
+        let Some(address) = address else {
+            return Ok(self.genesis.attesters.clone());
+        };
+        let raw = self.vm.call(ctx, batch_defining_committee, address, self.contract.call(contracts::GetAttesterCommittee)).await.wrap("vm.call()")?;
         let mut attesters = vec![];
         for a in raw {
            attesters.push(decode_weighted_attester(&a).context("decode_weighted_attester()")?);
         }
-        Ok(attester::Committee::new(attesters.into_iter()).context("Committee::new()")?)
+        Ok(Some(attester::Committee::new(attesters.into_iter()).context("Committee::new()")?))
     }
 }

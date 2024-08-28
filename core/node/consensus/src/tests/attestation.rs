@@ -131,6 +131,7 @@ async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             validator_pool.clone(),
+            None,
         ));
 
         tracing::info!("Run nodes.");

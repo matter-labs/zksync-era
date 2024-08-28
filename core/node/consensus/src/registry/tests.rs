@@ -3,7 +3,9 @@ use super::*;
 use zksync_concurrency::{ctx, scope};
 use zksync_contracts::consensus as contracts;
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{attester, validator,
+    validator::testonly::{Setup},
+};
 use zksync_types::{
     ethabi,
     ProtocolVersionId,
@@ -12,10 +14,10 @@ use crate::storage::ConnectionPool;
 use zksync_types::{Execute, Transaction, U256};
 use zksync_test_account::Account;
 
-fn make_tx<F:contracts::Function>(account: &mut Account, call: contracts::Call<F>) -> Transaction {
+fn make_tx<F:contracts::Function>(account: &mut Account, address: contracts::Address<F::Contract>, call: contracts::Call<F>) -> Transaction {
     account.get_l2_tx_for_execute(
         Execute {
-            contract_address: call.address(),
+            contract_address: *address,
             calldata: call.calldata().unwrap(),
             value: U256::zero(),
             factory_deps: vec![],
@@ -71,18 +73,18 @@ fn gen_attester(rng: &mut impl Rng) -> attester::WeightedAttester {
     }
 }
 
-impl Contract {
-    fn deploy(account: &mut Account) -> (Contract, Transaction) {
+impl Registry {
+    fn deploy(account: &mut Account) -> (Address, Transaction) {
         let tx = account.get_deploy_tx(
             &contracts::ConsensusRegistry::bytecode(),
             None,
             zksync_test_account::TxType::L2,
         );
-        (Self::at(tx.address), tx.tx)
+        (Address::new(tx.address), tx.tx)
     }
 
     fn add(&self, node_owner: ethabi::Address, validator: WeightedValidator, attester: attester::WeightedAttester) -> anyhow::Result<contracts::Call<contracts::Add>> {
-        Ok(self.0.call(contracts::Add {
+        Ok(self.contract.call(contracts::Add {
             node_owner,
             validator_pub_key: encode_validator_key(&validator.key),
             validator_weight: validator.weight.try_into().context("overflow").context("validator_weight")?,
@@ -93,11 +95,11 @@ impl Contract {
     }
 
     fn initialize(&self, initial_owner: ethabi::Address) -> contracts::Call<contracts::Initialize> {
-        self.0.call(contracts::Initialize{initial_owner})
+        self.contract.call(contracts::Initialize{initial_owner})
     }
 
     fn commit_attester_committee(&self) -> contracts::Call<contracts::CommitAttesterCommittee> {
-        self.0.call(contracts::CommitAttesterCommittee)
+        self.contract.call(contracts::CommitAttesterCommittee)
     }
 }
 
@@ -106,9 +108,11 @@ async fn test_vm_reader() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
+        let registry = Registry::new(setup.genesis.clone(), pool.clone()).await;
         let mut account = Account::random();
         zksync_state_keeper::testonly::fund(&pool.0, &[account.address]).await;
 
@@ -117,24 +121,23 @@ async fn test_vm_reader() {
 
         // Deploy registry contract and initialize it.
         let address = account.address();
-        let (registry, tx) = Contract::deploy(&mut account);
+        let (registry_addr, tx) = Registry::deploy(&mut account);
         let mut txs = vec![tx];
-        txs.push(make_tx(&mut account, registry.initialize(address)));
+        txs.push(make_tx(&mut account, registry_addr, registry.initialize(address)));
         
         // Configure the registry contract with a new attester committee.
         let committee = attester::Committee::new((0..5).map(|_|gen_attester(rng))).unwrap();
         for a in committee.iter() {
-            txs.push(make_tx(&mut account, registry.add(rng.gen(), gen_validator(rng), a.clone()).unwrap()));
+            txs.push(make_tx(&mut account, registry_addr, registry.add(rng.gen(), gen_validator(rng), a.clone()).unwrap()));
         }
-        txs.push(make_tx(&mut account, registry.commit_attester_committee()));
+        txs.push(make_tx(&mut account, registry_addr, registry.commit_attester_committee()));
         node.push_block(&txs).await;
         node.seal_batch().await;
         pool.wait_for_batch(ctx,node.last_batch()).await?;
 
         // Read the attester committee using the vm.
         let batch = attester::BatchNumber(node.last_batch().0.into());
-        let vm = VM::new(pool.clone()).await;
-        assert_eq!(committee, registry.get_attester_committee(ctx, &vm, batch).await.unwrap());
+        assert_eq!(Some(committee), registry.attester_committee_for(ctx, Some(registry_addr), batch+1).await.unwrap());
         Ok(())
     })
     .await

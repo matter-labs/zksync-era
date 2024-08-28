@@ -51,10 +51,11 @@ impl VM {
         &self, 
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,
+        address: contracts::Address<F::Contract>,
         call: contracts::Call<F>,
     ) -> ctx::Result<F::Outputs> {
         let tx = L2Tx::new(
-            call.address(),
+            *address,
             call.calldata().context("call.calldata()")?,
             Nonce(0),
             Fee {

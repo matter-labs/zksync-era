@@ -105,7 +105,7 @@ impl EN {
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_updater(ctx, genesis.clone(), attestation.clone()));
+            s.spawn_bg(self.run_attestation_controller(ctx, genesis.clone(), attestation.clone()));
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
@@ -164,7 +164,7 @@ impl EN {
 
     /// Monitors the `AttestationStatus` on the main node,
     /// and updates the attestation config accordingly.
-    async fn run_attestation_updater(
+    async fn run_attestation_controller(
         &self,
         ctx: &ctx::Ctx,
         genesis: validator::Genesis,

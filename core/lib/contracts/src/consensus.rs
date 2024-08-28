@@ -2,18 +2,39 @@ use ethabi::{Token};
 use anyhow::Context as _;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub struct DeployedContract {
-    pub address: ethabi::Address,
-    pub contract: ethabi::Contract,
-}
-
 pub trait Function {
     const NAME: &'static str;
-    type Contract: AsRef<DeployedContract>;
+    type Contract: AsRef<ethabi::Contract>;
     type Outputs;
     fn encode(&self) -> Vec<Token>;
     fn decode_outputs(outputs: Vec<Token>) -> anyhow::Result<Self::Outputs>;
+}
+
+/// Address of contract C. It is just a wrapper of ethabi::Address.
+#[derive(Debug,Hash)]
+pub struct Address<C>(ethabi::Address,std::marker::PhantomData<C>);
+
+impl<C> Clone for Address<C> {
+    fn clone(&self) -> Self { Self(self.0,self.1) }
+}
+
+impl<C> Copy for Address<C> {}
+
+impl<C> PartialEq for Address<C> {
+    fn eq(&self,other:&Self) -> bool { self.0.eq(&other.0) }
+}
+
+impl<C> Eq for Address<C> {}
+
+impl<C> Address<C> {
+    pub fn new(address: ethabi::Address) -> Self {
+        Self(address,std::marker::PhantomData)
+    }
+}
+
+impl<C> std::ops::Deref for Address<C> {
+    type Target = ethabi::Address;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 pub struct Call<F:Function> {
@@ -22,9 +43,7 @@ pub struct Call<F:Function> {
 }
 
 impl<F:Function> Call<F> {
-    pub fn address(&self) -> ethabi::Address { self.contract.as_ref().address } 
-    fn contract(&self) -> &ethabi::Contract { &self.contract.as_ref().contract }
-    pub(crate) fn function(&self) -> &ethabi::Function { self.contract().function(F::NAME).unwrap() }
+    pub(crate) fn function(&self) -> &ethabi::Function { self.contract.as_ref().function(F::NAME).unwrap() }
     pub fn calldata(&self) -> ethabi::Result<ethabi::Bytes> {
         self.function().encode_input(&self.inputs.encode())
     }
@@ -55,10 +74,10 @@ fn into_uint<I:TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I> {
 }
 
 #[derive(Debug,Clone)]
-pub struct ConsensusRegistry(Arc<DeployedContract>);
+pub struct ConsensusRegistry(Arc<ethabi::Contract>);
 
-impl AsRef<DeployedContract> for ConsensusRegistry {
-    fn as_ref(&self) -> &DeployedContract { &self.0 }
+impl AsRef<ethabi::Contract> for ConsensusRegistry {
+    fn as_ref(&self) -> &ethabi::Contract { &self.0 }
 }
 
 impl ConsensusRegistry {
@@ -66,11 +85,8 @@ impl ConsensusRegistry {
     pub fn bytecode() -> Vec<u8> {
         crate::read_bytecode(Self::FILE)
     }
-    pub fn at(address: ethabi::Address) -> Self {
-        Self(DeployedContract {
-            contract: crate::load_contract(ConsensusRegistry::FILE),
-            address,
-        }.into())
+    pub fn load() -> Self {
+        Self(crate::load_contract(ConsensusRegistry::FILE).into())
     }
     pub fn call<F:Function<Contract=Self>>(&self, inputs: F) -> Call<F> {
         Call { contract: self.clone(), inputs }

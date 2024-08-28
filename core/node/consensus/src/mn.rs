@@ -6,10 +6,8 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
-use zksync_types::Address;
 use crate::{
     config,
-    vm::VM,
     registry,
     storage::{ConnectionPool, InsertCertificateError, Store},
 };
@@ -22,6 +20,7 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
+    registry_addr: Option<registry::Address>, 
 ) -> anyhow::Result<()> {
     let validator_key = config::validator_key(&secrets)
         .context("validator_key")?
@@ -67,11 +66,12 @@ pub async fn run_main_node(
         s.spawn_bg(runner.run(ctx));
 
         let attestation = Arc::new(attestation::Controller::new(attester));
-        s.spawn_bg(run_attestation_updater(
+        s.spawn_bg(run_attestation_controller(
             ctx,
             &pool,
             genesis,
             attestation.clone(),
+            registry_addr,
         ));
 
         let executor = executor::Executor {
@@ -95,14 +95,15 @@ pub async fn run_main_node(
 /// Manages attestation state by configuring the
 /// next batch to attest and storing the collected
 /// certificates.
-async fn run_attestation_updater(
+async fn run_attestation_controller(
     ctx: &ctx::Ctx,
     pool: &ConnectionPool,
     genesis: validator::Genesis,
     attestation: Arc<attestation::Controller>,
+    registry_addr: Option<registry::Address>, 
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-    let vm = VM::new(pool.clone()).await;
+    let registry = registry::Registry::new(genesis, pool.clone()).await;
     let res = async {
         loop {
             // After regenesis it might happen that the batch number for the first block
@@ -121,27 +122,15 @@ async fn run_attestation_updater(
                     None => ctx.sleep(POLL_INTERVAL).await?,
                 }
             };
-            tracing::info!(
-                "waiting for hash of batch {:?}",
-                status.next_batch_to_attest
-            );
-            let hash = pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
-                .await?;
-            // TODO: this unwrap is dangerous.
-            let committee = Arc::new(match &genesis.attesters {
-                Some(c) => c.clone(),
-                None => {
-                    // Currently the committe is hardcoded to come from state at the end of batch
-                    // n-1.
-                    let registry = registry::Contract::at(Address::default());
-                    let batch_defining_committee = status.next_batch_to_attest.prev().context("committee is undefined")?;
-                    registry.get_attester_committee(ctx, &vm, batch_defining_committee).await.wrap("vm.get_attester_committee")?
-                }
-            });
+            tracing::info!("waiting for hash of batch {:?}", status.next_batch_to_attest);
+            let hash = pool.wait_for_batch_hash(ctx, status.next_batch_to_attest).await?;
+            let Some(committee) = registry.attester_committee_for(ctx,registry_addr, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
+                // TODO: support skipping batches if committee is not specified.
+                continue;
+            };
+            let committee = Arc::new(committee);
             // Persist the derived committee.
-            pool.connection(ctx).await.wrap("connection")?
-                .insert_attester_committee(ctx, status.next_batch_to_attest, &committee).await.wrap("insert_attester_committee()")?;
+            pool.connection(ctx).await.wrap("connection")?.insert_attester_committee(ctx, status.next_batch_to_attest, &committee).await.wrap("insert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest
@@ -153,7 +142,7 @@ async fn run_attestation_updater(
                         number: status.next_batch_to_attest,
                         genesis: status.genesis,
                     },
-                    committee: committee.clone(),
+                    committee,
                 }))
                 .await
                 .context("start_attestation()")?;
@@ -163,10 +152,7 @@ async fn run_attestation_updater(
                 .wait_for_cert(ctx, status.next_batch_to_attest)
                 .await?
                 .context("attestation config has changed unexpectedly")?;
-            tracing::info!(
-                "collected certificate for batch {:?}",
-                status.next_batch_to_attest
-            );
+            tracing::info!("collected certificate for batch {:?}", status.next_batch_to_attest);
             pool.connection(ctx)
                 .await
                 .wrap("connection()")?

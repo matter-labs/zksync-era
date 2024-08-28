@@ -27,7 +27,7 @@ pub async fn run_main_node(
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, ConnectionPool(pool)).await {
+    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, ConnectionPool(pool), None).await {
         tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");

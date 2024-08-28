@@ -32,7 +32,7 @@ impl<F:Function> Call<F> {
 
 #[test]
 fn test_consensus_registry_abi() {
-    let c = ConsensusRegistry::at(Default::default());
+    let c = ConsensusRegistry::load();
     c.call(GetAttesterCommittee).test().unwrap();
     c.call(Add::default()).test().unwrap();
     c.call(Initialize::default()).test().unwrap();

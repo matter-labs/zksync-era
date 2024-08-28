@@ -115,7 +115,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
             scope::run!(ctx, |ctx, s| async {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
-                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone()));
+                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone(), None));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, 3).await;
@@ -170,6 +170,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
+            None,
         ));
 
         tracing::info!("produce some batches");
@@ -277,6 +278,7 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
+            None,
         ));
 
         tracing::info!("Run nodes.");
@@ -360,6 +362,7 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             main_node_pool.clone(),
+            None,
         ));
 
         tracing::info!("Run external nodes.");
@@ -421,6 +424,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
+            None,
         ));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
@@ -509,6 +513,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
                     validator_cfg.config.clone(),
                     validator_cfg.secrets.clone(),
                     validator_pool,
+                    None,
                 )
                 .await
                 .context("run_main_node()")
