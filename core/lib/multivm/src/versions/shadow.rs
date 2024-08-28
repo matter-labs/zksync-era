@@ -17,6 +17,7 @@ use crate::{
     vm_fast,
 };
 
+#[derive(Debug)]
 pub struct ShadowVm<S, T> {
     main: T,
     shadow: vm_fast::Vm<ImmutableStorageView<S>>,
@@ -250,10 +251,6 @@ impl DivergenceErrors {
         let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
-        println!(
-            "checking circuit stats {:?}",
-            &shadow_result.statistics.circuit_statistic,
-        );
         self.check_match(
             "statistics.circuit_statistic",
             &main_result.statistics.circuit_statistic,

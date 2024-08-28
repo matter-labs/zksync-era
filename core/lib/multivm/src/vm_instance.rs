@@ -15,6 +15,7 @@ use crate::{
 
 pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
 
+#[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
     VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
