@@ -88,13 +88,12 @@ describe('Block reverting test', function () {
     let alice: zksync.Wallet;
     let mainContract: IZkSyncHyperchain;
     let blocksCommittedBeforeRevert: bigint;
+    let logs: fs.FileHandle;
     let operatorAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
-    let logs: fs.FileHandle;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
     const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
-    const pathToHome = path.join(__dirname, '../../../..');
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
