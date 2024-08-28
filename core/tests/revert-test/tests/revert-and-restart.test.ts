@@ -41,20 +41,16 @@ function parseSuggestedValues(suggestedValuesString: string): {
     };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams | undefined) {
-    if (serverProcess === undefined) {
-        await utils.exec('killall -9 zksync_server');
-    } else {
-        let child = serverProcess.pid;
-        while (true) {
-            try {
-                child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-            } catch (e) {
-                break;
-            }
+async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams) {
+    let child = serverProcess.pid;
+    while (true) {
+        try {
+            child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+        } catch (e) {
+            break;
         }
-        await utils.exec(`kill -9 ${child}`);
     }
+    await utils.exec(`kill -9 ${child}`);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -215,7 +211,7 @@ describe('Block reverting test', function () {
         blocksCommittedBeforeRevert = blocksCommitted;
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester, serverProcess);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
     });
 
     step('revert blocks', async () => {
@@ -311,7 +307,7 @@ describe('Block reverting test', function () {
         await checkedRandomTransfer(alice, 1n);
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester, serverProcess);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
 
         // Run again.
         serverProcess = runServerInBackground({
@@ -325,10 +321,6 @@ describe('Block reverting test', function () {
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
-    });
-
-    after('Try killing server', async () => {
-        await utils.exec('killall zksync_server').catch(ignoreError);
     });
 });
 

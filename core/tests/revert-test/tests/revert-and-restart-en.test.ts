@@ -168,15 +168,6 @@ class MainNode {
         }
     }
 
-    // Terminates all main node processes running.
-    public static async terminateAll() {
-        try {
-            await utils.exec('killall -INT zksync_server');
-        } catch (err) {
-            console.log(`ignored error: ${err}`);
-        }
-    }
-
     // Spawns a main node.
     // if enableConsensus is set, consensus component will be started in the main node.
     // if enableExecute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
@@ -201,7 +192,9 @@ class MainNode {
         if (enableConsensus) {
             components += ',consensus';
         }
-
+        if (baseTokenAddress != zksync.utils.LEGACY_ETH_ADDRESS) {
+            components += ',base_token_ratio_persister';
+        }
         let proc = runServerInBackground({
             components: [components],
             stdio: [null, logs, logs],
@@ -244,15 +237,6 @@ class ExtNode {
                 }
             }
             await utils.exec(`kill -9 ${child}`);
-        } catch (err) {
-            console.log(`ignored error: ${err}`);
-        }
-    }
-
-    // Terminates all main node processes running.
-    public static async terminateAll() {
-        try {
-            await utils.exec('killall -INT zksync_external_node');
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
