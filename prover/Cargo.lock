@@ -3808,9 +3808,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "openssl"
-version = "0.10.64"
+version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95a0481286a310808298130d22dd1fef0fa571e05a8f44ec801801e84b216b1f"
+checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
 dependencies = [
  "bitflags 2.6.0",
  "cfg-if 1.0.0",
@@ -3840,9 +3840,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.102"
+version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c597637d56fbc83893a35eb0dd04b2b8e7a50c91e64e9493e398b5df4fb45fa2"
+checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
 dependencies = [
  "cc",
  "libc",
@@ -6822,38 +6822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vk_setup_data_generator_server_fri"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_definitions",
- "clap 4.5.4",
- "hex",
- "indicatif",
- "itertools 0.10.5",
- "md5",
- "once_cell",
- "proptest",
- "serde",
- "serde_derive",
- "serde_json",
- "sha3 0.10.8",
- "shivini",
- "structopt",
- "toml_edit 0.14.4",
- "tracing",
- "tracing-subscriber",
- "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
- "zksync_prover_fri_types",
- "zksync_types",
- "zksync_utils",
- "zksync_vlog",
-]
-
-[[package]]
 name = "vm2"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/vm2.git?rev=d3b677c17d418a2cc259c5e206b34d00aebc17b6#d3b677c17d418a2cc259c5e206b34d00aebc17b6"
@@ -8046,7 +8014,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync-wrapper-prover",
  "zksync_config",
@@ -8059,6 +8026,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8147,7 +8115,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8159,6 +8126,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8338,6 +8306,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vk_setup_data_generator_server_fri"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "clap 4.5.4",
+ "hex",
+ "indicatif",
+ "itertools 0.10.5",
+ "md5",
+ "once_cell",
+ "proptest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha3 0.10.8",
+ "shivini",
+ "toml_edit 0.14.4",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_test_harness",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_prover_fri_types",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
@@ -8416,7 +8415,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8431,6 +8429,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8446,7 +8445,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -8457,6 +8455,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 

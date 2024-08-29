@@ -11,8 +11,7 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   build:
-    runs-on: [matterlabs-ci-runner]
-
+    runs-on: [matterlabs-ci-runner-high-performance]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -48,9 +47,8 @@ jobs:
           compression-level: 0
 
   tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-high-performance]
     needs: [build]
-
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -83,7 +81,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          
+
           ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://reth:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
@@ -115,10 +113,6 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_rollup
 
-      - name: Check Database
-        run: |
-          ci_run zk_supervisor database check-sqlx-data
-
       - name: Run server
         run: |
           ci_run zk_inception server --ignore-prerequisites &>server.log &
@@ -137,11 +131,11 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
           ci_run zk_supervisor test recovery --snapshot --ignore-prerequisites --verbose
-            
+
       - name: Run recovery tests (from genesis)
         run: |
           ci_run zk_supervisor test recovery --ignore-prerequisites --verbose
-  
+
       - name: Run external node server
         run: |
           ci_run zk_inception external-node run --ignore-prerequisites &>external_node.log &
@@ -164,7 +158,7 @@ jobs:
       - name: Run upgrade test
         run: |
           ci_run zk_supervisor test upgrade
-        
+
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
