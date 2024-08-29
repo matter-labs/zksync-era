@@ -175,7 +175,7 @@ impl<'a> Connection<'a> {
         ctx.wait(
             self.0
                 .consensus_dal()
-                .insert_attester_committee(number, committee),
+                .upsert_attester_committee(number, committee),
         )
         .await??;
         Ok(())
