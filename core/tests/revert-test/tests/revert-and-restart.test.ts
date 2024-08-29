@@ -9,6 +9,8 @@ import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'node:fs/promises';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -42,15 +44,7 @@ function parseSuggestedValues(suggestedValuesString: string): {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams) {
-    let child = serverProcess.pid;
-    while (true) {
-        try {
-            child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-        } catch (e) {
-            break;
-        }
-    }
-    await utils.exec(`kill -9 ${child}`);
+    await killPidWithAllChilds(serverProcess.pid!, 9);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -77,10 +71,7 @@ const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
 
 async function logsPath(name: string): Promise<string> {
-    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
-    let dir = path.join(pathToHome, 'logs/revert', chain);
-    await fs.mkdir(dir, { recursive: true });
-    return path.join(dir, name);
+    return await logsTestPath(fileConfig.chain, 'logs/revert/', name);
 }
 
 describe('Block reverting test', function () {

@@ -20,6 +20,8 @@ import {
 } from 'utils/build/file-configs';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -51,11 +53,8 @@ if (deploymentMode == 'Validium') {
     extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
 }
 
-function logsPath(name: string): string {
-    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
-    let dir = path.join(pathToHome, 'logs/revert/en', chain);
-    fs.mkdirSync(dir, { recursive: true });
-    return path.join(dir, name);
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/revert/en', name);
 }
 
 interface SuggestedValues {
@@ -159,15 +158,7 @@ class MainNode {
 
     public async terminate() {
         try {
-            let child = this.proc.pid;
-            while (true) {
-                try {
-                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                } catch (e) {
-                    break;
-                }
-            }
-            await utils.exec(`kill -9 ${child}`);
+            await killPidWithAllChilds(this.proc.pid!, 9);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -244,15 +235,7 @@ class ExtNode {
 
     public async terminate() {
         try {
-            let child = this.proc.pid;
-            while (true) {
-                try {
-                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                } catch (e) {
-                    break;
-                }
-            }
-            await utils.exec(`kill -9 ${child}`);
+            await killPidWithAllChilds(this.proc.pid!, 9);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -361,8 +344,8 @@ describe('Block reverting test', function () {
             // TODO use env variable for this?
             operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
         }
-        mainLogs = fs.createWriteStream(logsPath('server.log'), { flags: 'a' });
-        extLogs = fs.createWriteStream(logsPath('external_node.log'), { flags: 'a' });
+        mainLogs = fs.createWriteStream(await logsPath('server.log'), { flags: 'a' });
+        extLogs = fs.createWriteStream(await logsPath('external_node.log'), { flags: 'a' });
         if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
             compileBinaries();
         }

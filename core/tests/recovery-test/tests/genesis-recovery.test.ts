@@ -4,17 +4,16 @@ import { ethers } from 'ethers';
 
 import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+
 import path from 'path';
-import fs from 'node:fs/promises';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
+import { logsTestPath } from 'utils/build/logs';
+
 async function logsPath(name: string): Promise<string> {
-    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
-    let dir = path.join(pathToHome, 'logs/recovery/genesis', chain);
-    await fs.mkdir(dir, { recursive: true });
-    return path.join(dir, name);
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/genesis', name);
 }
 
 /**

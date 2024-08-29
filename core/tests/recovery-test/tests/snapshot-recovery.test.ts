@@ -23,6 +23,7 @@ import {
     setTreeRecoveryParallelPersistenceBuffer
 } from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { logsTestPath } from 'utils/build/logs';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -60,10 +61,7 @@ interface TokenInfo {
 }
 
 async function logsPath(name: string): Promise<string> {
-    let chain = fileConfig.loadFromFile ? fileConfig.chain! : 'default';
-    let dir = path.join(pathToHome, 'logs/recovery/snapshot', chain);
-    await fs.mkdir(dir, { recursive: true });
-    return path.join(dir, name);
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/snapshot/', name);
 }
 
 /**
