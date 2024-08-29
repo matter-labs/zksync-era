@@ -10,7 +10,7 @@ use zksync_multivm::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface,
+        VmInterface, VmInterfaceExt,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{

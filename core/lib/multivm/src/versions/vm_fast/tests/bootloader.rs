@@ -2,7 +2,7 @@ use assert_matches::assert_matches;
 use zksync_types::U256;
 
 use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
     versions::vm_fast::tests::{
         tester::VmTesterBuilder,
         utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
