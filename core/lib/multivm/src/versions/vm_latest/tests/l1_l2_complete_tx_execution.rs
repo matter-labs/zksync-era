@@ -36,7 +36,7 @@ fn prepare_environment_and_deploy_contracts(
     // Deploy Bridgehub
 
     let (bridgehub_contract_bytecode, _bridgehub_contract) = read_bridgehub();
-    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set
+    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set during vm tester construction, as it is not affecting the test environment
     let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[
         l1_chain_id.clone(),
@@ -54,7 +54,6 @@ fn prepare_environment_and_deploy_contracts(
     // Deploy Message Root
 
     let message_root_contract_bytecode = read_message_root();
-    let l1_chain_id = Token::Uint(0.into()); // Chain ID hasn't been set
     let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[Token::Address(bridgehub_address)];
     let message_root_address = deploy_and_verify_contract(
