@@ -44,7 +44,7 @@ function parseSuggestedValues(suggestedValuesString: string): {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams) {
-    await killPidWithAllChilds(serverProcess.pid!, 9);
+    await killPidWithAllChilds(serverProcess.pid!, 9).catch(ignoreError);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
