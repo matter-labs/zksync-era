@@ -16,8 +16,8 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          echo "prover_url=postgres://postgres:notsecurepassword@postgres:5432/zksync_local_prover" >> $GITHUB_ENV
-          echo "core_url=postgres://postgres:notsecurepassword@postgres:5432/zksync_local" >> $GITHUB_ENV
+          echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
+          echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
       - name: Start services
         run: |
