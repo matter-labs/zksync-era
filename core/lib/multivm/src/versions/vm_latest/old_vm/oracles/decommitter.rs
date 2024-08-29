@@ -180,6 +180,15 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
 
             Ok(partial_query)
         } else {
+            if self
+                .decommitted_code_hashes
+                .inner()
+                .get(&stored_hash)
+                .is_none()
+            {
+                self.decommitted_code_hashes
+                    .insert(stored_hash, None, partial_query.timestamp);
+            };
             partial_query.is_fresh = true;
             partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 

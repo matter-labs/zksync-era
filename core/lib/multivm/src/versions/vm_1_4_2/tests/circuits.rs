@@ -33,7 +33,7 @@ fn test_circuits() {
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 11] = [
-        1.1979, 0.1390, 1.5455, 0.0031, 1.0573, 0.00059, 0.003438, 0.00077, 0.1195, 0.1429, 0.0,
+        1.1979, 0.1390, 1.5455, 0.0031, 1.1799649, 0.00059, 0.003438, 0.00077, 0.1195, 0.1429, 0.0,
     ];
     let actual = [
         (s.main_vm, "main_vm"),
