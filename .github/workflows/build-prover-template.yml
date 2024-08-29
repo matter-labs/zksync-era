@@ -45,7 +45,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
       matrix:
         component:
@@ -171,7 +171,8 @@ jobs:
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
-    runs-on: matterlabs-ci-runner
+    # TODO: After migraton switch to CI
+    runs-on: matterlabs-default-infra-runners
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
