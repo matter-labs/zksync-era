@@ -68,9 +68,32 @@ jobs:
         run: |
           ci_localnet_up
           ci_run sccache --start-server
-          mkdir -p logs/server
-          mkdir -p logs/integration_tests
-          mkdir -p logs/external_node
+
+      - name: Create log directories
+        run: |
+          SERVER_LOGS_DIR=logs/server
+          INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
+          INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/integration_tests/en
+          GENESIS_RECOVERY_LOGS_DIR=logs/integration_tests/en
+          EXTERNAL_NODE_LOGS_DIR=logs/external_node
+          REVERT_LOGS_DIR=logs/revert
+          
+          mkdir -p $SERVER_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_EN_LOGS_DIR
+          mkdir -p $SNAPSHOT_RECOVERY_LOGS_DIR
+          mkdir -p $GENESIS_RECOVERY_LOGS_DIR
+          mkdir -p $EXTERNAL_NODE_LOGS_DIR
+          mkdir -p $REVERT_LOGS_DIR
+          
+          echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_LOGS_DIR=$INTEGRATION_TESTS_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_EN_LOGS_DIR=$INTEGRATION_TESTS_EN_LOGS_DIR" >> $GITHUB_ENV
+          echo "SNAPSHOT_RECOVERY_LOGS_DIR=$SNAPSHOT_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
+          echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
       - name: Build zk_toolbox
         run: ci_run bash -c "./bin/zkt"
@@ -151,24 +174,23 @@ jobs:
       - name: Run servers
         run: |
           mkdir -p logs/server
-          ci_run zk_inception server --ignore-prerequisites --chain era &> logs/server/server_rollup.log &
-          ci_run zk_inception server --ignore-prerequisites --chain validium &> logs/server/validium.log &
-          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> logs/server/custom_token.log &
+          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{SERVER_LOGS_DIR}}/rollup.log &
+          ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{SERVER_LOGS_DIR}}/validium.log &
+          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{SERVER_LOGS_DIR}}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests
         run: |
-          mkdir -p logs/integration_tests
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> logs/integration_tests/rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> logs/integration_tests/validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> logs/integration_tests/custom_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
+          ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
       - name: Init external nodes
         run: |
@@ -186,70 +208,69 @@ jobs:
 
       - name: Run recovery tests (from snapshot)
         run: |
-          mkdir -p logs/recovery/snap
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> logs/recovery/snap/rollup.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> logs/recovery/snap/validium.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}//validium.log &
           PID2=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> logs/recovery/snap/custom_token.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
           PID3=$!
 
-          PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
+          ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
       - name: Run recovery tests (from genesis)
         run: |
           mkdir -p logs/recovery/gen
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> logs/recovery/gen/rollup.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> logs/recovery/gen/validium.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> logs/recovery/gen/custom_token.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
+          ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
       - name: Run external node server
         run: |
-          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> logs/external_node/rollup.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> logs/external_node/validium.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> logs/external_node/custom_token.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> ${{ EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> ${{ EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> ${{ EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests en
         run: |
           mkdir -p logs/integration_tests/en/
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> logs/integration_tests/en/rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> logs/integration_tests/en/validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> logs/integration_tests/en/cusotm_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/cusotm_token.log &
           PID3=$!
 
-          PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
+          ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
-      - name: Run revert tests (external node)
+      - name: Run revert tests
         run: |
-          ci_run killall -INT zksync_server
-          ci_run killall -INT zksync_external_node
+          ci_run killall -INT zksync_server || true
+          ci_run killall -INT zksync_external_node || true
           
           mkdir -p logs/revert/en/
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> logs/revert/en/validium.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ REVERT_LOGS_DIR }}/validium.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> logs/revert/en/rollup.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ REVERT_LOGS_DIR }}/rollup.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> logs/revert/en/custom_token.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ REVERT_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
+          ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
 
       # Upgrade tests should run last, because as soon as they 
