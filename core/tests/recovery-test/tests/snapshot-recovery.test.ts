@@ -180,7 +180,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        createSnapshot(fileConfig.loadFromFile);
+        await createSnapshot(fileConfig.loadFromFile);
     });
 
     step('validate snapshot', async () => {
