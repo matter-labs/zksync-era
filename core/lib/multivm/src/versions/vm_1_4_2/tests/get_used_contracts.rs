@@ -26,7 +26,7 @@ fn test_get_used_contracts() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    assert!(known_bytecodes_without_aa_code(&vm.vm).is_empty());
+    assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_used_contracts()` updates
@@ -48,7 +48,7 @@ fn test_get_used_contracts() {
             .get_used_contracts()
             .into_iter()
             .collect::<HashSet<U256>>(),
-        known_bytecodes_without_aa_code(&vm.vm)
+        known_bytecodes_without_base_system_contracts(&vm.vm)
             .keys()
             .cloned()
             .collect::<HashSet<U256>>()
@@ -84,26 +84,30 @@ fn test_get_used_contracts() {
     for factory_dep in tx2.execute.factory_deps.unwrap() {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
-        assert!(known_bytecodes_without_aa_code(&vm.vm)
+        assert!(known_bytecodes_without_base_system_contracts(&vm.vm)
             .keys()
             .contains(&hash_to_u256));
         assert!(!vm.vm.get_used_contracts().contains(&hash_to_u256));
     }
 }
 
-fn known_bytecodes_without_aa_code<S: WriteStorage, H: HistoryMode>(
+fn known_bytecodes_without_base_system_contracts<S: WriteStorage, H: HistoryMode>(
     vm: &Vm<S, H>,
 ) -> HashMap<U256, Vec<U256>> {
-    let mut known_bytecodes_without_aa_code = vm
+    let mut known_bytecodes_without_base_system_contracts = vm
         .state
         .decommittment_processor
         .known_bytecodes
         .inner()
         .clone();
 
-    known_bytecodes_without_aa_code
+    known_bytecodes_without_base_system_contracts
         .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash))
         .unwrap();
 
-    known_bytecodes_without_aa_code
+    known_bytecodes_without_base_system_contracts
+        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_simulator.hash))
+        .unwrap();
+
+    known_bytecodes_without_base_system_contracts
 }
