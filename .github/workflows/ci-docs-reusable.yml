@@ -20,13 +20,13 @@ jobs:
 
       - name: Start services
         run: |
-          mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+          ci_localnet_up
+      
+      - name: Build
+        run: |
+          ci_run ./bin/zkt
 
       - name: Lints
         run: |
-          ci_run zk
-          ci_run zk fmt md --check
-          ci_run zk lint md --check
-
+          ci_run zk_supervisor fmt prettier -t md --check
+          ci_run zk_supervisor lint -t md --check
