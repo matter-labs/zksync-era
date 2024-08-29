@@ -350,6 +350,7 @@ dependencies = [
  "matchit",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "rustversion",
@@ -3777,6 +3778,23 @@ name = "mirai-annotations"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9be0862c1b3f26a88803c4a49de6889c10e608b3ee9344e6ef5b45fb37ad3d1"
+
+[[package]]
+name = "multer"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83e87776546dc87511aa5ee218730c92b666d7264ab6ed41f9d215af9cd5224b"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http 1.1.0",
+ "httparse",
+ "memchr",
+ "mime",
+ "spin",
+ "version_check",
+]
 
 [[package]]
 name = "multimap"
@@ -7271,20 +7289,24 @@ dependencies = [
 name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "criterion",
  "iai",
+ "once_cell",
  "rand 0.8.5",
  "tokio",
  "vise",
+ "zksync_contracts",
+ "zksync_multivm",
  "zksync_types",
+ "zksync_utils",
  "zksync_vlog",
- "zksync_vm_benchmark_harness",
 ]
 
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -8676,7 +8698,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.21.0"
+version = "24.23.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8931,6 +8953,7 @@ name = "zksync_multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "circuit_sequencer_api 0.133.0",
  "circuit_sequencer_api 0.140.0",
  "circuit_sequencer_api 0.141.1",
@@ -9672,6 +9695,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
@@ -9752,24 +9776,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_vm_benchmark_harness"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "once_cell",
- "zk_evm 0.133.0",
- "zksync_contracts",
- "zksync_multivm",
- "zksync_state",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
-]
-
-[[package]]
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "hex",
  "serde",
  "thiserror",

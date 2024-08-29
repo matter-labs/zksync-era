@@ -6814,40 +6814,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "vk_setup_data_generator_server_fri"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_definitions",
- "clap 4.5.4",
- "hex",
- "indicatif",
- "itertools 0.10.5",
- "md5",
- "once_cell",
- "proptest",
- "serde",
- "serde_derive",
- "serde_json",
- "sha3 0.10.8",
- "shivini",
- "toml_edit 0.14.4",
- "tracing",
- "tracing-subscriber",
- "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
- "zksync_prover_fri_types",
- "zksync_types",
- "zksync_utils",
- "zksync_vlog",
-]
-
-[[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -8036,7 +8005,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync-wrapper-prover",
  "zksync_config",
@@ -8049,6 +8017,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8137,7 +8106,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8149,6 +8117,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8328,6 +8297,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vk_setup_data_generator_server_fri"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "clap 4.5.4",
+ "hex",
+ "indicatif",
+ "itertools 0.10.5",
+ "md5",
+ "once_cell",
+ "proptest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha3 0.10.8",
+ "shivini",
+ "structopt",
+ "toml_edit 0.14.4",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_test_harness",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_prover_fri_types",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
@@ -8406,7 +8407,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8421,6 +8421,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8436,7 +8437,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -8447,6 +8447,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
