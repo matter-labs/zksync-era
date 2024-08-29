@@ -856,7 +856,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bincode",
  "tokio",
+ "tracing",
  "zksync_config",
  "zksync_object_store",
  "zksync_prover_dal",
@@ -864,6 +866,7 @@ dependencies = [
  "zksync_prover_fri_utils",
  "zksync_queued_job_processor",
  "zksync_types",
+ "zksync_vk_setup_data_generator_server_fri",
 ]
 
 [[package]]
