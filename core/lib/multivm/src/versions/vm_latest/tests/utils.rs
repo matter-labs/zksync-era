@@ -128,7 +128,7 @@ pub(crate) fn read_diamond() -> (Vec<u8>, Contract) {
 }
 
 pub(crate) fn read_transparent_proxy() -> (Vec<u8>, Contract) {
-    let path = "contracts/l1-contracts/artifacts-zk/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json";
+    let path = "contracts/l1-contracts/artifacts-zk/@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json";
     (read_bytecode(path), load_contract(path))
 }
 
