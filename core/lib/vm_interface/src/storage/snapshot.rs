@@ -5,21 +5,17 @@ use zksync_types::{web3, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
-/// Self-sufficient storage snapshot for a particular VM execution (e.g., executing a single L1 batch).
+/// Self-sufficient or almost self-sufficient storage snapshot for a particular VM execution (e.g., executing a single L1 batch).
 ///
-/// `StorageSnapshot` works similarly to [`InMemoryStorage`](super::InMemoryStorage), but has different semantics
+/// `StorageSnapshot` works somewhat similarly to [`InMemoryStorage`](super::InMemoryStorage), but has different semantics
 /// and use cases. `InMemoryStorage` is intended to be a modifiable storage to be used primarily in tests / benchmarks.
-/// In contrast, `StorageSnapshot` cannot be modified once created and is intended to represent a snapshot
-/// for a particular VM execution.
-///
-/// # Important
-///
-/// Note that [`ReadStorage`] methods will not panic / log errors etc. if "unexpected" storage slots
-/// are accessed during VM execution; instead, it'll return default values for these storage slots. The caller is responsible
-/// for ensuring that the snapshot matches VM setup.
+/// In contrast, `StorageSnapshot` cannot be modified once created and is intended to represent a complete or almost complete snapshot
+/// for a particular VM execution. It can serve as a preloaded cache for a certain [`ReadStorage`] implementation
+/// that significantly reduces the number of storage accesses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageSnapshot {
-    storage: HashMap<H256, (H256, Option<u64>)>,
+    // `Option` encompasses entire map value for more efficient serialization
+    storage: HashMap<H256, Option<(H256, u64)>>,
     // `Bytes` are used to have efficient serialization
     factory_deps: HashMap<H256, web3::Bytes>,
 }
@@ -30,9 +26,10 @@ impl StorageSnapshot {
     /// # Arguments
     ///
     /// - `storage` should contain all storage slots accessed during VM execution, i.e. protective reads + initial / repeated writes
-    ///   for batch execution.
+    ///   for batch execution, keyed by the hashed storage key. `None` map values correspond to accessed slots without an assigned enum index.
+    ///   By definition, all these slots are guaranteed to have zero value.
     pub fn new(
-        storage: HashMap<H256, (H256, Option<u64>)>,
+        storage: HashMap<H256, Option<(H256, u64)>>,
         factory_deps: HashMap<H256, Vec<u8>>,
     ) -> Self {
         Self {
@@ -45,6 +42,10 @@ impl StorageSnapshot {
     }
 
     /// Creates a [`ReadStorage`] implementation based on this snapshot and the provided fallback implementation.
+    /// Fallback will be called for storage slots / factory deps not in this snapshot (which, if this snapshot
+    /// is reasonably constructed, would be a rare occurrence). If `shadow` flag is set, the fallback will be
+    /// consulted for *every* operation; this obviously harms performance and is mostly useful for testing.
+    ///
     /// The caller is responsible for ensuring that the fallback actually corresponds to the snapshot.
     pub fn with_fallback<S: ReadStorage>(
         self,
@@ -60,6 +61,14 @@ impl StorageSnapshot {
 }
 
 /// [`StorageSnapshot`] wrapper implementing [`ReadStorage`] trait. Created using [`with_fallback()`](StorageSnapshot::with_fallback()).
+///
+/// # Why fallback?
+///
+/// The reason we require a fallback is that it may be difficult to create a 100%-complete snapshot in the general case.
+/// E.g., for batch execution, the data is mostly present in Postgres (provided that protective reads are recorded),
+/// but in some scenarios, accessed slots may be not recorded anywhere (e.g., if a slot is written to and then reverted in the same block).
+/// In practice, there are order of 10 such slots for a mainnet batch with ~5,000 transactions / ~35,000 accessed slots;
+/// i.e., snapshots still can provide a good speed-up boost.
 #[derive(Debug)]
 pub struct StorageWithSnapshot<S> {
     snapshot: StorageSnapshot,
@@ -92,7 +101,7 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
             .snapshot
             .storage
             .get(&key.hashed_key())
-            .map(|(value, _)| *value);
+            .map(|entry| entry.unwrap_or_default().0);
         self.fallback(format_args!("read_value({key:?})"), value, |storage| {
             storage.read_value(key)
         })
@@ -103,7 +112,7 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
             .snapshot
             .storage
             .get(&key.hashed_key())
-            .map(|(_, enum_index)| enum_index.is_none());
+            .map(Option::is_none);
         self.fallback(
             format_args!("is_write_initial({key:?})"),
             is_initial,
@@ -127,7 +136,7 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
             .snapshot
             .storage
             .get(&key.hashed_key())
-            .map(|(_, idx)| *idx);
+            .map(|entry| entry.map(|(_, idx)| idx));
         self.fallback(
             format_args!("get_enumeration_index({key:?})"),
             enum_index,
@@ -144,12 +153,12 @@ mod tests {
     fn serializing_snapshot_to_json() {
         let snapshot = StorageSnapshot::new(
             HashMap::from([
-                (H256::repeat_byte(1), (H256::from_low_u64_be(1), Some(10))),
+                (H256::repeat_byte(1), Some((H256::from_low_u64_be(1), 10))),
                 (
                     H256::repeat_byte(0x23),
-                    (H256::from_low_u64_be(100), Some(100)),
+                    Some((H256::from_low_u64_be(100), 100)),
                 ),
-                (H256::repeat_byte(0xff), (H256::zero(), None)),
+                (H256::repeat_byte(0xff), None),
             ]),
             HashMap::from([(H256::repeat_byte(2), (0..32).collect())]),
         );
@@ -163,10 +172,7 @@ mod tests {
                     "0x0000000000000000000000000000000000000000000000000000000000000064",
                     100,
                 ],
-                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff": [
-                    "0x0000000000000000000000000000000000000000000000000000000000000000",
-                    null
-                ]
+                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff": null,
             },
             "factory_deps": {
                 "0x0202020202020202020202020202020202020202020202020202020202020202":

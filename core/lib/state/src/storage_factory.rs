@@ -246,10 +246,10 @@ impl CommonStorage<'static> {
                     .get(&key)
                     .copied()
                     .and_then(|(l1_batch, enum_index)| {
-                        // Account for enum indexes assigned "in the future"
+                        // Filter out enum indexes assigned "in the future"
                         (l1_batch < l1_batch_number).then_some(enum_index)
                     });
-            (key, (prev_value, enum_index))
+            (key, enum_index.map(|idx| (prev_value, idx)))
         });
         let storage = storage.collect();
         Ok(Some(StorageSnapshot::new(storage, factory_deps)))
