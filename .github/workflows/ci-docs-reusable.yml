@@ -20,7 +20,8 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
+          run_retried docker compose pull zk
+          docker compose up -d zk
       
       - name: Build
         run: |
