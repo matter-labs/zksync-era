@@ -15,7 +15,7 @@ use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
 /// Storage with a static lifetime that can be sent to Tokio tasks etc.
-pub type OwnedStorage = PgOrRocksdbStorage<'static>;
+pub type OwnedStorage = CommonStorage<'static>;
 
 /// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param
 /// (mostly for testing purposes); the default is [`OwnedStorage`].
@@ -69,10 +69,13 @@ pub struct RocksdbWithMemory {
     pub batch_diffs: Vec<BatchDiff>,
 }
 
-/// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
-/// underneath.
+/// Union of all [`ReadStorage`] implementations that are returned by [`ReadStorageFactory`], such as
+/// Postgres- and RocksDB-backed storages.
+///
+/// Ordinarily, you might want to use the [`OwnedStorage`] type alias instead of using `CommonStorage` directly.
+/// The former naming signals that the storage has static lifetime and thus can be sent to Tokio tasks or other threads.
 #[derive(Debug)]
-pub enum PgOrRocksdbStorage<'a> {
+pub enum CommonStorage<'a> {
     /// Implementation over a Postgres connection.
     Postgres(PostgresStorage<'a>),
     /// Implementation over a RocksDB cache instance.
@@ -81,18 +84,19 @@ pub enum PgOrRocksdbStorage<'a> {
     RocksdbWithMemory(RocksdbWithMemory),
     /// In-memory storage snapshot.
     Snapshot(StorageSnapshot),
-    /// Generic implementation. Should be used for testing purposes only.
+    /// Generic implementation. Should be used for testing purposes only since it has performance penalty because
+    /// of the dynamic dispatch.
     Boxed(Box<dyn ReadStorage + Send + 'a>),
 }
 
-impl<'a> PgOrRocksdbStorage<'a> {
+impl<'a> CommonStorage<'a> {
     /// Creates a boxed storage. Should be used for testing purposes only.
     pub fn boxed(storage: impl ReadStorage + Send + 'a) -> Self {
         Self::Boxed(Box::new(storage))
     }
 }
 
-impl PgOrRocksdbStorage<'static> {
+impl CommonStorage<'static> {
     /// Creates a Postgres-based storage. Because of the `'static` lifetime requirement, `connection` must be
     /// non-transactional.
     ///
@@ -298,7 +302,7 @@ impl ReadStorage for RocksdbWithMemory {
     }
 }
 
-impl ReadStorage for PgOrRocksdbStorage<'_> {
+impl ReadStorage for CommonStorage<'_> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
@@ -340,19 +344,19 @@ impl ReadStorage for PgOrRocksdbStorage<'_> {
     }
 }
 
-impl<'a> From<PostgresStorage<'a>> for PgOrRocksdbStorage<'a> {
+impl<'a> From<PostgresStorage<'a>> for CommonStorage<'a> {
     fn from(value: PostgresStorage<'a>) -> Self {
         Self::Postgres(value)
     }
 }
 
-impl From<RocksdbStorage> for PgOrRocksdbStorage<'_> {
+impl From<RocksdbStorage> for CommonStorage<'_> {
     fn from(value: RocksdbStorage) -> Self {
         Self::Rocksdb(value)
     }
 }
 
-impl From<StorageSnapshot> for PgOrRocksdbStorage<'_> {
+impl From<StorageSnapshot> for CommonStorage<'_> {
     fn from(value: StorageSnapshot) -> Self {
         Self::Snapshot(value)
     }
