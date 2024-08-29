@@ -31,6 +31,7 @@ impl proto::PubdataSendingMode {
             From::Calldata => Self::Calldata,
             From::Blobs => Self::Blobs,
             From::Custom => Self::Custom,
+            From::RelayedL2Calldata => Self::RelayedL2Calldata,
         }
     }
 
@@ -40,6 +41,7 @@ impl proto::PubdataSendingMode {
             Self::Calldata => To::Calldata,
             Self::Blobs => To::Blobs,
             Self::Custom => To::Custom,
+            Self::RelayedL2Calldata => To::RelayedL2Calldata,
         }
     }
 }
@@ -111,6 +113,8 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
                 .parse(),
+            tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
+            tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
         })
     }
 
@@ -141,6 +145,8 @@ impl ProtoRepr for proto::Sender {
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),
+            tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
+            tx_aggregation_paused: Some(this.tx_aggregation_paused),
         }
     }
 }
@@ -174,6 +180,8 @@ impl ProtoRepr for proto::GasAdjuster {
             )
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
+            // TODO(EVM-676): support this field
+            settlement_mode: Default::default(),
         })
     }
 

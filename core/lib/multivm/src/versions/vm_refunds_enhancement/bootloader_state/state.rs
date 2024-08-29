@@ -1,11 +1,10 @@
 use std::cmp::Ordering;
 
 use zksync_types::{L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::tx::BootloaderTx;
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_refunds_enhancement::{
         bootloader_state::{
             l2_block::BootloaderL2Block,

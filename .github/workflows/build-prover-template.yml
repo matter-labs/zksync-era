@@ -45,7 +45,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
       matrix:
         component:
@@ -53,6 +53,7 @@ jobs:
           - prover-gpu-fri
           - witness-vector-generator
           - prover-fri-gateway
+          - prover-job-monitor
           - proof-fri-gpu-compressor
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
@@ -163,14 +164,15 @@ jobs:
         run: |
           ci_run sccache --show-stats || true
           ci_run cat /tmp/sccache_log.txt || true
-  
+
   copy-images:
     name: Copy images between docker registries
     needs: build-images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       PROTOCOL_VERSION: ${{ needs.build-images.outputs.protocol_version }}
-    runs-on: matterlabs-ci-runner
+    # TODO: After migraton switch to CI
+    runs-on: matterlabs-default-infra-runners
     if: ${{ inputs.action == 'push' }}
     strategy:
       matrix:
@@ -197,4 +199,3 @@ jobs:
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ needs.build-images.outputs.protocol_version }}-${{ inputs.image_tag_suffix }}
-          

@@ -5,14 +5,10 @@ use once_cell::sync::Lazy;
 use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_multivm::{
-    interface::{
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, Refunds, SystemEnv,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
-    },
-    vm_latest::VmExecutionLogs,
+use zksync_multivm::interface::{
+    storage::StorageViewCache, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
+    Refunds, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use zksync_state::{OwnedStorage, StorageViewCache};
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -45,9 +41,6 @@ pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
-            total_log_queries: 0,
-            cycles_used: 0,
-            deduplicated_events_logs: vec![],
             storage_refunds: Vec::new(),
             pubdata_costs: Vec::new(),
         },
@@ -84,10 +77,10 @@ pub(crate) fn storage_view_cache() -> StorageViewCache {
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-impl BatchExecutor for MockBatchExecutor {
+impl BatchExecutor<()> for MockBatchExecutor {
     fn init_batch(
         &mut self,
-        _storage: OwnedStorage,
+        _storage: (),
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {

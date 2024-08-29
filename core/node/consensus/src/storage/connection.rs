@@ -27,6 +27,7 @@ impl ConnectionPool {
     }
 
     /// Waits for the `number` L2 block.
+    #[tracing::instrument(skip_all)]
     pub async fn wait_for_payload(
         &self,
         ctx: &ctx::Ctx,
@@ -43,6 +44,29 @@ impl ConnectionPool {
                 .with_wrap(|| format!("payload({number})"))?
             {
                 return Ok(payload);
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
+    }
+
+    /// Waits for the `number` L1 batch hash.
+    #[tracing::instrument(skip_all)]
+    pub async fn wait_for_batch_hash(
+        &self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<attester::BatchHash> {
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
+        loop {
+            if let Some(hash) = self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .batch_hash(ctx, number)
+                .await
+                .with_wrap(|| format!("batch_hash({number})"))?
+            {
+                return Ok(hash);
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
@@ -319,29 +343,6 @@ impl<'a> Connection<'a> {
             .await?
             .context("get_sealed_l1_batch_number()")?
             .map(|nr| attester::BatchNumber(nr.0 as u64)))
-    }
-
-    /// Wrapper for `consensus_dal().get_last_batch_certificate_number()`.
-    pub async fn get_last_batch_certificate_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().get_last_batch_certificate_number())
-            .await?
-            .context("get_last_batch_certificate_number()")?)
-    }
-
-    /// Wrapper for `consensus_dal().batch_certificate()`.
-    pub async fn batch_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::BatchQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().batch_certificate(number))
-            .await?
-            .context("batch_certificate()")?)
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

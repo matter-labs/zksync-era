@@ -1,18 +1,22 @@
 use std::{
     convert::Infallible,
+    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
-use zksync_multivm::interface::{Halt, L1BatchEnv, SystemEnv};
+use zksync_multivm::{
+    interface::{Halt, L1BatchEnv, SystemEnv},
+    utils::StorageWritesDeduplicator,
+};
 use zksync_state::ReadStorageFactory;
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use super::{
@@ -48,6 +52,45 @@ impl Error {
     }
 }
 
+/// Functionality [`BatchExecutor`] + [`ReadStorageFactory`] with an erased storage type. This allows to keep
+/// [`ZkSyncStateKeeper`] not parameterized by the storage type, simplifying its dependency injection and usage in tests.
+#[async_trait]
+trait ErasedBatchExecutor: fmt::Debug + Send {
+    async fn init_batch(
+        &mut self,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<BatchExecutorHandle, Error>;
+}
+
+/// The only [`ErasedBatchExecutor`] implementation.
+#[derive(Debug)]
+struct ErasedBatchExecutorImpl<S> {
+    batch_executor: Box<dyn BatchExecutor<S>>,
+    storage_factory: Arc<dyn ReadStorageFactory<S>>,
+}
+
+#[async_trait]
+impl<S: 'static + fmt::Debug> ErasedBatchExecutor for ErasedBatchExecutorImpl<S> {
+    async fn init_batch(
+        &mut self,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<BatchExecutorHandle, Error> {
+        let storage = self
+            .storage_factory
+            .access_storage(stop_receiver, l1_batch_env.number - 1)
+            .await
+            .context("failed creating VM storage")?
+            .ok_or(Error::Canceled)?;
+        Ok(self
+            .batch_executor
+            .init_batch(storage, l1_batch_env, system_env))
+    }
+}
+
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
@@ -62,27 +105,28 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    batch_executor_base: Box<dyn BatchExecutor>,
+    batch_executor: Box<dyn ErasedBatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
-    storage_factory: Arc<dyn ReadStorageFactory>,
 }
 
 impl ZkSyncStateKeeper {
-    pub fn new(
+    pub fn new<S: 'static + fmt::Debug>(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn BatchExecutor>,
+        batch_executor: Box<dyn BatchExecutor<S>>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
-        storage_factory: Arc<dyn ReadStorageFactory>,
+        storage_factory: Arc<dyn ReadStorageFactory<S>>,
     ) -> Self {
         Self {
             stop_receiver,
             io: sequencer,
-            batch_executor_base,
+            batch_executor: Box::new(ErasedBatchExecutorImpl {
+                batch_executor,
+                storage_factory,
+            }),
             output_handler,
             sealer,
-            storage_factory,
         }
     }
 
@@ -146,7 +190,12 @@ impl ZkSyncStateKeeper {
             .await?;
 
         let mut batch_executor = self
-            .create_batch_executor(l1_batch_env.clone(), system_env.clone())
+            .batch_executor
+            .init_batch(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                &self.stop_receiver,
+            )
             .await?;
         self.restore_state(&mut batch_executor, &mut updates_manager, pending_l2_blocks)
             .await?;
@@ -195,7 +244,12 @@ impl ZkSyncStateKeeper {
             (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
-                .create_batch_executor(l1_batch_env.clone(), system_env.clone())
+                .batch_executor
+                .init_batch(
+                    l1_batch_env.clone(),
+                    system_env.clone(),
+                    &self.stop_receiver,
+                )
                 .await?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
@@ -206,24 +260,6 @@ impl ZkSyncStateKeeper {
             };
         }
         Err(Error::Canceled)
-    }
-
-    async fn create_batch_executor(
-        &mut self,
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-    ) -> Result<BatchExecutorHandle, Error> {
-        let Some(storage) = self
-            .storage_factory
-            .access_storage(&self.stop_receiver, l1_batch_env.number - 1)
-            .await
-            .context("failed creating VM storage")?
-        else {
-            return Err(Error::Canceled);
-        };
-        Ok(self
-            .batch_executor_base
-            .init_batch(storage, l1_batch_env, system_env))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.

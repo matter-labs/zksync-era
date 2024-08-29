@@ -1,78 +1,80 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use anyhow::Context as _;
-use tracing::{span, Level};
-use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::{
-    interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
-    tracers::StorageInvocations,
-    MultiVMTracer,
+use async_trait::async_trait;
+use zksync_dal::{Connection, Core};
+use zksync_multivm::interface::{
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TransactionExecutionMetrics,
+    VmExecutionResultAndLogs,
 };
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, transaction_request::CallOverrides,
-    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
+    api::state_override::StateOverride, l2::L2Tx, ExecuteTransactionCommon, Nonce,
+    PackedEthSignature, Transaction, U256,
 };
 
 use super::{
-    apply, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs,
-    VmPermit,
+    apply::{self, MainOneshotExecutor},
+    storage::StorageWithOverrides,
+    testonly::MockOneshotExecutor,
+    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSetupArgs, VmPermit,
 };
-use crate::execution_sandbox::api::state_override::StateOverride;
 
+/// Executor-independent arguments necessary to for oneshot transaction execution.
+///
+/// # Developer guidelines
+///
+/// Please don't add fields that duplicate `SystemEnv` or `L1BatchEnv` information, since both of these
+/// are also provided to an executor.
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
-    pub execution_mode: TxExecutionMode,
+    /// Transaction / call itself.
+    pub transaction: Transaction,
+    /// Nonce override for the initiator account.
     pub enforced_nonce: Option<Nonce>,
+    /// Balance added to the initiator account.
     pub added_balance: U256,
-    pub enforced_base_fee: Option<u64>,
-    pub missed_storage_invocation_limit: usize,
+    /// If `true`, then the batch's L1 / pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
+    /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
+    /// current L1 prices for gas or pubdata.
+    pub adjust_pubdata_price: bool,
 }
 
 impl TxExecutionArgs {
-    pub fn for_validation(tx: &L2Tx) -> Self {
+    pub fn for_validation(tx: L2Tx) -> Self {
         Self {
-            execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
-            missed_storage_invocation_limit: usize::MAX,
+            adjust_pubdata_price: true,
+            transaction: tx.into(),
         }
     }
 
-    fn for_eth_call(
-        enforced_base_fee: Option<u64>,
-        vm_execution_cache_misses_limit: Option<usize>,
-    ) -> Self {
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
+    pub fn for_eth_call(mut call: L2Tx) -> Self {
+        if call.common_data.signature.is_empty() {
+            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        }
+
         Self {
-            execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee,
-            missed_storage_invocation_limit,
+            adjust_pubdata_price: false,
+            transaction: call.into(),
         }
     }
 
-    pub fn for_gas_estimate(
-        vm_execution_cache_misses_limit: Option<usize>,
-        tx: &Transaction,
-        base_fee: u64,
-    ) -> Self {
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
+    pub fn for_gas_estimate(transaction: Transaction) -> Self {
         // For L2 transactions we need to explicitly put enough balance into the account of the users
         // while for L1->L2 transactions the `to_mint` field plays this role
-        let added_balance = match &tx.common_data {
+        let added_balance = match &transaction.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
             ExecuteTransactionCommon::L1(_) => U256::zero(),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
         };
 
         Self {
-            execution_mode: TxExecutionMode::EstimateFee,
-            missed_storage_invocation_limit,
-            enforced_nonce: tx.nonce(),
+            enforced_nonce: transaction.nonce(),
             added_balance,
-            enforced_base_fee: Some(base_fee),
+            adjust_pubdata_price: true,
+            transaction,
         }
     }
 }
@@ -90,68 +92,40 @@ pub(crate) struct TransactionExecutionOutput {
 /// Executor of transactions.
 #[derive(Debug)]
 pub(crate) enum TransactionExecutor {
-    Real,
+    Real(MainOneshotExecutor),
     #[doc(hidden)] // Intended for tests only
-    Mock(MockTransactionExecutor),
+    Mock(MockOneshotExecutor),
 }
 
 impl TransactionExecutor {
+    pub fn real(missed_storage_invocation_limit: usize) -> Self {
+        Self::Real(MainOneshotExecutor::new(missed_storage_invocation_limit))
+    }
+
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(level = "debug", skip_all)]
     pub async fn execute_tx_in_sandbox(
         &self,
         vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
-        // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-        // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-        // current L1 prices for gas or pubdata.
-        adjust_pubdata_price: bool,
+        setup_args: TxSetupArgs,
         execution_args: TxExecutionArgs,
-        connection_pool: ConnectionPool<Core>,
-        tx: Transaction,
+        connection: Connection<'static, Core>,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
-        custom_tracers: Vec<ApiTracer>,
+        tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
-        if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx, &block_args);
-        }
+        let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
+        let (env, storage) =
+            apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
+        let state_override = state_override.unwrap_or_default();
+        let storage = StorageWithOverrides::new(storage, &state_override);
 
-        let total_factory_deps = tx.execute.factory_deps.len() as u16;
-
-        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
-            let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
-            let result = apply::apply_vm_in_sandbox(
-                vm_permit,
-                shared_args,
-                adjust_pubdata_price,
-                &execution_args,
-                &connection_pool,
-                tx,
-                block_args,
-                state_override,
-                |vm, tx, _| {
-                    let storage_invocation_tracer =
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit);
-                    let custom_tracers: Vec<_> = custom_tracers
-                        .into_iter()
-                        .map(|tracer| tracer.into_boxed())
-                        .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
-                        .collect();
-                    vm.inspect_transaction_with_bytecode_compression(
-                        custom_tracers.into(),
-                        tx,
-                        true,
-                    )
-                },
-            );
-            span.exit();
-            result
-        })
-        .await
-        .context("transaction execution panicked")??;
+        let (published_bytecodes, execution_result) = self
+            .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracers)
+            .await?;
+        drop(vm_permit);
 
         let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
@@ -161,42 +135,53 @@ impl TransactionExecutor {
             are_published_bytecodes_ok: published_bytecodes.is_ok(),
         })
     }
+}
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn execute_tx_eth_call(
+#[async_trait]
+impl<S> OneshotExecutor<S> for TransactionExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    type Tracers = Vec<ApiTracer>;
+
+    async fn inspect_transaction(
         &self,
-        vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
-        connection_pool: ConnectionPool<Core>,
-        call_overrides: CallOverrides,
-        mut tx: L2Tx,
-        block_args: BlockArgs,
-        vm_execution_cache_misses_limit: Option<usize>,
-        custom_tracers: Vec<ApiTracer>,
-        state_override: Option<StateOverride>,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let execution_args = TxExecutionArgs::for_eth_call(
-            call_overrides.enforced_base_fee,
-            vm_execution_cache_misses_limit,
-        );
-
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .inspect_transaction(storage, env, args, tracers)
+                    .await
+            }
+            Self::Mock(executor) => executor.inspect_transaction(storage, env, args, ()).await,
         }
+    }
 
-        let output = self
-            .execute_tx_in_sandbox(
-                vm_permit,
-                shared_args,
-                false,
-                execution_args,
-                connection_pool,
-                tx.into(),
-                block_args,
-                state_override,
-                custom_tracers,
-            )
-            .await?;
-        Ok(output.vm)
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )> {
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
+                    .await
+            }
+            Self::Mock(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(storage, env, args, ())
+                    .await
+            }
+        }
     }
 }

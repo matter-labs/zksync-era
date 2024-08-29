@@ -1,5 +1,5 @@
 use zksync_eth_client::BoundEthInterface;
-use zksync_web3_decl::client::{DynClient, L1};
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::resource::Resource;
 
@@ -10,6 +10,20 @@ pub struct EthInterfaceResource(pub Box<DynClient<L1>>);
 impl Resource for EthInterfaceResource {
     fn name() -> String {
         "common/eth_interface".into()
+    }
+}
+
+/// A resource that provides L2 interface object to the service.
+/// It is expected to have the same URL as the `EthInterfaceResource`, but have different capabilities.
+///
+/// This resource is provided separately from `EthInterfaceResource`, to provide type safety in places, where the
+/// component must work with L1-interface only and should use `EthInterfaceResource` instead.
+#[derive(Debug, Clone)]
+pub struct L2InterfaceResource(pub Box<DynClient<L2>>);
+
+impl Resource for L2InterfaceResource {
+    fn name() -> String {
+        "common/l2_interface".into()
     }
 }
 
@@ -30,5 +44,14 @@ pub struct BoundEthInterfaceForBlobsResource(pub Box<dyn BoundEthInterface>);
 impl Resource for BoundEthInterfaceForBlobsResource {
     fn name() -> String {
         "common/bound_eth_interface_for_blobs".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BoundEthInterfaceForL2Resource(pub Box<dyn BoundEthInterface>);
+
+impl Resource for BoundEthInterfaceForL2Resource {
+    fn name() -> String {
+        "common/bound_eth_interface_for_l2".into()
     }
 }

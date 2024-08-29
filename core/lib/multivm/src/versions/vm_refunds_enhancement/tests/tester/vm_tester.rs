@@ -1,5 +1,5 @@
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
+use crate::interface::storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 
 use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::helpers::unix_timestamp_ms;

@@ -248,7 +248,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn requeue_stuck_jobs(
+    pub async fn requeue_stuck_basic_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -268,18 +268,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
                 OR (
-                    status = 'in_gpu_proof'
-                    AND processing_started_at <= NOW() - $1::INTERVAL
-                    AND attempts < $2
-                )
-                OR (
                     status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -293,6 +290,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -304,6 +303,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     /// - all node aggregation jobs at depth 0 for the batch
     /// - the recursion tip witness job
     /// - the scheduler witness job
+    ///
     /// NOTE: Not all batches have all circuits, so it's possible we'll be missing some aggregation jobs (for circuits not present in the batch).
     pub async fn create_aggregation_jobs(
         &mut self,
@@ -935,7 +935,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn requeue_stuck_leaf_aggregations_jobs(
+    pub async fn requeue_stuck_leaf_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -962,7 +962,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id,
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -976,11 +978,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: Some(row.circuit_id as u32),
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
 
-    pub async fn requeue_stuck_node_aggregations_jobs(
+    pub async fn requeue_stuck_node_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -1007,7 +1011,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id,
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1021,6 +1027,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: Some(row.circuit_id as u32),
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1051,7 +1059,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1065,6 +1075,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1163,7 +1175,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1177,6 +1191,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1707,7 +1723,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
             max_attempts
@@ -1722,6 +1740,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: None,
+                error: row.get("error"),
+                picked_by: row.get("picked_by"),
             })
             .collect()
     }
@@ -1771,7 +1791,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
             max_attempts
@@ -1786,6 +1808,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: None,
+                error: row.get("error"),
+                picked_by: row.get("picked_by"),
             })
             .collect()
     }
@@ -1809,7 +1833,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
             max_attempts
@@ -1824,6 +1850,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: None,
+                error: row.get("error"),
+                picked_by: row.get("picked_by"),
             })
             .collect()
     }
@@ -1851,7 +1879,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 {},
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             table_name,
             i64::from(block_number.0),
@@ -1868,6 +1898,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
+                error: row.get("error"),
+                picked_by: row.get("picked_by"),
             })
             .collect()
     }

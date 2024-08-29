@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -20,8 +20,9 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
+    settlement::SettlementMode,
     web3::{contract::Error as Web3ContractError, BlockNumber},
-    Address, L2ChainId, ProtocolVersionId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
@@ -62,6 +63,8 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
+    settlement_mode: SettlementMode,
+    sl_chain_id: SLChainId,
 }
 
 struct TxData {
@@ -81,6 +84,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        settlement_mode: SettlementMode,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -97,6 +101,9 @@ impl EthTxAggregator {
             ),
             None => None,
         };
+
+        let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
+
         Self {
             config,
             aggregator,
@@ -110,6 +117,8 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            settlement_mode,
+            sl_chain_id,
         }
     }
 
@@ -355,8 +364,33 @@ impl EthTxAggregator {
             )
             .await
         {
+            if self.config.tx_aggregation_paused {
+                tracing::info!(
+                    "Skipping sending operation of type {} for batches {}-{} \
+                as tx_aggregation_paused=true",
+                    agg_op.get_action_type(),
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
+                tracing::info!(
+                    "Skipping sending commit operation for batches {}-{} \
+                as tx_aggregation_only_prove_and_execute=true",
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+            let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
+                .save_eth_tx(
+                    storage,
+                    &agg_op,
+                    contracts_are_pre_shared_bridge,
+                    is_gateway,
+                )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
@@ -521,15 +555,16 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
+        is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match op_type {
-            AggregatedActionType::Commit => self.custom_commit_sender_addr,
-            _ => None,
+        let sender_addr = match (op_type, is_gateway) {
+            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
@@ -553,7 +588,14 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                is_gateway,
             )
+            .await
+            .unwrap();
+
+        transaction
+            .eth_sender_dal()
+            .set_chain_id(eth_tx.id, self.sl_chain_id.0)
             .await
             .unwrap();
 
@@ -571,9 +613,10 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
+        let is_gateway = self.settlement_mode.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr)
+            .get_next_nonce(from_addr, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);

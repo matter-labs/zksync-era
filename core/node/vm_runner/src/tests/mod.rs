@@ -5,16 +5,17 @@ use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state::{OwnedPostgresStorage, OwnedStorage};
+use zksync_state::OwnedStorage;
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
-    fee::{Fee, TransactionExecutionMetrics},
+    fee::Fee,
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
@@ -28,6 +29,7 @@ use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
 use crate::storage::{load_batch_execute_data, StorageLoader};
 
 mod output_handler;
+mod playground;
 mod process;
 mod storage;
 mod storage_writer;
@@ -56,8 +58,8 @@ impl StorageLoader for PostgresLoader {
             return Ok(None);
         };
 
-        let storage = OwnedPostgresStorage::new(self.0.clone(), l1_batch_number - 1);
-        Ok(Some((data, storage.into())))
+        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+        Ok(Some((data, storage)))
     }
 }
 
@@ -306,11 +308,12 @@ async fn store_l1_batches(
         digest.push_tx_hash(tx.hash());
         new_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
 
-        l2_block_number += 1;
         new_l2_block.base_system_contracts_hashes = contract_hashes;
         new_l2_block.l2_tx_count = 1;
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
         last_l2_block_hash = new_l2_block.hash;
+        l2_block_number += 1;
+
         let tx_result = execute_l2_transaction(tx.clone());
         conn.transactions_dal()
             .mark_txs_as_executed_in_l2_block(
@@ -330,9 +333,9 @@ async fn store_l1_batches(
             last_l2_block_hash,
         );
         fictive_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
-        l2_block_number += 1;
         conn.blocks_dal().insert_l2_block(&fictive_l2_block).await?;
         last_l2_block_hash = fictive_l2_block.hash;
+        l2_block_number += 1;
 
         let header = L1BatchHeader::new(
             l1_batch_number,

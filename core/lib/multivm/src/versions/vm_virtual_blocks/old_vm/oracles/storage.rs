@@ -5,7 +5,6 @@ use zk_evm_1_3_3::{
     aux_structures::{LogQuery, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogKind,
     BOOTLOADER_ADDRESS, U256,
@@ -15,6 +14,7 @@ use zksync_utils::u256_to_h256;
 use super::OracleWithHistory;
 use crate::{
     glue::GlueInto,
+    interface::storage::{StoragePtr, WriteStorage},
     vm_virtual_blocks::{
         old_vm::history_recorder::{
             AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,

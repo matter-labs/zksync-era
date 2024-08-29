@@ -10,6 +10,7 @@ use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractEx
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
@@ -21,9 +22,9 @@ use zksync_types::{
     ethabi::Token,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::get_system_smart_contracts,
     utils::storage_key_for_standard_token_balance,
+    vm::FastVmMode,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
@@ -45,16 +46,18 @@ pub(super) struct TestConfig {
     pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) validation_computational_gas_limit: u32,
+    pub(super) fast_vm_mode: FastVmMode,
 }
 
 impl TestConfig {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(fast_vm_mode: FastVmMode) -> Self {
         let config = StateKeeperConfig::for_tests();
 
         Self {
             vm_gas_limit: None,
             save_call_traces: false,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
+            fast_vm_mode,
         }
     }
 }
@@ -71,8 +74,8 @@ pub(super) struct Tester {
 }
 
 impl Tester {
-    pub(super) fn new(pool: ConnectionPool<Core>) -> Self {
-        Self::with_config(pool, TestConfig::new())
+    pub(super) fn new(pool: ConnectionPool<Core>, fast_vm_mode: FastVmMode) -> Self {
+        Self::with_config(pool, TestConfig::new(fast_vm_mode))
     }
 
     pub(super) fn with_config(pool: ConnectionPool<Core>, config: TestConfig) -> Self {
@@ -141,6 +144,8 @@ impl Tester {
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
+        batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
+
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let storage = storage_factory
             .access_storage(&stop_receiver, l1_batch_env.number - 1)
@@ -440,7 +445,7 @@ impl StorageSnapshot {
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
-        let mut tester = Tester::new(connection_pool.clone());
+        let mut tester = Tester::new(connection_pool.clone(), FastVmMode::Old);
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 
