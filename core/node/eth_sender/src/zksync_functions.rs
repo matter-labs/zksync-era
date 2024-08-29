@@ -3,12 +3,9 @@ use zksync_types::ethabi::{Contract, Function};
 
 #[derive(Debug)]
 pub(super) struct ZkSyncFunctions {
-    pub(super) pre_shared_bridge_commit: Function,
-    pub(super) post_shared_bridge_commit: Option<Function>,
-    pub(super) pre_shared_bridge_prove: Function,
-    pub(super) post_shared_bridge_prove: Option<Function>,
-    pub(super) pre_shared_bridge_execute: Function,
-    pub(super) post_shared_bridge_execute: Option<Function>,
+    pub(super) post_shared_bridge_commit: Function,
+    pub(super) post_shared_bridge_prove: Function,
+    pub(super) post_shared_bridge_execute: Function,
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
     pub(super) get_verifier: Function,
@@ -32,29 +29,16 @@ fn get_function(contract: &Contract, name: &str) -> Function {
         .unwrap_or_else(|| panic!("{} function entry not found", name))
 }
 
-fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
-    contract
-        .functions
-        .get(name)
-        .cloned()
-        .map(|mut functions| functions.pop().unwrap())
-}
-
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
         let zksync_contract = hyperchain_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
 
-        let pre_shared_bridge_commit = get_function(&zksync_contract, "commitBatches");
-        let post_shared_bridge_commit =
-            get_optional_function(&zksync_contract, "commitBatchesSharedBridge");
-        let pre_shared_bridge_prove = get_function(&zksync_contract, "proveBatches");
-        let post_shared_bridge_prove =
-            get_optional_function(&zksync_contract, "proveBatchesSharedBridge");
-        let pre_shared_bridge_execute = get_function(&zksync_contract, "executeBatches");
+        let post_shared_bridge_commit = get_function(&zksync_contract, "commitBatchesSharedBridge");
+        let post_shared_bridge_prove = get_function(&zksync_contract, "proveBatchesSharedBridge");
         let post_shared_bridge_execute =
-            get_optional_function(&zksync_contract, "executeBatchesSharedBridge");
+            get_function(&zksync_contract, "executeBatchesSharedBridge");
         let get_l2_bootloader_bytecode_hash =
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
         let get_l2_default_account_bytecode_hash =
@@ -66,11 +50,8 @@ impl Default for ZkSyncFunctions {
         let verification_key_hash = get_function(&verifier_contract, "verificationKeyHash");
 
         ZkSyncFunctions {
-            pre_shared_bridge_commit,
             post_shared_bridge_commit,
-            pre_shared_bridge_prove,
             post_shared_bridge_prove,
-            pre_shared_bridge_execute,
             post_shared_bridge_execute,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,

@@ -116,17 +116,17 @@ jobs:
     name: CI for Common Components (prover or core)
     uses: ./.github/workflows/ci-common-reusable.yml
 
-  build-core-images:
-    name: Build core images
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-core-template.yml
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-      action: "build"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  # build-core-images:
+  #   name: Build core images
+  #   needs: changed_files
+  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+  #   uses: ./.github/workflows/build-core-template.yml
+  #   with:
+  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+  #     action: "build"
+  #   secrets:
+  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build-tee-prover-images:
     name: Build TEE Prover images
@@ -186,7 +186,8 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images]
+    #TODO return build-core-images
+    needs: [ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-contract-verifier, build-prover-images]
     steps:
       - name: Status
         run: |

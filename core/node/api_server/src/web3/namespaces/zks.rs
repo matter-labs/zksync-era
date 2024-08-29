@@ -681,6 +681,8 @@ impl ZksNamespace {
             chain_id_leaf_proof_mask: chain_id_leaf_proof_mask.into(),
             local_msg_root,
             sl_batch_number: l1_batch_number_with_agg_batch.into(),
+            // this is the settlement layer
+            sl_chain_id: self.state.api_config.l2_chain_id.0.into(),
         };
 
         println!(

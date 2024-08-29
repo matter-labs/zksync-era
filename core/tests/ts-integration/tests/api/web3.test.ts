@@ -249,14 +249,16 @@ describe.skip('web3 API compatibility tests', () => {
 
     test('Should check transactions from API / Legacy tx', async () => {
         const LEGACY_TX_TYPE = 0;
+        const gasPrice = (await alice._providerL2().getGasPrice()) * 2n;
         const legacyTx = await alice.sendTransaction({
             type: LEGACY_TX_TYPE,
-            to: alice.address
+            to: alice.address,
+            gasPrice
         });
         await legacyTx.wait();
 
         const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).toBeLessThanOrEqual(legacyTx.gasPrice!);
+        expect(legacyApiReceipt.gasPrice).toEqual(gasPrice);
     });
 
     test('Should check transactions from API / EIP1559 tx', async () => {
