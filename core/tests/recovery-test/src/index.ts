@@ -77,7 +77,7 @@ export async function getExternalNodeHealth(url: string) {
         }
         console.log(
             `Request to EN health check server failed: ${displayedError}. In CI, you can see more details ` +
-                'in "Show * logs" steps'
+            'in "Show * logs" steps'
         );
         return null;
     }
@@ -170,7 +170,6 @@ export class NodeProcess {
             }
             // We always run the test using additional tools, that means we have to kill not the main process, but the child process
             for (let i = childs.length - 1; i >= 0; i--) {
-                console.log(`kill ${childs[i]}`);
                 await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
             }
         } catch (err) {
@@ -205,7 +204,7 @@ export class NodeProcess {
         return new NodeProcess(childProcess, logs);
     }
 
-    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) {}
+    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) { }
 
     exitCode() {
         return this.childProcess.exitCode;
@@ -255,7 +254,7 @@ export class FundedWallet {
         return new FundedWallet(wallet);
     }
 
-    private constructor(private readonly wallet: zksync.Wallet) {}
+    private constructor(private readonly wallet: zksync.Wallet) { }
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {
