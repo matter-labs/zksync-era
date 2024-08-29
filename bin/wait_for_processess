@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# Ensure the PROCESSES variable is passed from outside
-if [ -z "$PROCESSES" ]; then
-    echo "No processes provided. Please set the PROCESSES environment variable."
-    exit 1
-fi
-
 # Function to wait for a process and check its exit status
 check_process_status() {
     local name=$1
@@ -24,7 +18,7 @@ check_process_status() {
 }
 
 # Loop through each process, start monitoring, and store the PIDs of the background jobs
-for entry in $PROCESSES; do
+for entry in $1; do
   name="${entry%%:*}"
   pid="${entry##*:}"
   check_process_status "$name" "$pid" &
