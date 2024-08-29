@@ -12,7 +12,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
-    RocksdbWithMemory, ShadowStorage,
+    RocksdbWithMemory,
 };
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2ChainId};
 use zksync_vm_utils::storage::L1BatchParamsProvider;
@@ -84,13 +84,10 @@ impl StorageLoader for PostgresLoader {
             return Ok(None);
         };
 
-        if let Some(storage) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
-            let storage = if self.shadow_snapshots {
-                let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-                OwnedStorage::boxed(ShadowStorage::new(postgres, storage, l1_batch_number))
-            } else {
-                OwnedStorage::from(storage)
-            };
+        if let Some(snapshot) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
+            let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+            let storage = snapshot.with_fallback(postgres, self.shadow_snapshots);
+            let storage = OwnedStorage::from(storage);
             return Ok(Some((data, storage)));
         }
 

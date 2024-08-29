@@ -10,7 +10,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_utils::u256_to_h256;
-use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
+use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot, StorageWithSnapshot};
 
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
@@ -82,8 +82,8 @@ pub enum CommonStorage<'a> {
     Rocksdb(RocksdbStorage),
     /// Implementation over a RocksDB cache instance with in-memory DB diffs.
     RocksdbWithMemory(RocksdbWithMemory),
-    /// In-memory storage snapshot.
-    Snapshot(StorageSnapshot),
+    /// In-memory storage snapshot with the Postgres storage fallback.
+    Snapshot(StorageWithSnapshot<PostgresStorage<'a>>),
     /// Generic implementation. Should be used for testing purposes only since it has performance penalty because
     /// of the dynamic dispatch.
     Boxed(Box<dyn ReadStorage + Send + 'a>),
@@ -239,15 +239,17 @@ impl CommonStorage<'static> {
             })
             .collect();
 
-        // Retain only slots that were written to before the batch. Other slots (i.e., initial writes and phantom writes)
-        // will return zero previous value, "is initial write" flag and non-existing enum index as expected.
-        let storage = previous_values.into_iter().filter_map(|(key, prev_value)| {
-            let prev_value = prev_value?;
-            let &(l1_batch, enum_index) = initial_write_info.get(&key)?;
-            if l1_batch >= l1_batch_number {
-                return None;
-            }
-            Some((key, (prev_value, enum_index)))
+        let storage = previous_values.into_iter().map(|(key, prev_value)| {
+            let prev_value = prev_value.unwrap_or_default();
+            let enum_index =
+                initial_write_info
+                    .get(&key)
+                    .copied()
+                    .and_then(|(l1_batch, enum_index)| {
+                        // Account for enum indexes assigned "in the future"
+                        (l1_batch < l1_batch_number).then_some(enum_index)
+                    });
+            (key, (prev_value, enum_index))
         });
         let storage = storage.collect();
         Ok(Some(StorageSnapshot::new(storage, factory_deps)))
@@ -356,8 +358,8 @@ impl From<RocksdbStorage> for CommonStorage<'_> {
     }
 }
 
-impl From<StorageSnapshot> for CommonStorage<'_> {
-    fn from(value: StorageSnapshot) -> Self {
+impl<'a> From<StorageWithSnapshot<PostgresStorage<'a>>> for CommonStorage<'a> {
+    fn from(value: StorageWithSnapshot<PostgresStorage<'a>>) -> Self {
         Self::Snapshot(value)
     }
 }
