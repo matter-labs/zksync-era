@@ -213,9 +213,7 @@ testFees('Test fees', () => {
         if (isETHBasedChain) {
             expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
         } else {
-            // We need some tolerance here, becouse base token "forced" price provider has 10% randomness in its price
-            expect(receipt.gasPrice).toBeGreaterThan(expectedCustomGasPrice * 0.85);
-            expect(receipt.gasPrice).toBeLessThan(expectedCustomGasPrice * 1.15);
+            expect(receipt.gasPrice).toBe(BigInt(expectedCustomGasPrice));
         }
 
         if (!isETHBasedChain) {
@@ -224,7 +222,7 @@ testFees('Test fees', () => {
                 newPubdataPrice: l1GasPrice.toString(),
                 customBaseToken: true,
                 forcedBaseTokenPriceNumerator: 271,
-                forcedBaseTokenPriceDenumerator: 100,
+                forcedBaseTokenPriceDenumerator: 100
             });
 
             const receipt2 = await (
