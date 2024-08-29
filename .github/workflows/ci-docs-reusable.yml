@@ -25,6 +25,7 @@ jobs:
       - name: Build
         run: |
           ci_run ./bin/zkt
+          ci_run yarn install
 
       - name: Lints
         run: |
