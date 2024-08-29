@@ -1,10 +1,12 @@
+use std::fmt;
+
 use vise::{Counter, Metrics};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
-#[allow(clippy::struct_field_names)]
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "shadow_storage")]
+#[allow(clippy::struct_field_names)] // false positive
 struct ShadowStorageMetrics {
     /// Number of mismatches when reading a value from a shadow storage.
     read_value_mismatch: Counter,
@@ -19,10 +21,13 @@ struct ShadowStorageMetrics {
 #[vise::register]
 static METRICS: vise::Global<ShadowStorageMetrics> = vise::Global::new();
 
-/// [`ReadStorage`] implementation backed by 2 different backends:
-/// source_storage -- backend that will return values for function calls and be the source of truth
-/// to_check_storage -- secondary storage, which will verify it's own return values against source_storage
-/// Note that if to_check_storage value is different than source value, execution continues and metrics/ logs are emitted.
+/// [`ReadStorage`] implementation backed by 2 different backends which are compared for each performed operation.
+///
+/// - `Ref` is the backend that will return values for function calls and be the source of truth
+/// - `Check` is the secondary storage, which will have its return values verified against `Ref`
+///
+/// If `Check` value is different from a value from `Ref`, storage behavior depends on the [panic on divergence](Self::set_panic_on_divergence()) flag.
+/// If this flag is set (which it is by default), the storage panics; otherwise, execution continues and metrics / logs are emitted.
 #[derive(Debug)]
 pub struct ShadowStorage<Ref, Check> {
     source_storage: Ref,
@@ -32,7 +37,7 @@ pub struct ShadowStorage<Ref, Check> {
     panic_on_divergence: bool,
 }
 
-impl<Ref, Check> ShadowStorage<Ref, Check> {
+impl<Ref: ReadStorage, Check: ReadStorage> ShadowStorage<Ref, Check> {
     /// Creates a new storage using the 2 underlying [`ReadStorage`]s, first as source, the second to be checked
     /// against the source.
     pub fn new(
@@ -48,6 +53,19 @@ impl<Ref, Check> ShadowStorage<Ref, Check> {
             panic_on_divergence: true,
         }
     }
+
+    /// Sets behavior if a storage divergence is detected.
+    pub fn set_panic_on_divergence(&mut self, panic_on_divergence: bool) {
+        self.panic_on_divergence = panic_on_divergence;
+    }
+
+    fn error_or_panic(&self, args: fmt::Arguments<'_>) {
+        if self.panic_on_divergence {
+            panic!("{args}");
+        } else {
+            tracing::error!(l1_batch_number = self.l1_batch_number.0, "{args}");
+        }
+    }
 }
 
 impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Check> {
@@ -56,19 +74,11 @@ impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Ch
         let expected_value = self.to_check_storage.read_value(key);
         if source_value != expected_value {
             self.metrics.read_value_mismatch.inc();
-            if self.panic_on_divergence {
-                panic!(
-                    "read_value({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            } else {
-                tracing::error!(
-                    "read_value({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            }
+            self.error_or_panic(format_args!(
+                "read_value({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
+                 to be equal to to_check={expected_value:?}",
+                self.l1_batch_number
+            ));
         }
         source_value
     }
@@ -78,19 +88,11 @@ impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Ch
         let expected_value = self.to_check_storage.is_write_initial(key);
         if source_value != expected_value {
             self.metrics.is_write_initial_mismatch.inc();
-            if self.panic_on_divergence {
-                panic!(
-                    "is_write_initial({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            } else {
-                tracing::error!(
-                    "is_write_initial({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            }
+            self.error_or_panic(format_args!(
+                "is_write_initial({key:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
+                 to be equal to to_check={expected_value:?}",
+                self.l1_batch_number
+            ));
         }
         source_value
     }
@@ -100,19 +102,11 @@ impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Ch
         let expected_value = self.to_check_storage.load_factory_dep(hash);
         if source_value != expected_value {
             self.metrics.load_factory_dep_mismatch.inc();
-            if self.panic_on_divergence {
-                panic!(
-                    "load_factory_dep({hash:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                     self.l1_batch_number
-                );
-            } else {
-                tracing::error!(
-                    "load_factory_dep({hash:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
-                     to be equal to to_check={expected_value:?}",
-                     self.l1_batch_number
-                );
-            }
+            self.error_or_panic(format_args!(
+                "load_factory_dep({hash:?}) -- l1_batch_number={:?} -- expected source={source_value:?} \
+                 to be equal to to_check={expected_value:?}",
+                self.l1_batch_number
+            ));
         }
         source_value
     }
@@ -122,19 +116,11 @@ impl<Ref: ReadStorage, Check: ReadStorage> ReadStorage for ShadowStorage<Ref, Ch
         let expected_value = self.to_check_storage.get_enumeration_index(key);
         if source_value != expected_value {
             self.metrics.get_enumeration_index_mismatch.inc();
-            if self.panic_on_divergence {
-                panic!(
-                    "get_enumeration_index({key:?}) -- l1_batch_number={:?} -- \
-                     expected source={source_value:?} to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            } else {
-                tracing::error!(
-                    "get_enumeration_index({key:?}) -- l1_batch_number={:?} -- \
-                     expected source={source_value:?} to be equal to to_check={expected_value:?}",
-                    self.l1_batch_number
-                );
-            }
+            self.error_or_panic(format_args!(
+                "get_enumeration_index({key:?}) -- l1_batch_number={:?} -- \
+                 expected source={source_value:?} to be equal to to_check={expected_value:?}",
+                self.l1_batch_number
+            ));
         }
         source_value
     }
