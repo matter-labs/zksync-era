@@ -618,12 +618,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
 
         self.tracer = Default::default();
-        self.inner.state.code_decommitter_cycles = 0;
-
-        self.inner.state.keccak256_cycles = 0;
-        self.inner.state.ecrecover_cycles = 0;
-        self.inner.state.sha256_cycles = 0;
-        self.inner.state.secp256v1_verify_cycles = 0;
+        self.inner.state.cycle_counts = Default::default();
 
         let start = self.inner.world_diff.snapshot();
         let storage_cycle_start = self.inner.world_diff.storage_application_cycles_snapshot();
@@ -682,11 +677,13 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         let pubdata_after = self.inner.world_diff.pubdata();
 
-        self.tracer.keccak256_cycles = self.inner.state.keccak256_cycles as u32;
-        self.tracer.ecrecover_cycles = self.inner.state.ecrecover_cycles as u32;
-        self.tracer.sha256_cycles = self.inner.state.sha256_cycles as u32;
-        self.tracer.secp256k1_verify_cycles = self.inner.state.secp256v1_verify_cycles as u32;
-        self.tracer.code_decommitter_cycles = self.inner.state.code_decommitter_cycles as u32;
+        self.tracer.keccak256_cycles = self.inner.state.cycle_counts.keccak256_cycles as u32;
+        self.tracer.ecrecover_cycles = self.inner.state.cycle_counts.ecrecover_cycles as u32;
+        self.tracer.sha256_cycles = self.inner.state.cycle_counts.sha256_cycles as u32;
+        self.tracer.secp256k1_verify_cycles =
+            self.inner.state.cycle_counts.secp256v1_verify_cycles as u32;
+        self.tracer.code_decommitter_cycles =
+            self.inner.state.cycle_counts.code_decommitter_cycles as u32;
         self.tracer.storage_application_cycles =
             self.inner
                 .world_diff
