@@ -12,8 +12,6 @@ import fs from 'node:fs/promises';
 import { logsTestPath } from 'utils/build/logs';
 import { killPidWithAllChilds } from 'utils/build/kill';
 
-const fileConfig = shouldLoadConfigFromFile();
-
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
     lastL1BatchNumber: bigint;
@@ -72,7 +70,6 @@ function ignoreError(_err: any, context?: string) {
     console.info(message);
 }
 
-const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
 
