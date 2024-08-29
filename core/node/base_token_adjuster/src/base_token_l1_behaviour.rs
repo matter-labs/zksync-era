@@ -277,7 +277,7 @@ impl BaseTokenL1Behaviour {
             base_fee_per_gas = max(base_fee_per_gas, x + (x / 10) + 1);
         }
 
-        // Extra check to prevent sending transaction will extremely high priority fee.
+        // Extra check to prevent sending transaction with extremely high priority fee.
         if priority_fee_per_gas > l1_params.config.max_acceptable_priority_fee_in_gwei {
             panic!(
                 "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
