@@ -1,7 +1,6 @@
-use std::{fmt, time::Duration};
+use std::fmt;
 
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
-use url::Url;
+use secp256k1::{ecdsa::Signature, Message};
 use zksync_basic_types::H256;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -11,32 +10,21 @@ use zksync_node_framework::{
 };
 use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_types::L1BatchNumber;
 
-use crate::{api_client::TeeApiClient, error::TeeProverError, metrics::METRICS};
+use crate::{
+    api_client::TeeApiClient, config::TeeProverConfig, error::TeeProverError, metrics::METRICS,
+};
 
 /// Wiring layer for `TeeProver`
 #[derive(Debug)]
 pub(crate) struct TeeProverLayer {
-    api_url: Url,
-    signing_key: SecretKey,
-    attestation_quote_bytes: Vec<u8>,
-    tee_type: TeeType,
+    config: TeeProverConfig,
 }
 
 impl TeeProverLayer {
-    pub fn new(
-        api_url: Url,
-        signing_key: SecretKey,
-        attestation_quote_bytes: Vec<u8>,
-        tee_type: TeeType,
-    ) -> Self {
-        Self {
-            api_url,
-            signing_key,
-            attestation_quote_bytes,
-            tee_type,
-        }
+    pub fn new(config: TeeProverConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -56,13 +44,10 @@ impl WiringLayer for TeeProverLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        let api_url = self.config.api_url.clone();
         let tee_prover = TeeProver {
-            config: Default::default(),
-            signing_key: self.signing_key,
-            public_key: self.signing_key.public_key(&Secp256k1::new()),
-            attestation_quote_bytes: self.attestation_quote_bytes,
-            tee_type: self.tee_type,
-            api_client: TeeApiClient::new(self.api_url),
+            config: self.config,
+            api_client: TeeApiClient::new(api_url),
         };
         Ok(LayerOutput { tee_prover })
     }
@@ -70,10 +55,6 @@ impl WiringLayer for TeeProverLayer {
 
 pub(crate) struct TeeProver {
     config: TeeProverConfig,
-    signing_key: SecretKey,
-    public_key: PublicKey,
-    attestation_quote_bytes: Vec<u8>,
-    tee_type: TeeType,
     api_client: TeeApiClient,
 }
 
@@ -81,9 +62,7 @@ impl fmt::Debug for TeeProver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TeeProver")
             .field("config", &self.config)
-            .field("public_key", &self.public_key)
-            .field("attestation_quote_bytes", &self.attestation_quote_bytes)
-            .field("tee_type", &self.tee_type)
+            .field("public_key", &self.config.public_key)
             .finish()
     }
 }
@@ -101,7 +80,7 @@ impl TeeProver {
                 let batch_number = verification_result.batch_number;
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
                     .map_err(|e| TeeProverError::Verification(e.into()))?;
-                let signature = self.signing_key.sign_ecdsa(msg_to_sign);
+                let signature = self.config.signing_key.sign_ecdsa(msg_to_sign);
                 observer.observe();
                 Ok((signature, batch_number, verification_result.value_hash))
             }
@@ -112,16 +91,16 @@ impl TeeProver {
     }
 
     async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job(self.tee_type).await? {
+        match self.api_client.get_job(self.config.tee_type).await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
                 self.api_client
                     .submit_proof(
                         batch_number,
                         signature,
-                        &self.public_key,
+                        &self.config.public_key,
                         root_hash,
-                        self.tee_type,
+                        self.config.tee_type,
                     )
                     .await?;
                 Ok(Some(batch_number))
@@ -130,30 +109,6 @@ impl TeeProver {
                 tracing::trace!("There are currently no pending batches to be proven");
                 Ok(None)
             }
-        }
-    }
-}
-
-/// TEE prover configuration options.
-#[derive(Debug, Clone)]
-pub struct TeeProverConfig {
-    /// Number of retries for retriable errors before giving up on recovery (i.e., returning an error
-    /// from [`Self::run()`]).
-    pub max_retries: usize,
-    /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
-    /// will be multiplied by [`Self.retry_backoff_multiplier`].
-    pub initial_retry_backoff: Duration,
-    pub retry_backoff_multiplier: f32,
-    pub max_backoff: Duration,
-}
-
-impl Default for TeeProverConfig {
-    fn default() -> Self {
-        Self {
-            max_retries: 10,
-            initial_retry_backoff: Duration::from_secs(1),
-            retry_backoff_multiplier: 2.0,
-            max_backoff: Duration::from_secs(128),
         }
     }
 }
@@ -167,8 +122,9 @@ impl Task for TeeProver {
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
+        let attestation_quote_bytes = std::fs::read(&self.config.attestation_quote_file_path)?;
         self.api_client
-            .register_attestation(self.attestation_quote_bytes.clone(), &self.public_key)
+            .register_attestation(attestation_quote_bytes, &self.config.public_key)
             .await?;
 
         let mut retries = 1;
