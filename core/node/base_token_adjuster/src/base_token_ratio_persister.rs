@@ -66,7 +66,7 @@ impl BaseTokenRatioPersister {
         Ok(())
     }
 
-    async fn loop_iteration(&self) -> anyhow::Result<()> {
+    async fn loop_iteration(&mut self) -> anyhow::Result<()> {
         // TODO(PE-148): Consider shifting retry upon adding external API redundancy.
         let new_ratio = self.retry_fetch_ratio().await?;
         self.persist_ratio(new_ratio).await?;

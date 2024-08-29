@@ -1,12 +1,12 @@
 use std::{
     cmp::max,
     ops::{Div, Mul},
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::Instant,
 };
 
 use anyhow::Context;
-use bigdecimal::{BigDecimal, Zero};
+use bigdecimal::{num_bigint::ToBigInt, BigDecimal, Zero};
 use zksync_config::BaseTokenAdjusterConfig;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
@@ -29,41 +29,37 @@ pub struct UpdateOnL1Params {
     pub diamond_proxy_contract_address: Address,
     pub chain_admin_contract_address: Option<Address>,
     pub config: BaseTokenAdjusterConfig,
-    pub last_persisted_l1_ratio: Arc<RwLock<Option<BigDecimal>>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum BaseTokenL1Behaviour {
-    UpdateOnL1 { params: UpdateOnL1Params },
+    UpdateOnL1 {
+        params: UpdateOnL1Params,
+        last_persisted_l1_ratio: Option<BigDecimal>,
+    },
     NoOp,
 }
 
 impl BaseTokenL1Behaviour {
-    pub async fn update_l1(&self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
-        match self {
-            BaseTokenL1Behaviour::UpdateOnL1 { params } => {
-                self.retry_update_l1(new_ratio, params).await
-            }
-            BaseTokenL1Behaviour::NoOp => Ok(()),
-        }
-    }
+    pub async fn update_l1(&mut self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
+        let (l1_params, last_persisted_l1_ratio) = match self {
+            BaseTokenL1Behaviour::UpdateOnL1 {
+                ref params,
+                ref last_persisted_l1_ratio,
+            } => (&params.clone(), last_persisted_l1_ratio),
+            BaseTokenL1Behaviour::NoOp => return Ok(()),
+        };
 
-    async fn retry_update_l1(
-        &self,
-        new_ratio: BaseTokenAPIRatio,
-        l1_params: &UpdateOnL1Params,
-    ) -> anyhow::Result<()> {
-        let prev_ratio_option = (*l1_params.last_persisted_l1_ratio.read().unwrap()).clone();
-        let prev_ratio = if let Some(prev_ratio) = prev_ratio_option {
-            prev_ratio
+        let prev_ratio = if let Some(prev_ratio) = last_persisted_l1_ratio {
+            prev_ratio.clone()
         } else {
-            let prev_ratio = self.get_current_ratio_from_l1(l1_params).await?;
-            *l1_params.last_persisted_l1_ratio.write().unwrap() = Some(prev_ratio.clone());
+            let prev_ratio = self.get_current_ratio_from_l1(l1_params).await?.clone();
+            self.update_last_persisted_l1_ratio(prev_ratio.clone());
             tracing::info!(
                 "Fetched current base token ratio from the L1: {}",
-                prev_ratio
+                prev_ratio.to_bigint().unwrap()
             );
-            prev_ratio
+            prev_ratio.clone()
         };
 
         let current_ratio = BigDecimal::from(new_ratio.numerator.get())
@@ -75,7 +71,7 @@ impl BaseTokenL1Behaviour {
                 "Skipping L1 update. current_ratio {}, previous_ratio {}, deviation {}",
                 current_ratio,
                 prev_ratio,
-                deviation
+                deviation.to_bigint().unwrap()
             );
             return Ok(());
         }
@@ -102,7 +98,7 @@ impl BaseTokenL1Behaviour {
                         new_ratio.denominator.get(),
                         base_fee_per_gas,
                         priority_fee_per_gas,
-                        deviation
+                        deviation.to_bigint().unwrap()
                     );
                     METRICS
                         .l1_gas_used
@@ -111,8 +107,7 @@ impl BaseTokenL1Behaviour {
                         result: OperationResult::Success,
                     }]
                         .observe(start_time.elapsed());
-
-                    *l1_params.last_persisted_l1_ratio.write().unwrap() = Some(
+                    self.update_last_persisted_l1_ratio(
                         BigDecimal::from(new_ratio.numerator.get())
                             .div(BigDecimal::from(new_ratio.denominator.get())),
                     );
@@ -144,6 +139,16 @@ impl BaseTokenL1Behaviour {
         Err(last_error
             .map(|x| x.context(error_message))
             .unwrap_or_else(|| anyhow::anyhow!(error_message)))
+    }
+
+    fn update_last_persisted_l1_ratio(&mut self, new_ratio: BigDecimal) {
+        match self {
+            BaseTokenL1Behaviour::UpdateOnL1 {
+                params: _,
+                ref mut last_persisted_l1_ratio,
+            } => *last_persisted_l1_ratio = Some(new_ratio),
+            BaseTokenL1Behaviour::NoOp => {}
+        };
     }
 
     async fn do_update_l1(

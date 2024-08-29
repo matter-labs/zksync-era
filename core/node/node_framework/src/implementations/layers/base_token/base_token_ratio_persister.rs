@@ -111,8 +111,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
                         chain_admin_contract_address: self.contracts_config.chain_admin_addr,
                         config: self.config.clone(),
-                        last_persisted_l1_ratio: Arc::new(RwLock::new(None)),
                     },
+                    last_persisted_l1_ratio: None,
                 }
             })
             .unwrap_or(BaseTokenL1Behaviour::NoOp);
