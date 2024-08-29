@@ -187,15 +187,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        let command = '';
-        if (fileConfig.loadFromFile) {
-            command = `zk_supervisor snapshot create`;
-            command += ` --chain ${fileConfig.chain}`;
-        } else {
-            command = `zk run snapshots-creator`;
-        }
-
-        await executeCommandWithLogs(command, await logsPath('snapshot-creator.log'));
+        await createSnapshot(fileConfig.loadFromFile);
     });
 
     step('validate snapshot', async () => {
@@ -466,4 +458,15 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
         gunzip.on('error', reject);
         readStream.pipe(gunzip);
     });
+}
+
+async function createSnapshot(zkSupervisor: boolean) {
+    let command = '';
+    if (zkSupervisor) {
+        command = `zk_supervisor snapshot create`;
+        command += ` --chain ${fileConfig.chain}`;
+    } else {
+        command = `zk run snapshots-creator`;
+    }
+    await executeCommandWithLogs(command, 'snapshot-creator.log');
 }

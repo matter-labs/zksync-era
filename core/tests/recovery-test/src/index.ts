@@ -219,7 +219,7 @@ export class NodeProcess {
     }
 }
 
-function waitForProcess(childProcess: ChildProcess) {
+function waitForProcess(childProcess: ChildProcess): Promise<any> {
     return new Promise((resolve, reject) => {
         childProcess.on('close', (_code, _signal) => {
             resolve(undefined);
