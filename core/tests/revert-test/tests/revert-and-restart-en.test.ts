@@ -208,7 +208,7 @@ class MainNode {
         }
         let proc = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
             useZkInception: fileConfig.loadFromFile,
@@ -281,7 +281,7 @@ class ExtNode {
 
         // Run server in background.
         let proc = runExternalNodeInBackground({
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
             useZkInception: fileConfig.loadFromFile,
