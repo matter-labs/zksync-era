@@ -13,7 +13,7 @@ jobs:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -70,7 +70,7 @@ jobs:
           ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
       fail-fast: false
       matrix:
@@ -148,7 +148,7 @@ jobs:
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -317,7 +317,7 @@ jobs:
         consensus: [ false, true ]
         base_token: [ "Eth", "Custom" ]
         deployment_mode: [ "Rollup", "Validium" ]
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"

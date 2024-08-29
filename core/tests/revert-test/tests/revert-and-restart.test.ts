@@ -43,7 +43,11 @@ function parseSuggestedValues(suggestedValuesString: string): {
     };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, serverProcess: ChildProcessWithoutNullStreams) {
+async function killServerAndWaitForShutdown(tester: Tester, serverProcess?: ChildProcessWithoutNullStreams) {
+    if (!serverProcess) {
+        await utils.exec('killall -9 zksync_server').catch(ignoreError);
+        return;
+    }
     await killPidWithAllChilds(serverProcess.pid!, 9).catch(ignoreError);
     // Wait until it's really stopped.
     let iter = 0;
@@ -136,7 +140,7 @@ describe('Block reverting test', function () {
     step('run server and execute some transactions', async () => {
         if (autoKill) {
             // Make sure server isn't running.
-            await killServerAndWaitForShutdown(tester, serverProcess!).catch(ignoreError);
+            await killServerAndWaitForShutdown(tester);
         }
 
         // Run server in background.
