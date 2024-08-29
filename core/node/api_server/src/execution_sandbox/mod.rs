@@ -4,19 +4,22 @@ use std::{
 };
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use rand::{thread_rng, Rng};
-use tokio::runtime::Handle;
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
+use zksync_multivm::interface::{
+    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
+    VmExecutionResultAndLogs,
+};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 
-pub use self::execute::TransactionExecutor;
+pub use self::execute::{TransactionExecutor, TxExecutionArgs};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::TxExecutionArgs,
     tracers::ApiTracer,
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
@@ -41,15 +44,7 @@ mod vm_metrics;
 /// as a proof that the caller obtained a token from `VmConcurrencyLimiter`,
 #[derive(Debug, Clone)]
 pub struct VmPermit {
-    /// A handle to the runtime that is used to query the VM storage.
-    rt_handle: Handle,
     _permit: Arc<tokio::sync::OwnedSemaphorePermit>,
-}
-
-impl VmPermit {
-    fn rt_handle(&self) -> &Handle {
-        &self.rt_handle
-    }
 }
 
 /// Barrier-like synchronization primitive allowing to close a [`VmConcurrencyLimiter`] it's attached to
@@ -104,7 +99,6 @@ impl VmConcurrencyBarrier {
 pub struct VmConcurrencyLimiter {
     /// Semaphore that limits the number of concurrent VM executions.
     limiter: Arc<tokio::sync::Semaphore>,
-    rt_handle: Handle,
 }
 
 impl VmConcurrencyLimiter {
@@ -117,7 +111,6 @@ impl VmConcurrencyLimiter {
 
         let this = Self {
             limiter: Arc::clone(&limiter),
-            rt_handle: Handle::current(),
         };
         let barrier = VmConcurrencyBarrier {
             limiter,
@@ -145,7 +138,6 @@ impl VmConcurrencyLimiter {
         }
 
         Some(VmPermit {
-            rt_handle: self.rt_handle.clone(),
             _permit: Arc::new(permit),
         })
     }
@@ -164,9 +156,10 @@ async fn get_pending_state(
     Ok((block_id, resolved_block_number))
 }
 
-/// Arguments for VM execution not specific to a particular transaction.
+/// Arguments for VM execution necessary to set up storage and environment.
 #[derive(Debug, Clone)]
-pub struct TxSharedArgs {
+pub struct TxSetupArgs {
+    pub execution_mode: TxExecutionMode,
     pub operator_account: AccountTreeId,
     pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
@@ -174,12 +167,17 @@ pub struct TxSharedArgs {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub enforced_base_fee: Option<u64>,
 }
 
-impl TxSharedArgs {
+impl TxSetupArgs {
     #[cfg(test)]
-    pub fn mock(base_system_contracts: MultiVMBaseSystemContracts) -> Self {
+    pub fn mock(
+        execution_mode: TxExecutionMode,
+        base_system_contracts: MultiVMBaseSystemContracts,
+    ) -> Self {
         Self {
+            execution_mode,
             operator_account: AccountTreeId::default(),
             fee_input: BatchFeeInput::l1_pegged(55, 555),
             base_system_contracts,
@@ -187,6 +185,7 @@ impl TxSharedArgs {
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
             whitelisted_tokens_for_aa: Vec::new(),
+            enforced_base_fee: None,
         }
     }
 }
@@ -417,4 +416,29 @@ impl BlockArgs {
             )
         )
     }
+}
+
+/// VM executor capable of executing isolated transactions / calls (as opposed to batch execution).
+#[async_trait]
+trait OneshotExecutor<S: ReadStorage> {
+    type Tracers: Default;
+
+    async fn inspect_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<VmExecutionResultAndLogs>;
+
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracers: Self::Tracers,
+    ) -> anyhow::Result<(
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    )>;
 }

@@ -839,13 +839,13 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.98"
+version = "1.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41c270e7540d725e65ac7f1b212ac8ce349719624d7bcff99f8e2e488e8cf03f"
+checksum = "50d2eb3cd3d1bf4529e31c215ee6f93ec5a3d536d9f578f93d9d33ee19562932"
 dependencies = [
  "jobserver",
  "libc",
- "once_cell",
+ "shlex",
 ]
 
 [[package]]
@@ -3276,9 +3276,9 @@ dependencies = [
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.28.0"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c10584274047cb335c23d3e61bcef8e323adae7c5c8c760540f73610177fc3f"
+checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
 dependencies = [
  "cc",
  "pkg-config",
@@ -5746,9 +5746,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27144619c6e5802f1380337a209d2ac1c431002dd74c6e60aebff3c506dc4f0c"
+checksum = "fcfa89bea9500db4a0d038513d7a060566bfc51d46d1c014847049a45cce85e8"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -5759,9 +5759,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a999083c1af5b5d6c071d34a708a19ba3e02106ad82ef7bbd69f5e48266b613b"
+checksum = "d06e2f2bd861719b1f3f0c7dbe1d80c30bf59e76cf019f07d9014ed7eefb8e08"
 dependencies = [
  "atoi",
  "bigdecimal",
@@ -5803,9 +5803,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23217eb7d86c584b8cbe0337b9eacf12ab76fe7673c513141ec42565698bb88"
+checksum = "2f998a9defdbd48ed005a89362bd40dd2117502f15294f61c8d47034107dbbdc"
 dependencies = [
  "proc-macro2 1.0.85",
  "quote 1.0.36",
@@ -5816,9 +5816,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros-core"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a099220ae541c5db479c6424bdf1b200987934033c2584f79a0e1693601e776"
+checksum = "3d100558134176a2629d46cec0c8891ba0be8910f7896abfdb75ef4ab6f4e7ce"
 dependencies = [
  "dotenvy",
  "either",
@@ -5842,9 +5842,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-mysql"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5afe4c38a9b417b6a9a5eeffe7235d0a106716495536e7727d1c7f4b1ff3eba6"
+checksum = "936cac0ab331b14cb3921c62156d913e4c15b74fb6ec0f3146bd4ef6e4fb3c12"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -5887,9 +5887,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-postgres"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1dbb157e65f10dbe01f729339c06d239120221c9ad9fa0ba8408c4cc18ecf21"
+checksum = "9734dbce698c67ecf67c442f768a5e90a49b2a4d61a9f1d59f73874bd4cf0710"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -5930,9 +5930,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-sqlite"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b2cdd83c008a622d94499c0006d8ee5f821f36c89b7d625c900e5dc30b5c5ee"
+checksum = "a75b419c3c1b1697833dd927bdc4c6545a620bc1bbafabd44e1efbe9afcd337e"
 dependencies = [
  "atoi",
  "chrono",
@@ -6814,41 +6814,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "vk_setup_data_generator_server_fri"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_definitions",
- "clap 4.5.4",
- "hex",
- "indicatif",
- "itertools 0.10.5",
- "md5",
- "once_cell",
- "proptest",
- "serde",
- "serde_derive",
- "serde_json",
- "sha3 0.10.8",
- "shivini",
- "structopt",
- "toml_edit 0.14.4",
- "tracing",
- "tracing-subscriber",
- "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
- "zksync_prover_fri_types",
- "zksync_types",
- "zksync_utils",
- "zksync_vlog",
-]
-
-[[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -8038,7 +8006,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync-wrapper-prover",
  "zksync_config",
@@ -8051,6 +8018,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8139,7 +8107,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8151,6 +8118,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8330,6 +8298,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vk_setup_data_generator_server_fri"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "clap 4.5.4",
+ "hex",
+ "indicatif",
+ "itertools 0.10.5",
+ "md5",
+ "once_cell",
+ "proptest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha3 0.10.8",
+ "shivini",
+ "structopt",
+ "toml_edit 0.14.4",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_test_harness",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_prover_fri_types",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
@@ -8408,7 +8408,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8423,6 +8422,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8438,7 +8438,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -8449,6 +8448,7 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+ "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 

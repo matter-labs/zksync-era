@@ -18,6 +18,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-l2-contracts`↴](#zk_inception-chain-deploy-l2-contracts)
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
+- [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
@@ -32,6 +33,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception contract-verifier`↴](#zk_inception-contract-verifier)
 - [`zk_inception contract-verifier run`↴](#zk_inception-contract-verifier-run)
 - [`zk_inception contract-verifier init`↴](#zk_inception-contract-verifier-init)
+- [`zk_inception portal`↴](#zk_inception-portal)
 - [`zk_inception update`↴](#zk_inception-update)
 
 ## `zk_inception`
@@ -49,7 +51,8 @@ ZK Toolbox is a set of tools for working with zk stack.
 - `external-node` — External Node related commands
 - `containers` — Run containers for local development
 - `contract-verifier` — Run contract verifier
-- `update` — Update zkSync
+- `portal` — Run dapp-portal
+- `update` — Update ZKsync
 
 ###### **Options:**
 
@@ -75,21 +78,18 @@ Ecosystem related commands
 
 Create a new ecosystem and chain, setting necessary configurations for later initialization
 
-**Usage:** `zk_inception ecosystem create [OPTIONS] [CHAIN_ID]`
-
-###### **Arguments:**
-
-- `<CHAIN_ID>`
+**Usage:** `zk_inception ecosystem create [OPTIONS]`
 
 ###### **Options:**
 
 - `--ecosystem-name <ECOSYSTEM_NAME>`
 - `--l1-network <L1_NETWORK>` — L1 Network
 
-  Possible values: `localhost`, `sepolia`, `mainnet`
+  Possible values: `localhost`, `sepolia`, `holesky`, `mainnet`
 
 - `--link-to-code <LINK_TO_CODE>` — Code link
 - `--chain-name <CHAIN_NAME>`
+- `--chain-id <CHAIN_ID>` — Chain ID
 - `--prover-mode <PROVER_MODE>` — Prover options
 
   Possible values: `no-proofs`, `gpu`
@@ -165,7 +165,9 @@ Initialize ecosystem and chain, deploying necessary contracts and performing on-
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
 - `--dev` — Deploy ecosystem using all defaults. Suitable for local development
-- `-o`, `--observability` — Enable Grafana
+- `-o`, `--observability <OBSERVABILITY>` — Enable Grafana
+
+  Possible values: `true`, `false`
 
 ## `zk_inception ecosystem change-default-chain`
 
@@ -198,20 +200,18 @@ Chain related commands
 - `deploy-l2-contracts` — Deploy all l2 contracts
 - `upgrader` — Deploy Default Upgrader
 - `deploy-paymaster` — Deploy paymaster smart contract
+- `update-token-multiplier-setter` — Update Token Multiplier Setter address on L1
 
 ## `zk_inception chain create`
 
 Create a new chain, setting the necessary configurations for later initialization
 
-**Usage:** `zk_inception chain create [OPTIONS] [CHAIN_ID]`
-
-###### **Arguments:**
-
-- `<CHAIN_ID>`
+**Usage:** `zk_inception chain create [OPTIONS]`
 
 ###### **Options:**
 
 - `--chain-name <CHAIN_NAME>`
+- `--chain-id <CHAIN_ID>` — Chain ID
 - `--prover-mode <PROVER_MODE>` — Prover options
 
   Possible values: `no-proofs`, `gpu`
@@ -389,6 +389,31 @@ Deploy paymaster smart contract
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
 
+## `zk_inception chain update-token-multiplier-setter`
+
+Update Token Multiplier Setter address on L1
+
+**Usage:** `zk_inception chain update-token-multiplier-setter [OPTIONS]`
+
+###### **Options:**
+
+- `--verify <VERIFY>` — Verify deployed contracts
+
+  Possible values: `true`, `false`
+
+- `--verifier <VERIFIER>` — Verifier to use
+
+  Default value: `etherscan`
+
+  Possible values: `etherscan`, `sourcify`, `blockscout`, `oklink`
+
+- `--verifier-url <VERIFIER_URL>` — Verifier URL, if using a custom provider
+- `--verifier-api-key <VERIFIER_API_KEY>` — Verifier API key
+- `--resume`
+- `-a`, `--additional-args <ADDITIONAL_ARGS>` — List of additional arguments that can be passed through the CLI.
+
+  e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
+
 ## `zk_inception prover`
 
 Prover related commands
@@ -432,6 +457,20 @@ Initialize prover
   Possible values: `true`, `false`
 
 - `--setup-key-path <SETUP_KEY_PATH>`
+- `--setup-database <SETUP_DATABASE>`
+
+  Possible values: `true`, `false`
+
+- `--prover-db-url <PROVER_DB_URL>` — Prover database url without database name
+- `--prover-db-name <PROVER_DB_NAME>` — Prover database name
+- `-u`, `--use-default <USE_DEFAULT>` — Use default database urls and names
+
+  Possible values: `true`, `false`
+
+- `-d`, `--dont-drop <DONT_DROP>`
+
+  Possible values: `true`, `false`
+
 - `--cloud-type <CLOUD_TYPE>`
 
   Possible values: `gcp`, `local`
@@ -452,7 +491,8 @@ Run prover
 
 - `--component <COMPONENT>`
 
-  Possible values: `gateway`, `witness-generator`, `witness-vector-generator`, `prover`, `compressor`
+  Possible values: `gateway`, `witness-generator`, `witness-vector-generator`, `prover`, `compressor`,
+  `prover-job-monitor`
 
 - `--round <ROUND>`
 
@@ -534,7 +574,9 @@ Run containers for local development
 
 ###### **Options:**
 
-- `-o`, `--observability` — Enable Grafana
+- `-o`, `--observability <OBSERVABILITY>` — Enable Grafana
+
+  Possible values: `true`, `false`
 
 ## `zk_inception contract-verifier`
 
@@ -566,9 +608,21 @@ Download required binaries for contract verifier
 - `--solc-version <SOLC_VERSION>` — Version of solc to install
 - `--vyper-version <VYPER_VERSION>` — Version of vyper to install
 
+## `zk_inception portal`
+
+Run dapp-portal
+
+**Usage:** `zk_inception portal [OPTIONS]`
+
+###### **Options:**
+
+- `--port <PORT>` — The port number for the portal app
+
+  Default value: `3030`
+
 ## `zk_inception update`
 
-Update zkSync
+Update ZKsync
 
 **Usage:** `zk_inception update [OPTIONS]`
 

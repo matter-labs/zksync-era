@@ -2,15 +2,15 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_roles::attester;
 use zksync_contracts::consensus as contracts;
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_node_api_server::{
-    execution_sandbox::{TransactionExecutor, TxSharedArgs, VmConcurrencyLimiter},
+    execution_sandbox::{TransactionExecutor, TxExecutionArgs, TxSetupArgs, VmConcurrencyLimiter},
     tx_sender::MultiVMBaseSystemContracts,
 };
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, transaction_request::CallOverrides,
-    AccountTreeId, L2ChainId, Nonce, U256,
+    ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
 };
 use zksync_vm_interface::ExecutionResult;
 
@@ -20,7 +20,7 @@ use crate::storage::ConnectionPool;
 #[derive(Debug)]
 pub(crate) struct VM {
     pool: ConnectionPool,
-    tx_shared_args: TxSharedArgs,
+    setup_args: TxSetupArgs,
     limiter: VmConcurrencyLimiter,
 }
 
@@ -29,7 +29,8 @@ impl VM {
     pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             pool,
-            tx_shared_args: TxSharedArgs {
+            setup_args: TxSetupArgs {
+                execution_mode: TxExecutionMode::EthCall,
                 operator_account: AccountTreeId::default(),
                 fee_input: BatchFeeInput::sensible_l1_pegged_default(),
                 base_system_contracts: scope::wait_blocking(
@@ -40,6 +41,7 @@ impl VM {
                 validation_computational_gas_limit: u32::MAX,
                 chain_id: L2ChainId::default(),
                 whitelisted_tokens_for_aa: vec![],
+                enforced_base_fee: None,
             },
             limiter: VmConcurrencyLimiter::new(1).0,
         }
@@ -76,23 +78,20 @@ impl VM {
             .await
             .wrap("block_args()")?;
         let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
+        let conn = self.pool.connection(ctx).await.wrap("connection()")?;
         let output = ctx
-            .wait(TransactionExecutor::Real.execute_tx_eth_call(
+            .wait(TransactionExecutor::real(usize::MAX).execute_tx_in_sandbox(
                 permit,
-                self.tx_shared_args.clone(),
-                self.pool.0.clone(),
-                CallOverrides {
-                    enforced_base_fee: None,
-                },
-                tx,
+                self.setup_args.clone(),
+                TxExecutionArgs::for_eth_call(tx.clone()),
+                conn.0,
                 args,
                 None,
                 vec![],
-                None,
             ))
             .await?
-            .context("execute_tx_eth_call()")?;
-        match output.result {
+            .context("execute_tx_in_sandbox()")?;
+        match output.vm.result {
             ExecutionResult::Success { output } => {
                 Ok(call.decode_outputs(&output).context("decode_output()")?)
             }

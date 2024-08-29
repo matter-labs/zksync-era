@@ -19,7 +19,7 @@ pub(crate) struct ConnectionPool(pub(crate) zksync_dal::ConnectionPool<Core>);
 
 impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.
-    pub(crate) async fn connection<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
+    pub(crate) async fn connection(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'static>> {
         Ok(Connection(
             ctx.wait(self.0.connection_tagged("consensus"))
                 .await?

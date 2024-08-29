@@ -404,6 +404,23 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn set_chain_id(&mut self, eth_tx_id: u32, chain_id: u64) -> anyhow::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs
+            SET
+                chain_id = $1
+            WHERE
+                id = $2
+            "#,
+            chain_id as i64,
+            eth_tx_id as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_confirmed_tx_hash_by_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
@@ -610,29 +627,29 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_next_nonce(
         &mut self,
         from_address: Option<Address>,
+        is_gateway: bool,
     ) -> sqlx::Result<Option<u64>> {
-        struct NonceRow {
-            nonce: i64,
-        }
+        let nonce = sqlx::query!(
+            r#"
+            SELECT
+                nonce
+            FROM
+                eth_txs
+            WHERE
+                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\
+                AND is_gateway = $2
+            ORDER BY
+                id DESC
+            LIMIT
+                1
+            "#,
+            from_address.as_ref().map(|h160| h160.as_bytes()),
+            is_gateway
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
 
-        let query = match_query_as!(
-            NonceRow,
-            [
-                "SELECT nonce FROM eth_txs WHERE ",
-                _, // WHERE condition
-                " ORDER BY id DESC LIMIT 1"
-            ],
-            match (from_address) {
-                Some(address) => ("from_addr = $1::bytea"; address.as_bytes()),
-                None => ("from_addr IS NULL";),
-            }
-        );
-
-        let nonce = query
-            .fetch_optional(self.storage.conn())
-            .await?
-            .map(|row| row.nonce as u64);
-        Ok(nonce.map(|n| n + 1))
+        Ok(nonce.map(|row| row.nonce as u64 + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {

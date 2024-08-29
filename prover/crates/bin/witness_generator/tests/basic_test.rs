@@ -50,9 +50,13 @@ async fn test_leaf_witness_gen() {
         .await
         .unwrap();
 
-    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store)
-        .await
-        .unwrap();
+    let job = prepare_leaf_aggregation_job(
+        leaf_aggregation_job_metadata,
+        &*object_store,
+        "crates/bin/vk_setup_data_generator/data".to_string(),
+    )
+    .await
+    .unwrap();
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_impl(
         job,
@@ -139,9 +143,13 @@ async fn test_node_witness_gen() {
         prover_job_ids_for_proofs: vec![5211320],
     };
 
-    let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store)
-        .await
-        .unwrap();
+    let job = node_aggregation::prepare_job(
+        node_aggregation_job_metadata,
+        &*object_store,
+        "crates/bin/vk_setup_data_generator/data".to_string(),
+    )
+    .await
+    .unwrap();
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
         job,

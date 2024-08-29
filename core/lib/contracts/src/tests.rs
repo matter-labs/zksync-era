@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use ethabi::{ParamType, Token};
 
-use crate::consensus_l2_contracts::{
+use crate::consensus::{
     Add, Call, CommitAttesterCommittee, ConsensusRegistry, Function, GetAttesterCommittee,
     Initialize, Owner,
 };
@@ -36,6 +36,7 @@ impl<F: Function> Call<F> {
     }
 }
 
+/// Test checking that parsing logic matches the abi specified in the json file.
 #[test]
 fn test_consensus_registry_abi() {
     let c = ConsensusRegistry::load();

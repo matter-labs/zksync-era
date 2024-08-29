@@ -37,6 +37,7 @@ zksync_node_api_server.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_vm_interface.workspace = true
+zksync_multivm.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 secrecy.workspace = true
