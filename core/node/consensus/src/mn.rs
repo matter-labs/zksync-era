@@ -156,9 +156,9 @@ async fn run_attestation_controller(
             pool.connection(ctx)
                 .await
                 .wrap("connection")?
-                .insert_attester_committee(ctx, status.next_batch_to_attest, &committee)
+                .upsert_attester_committee(ctx, status.next_batch_to_attest, &committee)
                 .await
-                .wrap("insert_attester_committee()")?;
+                .wrap("upsert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest

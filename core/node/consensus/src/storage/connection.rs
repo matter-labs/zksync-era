@@ -165,8 +165,8 @@ impl<'a> Connection<'a> {
             .map_err(E::Other)?)
     }
 
-    /// Wrapper for `consensus_dal().insert_attester_committee()`.
-    pub async fn insert_attester_committee(
+    /// Wrapper for `consensus_dal().upsert_attester_committee()`.
+    pub async fn upsert_attester_committee(
         &mut self,
         ctx: &ctx::Ctx,
         number: BatchNumber,

@@ -337,38 +337,7 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        let Some(certificate) = row.certificate else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(certificate)?))
-    }
-
-    /// Fetches committee that should attest a given batch.
-    pub async fn attester_committee(
-        &mut self,
-        number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<attester::Committee>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                committee
-            FROM
-                l1_batches_consensus
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::try_from(number.0).context("overflow")?
-        )
-        .instrument("attester_committee")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        let committee: proto::AttesterCommittee =
-            zksync_protobuf::serde::deserialize_proto(row.committee)?;
-        Ok(Some(committee.read()?))
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -454,7 +423,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Persist the attester committee for the given batch.
-    pub async fn insert_attester_committee(
+    pub async fn upsert_attester_committee(
         &mut self,
         number: attester::BatchNumber,
         committee: &attester::Committee,
@@ -463,24 +432,26 @@ impl ConsensusDal<'_, '_> {
         let committee =
             zksync_protobuf::serde::serialize_proto(&committee, serde_json::value::Serializer)
                 .unwrap();
-        let res = sqlx::query!(
+        sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (l1_batch_number, certificate, committee, created_at, updated_at)
+                l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
             VALUES
-                ($1, NULL, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, NOW())
+            ON CONFLICT (l1_batch_number) DO
+            UPDATE
+            SET
+                l1_batch_number = $1,
+                attesters = $2,
+                updated_at = NOW()
             "#,
             i64::try_from(number.0).context("overflow")?,
             committee
         )
-        .instrument("insert_attester_committee")
+        .instrument("upsert_attester_committee")
         .report_latency()
         .execute(self.storage)
         .await?;
-        if res.rows_affected().is_zero() {
-            tracing::debug!(l1_batch_number = ?number, "duplicate batch certificate");
-        }
         Ok(())
     }
 
@@ -495,12 +466,10 @@ impl ConsensusDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
-            UPDATE l1_batches_consensus
-            SET
-                certificate = $2,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $1
+            INSERT INTO
+                l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
+            VALUES
+                ($1, $2, NOW(), NOW())
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.
@@ -521,26 +490,28 @@ impl ConsensusDal<'_, '_> {
     pub async fn last_batch_certificate_number(
         &mut self,
     ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let row = sqlx::query!(
+        let Some(row) = sqlx::query!(
             r#"
             SELECT
-                MAX(l1_batch_number) AS "number"
+                l1_batch_number
             FROM
                 l1_batches_consensus
-            WHERE
-                certificate IS NOT NULL
+            ORDER BY
+                l1_batch_number DESC
+            LIMIT
+                1
             "#
         )
         .instrument("last_batch_certificate_number")
         .report_latency()
-        .fetch_one(self.storage)
-        .await?;
-
-        let Some(n) = row.number else {
+        .fetch_optional(self.storage)
+        .await?
+        else {
             return Ok(None);
         };
+
         Ok(Some(attester::BatchNumber(
-            n.try_into().context("overflow")?,
+            row.l1_batch_number.try_into().context("overflow")?,
         )))
     }
 

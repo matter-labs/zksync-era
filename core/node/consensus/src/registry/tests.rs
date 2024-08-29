@@ -116,7 +116,7 @@ impl Registry {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_vm_reader() {
+async fn test_attester_committee() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -125,9 +125,17 @@ async fn test_vm_reader() {
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
         let registry = Registry::new(setup.genesis.clone(), pool.clone()).await;
+
+        // If the registry contract address is not specified,
+        // then the committee from genesis should be returned.
+        let got = registry
+            .attester_committee_for(ctx, None, attester::BatchNumber(10))
+            .await
+            .unwrap();
+        assert_eq!(setup.genesis.attesters, got);
+
         let mut account = Account::random();
         zksync_state_keeper::testonly::fund(&pool.0, &[account.address]).await;
-
         let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx));
 

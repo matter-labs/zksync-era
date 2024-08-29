@@ -213,6 +213,14 @@ impl EN {
                 continue;
             };
             let committee = Arc::new(committee);
+            // Persist the derived committee.
+            self.pool
+                .connection(ctx)
+                .await
+                .wrap("connection")?
+                .upsert_attester_committee(ctx, status.next_batch_to_attest, &committee)
+                .await
+                .wrap("upsert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest
