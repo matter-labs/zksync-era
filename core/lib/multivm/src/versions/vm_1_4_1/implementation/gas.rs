@@ -1,5 +1,5 @@
 use crate::{
-    interface::{storage::WriteStorage, VmInterface},
+    interface::storage::WriteStorage,
     vm_1_4_1::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
