@@ -590,7 +590,10 @@ impl ConsensusDal<'_, '_> {
         };
         Ok(Some(AttestationStatus {
             genesis: genesis.hash(),
-            next_batch_to_attest,
+            // We never attest batch 0 for technical reasons:
+            // * it is not supported to read state before batch 0.
+            // * the registry contract needs to be deployed before we can start operating on it 
+            next_batch_to_attest: next_batch_to_attest.max(attester::BatchNumber(1)),
             consensus_registry_address: None,
         }))
     }

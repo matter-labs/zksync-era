@@ -62,7 +62,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             attester::BatchNumber(first_batch.0.into())
         );
 
-        // Insert a (fake) cert, then check again.
+        tracing::info!("Insert a (fake) cert");
         {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
@@ -80,6 +80,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
                 .await
                 .context("insert_batch_certificate()")?;
         }
+        tracing::info!("Check again.");
         let want = status.next_batch_to_attest.next();
         let got = fetch_status().await?;
         assert_eq!(want, got.next_batch_to_attest);
@@ -97,28 +98,34 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
 // TODO: it would be nice to use `StateKeeperRunner::run_real()` in this test,
 // however as of now it doesn't work with ENs and it doesn't work with
 // `ConnectionPool::from_snapshot`.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(2, VERSIONS)]
 #[tokio::test]
-async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_multiple_attesters(version: ProtocolVersionId) {
     const NODES: usize = 4;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 4);
-    let cfgs = testonly::new_configs(rng, &setup, NODES);
-
+    
     scope::run!(ctx, |ctx, s| async {
-        let validator_pool = ConnectionPool::test(from_snapshot, version).await;
+        let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(async {
             runner
-                .run(ctx)
+                .run_real(ctx)
                 .instrument(tracing::info_span!("validator"))
                 .await
                 .context("validator")
         });
+
+        // TODO: configure registry
+
+        let mut spec = SetupSpec::new(rng, 4);
+        spec.first_block = validator.last_block();
+        let setup = Setup::from(spec);
+        let cfgs = testonly::new_configs(rng, &setup, NODES);
+
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         validator_pool
@@ -138,7 +145,7 @@ async fn test_multiple_attesters(from_snapshot: bool, version: ProtocolVersionId
         let mut node_pools = vec![];
         for (i, cfg) in cfgs[1..].iter().enumerate() {
             let i = ctx::NoCopy(i);
-            let pool = ConnectionPool::test(from_snapshot, version).await;
+            let pool = ConnectionPool::test(false, version).await;
             let (node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
             node_pools.push(pool.clone());
             s.spawn_bg(async {
