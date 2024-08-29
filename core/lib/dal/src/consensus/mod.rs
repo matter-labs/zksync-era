@@ -44,7 +44,7 @@ impl ProtoFmt for AttestationStatus {
             consensus_registry_address: r
                 .consensus_registry_address
                 .as_ref()
-                .map(|a|parse_h160(a))
+                .map(|a| parse_h160(a))
                 .transpose()
                 .context("consensus_registry_address")?
                 .map(contracts::Address::new),
@@ -486,7 +486,13 @@ impl ProtoRepr for proto::AttesterCommittee {
     type Type = attester::Committee;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let members: Vec<_> = self.members.iter().enumerate().map(|(i,m)|attester::WeightedAttester::read(m).context(i)).collect::<Result<_,_>>().context("members")?;
+        let members: Vec<_> = self
+            .members
+            .iter()
+            .enumerate()
+            .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
+            .collect::<Result<_, _>>()
+            .context("members")?;
         Self::Type::new(members.into_iter())
     }
 

@@ -6,9 +6,9 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
+
 use crate::{
-    config,
-    registry,
+    config, registry,
     storage::{ConnectionPool, InsertCertificateError, Store},
 };
 
@@ -20,7 +20,7 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
-    registry_addr: Option<registry::Address>, 
+    registry_addr: Option<registry::Address>,
 ) -> anyhow::Result<()> {
     let validator_key = config::validator_key(&secrets)
         .context("validator_key")?
@@ -100,7 +100,7 @@ async fn run_attestation_controller(
     pool: &ConnectionPool,
     genesis: validator::Genesis,
     attestation: Arc<attestation::Controller>,
-    registry_addr: Option<registry::Address>, 
+    registry_addr: Option<registry::Address>,
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
     let registry = registry::Registry::new(genesis, pool.clone()).await;
@@ -127,20 +127,38 @@ async fn run_attestation_controller(
                         status.consensus_registry_address = registry_addr;
                         break status;
                     }
-                    _ => {} 
+                    _ => {}
                 }
                 ctx.sleep(POLL_INTERVAL).await?;
             };
             next = status.next_batch_to_attest.next();
-            tracing::info!("waiting for hash of batch {:?}", status.next_batch_to_attest);
-            let hash = pool.wait_for_batch_hash(ctx, status.next_batch_to_attest).await?;
-            let Some(committee) = registry.attester_committee_for(ctx,status.consensus_registry_address, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
+            tracing::info!(
+                "waiting for hash of batch {:?}",
+                status.next_batch_to_attest
+            );
+            let hash = pool
+                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+                .await?;
+            let Some(committee) = registry
+                .attester_committee_for(
+                    ctx,
+                    status.consensus_registry_address,
+                    status.next_batch_to_attest,
+                )
+                .await
+                .wrap("attester_committee_for()")?
+            else {
                 tracing::info!("attestation not required");
                 continue;
             };
             let committee = Arc::new(committee);
             // Persist the derived committee.
-            pool.connection(ctx).await.wrap("connection")?.insert_attester_committee(ctx, status.next_batch_to_attest, &committee).await.wrap("insert_attester_committee()")?;
+            pool.connection(ctx)
+                .await
+                .wrap("connection")?
+                .insert_attester_committee(ctx, status.next_batch_to_attest, &committee)
+                .await
+                .wrap("insert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest
@@ -162,7 +180,10 @@ async fn run_attestation_controller(
                 .wait_for_cert(ctx, status.next_batch_to_attest)
                 .await?
                 .context("attestation config has changed unexpectedly")?;
-            tracing::info!("collected certificate for batch {:?}", status.next_batch_to_attest);
+            tracing::info!(
+                "collected certificate for batch {:?}",
+                status.next_batch_to_attest
+            );
             pool.connection(ctx)
                 .await
                 .wrap("connection()")?

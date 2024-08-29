@@ -7,10 +7,11 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::{ProtoFmt as _, ProtoRepr as _};
+use zksync_types::L2BlockNumber;
+
 pub use crate::consensus::{proto, AttestationStatus, Payload};
 use crate::{Core, CoreDal};
-use zksync_protobuf::{ProtoRepr as _, ProtoFmt as _};
-use zksync_types::L2BlockNumber;
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -365,7 +366,8 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        let committee : proto::AttesterCommittee = zksync_protobuf::serde::deserialize_proto(row.committee)?;
+        let committee: proto::AttesterCommittee =
+            zksync_protobuf::serde::deserialize_proto(row.committee)?;
         Ok(Some(committee.read()?))
     }
 
@@ -458,7 +460,9 @@ impl ConsensusDal<'_, '_> {
         committee: &attester::Committee,
     ) -> anyhow::Result<()> {
         let committee = proto::AttesterCommittee::build(committee);
-        let committee = zksync_protobuf::serde::serialize_proto(&committee, serde_json::value::Serializer).unwrap();
+        let committee =
+            zksync_protobuf::serde::serialize_proto(&committee, serde_json::value::Serializer)
+                .unwrap();
         let res = sqlx::query!(
             r#"
             INSERT INTO

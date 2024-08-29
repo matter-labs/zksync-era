@@ -2,15 +2,13 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, validator};
-use zksync_contracts::{BaseSystemContracts};
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
-    protocol_version::ProtocolSemanticVersion,
-    system_contracts::get_system_smart_contracts,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    commitment::L1BatchWithMetadata, protocol_version::ProtocolSemanticVersion,
+    system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
 use super::{Connection, ConnectionPool};

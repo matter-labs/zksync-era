@@ -284,7 +284,10 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
     ) -> DalResult<Option<api::TransactionDetails>> {
-        Ok(self.get_transaction_details_raw(hash).await?.map(|x|x.into()))
+        Ok(self
+            .get_transaction_details_raw(hash)
+            .await?
+            .map(|x| x.into()))
     }
 
     pub async fn get_transaction_details_raw(

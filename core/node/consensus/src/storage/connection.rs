@@ -5,11 +5,11 @@ use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_node_api_server::execution_sandbox::{BlockArgs, BlockStartInfo};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{api, commitment::L1BatchWithMetadata, L1BatchNumber};
-use zksync_node_api_server::{execution_sandbox::{BlockArgs, BlockStartInfo}};
- 
+
 use super::{InsertCertificateError, PayloadQueue};
 use crate::config;
 
@@ -466,10 +466,27 @@ impl<'a> Connection<'a> {
     }
 
     /// Constructs `BlockArgs` for the last block of the batch`.
-    pub async fn block_args(&mut self, ctx: &ctx::Ctx, batch: attester::BatchNumber) -> ctx::Result<BlockArgs> { 
-        let (_, block) = self.get_l2_block_range_of_l1_batch(ctx, batch).await.wrap("get_l2_block_range_of_l1_batch()")?.context("batch not sealed")?;
+    pub async fn block_args(
+        &mut self,
+        ctx: &ctx::Ctx,
+        batch: attester::BatchNumber,
+    ) -> ctx::Result<BlockArgs> {
+        let (_, block) = self
+            .get_l2_block_range_of_l1_batch(ctx, batch)
+            .await
+            .wrap("get_l2_block_range_of_l1_batch()")?
+            .context("batch not sealed")?;
         let block = api::BlockId::Number(api::BlockNumber::Number(block.0.into()));
-        let start_info = ctx.wait(BlockStartInfo::new(&mut self.0, /*max_cache_age=*/ std::time::Duration::from_secs(10))).await?.context("BlockStartInfo::new()")?;
-        Ok(ctx.wait(BlockArgs::new(&mut self.0, block, &start_info)).await?.context("BlockArgs::new")?)
+        let start_info = ctx
+            .wait(BlockStartInfo::new(
+                &mut self.0,
+                /*max_cache_age=*/ std::time::Duration::from_secs(10),
+            ))
+            .await?
+            .context("BlockStartInfo::new()")?;
+        Ok(ctx
+            .wait(BlockArgs::new(&mut self.0, block, &start_info))
+            .await?
+            .context("BlockArgs::new")?)
     }
 }

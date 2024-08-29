@@ -14,8 +14,10 @@ use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
-use crate::storage::{self, ConnectionPool};
-use crate::registry;
+use crate::{
+    registry,
+    storage::{self, ConnectionPool},
+};
 
 /// External node.
 pub(super) struct EN {
@@ -198,7 +200,15 @@ impl EN {
                 .pool
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
-            let Some(committee) = registry.attester_committee_for(ctx,status.consensus_registry_address, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
+            let Some(committee) = registry
+                .attester_committee_for(
+                    ctx,
+                    status.consensus_registry_address,
+                    status.next_batch_to_attest,
+                )
+                .await
+                .wrap("attester_committee_for()")?
+            else {
                 tracing::info!("attestation not required");
                 continue;
             };

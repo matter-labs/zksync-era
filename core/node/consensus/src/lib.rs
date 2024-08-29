@@ -13,10 +13,10 @@ mod config;
 mod en;
 pub mod era;
 mod mn;
-mod storage;
-mod vm;
 mod registry;
+mod storage;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
+mod vm;

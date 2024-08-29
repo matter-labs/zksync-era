@@ -168,8 +168,8 @@ impl MultiVMBaseSystemContracts {
             post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
             post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
             vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
-            vm_1_5_0_increased_memory:
-                BaseSystemContracts::playground_post_1_5_0_increased_memory(),
+            vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
+            ),
         }
     }
 }
@@ -201,8 +201,8 @@ impl ApiContracts {
     /// Blocking version of [`Self::load_from_disk()`].
     pub fn load_from_disk_blocking() -> Self {
         Self {
-            estimate_gas: MultiVMBaseSystemContracts::load_estimate_gas_blocking(), 
-            eth_call: MultiVMBaseSystemContracts::load_eth_call_blocking(), 
+            estimate_gas: MultiVMBaseSystemContracts::load_estimate_gas_blocking(),
+            eth_call: MultiVMBaseSystemContracts::load_eth_call_blocking(),
         }
     }
 }

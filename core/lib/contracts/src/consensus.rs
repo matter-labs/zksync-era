@@ -1,6 +1,7 @@
-use ethabi::{Token};
-use anyhow::Context as _;
 use std::sync::Arc;
+
+use anyhow::Context as _;
+use ethabi::Token;
 
 pub trait Function {
     const NAME: &'static str;
@@ -11,73 +12,87 @@ pub trait Function {
 }
 
 /// Address of contract C. It is just a wrapper of ethabi::Address.
-#[derive(Debug,Hash)]
-pub struct Address<C>(ethabi::Address,std::marker::PhantomData<C>);
+#[derive(Debug, Hash)]
+pub struct Address<C>(ethabi::Address, std::marker::PhantomData<C>);
 
 impl<C> Clone for Address<C> {
-    fn clone(&self) -> Self { Self(self.0,self.1) }
+    fn clone(&self) -> Self {
+        Self(self.0, self.1)
+    }
 }
 
 impl<C> Copy for Address<C> {}
 
 impl<C> PartialEq for Address<C> {
-    fn eq(&self,other:&Self) -> bool { self.0.eq(&other.0) }
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
 }
 
 impl<C> Eq for Address<C> {}
 
 impl<C> Address<C> {
     pub fn new(address: ethabi::Address) -> Self {
-        Self(address,std::marker::PhantomData)
+        Self(address, std::marker::PhantomData)
     }
 }
 
 impl<C> std::ops::Deref for Address<C> {
     type Target = ethabi::Address;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-pub struct Call<F:Function> {
+pub struct Call<F: Function> {
     pub contract: F::Contract,
     pub inputs: F,
 }
 
-impl<F:Function> Call<F> {
-    pub(crate) fn function(&self) -> &ethabi::Function { self.contract.as_ref().function(F::NAME).unwrap() }
+impl<F: Function> Call<F> {
+    pub(crate) fn function(&self) -> &ethabi::Function {
+        self.contract.as_ref().function(F::NAME).unwrap()
+    }
     pub fn calldata(&self) -> ethabi::Result<ethabi::Bytes> {
         self.function().encode_input(&self.inputs.encode())
     }
     pub fn decode_outputs(&self, outputs: &[u8]) -> anyhow::Result<F::Outputs> {
-        F::decode_outputs(self.function().decode_output(outputs).context("decode_output()")?)
-    } 
+        F::decode_outputs(
+            self.function()
+                .decode_output(outputs)
+                .context("decode_output()")?,
+        )
+    }
 }
 
-fn into_fixed_bytes<const N: usize>(t: Token) -> anyhow::Result<[u8;N]> {
+fn into_fixed_bytes<const N: usize>(t: Token) -> anyhow::Result<[u8; N]> {
     match t {
         Token::FixedBytes(b) => b.try_into().ok().context("bad size"),
         bad => anyhow::bail!("want fixed_bytes, got {bad:?}"),
     }
 }
 
-fn into_tuple<const N: usize>(t: Token) -> anyhow::Result<[Token;N]> {
+fn into_tuple<const N: usize>(t: Token) -> anyhow::Result<[Token; N]> {
     match t {
         Token::Tuple(ts) => ts.try_into().ok().context("bad size"),
         bad => anyhow::bail!("want tuple, got {bad:?}"),
     }
 }
 
-fn into_uint<I:TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I> {
+fn into_uint<I: TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I> {
     match t {
         Token::Uint(i) => i.try_into().ok().context("overflow"),
         bad => anyhow::bail!("want uint, got {bad:?}"),
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct ConsensusRegistry(Arc<ethabi::Contract>);
 
 impl AsRef<ethabi::Contract> for ConsensusRegistry {
-    fn as_ref(&self) -> &ethabi::Contract { &self.0 }
+    fn as_ref(&self) -> &ethabi::Contract {
+        &self.0
+    }
 }
 
 impl ConsensusRegistry {
@@ -88,25 +103,30 @@ impl ConsensusRegistry {
     pub fn load() -> Self {
         Self(crate::load_contract(ConsensusRegistry::FILE).into())
     }
-    pub fn call<F:Function<Contract=Self>>(&self, inputs: F) -> Call<F> {
-        Call { contract: self.clone(), inputs }
+    pub fn call<F: Function<Contract = Self>>(&self, inputs: F) -> Call<F> {
+        Call {
+            contract: self.clone(),
+            inputs,
+        }
     }
 }
 
 // Functions.
 
-#[derive(Debug,Default)]
+#[derive(Debug, Default)]
 pub struct GetAttesterCommittee;
 
 impl Function for GetAttesterCommittee {
     type Contract = ConsensusRegistry;
     const NAME: &'static str = "getAttesterCommittee";
-    
-    fn encode(&self) -> Vec<Token> { vec![] }
-    
+
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
+
     type Outputs = Vec<Attester>;
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [attesters] = tokens.try_into().ok().context("bad size")?; 
+        let [attesters] = tokens.try_into().ok().context("bad size")?;
         let mut res = vec![];
         for token in attesters.into_array().context("not array")? {
             res.push(Attester::from_token(token).context("attesters")?);
@@ -115,7 +135,7 @@ impl Function for GetAttesterCommittee {
     }
 }
 
-#[derive(Debug,Default)]
+#[derive(Debug, Default)]
 pub struct Add {
     pub node_owner: ethabi::Address,
     pub validator_weight: u32,
@@ -145,7 +165,7 @@ impl Function for Add {
     }
 }
 
-#[derive(Debug,Default)]
+#[derive(Debug, Default)]
 pub struct Initialize {
     pub initial_owner: ethabi::Address,
 }
@@ -168,7 +188,9 @@ pub struct CommitAttesterCommittee;
 impl Function for CommitAttesterCommittee {
     type Contract = ConsensusRegistry;
     const NAME: &'static str = "commitAttesterCommittee";
-    fn encode(&self) -> Vec<Token> { vec![] }
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
     type Outputs = ();
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
         let [] = tokens.try_into().ok().context("bad size")?;
@@ -181,7 +203,9 @@ pub struct Owner;
 impl Function for Owner {
     type Contract = ConsensusRegistry;
     const NAME: &'static str = "owner";
-    fn encode(&self) -> Vec<Token> { vec![] }
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
     type Outputs = ethabi::Address;
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
         let [owner] = tokens.try_into().ok().context("bad size")?;
@@ -193,8 +217,8 @@ impl Function for Owner {
 
 #[derive(Debug, Default)]
 pub struct Secp256k1PublicKey {
-    pub tag: [u8;1],
-    pub x: [u8;32],
+    pub tag: [u8; 1],
+    pub x: [u8; 32],
 }
 
 impl Secp256k1PublicKey {
@@ -232,9 +256,9 @@ impl Attester {
 
 #[derive(Debug, Default)]
 pub struct BLS12_381PublicKey {
-    pub a: [u8;32],
-    pub b: [u8;32],
-    pub c: [u8;32],
+    pub a: [u8; 32],
+    pub b: [u8; 32],
+    pub c: [u8; 32],
 }
 
 impl BLS12_381PublicKey {
@@ -249,8 +273,8 @@ impl BLS12_381PublicKey {
 
 #[derive(Debug, Default)]
 pub struct BLS12_381Signature {
-    pub a: [u8;32],
-    pub b: [u8;16],
+    pub a: [u8; 32],
+    pub b: [u8; 16],
 }
 
 impl BLS12_381Signature {
