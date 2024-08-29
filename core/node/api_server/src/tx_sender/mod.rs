@@ -1012,6 +1012,7 @@ impl TxSender {
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let setup_args = self.call_args(&tx, Some(&call_overrides)).await?;
 
         let connection = self.acquire_replica_connection().await?;
         let result = self
@@ -1019,7 +1020,7 @@ impl TxSender {
             .executor
             .execute_tx_in_sandbox(
                 vm_permit,
-                self.call_args(&tx, Some(&call_overrides)).await?,
+                setup_args,
                 TxExecutionArgs::for_eth_call(tx),
                 connection,
                 block_args,

@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-axum.workspace = true
+axum = { workspace = true, features = ["multipart"] }
 tracing.workspace = true
 zksync_prover_interface.workspace = true
 zksync_basic_types.workspace = true

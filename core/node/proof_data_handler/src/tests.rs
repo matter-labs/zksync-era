@@ -236,7 +236,7 @@ async fn mock_tee_batch_status(
         .await
         .expect("Failed to mark tee_verifier_input_producer_job job as successful");
 
-    // mock SQL table with relevant information about the status of TEE proof generation ('ready_to_be_proven')
+    // mock SQL table with relevant information about the status of TEE proof generation
 
     proof_dal
         .insert_tee_proof_generation_job(batch_number, TeeType::Sgx)

@@ -1,26 +1,50 @@
 use std::sync::Arc;
 
-use axum::{extract::Path, Json};
+use axum::{
+    extract::{Multipart, Path},
+    http::header,
+    response::{IntoResponse, Response},
+};
 use zksync_basic_types::{
     basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{bincode, ObjectStore};
 use zksync_prover_interface::{
-    api::{
-        OptionalProofGenerationDataRequest, ProofGenerationData, ProofGenerationDataResponse,
-        VerifyProofRequest,
-    },
+    api::{ProofGenerationData, VerifyProofRequest},
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::L1BatchProofForL1,
 };
 
-use crate::{
-    error::ProcessorError,
-    metrics::{Method, MethodCallGuard},
-};
+use crate::error::ProcessorError;
+
+pub(crate) struct ProofGenerationDataResponse(ProofGenerationData);
+
+impl IntoResponse for ProofGenerationDataResponse {
+    fn into_response(self) -> Response {
+        let l1_batch_number = self.0.l1_batch_number;
+        let data = match bincode::serialize(&self.0.witness_input_data) {
+            Ok(data) => data,
+            Err(err) => {
+                return ProcessorError::Serialization(err).into_response();
+            }
+        };
+
+        let headers = [
+            (header::CONTENT_TYPE, "application/octet-stream"),
+            (
+                header::CONTENT_DISPOSITION,
+                &format!(
+                    "attachment; filename=\"witness_inputs_{}.bin\"",
+                    l1_batch_number.0
+                ),
+            ),
+        ];
+        (headers, data).into_response()
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Processor {
@@ -45,44 +69,13 @@ impl Processor {
     pub(crate) async fn verify_proof(
         &self,
         Path(l1_batch_number): Path<u32>,
-        Json(payload): Json<VerifyProofRequest>,
+        mut multipart: Multipart,
     ) -> Result<(), ProcessorError> {
-        let mut guard = MethodCallGuard::new(Method::VerifyProof);
-
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        tracing::info!(
+        tracing::debug!(
             "Received request to verify proof for batch: {:?}",
             l1_batch_number
         );
-
-        let serialized_proof = bincode::serialize(&payload.0)?;
-        let expected_proof = bincode::serialize(
-            &self
-                .blob_store
-                .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
-                .await?,
-        )?;
-
-        if serialized_proof != expected_proof {
-            return Err(ProcessorError::InvalidProof);
-        }
-
-        guard.mark_successful();
-
-        Ok(())
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub(crate) async fn get_proof_generation_data(
-        &mut self,
-        request: Json<OptionalProofGenerationDataRequest>,
-    ) -> Result<Json<ProofGenerationDataResponse>, ProcessorError> {
-        tracing::info!("Received request for proof generation data: {:?}", request);
-
-        let mut guard = match request.0 .0 {
-            Some(_) => MethodCallGuard::new(Method::GetSpecificProofGenerationData),
-            None => MethodCallGuard::new(Method::GetLatestProofGenerationData),
-        };
 
         let latest_available_batch = self
             .pool
@@ -93,38 +86,97 @@ impl Processor {
             .get_latest_proven_batch()
             .await?;
 
-        let l1_batch_number = if let Some(l1_batch_number) = request.0 .0 {
-            if l1_batch_number > latest_available_batch {
-                tracing::error!(
-                    "Requested batch is not available: {:?}, latest available batch is {:?}",
-                    l1_batch_number,
-                    latest_available_batch
-                );
-                return Err(ProcessorError::BatchNotReady(l1_batch_number));
-            }
-            l1_batch_number
-        } else {
-            latest_available_batch
-        };
-
-        let proof_generation_data = self
-            .proof_generation_data_for_existing_batch(l1_batch_number)
-            .await;
-
-        match proof_generation_data {
-            Ok(data) => {
-                guard.mark_successful();
-
-                Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-                    data,
-                )))))
-            }
-            Err(err) => Err(err),
+        if l1_batch_number > latest_available_batch {
+            return Err(ProcessorError::BatchNotReady(l1_batch_number));
         }
+
+        let mut serialized_proof = vec![];
+
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(|_| ProcessorError::InvalidProof)?
+        {
+            if field.name() == Some("proof")
+                && field.content_type() == Some("application/octet-stream")
+            {
+                serialized_proof.extend_from_slice(&field.bytes().await.unwrap());
+                break;
+            }
+        }
+
+        tracing::info!("Received proof is size: {}", serialized_proof.len());
+
+        let payload: VerifyProofRequest = bincode::deserialize(&serialized_proof)?;
+
+        let expected_proof = bincode::serialize(
+            &self
+                .blob_store
+                .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
+                .await
+                .map_err(ProcessorError::ObjectStore)?,
+        )?;
+
+        if serialized_proof != expected_proof {
+            return Err(ProcessorError::InvalidProof);
+        }
+
+        Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
-    async fn proof_generation_data_for_existing_batch(
+    pub(crate) async fn get_proof_generation_data(
+        &mut self,
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
+        tracing::debug!("Received request for proof generation data");
+
+        let latest_available_batch = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_latest_proven_batch()
+            .await?;
+
+        self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
+            .await
+            .map(ProofGenerationDataResponse)
+    }
+
+    pub(crate) async fn proof_generation_data_for_existing_batch(
+        &self,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        tracing::debug!(
+            "Received request for proof generation data for batch: {:?}",
+            l1_batch_number
+        );
+
+        let latest_available_batch = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_latest_proven_batch()
+            .await?;
+
+        if l1_batch_number > latest_available_batch {
+            tracing::error!(
+                "Requested batch is not available: {:?}, latest available batch is {:?}",
+                l1_batch_number,
+                latest_available_batch
+            );
+            return Err(ProcessorError::BatchNotReady(l1_batch_number));
+        }
+
+        self.proof_generation_data_for_existing_batch_internal(l1_batch_number)
+            .await
+            .map(ProofGenerationDataResponse)
+    }
+
+    async fn proof_generation_data_for_existing_batch_internal(
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
