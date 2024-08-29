@@ -12,6 +12,8 @@ import fs from 'node:fs/promises';
 import { logsTestPath } from 'utils/build/logs';
 import { killPidWithAllChilds } from 'utils/build/kill';
 
+const fileConfig = shouldLoadConfigFromFile();
+
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
     lastL1BatchNumber: bigint;
@@ -88,6 +90,7 @@ describe('Block reverting test', function () {
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
+    const pathToHome = path.join(__dirname, '../../../..');
     const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
