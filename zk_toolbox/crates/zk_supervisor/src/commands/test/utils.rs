@@ -23,10 +23,6 @@ const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 #[derive(Deserialize)]
 pub struct TestWallets {
     base_path: String,
-    #[serde(rename = "web3_url")]
-    _web3_url: String,
-    #[serde(rename = "mnemonic")]
-    _mnemonic: String,
     #[serde(flatten)]
     wallets: HashMap<String, String>,
 }
