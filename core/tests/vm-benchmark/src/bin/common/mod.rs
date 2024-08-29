@@ -1,5 +1,6 @@
 use std::io::BufRead;
 
+#[derive(Debug)]
 pub struct IaiResult {
     pub name: String,
     pub instructions: u64,

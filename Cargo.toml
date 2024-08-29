@@ -79,7 +79,6 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    "core/tests/vm-benchmark/harness",
     # Parts of prover workspace that are needed for Core workspace
     "prover/crates/lib/prover_dal",
 ]
@@ -167,7 +166,7 @@ serde_with = "1"
 serde_yaml = "0.9"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
-sqlx = "0.8.0"
+sqlx = "0.8.1"
 static_assertions = "1.1"
 structopt = "0.3.20"
 strum = "0.26"
@@ -219,7 +218,7 @@ zk_evm_1_5_0 = { git = "https://github.com/matter-labs/zksync-protocol", package
 fflonk = { git = "https://github.com/matter-labs/zksync-crypto", package = "fflonk", branch = "si/fflonk" }
 
 # New VM; pinned to a specific commit because of instability
-vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "9a38900d7af9b1d72b47ce3be980e77c1239a61d" }
+vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "2276b7b5af520fca0477bdafe43781b51896d235" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.1.0-rc.11"
@@ -239,7 +238,6 @@ zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
 zksync_vm_interface = { version = "0.1.0", path = "core/lib/vm_interface" }
 zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
-zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
 zksync_basic_types = { version = "0.1.0", path = "core/lib/basic_types" }
 zksync_circuit_breaker = { version = "0.1.0", path = "core/lib/circuit_breaker" }
 zksync_config = { version = "0.1.0", path = "core/lib/config" }

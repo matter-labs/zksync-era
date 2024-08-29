@@ -49,13 +49,18 @@ impl EthTxManager {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
         };
+        let l1_interface = Box::new(RealL1Interface {
+            ethereum_gateway,
+            ethereum_gateway_blobs,
+            l2_gateway,
+            wait_confirmations: config.wait_confirmations,
+        });
+        tracing::info!(
+            "Started eth_tx_manager supporting {:?} operators",
+            l1_interface.supported_operator_types()
+        );
         Self {
-            l1_interface: Box::new(RealL1Interface {
-                ethereum_gateway,
-                ethereum_gateway_blobs,
-                l2_gateway,
-                wait_confirmations: config.wait_confirmations,
-            }),
+            l1_interface,
             config,
             fees_oracle: Box::new(fees_oracle),
             pool,
@@ -257,10 +262,10 @@ impl EthTxManager {
     }
 
     pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Option<Address> {
-        if operator_type == OperatorType::NonBlob {
-            None
-        } else {
+        if operator_type == OperatorType::Blob {
             self.l1_interface.get_blobs_operator_account()
+        } else {
+            None
         }
     }
     // Monitors the in-flight transactions, marks mined ones as confirmed,
@@ -519,9 +524,10 @@ impl EthTxManager {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
                 break;
             }
+            let operator_to_track = self.l1_interface.supported_operator_types()[0];
             let l1_block_numbers = self
                 .l1_interface
-                .get_l1_block_numbers(OperatorType::Blob)
+                .get_l1_block_numbers(operator_to_track)
                 .await?;
             METRICS.track_block_numbers(&l1_block_numbers);
 
@@ -643,7 +649,7 @@ impl EthTxManager {
                 .get_l1_block_numbers(operator_type)
                 .await
                 .unwrap();
-            tracing::info!(
+            tracing::debug!(
                 "Loop iteration at block {} for {operator_type:?} operator",
                 l1_block_numbers.latest
             );
