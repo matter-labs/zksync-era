@@ -8,7 +8,7 @@ on:
 jobs:
   vm-benchmarks:
     name: Run VM benchmarks
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-highmem-long]
 
     steps:
       - name: checkout base branch
