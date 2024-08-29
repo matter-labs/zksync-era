@@ -113,7 +113,7 @@ export async function executeCommandWithLogs(command: string, logsPath: string) 
     const logs = await fs.open(logsPath, 'w');
     const childProcess = spawn(command, {
         cwd: process.env.ZKSYNC_HOME!!,
-        stdio: [null, logs.fd, logs.fd],
+        stdio: ['ignore', logs.fd, logs.fd],
         shell: true
     });
     try {
@@ -183,7 +183,7 @@ export class NodeProcess {
 
         let childProcess = runExternalNodeInBackground({
             components: [components],
-            stdio: [null, logs.fd, logs.fd],
+            stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
             env,
             useZkInception,

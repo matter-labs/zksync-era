@@ -138,7 +138,7 @@ describe('Upgrade test', function () {
         // Run server in background.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
@@ -346,7 +346,7 @@ describe('Upgrade test', function () {
         // Run again.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain

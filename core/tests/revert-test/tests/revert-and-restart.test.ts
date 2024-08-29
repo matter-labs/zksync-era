@@ -150,7 +150,7 @@ describe('Block reverting test', function () {
         logs = await fs.open(await logsPath('server.log'), 'a');
         serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
@@ -267,7 +267,7 @@ describe('Block reverting test', function () {
         // Run server.
         serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
@@ -318,7 +318,7 @@ describe('Block reverting test', function () {
         // Run again.
         serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
