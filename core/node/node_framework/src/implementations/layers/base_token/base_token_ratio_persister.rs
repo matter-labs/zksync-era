@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use zksync_base_token_adjuster::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 use zksync_config::{
     configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets},
