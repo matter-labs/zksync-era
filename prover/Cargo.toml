@@ -45,7 +45,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha3 = "0.10.8"
-sqlx = { version = "0.8.0", default-features = false }
+sqlx = { version = "0.8.1", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.26" }
 tempfile = "3"
@@ -87,7 +87,7 @@ zksync_periodic_job = { path = "../core/lib/periodic_job" }
 zksync_prover_dal = { path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
-vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 
 # for `perf` profiling
 [profile.perf]

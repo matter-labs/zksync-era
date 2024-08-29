@@ -24,7 +24,7 @@ pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
 
     logger::info(msg_database_info(MSG_DATABASE_PREPARE_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
     for dal in dals {
         prepare_sqlx_data(shell, &ecosystem_config.link_to_code, dal)?;
     }

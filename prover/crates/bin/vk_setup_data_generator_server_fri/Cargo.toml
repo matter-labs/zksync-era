@@ -1,5 +1,5 @@
 [package]
-name = "vk_setup_data_generator_server_fri"
+name = "zksync_vk_setup_data_generator_server_fri"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
