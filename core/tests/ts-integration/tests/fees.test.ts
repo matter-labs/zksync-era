@@ -188,7 +188,14 @@ testFees('Test fees', () => {
     test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-        await setInternalL1GasPrice(alice._providerL2(), l1GasPrice.toString(), l1GasPrice.toString());
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        await setInternalL1GasPrice(alice._providerL2(), {
+            newL1GasPrice: l1GasPrice.toString(),
+            newPubdataPrice: l1GasPrice.toString(),
+            customBaseToken: !isETHBasedChain
+        });
 
         const receipt = await (
             await alice.sendTransaction({
@@ -203,14 +210,32 @@ testFees('Test fees', () => {
                 : 110_000_000; // 0.11 gwei, in validium we need to add compute overhead
         const expectedCustomGasPrice = expectedETHGasPrice * 0.314;
 
-        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
-        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         if (isETHBasedChain) {
             expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
         } else {
             // We need some tolerance here, becouse base token "forced" price provider has 10% randomness in its price
             expect(receipt.gasPrice).toBeGreaterThan(expectedCustomGasPrice * 0.85);
             expect(receipt.gasPrice).toBeLessThan(expectedCustomGasPrice * 1.15);
+        }
+
+        if (!isETHBasedChain) {
+            await setInternalL1GasPrice(alice._providerL2(), {
+                newL1GasPrice: l1GasPrice.toString(),
+                newPubdataPrice: l1GasPrice.toString(),
+                customBaseToken: true,
+                forcedBaseTokenPriceNumerator: 271,
+                forcedBaseTokenPriceDenumerator: 100,
+            });
+
+            const receipt2 = await (
+                await alice.sendTransaction({
+                    to: receiver,
+                    value: BigInt(1)
+                })
+            ).wait();
+
+            const expectedCustomGasPrice = expectedETHGasPrice * 2.71;
+            expect(receipt2.gasPrice).toBe(BigInt(expectedCustomGasPrice));
         }
     });
 
@@ -234,11 +259,10 @@ testFees('Test fees', () => {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await setInternalL1GasPrice(
-            alice._providerL2(),
-            requiredPubdataPrice.toString(),
-            requiredPubdataPrice.toString()
-        );
+        await setInternalL1GasPrice(alice._providerL2(), {
+            newL1GasPrice: requiredPubdataPrice.toString(),
+            newPubdataPrice: requiredPubdataPrice.toString()
+        });
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 
@@ -279,7 +303,7 @@ testFees('Test fees', () => {
 
     afterAll(async () => {
         // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
+        await setInternalL1GasPrice(alice._providerL2(), { disconnect: true });
 
         await testMaster.deinitialize();
     });
@@ -292,8 +316,11 @@ async function appendResults(
     newL1GasPrice: bigint,
     reports: string[]
 ): Promise<string[]> {
-    // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-    await setInternalL1GasPrice(sender._providerL2(), newL1GasPrice.toString(), newL1GasPrice.toString());
+    // For the sake of simplicity, we'll use the same pubdata price as the L1 gas prifeesce.
+    await setInternalL1GasPrice(sender._providerL2(), {
+        newL1GasPrice: newL1GasPrice.toString(),
+        newPubdataPrice: newL1GasPrice.toString()
+    });
 
     if (originalL1Receipts.length !== reports.length && originalL1Receipts.length !== transactionRequests.length) {
         throw new Error('The array of receipts and reports have different length');
@@ -366,9 +393,14 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
 
 async function setInternalL1GasPrice(
     provider: zksync.Provider,
-    newL1GasPrice?: string,
-    newPubdataPrice?: string,
-    disconnect?: boolean
+    options: {
+        newL1GasPrice?: string;
+        newPubdataPrice?: string;
+        customBaseToken?: boolean;
+        forcedBaseTokenPriceNumerator?: number;
+        forcedBaseTokenPriceDenumerator?: number;
+        disconnect?: boolean;
+    }
 ) {
     // Make sure server isn't running.
     try {
@@ -377,26 +409,35 @@ async function setInternalL1GasPrice(
 
     // Run server in background.
     let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher,vm_runner_protective_reads';
+    if (options.customBaseToken) command += ',base_token_ratio_persister';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
 
-    if (newPubdataPrice) {
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPubdataPrice} ${command}`;
+    if (options.newPubdataPrice) {
+        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${options.newPubdataPrice} ${command}`;
     }
 
-    if (newL1GasPrice) {
+    if (options.newL1GasPrice) {
         // We need to ensure that each transaction gets into its own batch for more fair comparison.
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newL1GasPrice}  ${command}`;
+        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${options.newL1GasPrice}  ${command}`;
     }
 
-    const testMode = newPubdataPrice || newL1GasPrice;
+    const testMode = options.newPubdataPrice || options.newL1GasPrice;
     if (testMode) {
         // We need to ensure that each transaction gets into its own batch for more fair comparison.
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
+    if (options.forcedBaseTokenPriceNumerator) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenPriceNumerator} ${command}`;
+    }
+
+    if (options.forcedBaseTokenPriceDenumerator) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenPriceDenumerator} ${command}`;
+    }
+
     const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
 
-    if (disconnect) {
+    if (options.disconnect) {
         zkSyncServer.unref();
     }
 
