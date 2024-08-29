@@ -151,7 +151,9 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ./bin/wait_for_processess "Rollup:$PID1 Validium:$PID2 CustomToken:$PID3"
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
       - name: Init external nodes
         run: |
@@ -179,7 +181,9 @@ jobs:
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
           PID3=$!
 
-          ./bin/wait_for_processess "Rollup:$PID1 Validium:$PID2 CustomToken:$PID3"
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
       - name: Run recovery tests (from genesis)
         run: |
@@ -192,7 +196,9 @@ jobs:
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ./bin/wait_for_processess "Rollup:$PID1 Validium:$PID2 CustomToken:$PID3"
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
       - name: Run external node server
         run: |
@@ -212,7 +218,9 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/cusotm_token.log &
           PID3=$!
 
-          ./bin/wait_for_processess "Rollup:$PID1 Validium:$PID2 CustomToken:$PID3"
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
       - name: Run revert tests
         run: |
@@ -228,7 +236,9 @@ jobs:
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          ./bin/wait_for_processess "Rollup:$PID1 Validium:$PID2 CustomToken:$PID3"
+          wait $PID1
+          wait $PID2
+          wait $PID3
 
 
       # Upgrade tests should run last, because as soon as they 
