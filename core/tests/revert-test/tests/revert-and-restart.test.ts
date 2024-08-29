@@ -10,6 +10,8 @@ import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 
+const fileConfig = shouldLoadConfigFromFile();
+
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
     lastL1BatchNumber: bigint;
@@ -89,7 +91,6 @@ describe('Block reverting test', function () {
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
-    const fileConfig = shouldLoadConfigFromFile();
 
     const pathToHome = path.join(__dirname, '../../../..');
 
