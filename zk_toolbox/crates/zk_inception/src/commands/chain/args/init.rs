@@ -21,10 +21,6 @@ use crate::{
 pub struct PortOffset(u16);
 
 impl PortOffset {
-    pub fn as_u16(&self) -> u16 {
-        self.0
-    }
-
     pub fn from_chain_id(chain_id: u16) -> Self {
         Self(chain_id * 100)
     }
@@ -37,6 +33,12 @@ impl FromStr for PortOffset {
         s.parse::<u16>()
             .map(PortOffset)
             .map_err(|_| "Invalid port offset".to_string())
+    }
+}
+
+impl From<PortOffset> for u16 {
+    fn from(port_offset: PortOffset) -> Self {
+        port_offset.0
     }
 }
 
@@ -87,7 +89,7 @@ impl InitArgs {
             port_offset: self
                 .port_offset
                 .unwrap_or(PortOffset::from_chain_id(config.chain_id.as_u64() as u16))
-                .as_u16(),
+                .into(),
         }
     }
 }
