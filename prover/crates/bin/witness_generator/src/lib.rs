@@ -12,4 +12,3 @@ mod storage_oracle;
 #[cfg(test)]
 mod tests;
 pub mod utils;
-mod witness;

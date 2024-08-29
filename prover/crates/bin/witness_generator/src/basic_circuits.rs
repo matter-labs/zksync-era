@@ -42,8 +42,8 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, Address,
-    L1BatchNumber, BOOTLOADER_ADDRESS,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    witness_block_state::WitnessStorageState, Address, L1BatchNumber, BOOTLOADER_ADDRESS,
 };
 
 use crate::{
@@ -54,7 +54,6 @@ use crate::{
         expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
         ClosedFormInputWrapper, SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
-    witness::WitnessStorage,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -445,10 +444,9 @@ async fn generate_witness(
     let make_circuits_handle = tokio::task::spawn_blocking(move || {
         let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
 
-        let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
-        let storage_view = StorageView::new(witness_storage).to_rc_ptr();
+        let storage_view = StorageView::new(input.vm_run_data.witness_block_state).to_rc_ptr();
 
-        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorage>, HistoryDisabled> =
+        let vm_storage_oracle: VmStorageOracle<StorageView<WitnessStorageState>, HistoryDisabled> =
             VmStorageOracle::new(storage_view.clone());
         let storage_oracle = StorageOracle::new(
             vm_storage_oracle,
