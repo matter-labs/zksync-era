@@ -53,21 +53,6 @@ jobs:
           address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
           echo "address=$address"
           echo "address=$address" >> $GITHUB_ENV
-
-      - name: Create log directories
-        run: |
-          SERVER_LOGS_DIR=logs/server
-          INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
-          EXTERNAL_NODE_LOGS_DIR=logs/external_node
-
-          mkdir -p $SERVER_LOGS_DIR
-          mkdir -p $INTEGRATION_TESTS_LOGS_DIR
-          mkdir -p $EXTERNAL_NODE_LOGS_DIR
-
-          echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
-          echo "INTEGRATION_TESTS_LOGS_DIR=$INTEGRATION_TESTS_LOGS_DIR" >> $GITHUB_ENV
-          echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
-  
   
       - name: Create and initialize Validium chain
         run: |
