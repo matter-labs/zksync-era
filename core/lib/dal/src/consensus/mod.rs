@@ -7,6 +7,7 @@ mod tests;
 
 use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::{attester, validator};
+use zksync_contracts::consensus as contracts;
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi, ethabi,
@@ -28,6 +29,7 @@ use crate::models::{parse_h160, parse_h256};
 pub struct AttestationStatus {
     pub genesis: validator::GenesisHash,
     pub next_batch_to_attest: attester::BatchNumber,
+    pub consensus_registry_address: Option<contracts::Address<contracts::ConsensusRegistry>>,
 }
 
 impl ProtoFmt for AttestationStatus {
@@ -39,6 +41,13 @@ impl ProtoFmt for AttestationStatus {
             next_batch_to_attest: attester::BatchNumber(
                 *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
             ),
+            consensus_registry_address: r
+                .consensus_registry_address
+                .as_ref()
+                .map(|a|parse_h160(a))
+                .transpose()
+                .context("consensus_registry_address")?
+                .map(contracts::Address::new),
         })
     }
 
@@ -46,6 +55,9 @@ impl ProtoFmt for AttestationStatus {
         Self::Proto {
             genesis: Some(self.genesis.build()),
             next_batch_to_attest: Some(self.next_batch_to_attest.0),
+            consensus_registry_address: self
+                .consensus_registry_address
+                .map(|a| a.as_bytes().to_vec()),
         }
     }
 }

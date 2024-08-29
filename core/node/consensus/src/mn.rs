@@ -104,6 +104,7 @@ async fn run_attestation_controller(
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
     let registry = registry::Registry::new(genesis, pool.clone()).await;
+    let mut next = attester::BatchNumber(0);
     let res = async {
         loop {
             // After regenesis it might happen that the batch number for the first block
@@ -118,14 +119,23 @@ async fn run_attestation_controller(
                     .await
                     .wrap("attestation_status()")?
                 {
-                    Some(status) => break status,
-                    None => ctx.sleep(POLL_INTERVAL).await?,
+                    Some(mut status) if status.next_batch_to_attest >= next => {
+                        // NOTE: because we use the same struct for db query and api,
+                        // the consensus_registry_address field is not populated by dal.
+                        // It would be nice to clean it up at some point, i.e. make dal
+                        // NOT return partially populated structs.
+                        status.consensus_registry_address = registry_addr;
+                        break status;
+                    }
+                    _ => {} 
                 }
+                ctx.sleep(POLL_INTERVAL).await?;
             };
+            next = status.next_batch_to_attest.next();
             tracing::info!("waiting for hash of batch {:?}", status.next_batch_to_attest);
             let hash = pool.wait_for_batch_hash(ctx, status.next_batch_to_attest).await?;
-            let Some(committee) = registry.attester_committee_for(ctx,registry_addr, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
-                // TODO: support skipping batches if committee is not specified.
+            let Some(committee) = registry.attester_committee_for(ctx,status.consensus_registry_address, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
+                tracing::info!("attestation not required");
                 continue;
             };
             let committee = Arc::new(committee);

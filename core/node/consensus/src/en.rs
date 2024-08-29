@@ -15,6 +15,7 @@ use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::storage::{self, ConnectionPool};
+use crate::registry;
 
 /// External node.
 pub(super) struct EN {
@@ -27,7 +28,7 @@ impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
     ///
-    /// NOTE: Before starting the consensus node if fetches all the blocks
+    /// NOTE: Before starting the consensus node it fetches all the blocks
     /// older than consensus genesis from the main node using json RPC.
     pub async fn run(
         self,
@@ -171,10 +172,7 @@ impl EN {
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let Some(committee) = &genesis.attesters else {
-            return Ok(());
-        };
-        let committee = Arc::new(committee.clone());
+        let registry = registry::Registry::new(genesis.clone(), self.pool.clone()).await;
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
@@ -191,6 +189,7 @@ impl EN {
                 }
                 ctx.sleep(POLL_INTERVAL).await?;
             };
+            next = status.next_batch_to_attest.next();
             tracing::info!(
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
@@ -199,6 +198,11 @@ impl EN {
                 .pool
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
+            let Some(committee) = registry.attester_committee_for(ctx,status.consensus_registry_address, status.next_batch_to_attest).await.wrap("attester_committee_for()")? else {
+                tracing::info!("attestation not required");
+                continue;
+            };
+            let committee = Arc::new(committee);
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest
@@ -214,7 +218,6 @@ impl EN {
                 }))
                 .await
                 .context("start_attestation()")?;
-            next = status.next_batch_to_attest.next();
         }
     }
 
