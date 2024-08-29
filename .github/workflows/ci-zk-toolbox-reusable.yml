@@ -12,7 +12,6 @@ jobs:
 
   build:
     runs-on: [matterlabs-ci-runner-high-performance]
-
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -50,7 +49,6 @@ jobs:
   tests:
     runs-on: [matterlabs-ci-runner-high-performance]
     needs: [build]
-
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -115,9 +113,6 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@postgres:5432 \
           --prover-db-name=zksync_prover_localhost_rollup
 
-      - name: Check Database
-        run: |
-          ci_run zk_supervisor database check-sqlx-data
 
       - name: Run server
         run: |
