@@ -118,7 +118,7 @@ jobs:
           address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
           echo "address=$address"
           echo "address=$address" >> $GITHUB_ENV
-  
+
       - name: Create and initialize Validium chain
         run: |
           ci_run zk_inception chain create \
@@ -173,10 +173,9 @@ jobs:
 
       - name: Run servers
         run: |
-          mkdir -p logs/server
-          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{SERVER_LOGS_DIR}}/rollup.log &
-          ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{SERVER_LOGS_DIR}}/validium.log &
-          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{SERVER_LOGS_DIR}}/custom_token.log &
+          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests
@@ -209,13 +208,13 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}//validium.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//validium.log &
           PID2=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
           PID3=$!
 
           ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
@@ -223,34 +222,34 @@ jobs:
       - name: Run recovery tests (from genesis)
         run: |
           mkdir -p logs/recovery/gen
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
           ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
 
       - name: Run external node server
         run: |
-          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> ${{ EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> ${{ EXTERNAL_NODE_LOGS_DIR }}/validium.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> ${{ EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests en
         run: |
           mkdir -p logs/integration_tests/en/
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ INTEGRATION_TESTS_EN_LOGS_DIR }}/cusotm_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/cusotm_token.log &
           PID3=$!
 
           ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
@@ -261,13 +260,13 @@ jobs:
           ci_run killall -INT zksync_external_node || true
           
           mkdir -p logs/revert/en/
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ REVERT_LOGS_DIR }}/validium.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ REVERT_LOGS_DIR }}/rollup.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ REVERT_LOGS_DIR }}/custom_token.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
           ci_run PROCESSES="Rollup:$PID1 Validium:$PID2 CustomToken:$PID3" ./bin/wait_for_processess
