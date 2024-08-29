@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Ensure the PROCESSES variable is passed from outside
+if [ -z "$PROCESSES" ]; then
+    echo "No processes provided. Please set the PROCESSES environment variable."
+    exit 1
+fi
+
+# Function to wait for a process and check its exit status
+check_process_status() {
+    local name=$1
+    local pid=$2
+
+    # Wait for the process to finish
+    wait $pid
+    local status=$?
+
+    # Print status message with appropriate color
+    if [ $status -eq 0 ]; then
+        echo -e "\e[32m$name (PID $pid) completed successfully.\e[0m"  # Green for success
+    else
+        echo -e "\e[31m$name (PID $pid) failed with exit status $status.\e[0m"  # Red for failure
+    fi
+}
+
+# Loop through each process, start monitoring, and store the PIDs of the background jobs
+for entry in $PROCESSES; do
+  name="${entry%%:*}"
+  pid="${entry##*:}"
+  check_process_status "$name" "$pid" &
+done
+
+wait
