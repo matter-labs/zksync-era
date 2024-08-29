@@ -134,15 +134,7 @@ pub trait JobProcessor: Sync + Send {
             if task.is_finished() {
                 break task.await;
             }
-            if tokio::time::timeout(
-                Duration::from_millis(Self::POLLING_INTERVAL_MS),
-                stop_receiver.changed(),
-            )
-            .await
-            .is_ok()
-            {
-                // Stop signal received, return early.
-                // Exit will be processed/reported by the main loop.
+            if stop_receiver.changed().await.is_ok() {
                 return Ok(());
             }
         };
