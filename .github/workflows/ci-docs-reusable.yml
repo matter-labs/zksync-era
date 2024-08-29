@@ -17,7 +17,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          git config --global --add safe.directory /usr/src/zksync
 
       - name: Start services
         run: |
@@ -27,6 +26,7 @@ jobs:
         run: |
           ci_run ./bin/zkt
           ci_run yarn install
+          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
