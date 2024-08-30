@@ -12,18 +12,21 @@ use crate::{
     dals::{Dal, CORE_DAL_PATH, PROVER_DAL_PATH},
     defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
     messages::{
-        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
+        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
         MSG_RESETTING_TEST_DATABASES, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
     },
 };
 
 pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain = ecosystem.clone().load_chain(Some(ecosystem.default_chain));
+    let chain = ecosystem
+        .clone()
+        .load_chain(Some(ecosystem.default_chain))
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let general_config = chain.get_general_config();
     let link_to_code = ecosystem.link_to_code;
 
-    let (test_server_url, test_prover_url) = if let Some(chain) = chain {
-        let general_config = chain.get_general_config()?;
+    let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
         let postgres = general_config
             .postgres_config
             .context(MSG_POSTGRES_CONFIG_NOT_FOUND_ERR)?;
