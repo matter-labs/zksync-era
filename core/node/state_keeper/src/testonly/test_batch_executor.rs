@@ -17,26 +17,26 @@ use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
-        executor::BatchExecutor, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionResultAndLogs,
+        executor::{BatchExecutor, BatchExecutorFactory},
+        storage::InMemoryStorage,
+        BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_state::ReadStorageFactory;
+use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log, protocol_upgrade::ProtocolUpgradeTx,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
+use zksync_vm_executor::interface::StandardOutputs;
 
 use crate::{
-    executor::{
-        StateKeeperExecutor, StateKeeperExecutorFactory, StateKeeperOutputs, TxExecutionResult,
-    },
+    executor::MainStateKeeperExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
-    types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
 };
@@ -113,7 +113,7 @@ impl TestScenario {
         mut self,
         description: &'static str,
         tx: Transaction,
-        result: TxExecutionResult,
+        result: BatchTransactionExecutionResult,
     ) -> Self {
         self.actions
             .push_back(ScenarioItem::Tx(description, tx, result));
@@ -201,13 +201,15 @@ impl TestScenario {
     pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
-        let batch_executor_base = TestBatchExecutorBuilder::new(&self);
+        let batch_executor = TestBatchExecutorBuilder::new(&self);
+        let batch_executor =
+            MainStateKeeperExecutorFactory::new(batch_executor, Arc::new(MockReadStorageFactory));
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(batch_executor),
             output_handler,
             Arc::new(sealer),
         );
@@ -255,27 +257,33 @@ pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
 }
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution with the given execution metrics.
-pub(crate) fn successful_exec_with_metrics(
-    tx_metrics: ExecutionMetricsForCriteria,
-) -> TxExecutionResult {
-    TxExecutionResult::Success {
+pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
+    BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
+            logs: VmExecutionLogs {
+                user_l2_to_l1_logs: vec![UserL2ToL1Log::default()],
+                ..VmExecutionLogs::default()
+            },
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: Box::new(tx_metrics),
         compressed_bytecodes: vec![],
-        call_tracer_result: vec![],
-        gas_remaining: Default::default(),
+        call_traces: vec![],
     }
 }
 
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
-pub(crate) fn rejected_exec() -> TxExecutionResult {
-    TxExecutionResult::RejectedByVm {
-        reason: zksync_multivm::interface::Halt::InnerTxError,
+pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
+    BatchTransactionExecutionResult {
+        tx_result: Box::new(VmExecutionResultAndLogs {
+            result: ExecutionResult::Halt { reason },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
+        }),
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
     }
 }
 
@@ -285,7 +293,7 @@ enum ScenarioItem {
     NoTxsUntilNextAction(&'static str),
     /// Increments protocol version in IO state.
     IncrementProtocolVersion(&'static str),
-    Tx(&'static str, Transaction, TxExecutionResult),
+    Tx(&'static str, Transaction, BatchTransactionExecutionResult),
     Rollback(&'static str, Transaction),
     Reject(&'static str, Transaction, UnexecutableReason),
     L2BlockSeal(
@@ -334,7 +342,7 @@ impl fmt::Debug for ScenarioItem {
     }
 }
 
-type ExpectedTransactions = VecDeque<HashMap<H256, VecDeque<TxExecutionResult>>>;
+type ExpectedTransactions = VecDeque<HashMap<H256, VecDeque<BatchTransactionExecutionResult>>>;
 
 #[derive(Debug, Default)]
 pub struct TestBatchExecutorBuilder {
@@ -350,7 +358,7 @@ pub struct TestBatchExecutorBuilder {
 impl TestBatchExecutorBuilder {
     pub(crate) fn new(scenario: &TestScenario) -> Self {
         let mut txs = VecDeque::new();
-        let mut batch_txs = HashMap::new();
+        let mut batch_txs = HashMap::<_, VecDeque<BatchTransactionExecutionResult>>::new();
         let mut rollback_set = HashSet::new();
 
         // Insert data about the pending batch, if it exists.
@@ -371,9 +379,7 @@ impl TestBatchExecutorBuilder {
                 ScenarioItem::Tx(_, tx, result) => {
                     batch_txs
                         .entry(tx.hash())
-                        .and_modify(|txs: &mut VecDeque<TxExecutionResult>| {
-                            txs.push_back(result.clone())
-                        })
+                        .and_modify(|txs| txs.push_back(result.clone()))
                         .or_insert_with(|| {
                             let mut txs = VecDeque::with_capacity(1);
                             txs.push_back(result.clone());
@@ -412,25 +418,28 @@ impl TestBatchExecutorBuilder {
     }
 }
 
-#[async_trait]
-impl StateKeeperExecutorFactory for TestBatchExecutorBuilder {
-    async fn init_batch(
+impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
+    type Outputs = StandardOutputs<OwnedStorage>;
+    type Executor = TestBatchExecutor;
+
+    fn init_batch(
         &mut self,
+        _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>> {
+    ) -> Box<Self::Executor> {
         let executor =
             TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
-        Ok(Some(Box::new(executor)))
+        Box::new(executor)
     }
 }
 
+// FIXME: reduce visibility
 #[derive(Debug)]
-pub(super) struct TestBatchExecutor {
+pub struct TestBatchExecutor {
     /// Mapping tx -> response.
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
-    txs: HashMap<H256, VecDeque<TxExecutionResult>>,
+    txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
     /// Set of transactions that are expected to be rolled back.
     rollback_set: HashSet<H256>,
     /// Last executed tx hash.
@@ -439,7 +448,7 @@ pub(super) struct TestBatchExecutor {
 
 impl TestBatchExecutor {
     pub(super) fn new(
-        txs: HashMap<H256, VecDeque<TxExecutionResult>>,
+        txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
         rollback_set: HashSet<H256>,
     ) -> Self {
         Self {
@@ -451,8 +460,11 @@ impl TestBatchExecutor {
 }
 
 #[async_trait]
-impl BatchExecutor<StateKeeperOutputs> for TestBatchExecutor {
-    async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
+impl BatchExecutor<StandardOutputs<OwnedStorage>> for TestBatchExecutor {
+    async fn execute_tx(
+        &mut self,
+        tx: Transaction,
+    ) -> anyhow::Result<BatchTransactionExecutionResult> {
         let result = self
             .txs
             .get_mut(&tx.hash())
@@ -488,8 +500,11 @@ impl BatchExecutor<StateKeeperOutputs> for TestBatchExecutor {
         Ok(())
     }
 
-    async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
-        Ok(FinishedL1Batch::mock())
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
+        let storage = OwnedStorage::boxed(InMemoryStorage::default());
+        Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
 }
 
@@ -795,12 +810,13 @@ impl StateKeeperIO for TestIO {
 pub struct MockReadStorageFactory;
 
 #[async_trait]
-impl ReadStorageFactory<()> for MockReadStorageFactory {
+impl ReadStorageFactory<OwnedStorage> for MockReadStorageFactory {
     async fn access_storage(
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<()>> {
-        Ok(Some(()))
+    ) -> anyhow::Result<Option<OwnedStorage>> {
+        let storage = InMemoryStorage::default();
+        Ok(Some(OwnedStorage::boxed(storage)))
     }
 }

@@ -67,6 +67,7 @@ pub struct ZkSyncStateKeeper {
 }
 
 impl ZkSyncStateKeeper {
+    // FIXME: revert to separate storage factory / batch executor args
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,

@@ -3,13 +3,15 @@
 
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use tokio::sync::watch;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    executor::BatchExecutor, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-    VmExecutionResultAndLogs,
+    executor::{BatchExecutor, BatchExecutorFactory},
+    storage::{InMemoryStorage, StorageView},
+    BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionResultAndLogs,
 };
+use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -17,13 +19,7 @@ use zksync_types::{
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
-
-use crate::{
-    executor::{
-        StateKeeperExecutor, StateKeeperExecutorFactory, StateKeeperOutputs, TxExecutionResult,
-    },
-    types::ExecutionMetricsForCriteria,
-};
+use zksync_vm_executor::interface::StandardOutputs;
 
 pub mod test_batch_executor;
 
@@ -31,21 +27,16 @@ pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
-pub(crate) fn successful_exec() -> TxExecutionResult {
-    TxExecutionResult::Success {
+pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
+    BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
         compressed_bytecodes: vec![],
-        call_tracer_result: vec![],
-        gas_remaining: Default::default(),
+        call_traces: vec![],
     }
 }
 
@@ -53,21 +44,26 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-#[async_trait]
-impl StateKeeperExecutorFactory for MockBatchExecutor {
-    async fn init_batch(
+impl BatchExecutorFactory<OwnedStorage> for MockBatchExecutor {
+    type Outputs = StandardOutputs<OwnedStorage>;
+    type Executor = Self;
+
+    fn init_batch(
         &mut self,
+        _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-        _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Box<StateKeeperExecutor>>> {
-        Ok(Some(Box::new(Self)))
+    ) -> Box<Self::Executor> {
+        Box::new(Self)
     }
 }
 
 #[async_trait]
-impl BatchExecutor<StateKeeperOutputs> for MockBatchExecutor {
-    async fn execute_tx(&mut self, _tx: Transaction) -> anyhow::Result<TxExecutionResult> {
+impl BatchExecutor<StandardOutputs<OwnedStorage>> for MockBatchExecutor {
+    async fn execute_tx(
+        &mut self,
+        _tx: Transaction,
+    ) -> anyhow::Result<BatchTransactionExecutionResult> {
         Ok(successful_exec())
     }
 
@@ -79,8 +75,11 @@ impl BatchExecutor<StateKeeperOutputs> for MockBatchExecutor {
         Ok(())
     }
 
-    async fn finish_batch(self: Box<Self>) -> anyhow::Result<FinishedL1Batch> {
-        Ok(FinishedL1Batch::mock())
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
+        let storage = OwnedStorage::boxed(InMemoryStorage::default());
+        Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
 }
 

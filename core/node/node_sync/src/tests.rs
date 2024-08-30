@@ -11,9 +11,10 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
 use zksync_state_keeper::{
+    executor::MainStateKeeperExecutorFactory,
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_executor::TestBatchExecutorBuilder,
+    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
@@ -129,7 +130,10 @@ impl StateKeeperHandles {
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(MainStateKeeperExecutorFactory::new(
+                batch_executor_base,
+                Arc::new(MockReadStorageFactory),
+            )),
             output_handler,
             Arc::new(NoopSealer),
         );

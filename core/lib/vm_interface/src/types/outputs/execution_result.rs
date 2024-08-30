@@ -298,7 +298,7 @@ impl Call {
 }
 
 /// Mid-level transaction execution output returned by a batch executor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BatchTransactionExecutionResult {
     pub tx_result: Box<VmExecutionResultAndLogs>,
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
