@@ -53,6 +53,8 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
+          yarn l1-contracts build
+          yarn l2-contracts build
           ci_run ./bin/zkt
 
       - name: Rust unit tests
