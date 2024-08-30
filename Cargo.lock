@@ -9802,6 +9802,7 @@ dependencies = [
  "async-trait",
  "hex",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "zksync_contracts",
@@ -9814,6 +9815,7 @@ name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "backon",
  "dashmap",

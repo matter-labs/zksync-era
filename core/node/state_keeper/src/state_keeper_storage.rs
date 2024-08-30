@@ -70,7 +70,9 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             Ok(storage)
         } else {
             Ok(Some(
-                OwnedStorage::postgres(connection, l1_batch_number).await?,
+                OwnedStorage::postgres(connection, l1_batch_number)
+                    .await?
+                    .into(),
             ))
         }
     }

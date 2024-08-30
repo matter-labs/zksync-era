@@ -1,17 +1,24 @@
+use assert_matches::assert_matches;
+use test_casing::test_casing;
 use tokio::sync::watch;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::StorageLogWithPreviousValue;
+use zksync_state::OwnedStorage;
+use zksync_types::{L2ChainId, StorageLogWithPreviousValue};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_interface::executor;
 
 use super::*;
-use crate::{ConcurrentOutputHandlerFactory, VmRunner};
+use crate::{
+    storage::{PostgresLoader, StorageLoader},
+    ConcurrentOutputHandlerFactory, L1BatchOutput, L2BlockOutput, OutputHandler, VmRunner,
+};
 
 #[derive(Debug, Clone)]
 struct StorageWriterIo {
     last_processed_block: L2BlockNumber,
     last_processed_batch: Arc<watch::Sender<L1BatchNumber>>,
     pool: ConnectionPool<Core>,
+    insert_protective_reads: bool,
 }
 
 impl StorageWriterIo {
@@ -119,6 +126,20 @@ impl OutputHandler for StorageWriterIo {
             .insert_initial_writes(l1_batch_number, &initial_writes)
             .await?;
 
+        if self.insert_protective_reads {
+            let protective_reads: Vec<_> = output
+                .batch
+                .final_execution_state
+                .deduplicated_storage_logs
+                .iter()
+                .filter(|log_query| !log_query.is_write())
+                .copied()
+                .collect();
+            conn.storage_logs_dedup_dal()
+                .insert_protective_reads(l1_batch_number, &protective_reads)
+                .await?;
+        }
+
         self.last_processed_batch.send_replace(l1_batch_number);
         Ok(())
     }
@@ -138,7 +159,7 @@ impl OutputHandlerFactory for StorageWriterIo {
 
 /// Writes missing storage logs into Postgres by executing all transactions from it. Useful both for testing `VmRunner`,
 /// and to fill the storage for multi-batch tests for other components.
-pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
+pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protective_reads: bool) {
     let mut conn = pool.connection().await.unwrap();
     let sealed_batch = conn
         .blocks_dal()
@@ -151,10 +172,14 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
         last_processed_batch: Arc::new(watch::channel(L1BatchNumber(0)).0),
         last_processed_block: L2BlockNumber(0),
         pool: pool.clone(),
+        insert_protective_reads,
     });
     let mut processed_batch = io.last_processed_batch.subscribe();
 
-    let loader = Arc::new(PostgresLoader(pool.clone()));
+    let loader = PostgresLoader::new(pool.clone(), L2ChainId::default())
+        .await
+        .unwrap();
+    let loader = Arc::new(loader);
     let batch_executor = MainBatchExecutorFactory::new(false, false);
     let vm_runner = VmRunner::new(
         pool,
@@ -174,8 +199,9 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>) {
     vm_runner_handle.await.unwrap().unwrap();
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn storage_writer_works() {
+async fn storage_writer_works(insert_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -185,17 +211,12 @@ async fn storage_writer_works() {
 
     let mut accounts = [Account::random()];
     fund(&mut conn, &accounts).await;
-    store_l1_batches(
-        &mut conn,
-        1..=5,
-        genesis_params.base_system_contracts().hashes(),
-        &mut accounts,
-    )
-    .await
-    .unwrap();
+    store_l1_batches(&mut conn, 1..=5, &genesis_params, &mut accounts)
+        .await
+        .unwrap();
     drop(conn);
 
-    write_storage_logs(pool.clone()).await;
+    write_storage_logs(pool.clone(), insert_protective_reads).await;
 
     // Re-run the VM on all batches to check that storage logs are persisted correctly
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -203,7 +224,23 @@ async fn storage_writer_works() {
         current: L1BatchNumber(0),
         max: 5,
     }));
-    let loader = Arc::new(PostgresLoader(pool.clone()));
+    let loader = PostgresLoader::new(pool.clone(), genesis_params.config().l2_chain_id)
+        .await
+        .unwrap();
+    let loader = Arc::new(loader);
+
+    // Check that the loader returns expected types of storage.
+    let (_, batch_storage) = loader
+        .load_batch(L1BatchNumber(1))
+        .await
+        .unwrap()
+        .expect("no batch loaded");
+    if insert_protective_reads {
+        assert_matches!(batch_storage, OwnedStorage::Snapshot(_));
+    } else {
+        assert_matches!(batch_storage, OwnedStorage::Postgres(_));
+    }
+
     let (output_factory, output_factory_task) =
         ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), TestOutputFactory::default());
     let output_factory_handle = tokio::spawn(output_factory_task.run(stop_receiver.clone()));

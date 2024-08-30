@@ -36,6 +36,7 @@ vise.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_node_genesis.workspace = true
 zksync_test_account.workspace = true
+assert_matches.workspace = true
 backon.workspace = true
 futures = { workspace = true, features = ["compat"] }
 rand.workspace = true

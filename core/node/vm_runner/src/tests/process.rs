@@ -26,17 +26,11 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     let mut accounts = vec![Account::random(), Account::random()];
     fund(&mut conn, &accounts).await;
 
-    store_l1_batches(
-        &mut conn,
-        1..=batch_count,
-        genesis_params.base_system_contracts().hashes(),
-        &mut accounts,
-    )
-    .await?;
+    store_l1_batches(&mut conn, 1..=batch_count, &genesis_params, &mut accounts).await?;
     drop(conn);
 
     // Fill in missing storage logs for all batches so that running VM for all of them works correctly.
-    storage_writer::write_storage_logs(connection_pool.clone()).await;
+    storage_writer::write_storage_logs(connection_pool.clone(), true).await;
 
     let io = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
