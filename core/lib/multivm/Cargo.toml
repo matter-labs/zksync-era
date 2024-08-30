@@ -41,6 +41,7 @@ tracing.workspace = true
 vise.workspace = true
 
 [dev-dependencies]
+assert_matches.workspace = true
 tokio = { workspace = true, features = ["time"] }
 zksync_test_account.workspace = true
 ethabi.workspace = true

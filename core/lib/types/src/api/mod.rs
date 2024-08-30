@@ -199,6 +199,7 @@ pub struct LeafAggProof {
     pub chain_agg_proof: ChainAggProof,
     pub local_msg_root: H256,
     pub sl_batch_number: U256,
+    pub sl_chain_id: U256,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -223,6 +224,7 @@ impl LeafAggProof {
             leaf_chain_proof,
             chain_agg_proof,
             sl_batch_number,
+            sl_chain_id,
             ..
         } = self;
 
@@ -244,6 +246,8 @@ impl LeafAggProof {
         let sl_encoded_data =
             sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
         encoded_result.push(u256_to_h256(sl_encoded_data));
+
+        encoded_result.push(u256_to_h256(sl_chain_id));
 
         (batch_leaf_proof_len, encoded_result)
     }
