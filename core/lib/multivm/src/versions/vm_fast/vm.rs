@@ -236,7 +236,13 @@ impl<S: ReadStorage> Vm<S> {
                 }
 
                 Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
-                Hook::DebugLog | Hook::DebugReturnData | Hook::NearCallCatch => {
+                Hook::DebugLog => {
+                    let (log, log_arg) = self.get_debug_log();
+                    let last_tx = self.bootloader_state.last_l2_block().txs.last();
+                    let tx_hash = last_tx.map(|tx| tx.hash);
+                    tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
+                }
+                Hook::DebugReturnData | Hook::NearCallCatch => {
                     // These hooks are for debug purposes only
                 }
             }
@@ -252,6 +258,26 @@ impl<S: ReadStorage> Vm<S> {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
+    }
+
+    fn get_debug_log(&self) -> (String, String) {
+        let hook_params = self.get_hook_params();
+        let mut msg = u256_to_h256(hook_params[0]).as_bytes().to_vec();
+        // Trim 0 byte padding at the end.
+        while msg.last() == Some(&0) {
+            msg.pop();
+        }
+
+        let data = hook_params[1];
+        let msg = String::from_utf8(msg).expect("Invalid debug message");
+
+        // For long data, it is better to use hex-encoding for greater readability
+        let data_str = if data > U256::from(u64::MAX) {
+            format!("0x{data:x}")
+        } else {
+            data.to_string()
+        };
+        (msg, data_str)
     }
 
     /// Should only be used when the bootloader is executing (e.g., when handling hooks).
