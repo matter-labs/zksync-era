@@ -32,7 +32,7 @@ use zksync_types::{
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_executor::batch::{MainBatchExecutor, MainBatchExecutorFactory};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
@@ -100,7 +100,7 @@ impl Tester {
     pub(super) async fn create_batch_executor(
         &mut self,
         storage_type: StorageType,
-    ) -> Box<MainBatchExecutor<OwnedStorage>> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let (l1_batch_env, system_env) = self.default_batch_params();
         match storage_type {
             StorageType::AsyncRocksdbCache => {
@@ -145,7 +145,7 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Box<MainBatchExecutor<OwnedStorage>> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let mut batch_executor = MainBatchExecutorFactory::new(self.config.save_call_traces, false);
         batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
 
@@ -161,7 +161,7 @@ impl Tester {
     pub(super) async fn recover_batch_executor(
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutor<OwnedStorage>> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let (storage_factory, task) = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
@@ -178,7 +178,7 @@ impl Tester {
         &mut self,
         storage_type: &StorageType,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutor<OwnedStorage>> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         match storage_type {
             StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
             StorageType::Rocksdb => {
@@ -202,7 +202,7 @@ impl Tester {
         &self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> Box<MainBatchExecutor<OwnedStorage>> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let current_timestamp = snapshot.l2_block_timestamp + 1;
         let (mut l1_batch_env, system_env) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);

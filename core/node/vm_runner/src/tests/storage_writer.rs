@@ -5,7 +5,6 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_state::OwnedStorage;
 use zksync_types::{L2ChainId, StorageLogWithPreviousValue};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
-use zksync_vm_interface::executor;
 
 use super::*;
 use crate::{
@@ -181,13 +180,7 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
         .unwrap();
     let loader = Arc::new(loader);
     let batch_executor = MainBatchExecutorFactory::new(false, false);
-    let vm_runner = VmRunner::new(
-        pool,
-        io.clone(),
-        loader,
-        io,
-        executor::box_batch_executor_factory(batch_executor),
-    );
+    let vm_runner = VmRunner::new(pool, io.clone(), loader, io, Box::new(batch_executor));
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
 
@@ -250,7 +243,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
         Box::new(io.clone()),
         loader,
         Box::new(output_factory),
-        executor::box_batch_executor_factory(batch_executor),
+        Box::new(batch_executor),
     );
 
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });

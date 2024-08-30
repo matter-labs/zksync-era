@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
-        executor::{BatchExecutorFactory, StandardOutputs},
+        executor::{BatchExecutor, BatchExecutorFactory},
         storage::{ReadStorage, StorageView},
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
@@ -57,15 +57,12 @@ impl MainBatchExecutorFactory {
 }
 
 impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecutorFactory {
-    type Outputs = StandardOutputs<S>;
-    type Executor = MainBatchExecutor<S>;
-
     fn init_batch(
         &mut self,
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Box<Self::Executor> {
+    ) -> Box<dyn BatchExecutor<S>> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);

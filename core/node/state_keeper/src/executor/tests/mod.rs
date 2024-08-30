@@ -3,9 +3,7 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{
-    executor::BatchExecutor, BatchTransactionExecutionResult, ExecutionResult, Halt,
-};
+use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
 use zksync_test_account::Account;
 use zksync_types::{
     get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,

@@ -6,7 +6,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state::OwnedStorage;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
 use zksync_vm_interface::{
-    executor::{BoxBatchExecutorFactory, DynBatchExecutor},
+    executor::{BatchExecutor, BatchExecutorFactory},
     L2BlockEnv,
 };
 
@@ -32,7 +32,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
+    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
 }
 
 impl VmRunner {
@@ -47,7 +47,7 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_executor_factory: BoxBatchExecutorFactory<OwnedStorage>,
+        batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     ) -> Self {
         Self {
             pool,
@@ -59,7 +59,7 @@ impl VmRunner {
     }
 
     async fn process_batch(
-        mut batch_executor: Box<DynBatchExecutor<OwnedStorage>>,
+        mut batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
         l2_blocks: Vec<L2BlockExecutionData>,
         mut output_handler: Box<dyn OutputHandler>,
     ) -> anyhow::Result<()> {

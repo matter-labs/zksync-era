@@ -1,6 +1,6 @@
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
 use zksync_types::L2ChainId;
-use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::box_batch_executor_factory};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_runner::{
     impls::{BasicWitnessInputProducer, BasicWitnessInputProducerIo},
     ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
@@ -81,7 +81,7 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             connection_pool,
             object_store.0,
-            box_batch_executor_factory(batch_executor),
+            Box::new(batch_executor),
             self.config.db_path,
             self.zksync_network_id,
             self.config.first_processed_batch,

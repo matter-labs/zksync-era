@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    executor::{BatchExecutor, StandardOutputs},
+    executor::BatchExecutor,
     storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
@@ -68,7 +68,7 @@ impl<S: ReadStorage> MainBatchExecutor<S> {
 }
 
 #[async_trait]
-impl<S> BatchExecutor<StandardOutputs<S>> for MainBatchExecutor<S>
+impl<S> BatchExecutor<S> for MainBatchExecutor<S>
 where
     S: ReadStorage + Send + 'static,
 {

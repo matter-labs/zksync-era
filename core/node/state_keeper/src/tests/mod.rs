@@ -27,7 +27,6 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    executor::MainStateKeeperExecutorFactory,
     io::PendingBatchData,
     keeper::POLL_WAIT_DURATION,
     seal_criteria::{
@@ -420,8 +419,6 @@ async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
     let batch_executor = TestBatchExecutorBuilder::new(&scenario);
-    let batch_executor =
-        MainStateKeeperExecutorFactory::new(batch_executor, Arc::new(MockReadStorageFactory));
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
@@ -434,6 +431,7 @@ async fn load_upgrade_tx() {
         Box::new(batch_executor),
         output_handler,
         Arc::new(sealer),
+        Arc::new(MockReadStorageFactory),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

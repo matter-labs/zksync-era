@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
-use zksync_vm_interface::{executor, L1BatchEnv, L2BlockEnv, SystemEnv};
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
@@ -44,7 +44,7 @@ impl ProtectiveReadsWriter {
             Box::new(io),
             Arc::new(loader),
             Box::new(output_handler_factory),
-            executor::box_batch_executor_factory(batch_processor),
+            Box::new(batch_processor),
         );
         Ok((
             Self { vm_runner },

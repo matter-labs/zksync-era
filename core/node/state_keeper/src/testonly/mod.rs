@@ -19,7 +19,6 @@ use zksync_types::{
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_executor::interface::StandardOutputs;
 
 pub mod test_batch_executor;
 
@@ -45,21 +44,18 @@ pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
 pub struct MockBatchExecutor;
 
 impl BatchExecutorFactory<OwnedStorage> for MockBatchExecutor {
-    type Outputs = StandardOutputs<OwnedStorage>;
-    type Executor = Self;
-
     fn init_batch(
         &mut self,
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> Box<Self::Executor> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         Box::new(Self)
     }
 }
 
 #[async_trait]
-impl BatchExecutor<StandardOutputs<OwnedStorage>> for MockBatchExecutor {
+impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     async fn execute_tx(
         &mut self,
         _tx: Transaction,

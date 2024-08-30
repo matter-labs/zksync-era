@@ -30,10 +30,8 @@ use zksync_types::{
     fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log, protocol_upgrade::ProtocolUpgradeTx,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
-use zksync_vm_executor::interface::StandardOutputs;
 
 use crate::{
-    executor::MainStateKeeperExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
@@ -202,8 +200,6 @@ impl TestScenario {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor = TestBatchExecutorBuilder::new(&self);
-        let batch_executor =
-            MainStateKeeperExecutorFactory::new(batch_executor, Arc::new(MockReadStorageFactory));
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
@@ -212,6 +208,7 @@ impl TestScenario {
             Box::new(batch_executor),
             output_handler,
             Arc::new(sealer),
+            Arc::new(MockReadStorageFactory),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
 
@@ -419,24 +416,20 @@ impl TestBatchExecutorBuilder {
 }
 
 impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
-    type Outputs = StandardOutputs<OwnedStorage>;
-    type Executor = TestBatchExecutor;
-
     fn init_batch(
         &mut self,
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> Box<Self::Executor> {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let executor =
             TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
         Box::new(executor)
     }
 }
 
-// FIXME: reduce visibility
 #[derive(Debug)]
-pub struct TestBatchExecutor {
+pub(super) struct TestBatchExecutor {
     /// Mapping tx -> response.
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
     txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
@@ -460,7 +453,7 @@ impl TestBatchExecutor {
 }
 
 #[async_trait]
-impl BatchExecutor<StandardOutputs<OwnedStorage>> for TestBatchExecutor {
+impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
     async fn execute_tx(
         &mut self,
         tx: Transaction,
