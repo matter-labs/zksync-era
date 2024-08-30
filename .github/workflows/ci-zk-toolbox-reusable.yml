@@ -214,7 +214,7 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/cusotm_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
           wait $PID1

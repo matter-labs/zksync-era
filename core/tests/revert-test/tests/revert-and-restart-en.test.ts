@@ -335,8 +335,6 @@ describe('Block reverting test', function () {
             baseTokenAddress = contractsConfig.l1.base_token_addr;
             enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
-            mainLogs = fs.createWriteStream(`${fileConfig.chain}_${mainLogsPath}`, { flags: 'a' });
-            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogsPath}`, { flags: 'a' });
         } else {
             let env = fetchEnv(mainEnv);
             ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
