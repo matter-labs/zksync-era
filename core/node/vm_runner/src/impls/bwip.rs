@@ -205,6 +205,7 @@ async fn get_updates_manager_witness_input_data(
     let initial_heap_content = finished_batch.final_bootloader_memory.unwrap(); // might be just empty
     let default_aa = updates_manager.base_system_contract_hashes().default_aa;
     let bootloader = updates_manager.base_system_contract_hashes().bootloader;
+    let evm_simulator = updates_manager.base_system_contract_hashes().evm_simulator;
     let bootloader_code_bytes = connection
         .factory_deps_dal()
         .get_sealed_factory_dep(bootloader)
@@ -219,6 +220,14 @@ async fn get_updates_manager_witness_input_data(
         .await?
         .ok_or_else(|| anyhow!("Default account bytecode should exist"))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
+
+    let evm_simulator_code_hash = h256_to_u256(evm_simulator);
+    let simulator_bytecode_bytes = connection
+        .factory_deps_dal()
+        .get_sealed_factory_dep(evm_simulator)
+        .await?
+        .ok_or_else(|| anyhow!("EVM Simulator bytecode should exist"))?;
+    let evm_simulator_bytecode = bytes_to_chunks(&simulator_bytecode_bytes);
 
     let hashes: HashSet<H256> = finished_batch
         .final_execution_state
@@ -238,6 +247,14 @@ async fn get_updates_manager_witness_input_data(
         .contains(&account_code_hash)
     {
         used_bytecodes.insert(account_code_hash, account_bytecode);
+    }
+
+    if finished_batch
+        .final_execution_state
+        .used_contract_hashes
+        .contains(&evm_simulator_code_hash)
+    {
+        used_bytecodes.insert(evm_simulator_code_hash, evm_simulator_bytecode);
     }
 
     let storage_refunds = finished_batch.final_execution_state.storage_refunds;
@@ -261,6 +278,7 @@ async fn get_updates_manager_witness_input_data(
 
         bootloader_code,
         default_account_code_hash: account_code_hash,
+        evm_simulator_code_hash: evm_simulator_code_hash,
         storage_refunds,
         pubdata_costs,
         witness_block_state,
