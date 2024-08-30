@@ -82,7 +82,7 @@ impl Processor {
             return Err(ProcessorError::BatchNotReady(l1_batch_number));
         }
 
-        self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
+        self.proof_generation_data_for_existing_batch_internal(l1_batch_number)
             .await
             .map(ProofGenerationDataResponse)
     }

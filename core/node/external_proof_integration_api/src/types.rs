@@ -14,7 +14,7 @@ pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData);
 impl IntoResponse for ProofGenerationDataResponse {
     fn into_response(self) -> Response {
         let l1_batch_number = self.0.l1_batch_number;
-        let data = match bincode::serialize(&self.0) {
+        let data = match bincode::serialize(&self.0.witness_input_data) {
             Ok(data) => data,
             Err(err) => {
                 return ProcessorError::Serialization(err).into_response();
