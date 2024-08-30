@@ -272,8 +272,8 @@ testFees('Test fees', () => {
                 const diff =
                     (newFeeParams.V2 as any)['conversion_ratio'].numerator -
                     (beginFeeParams.V2 as any)['conversion_ratio'].numerator;
-                expect(diff).toBeLessThan(25); //25 = 25%*100
-                expect(diff).toBeGreaterThan(-25);
+                expect(diff).toBeLessThan(75); //75 = 25%*300
+                expect(diff).toBeGreaterThan(-75);
                 changedL2 = true;
                 break;
             }
@@ -283,8 +283,8 @@ testFees('Test fees', () => {
             const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
             if (newL1Nominator != beginL1Nominator) {
                 const diff = newL1Nominator - beginL1Nominator;
-                expect(diff).toBeLessThan(25); //25 = 25%*100
-                expect(diff).toBeGreaterThan(-25);
+                expect(diff).toBeLessThan(75); //75 = 25%*300
+                expect(diff).toBeGreaterThan(-75);
                 changedL1 = true;
                 break;
             }
