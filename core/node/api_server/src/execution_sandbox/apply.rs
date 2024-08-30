@@ -405,7 +405,13 @@ where
             let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
             let executor = VmSandbox::new(storage, env, args);
             executor.apply(|vm, transaction| {
-                vm.inspect_transaction_with_bytecode_compression(tracers.into(), transaction, true)
+                let (bytecodes_result, exec_result) = vm
+                    .inspect_transaction_with_bytecode_compression(
+                        tracers.into(),
+                        transaction,
+                        true,
+                    );
+                (bytecodes_result.map(drop), exec_result)
             })
         })
         .await

@@ -350,6 +350,7 @@ dependencies = [
  "matchit",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "rustversion",
@@ -3777,6 +3778,23 @@ name = "mirai-annotations"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9be0862c1b3f26a88803c4a49de6889c10e608b3ee9344e6ef5b45fb37ad3d1"
+
+[[package]]
+name = "multer"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83e87776546dc87511aa5ee218730c92b666d7264ab6ed41f9d215af9cd5224b"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http 1.1.0",
+ "httparse",
+ "memchr",
+ "mime",
+ "spin",
+ "version_check",
+]
 
 [[package]]
 name = "multimap"
@@ -8680,7 +8698,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.22.0"
+version = "24.23.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -8758,13 +8776,14 @@ name = "zksync_external_proof_integration_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bincode",
+ "thiserror",
  "tokio",
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_config",
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -9677,6 +9696,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
@@ -9760,8 +9780,10 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "hex",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "zksync_contracts",
@@ -9774,6 +9796,7 @@ name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "backon",
  "dashmap",

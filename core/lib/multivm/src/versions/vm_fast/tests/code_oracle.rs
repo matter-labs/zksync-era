@@ -5,7 +5,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_fast::tests::{
         tester::{get_empty_storage, VmTesterBuilder},
         utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},

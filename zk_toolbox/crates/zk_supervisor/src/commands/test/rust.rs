@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use common::{cmd::Cmd, db::wait_for_db, logger};
+use common::{cmd::Cmd, config::global_config, db::wait_for_db, logger};
 use config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};

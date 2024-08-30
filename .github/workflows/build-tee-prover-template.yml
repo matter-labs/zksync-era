@@ -26,7 +26,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-high-performance]
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event_name == 'workflow_dispatch' }}

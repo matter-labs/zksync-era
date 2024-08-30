@@ -5,6 +5,7 @@ prover_version: NoProofs
 configs: ./chains/era/configs/
 rocks_db_path: ./chains/era/db/
 external_node_config_path: ./chains/era/configs/external_node
+artifacts_path: ./chains/era/artifacts/
 l1_batch_commit_data_generator_mode: Rollup
 base_token:
   address: '0x0000000000000000000000000000000000000001'
