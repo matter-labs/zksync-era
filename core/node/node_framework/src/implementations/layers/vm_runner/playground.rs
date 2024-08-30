@@ -3,7 +3,10 @@ use zksync_config::configs::ExperimentalVmPlaygroundConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    impls::{VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask},
+    impls::{
+        VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask,
+        VmPlaygroundStorageOptions,
+    },
     ConcurrentOutputHandlerFactoryTask,
 };
 
@@ -45,7 +48,7 @@ pub struct Output {
     #[context(task)]
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
     #[context(task)]
-    pub loader_task: VmPlaygroundLoaderTask,
+    pub loader_task: Option<VmPlaygroundLoaderTask>,
     #[context(task)]
     pub playground: VmPlayground,
 }
@@ -85,10 +88,15 @@ impl WiringLayer for VmPlaygroundLayer {
             window_size: self.config.window_size,
             reset_state: self.config.reset,
         };
+        let storage = if let Some(path) = self.config.db_path {
+            VmPlaygroundStorageOptions::Rocksdb(path)
+        } else {
+            VmPlaygroundStorageOptions::Snapshots { shadow: false }
+        };
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
             self.config.fast_vm_mode,
-            self.config.db_path,
+            storage,
             self.zksync_network_id,
             cursor,
         )
@@ -125,6 +133,6 @@ impl Task for VmPlayground {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(&stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

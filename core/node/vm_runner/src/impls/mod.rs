@@ -10,7 +10,7 @@ pub use self::{
     },
     playground::{
         VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask,
-        VmPlaygroundTasks,
+        VmPlaygroundStorageOptions, VmPlaygroundTasks,
     },
     protective_reads::{ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks},
 };

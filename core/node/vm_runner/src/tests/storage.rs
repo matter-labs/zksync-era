@@ -115,7 +115,7 @@ async fn rerun_storage_on_existing_data() -> anyhow::Result<()> {
     let batches = store_l1_batches(
         &mut connection_pool.connection().await?,
         1..=10,
-        genesis_params.base_system_contracts().hashes(),
+        &genesis_params,
         &mut accounts,
     )
     .await?;
@@ -212,7 +212,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     store_l1_batches(
         &mut connection_pool.connection().await?,
         1..=1,
-        genesis_params.base_system_contracts().hashes(),
+        &genesis_params,
         &mut accounts,
     )
     .await?;
@@ -230,7 +230,7 @@ async fn continuously_load_new_batches() -> anyhow::Result<()> {
     store_l1_batches(
         &mut connection_pool.connection().await?,
         2..=2,
-        genesis_params.base_system_contracts().hashes(),
+        &genesis_params,
         &mut accounts,
     )
     .await?;
@@ -266,7 +266,7 @@ async fn access_vm_runner_storage() -> anyhow::Result<()> {
     store_l1_batches(
         &mut connection_pool.connection().await?,
         batch_range,
-        genesis_params.base_system_contracts().hashes(),
+        &genesis_params,
         &mut accounts,
     )
     .await?;
