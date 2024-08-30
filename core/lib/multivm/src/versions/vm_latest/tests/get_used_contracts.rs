@@ -1,9 +1,13 @@
 use std::{
     collections::{HashMap, HashSet},
+    iter,
     str::FromStr,
 };
 
+use assert_matches::assert_matches;
+use ethabi::Token;
 use itertools::Itertools;
+use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zk_evm_1_5_0::{
     abstractions::DecommittmentProcessor,
     aux_structures::{DecommittmentQuery, MemoryPage, Timestamp},
@@ -11,15 +15,19 @@ use zk_evm_1_5_0::{
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
-use zksync_types::{Execute, U256};
+use zksync_types::{Address, Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_vm_interface::VmExecutionResultAndLogs;
 
 use crate::{
-    interface::{storage::WriteStorage, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{
+        storage::WriteStorage, ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface,
+        VmInterfaceExt,
+    },
     vm_latest::{
         tests::{
-            tester::{TxType, VmTesterBuilder},
-            utils::{read_test_contract, BASE_SYSTEM_CONTRACTS},
+            tester::{TxType, VmTester, VmTesterBuilder},
+            utils::{read_proxy_counter_contract, read_test_contract, BASE_SYSTEM_CONTRACTS},
         },
         HistoryDisabled, Vm,
     },
@@ -148,10 +156,92 @@ fn known_bytecodes_without_aa_code<S: WriteStorage, H: HistoryMode>(
         .known_bytecodes
         .inner()
         .clone();
-
     known_bytecodes_without_aa_code
         .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash))
         .unwrap();
-
     known_bytecodes_without_aa_code
+}
+
+/// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
+/// decommitment cost (>10,000 gas).
+fn inflated_counter_bytecode() -> Vec<u8> {
+    let mut counter_bytecode = read_test_contract();
+    counter_bytecode.extend(
+        iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
+            .take(10_000)
+            .flatten(),
+    );
+    counter_bytecode
+}
+
+fn execute_proxy_counter(gas: u32) -> (VmTester<HistoryDisabled>, U256, VmExecutionResultAndLogs) {
+    let counter_bytecode = inflated_counter_bytecode();
+    let counter_bytecode_hash = h256_to_u256(hash_bytecode(&counter_bytecode));
+    let counter_address = Address::repeat_byte(0x23);
+
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
+        .with_empty_in_memory_storage()
+        .with_custom_contracts(vec![(counter_bytecode, counter_address, false)])
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let (proxy_counter_bytecode, proxy_counter_abi) = read_proxy_counter_contract();
+    let account = &mut vm.rich_accounts[0];
+    let deploy_tx = account.get_deploy_tx(
+        &proxy_counter_bytecode,
+        Some(&[Token::Address(counter_address)]),
+        TxType::L2,
+    );
+    let (compression_result, exec_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
+    compression_result.unwrap();
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
+
+    let decommitted_hashes = vm.vm.get_used_contracts();
+    assert!(
+        !decommitted_hashes.contains(&counter_bytecode_hash),
+        "{decommitted_hashes:?}"
+    );
+
+    let increment = proxy_counter_abi.function("increment").unwrap();
+    let increment_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: deploy_tx.address,
+            calldata: increment
+                .encode_input(&[Token::Uint(1.into()), Token::Uint(gas.into())])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (compression_result, exec_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(increment_tx, true);
+    compression_result.unwrap();
+    (vm, counter_bytecode_hash, exec_result)
+}
+
+#[test]
+fn get_used_contracts_with_far_call() {
+    let (vm, counter_bytecode_hash, exec_result) = execute_proxy_counter(100_000);
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
+    let decommitted_hashes = vm.vm.get_used_contracts();
+    assert!(
+        decommitted_hashes.contains(&counter_bytecode_hash),
+        "{decommitted_hashes:?}"
+    );
+}
+
+#[test]
+fn get_used_contracts_with_out_of_gas_far_call() {
+    let (vm, counter_bytecode_hash, exec_result) = execute_proxy_counter(10_000);
+    assert_matches!(exec_result.result, ExecutionResult::Revert { .. });
+    let decommitted_hashes = vm.vm.get_used_contracts();
+    assert!(
+        decommitted_hashes.contains(&counter_bytecode_hash),
+        "{decommitted_hashes:?}"
+    );
 }

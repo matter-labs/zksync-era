@@ -1,55 +1,37 @@
 use clap::ValueEnum;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use xshell::{cmd, Shell};
 
-const IGNORED_DIRS: [&str; 18] = [
-    "target",
-    "node_modules",
-    "volumes",
-    "build",
-    "dist",
-    ".git",
-    "generated",
-    "grafonnet-lib",
-    "prettier-config",
-    "lint-config",
-    "cache",
-    "artifacts",
-    "typechain",
-    "binaryen",
-    "system-contracts",
-    "artifacts-zk",
-    "cache-zk",
-    // Ignore directories with OZ and forge submodules.
-    "contracts/l1-contracts/lib",
-];
-
-const IGNORED_FILES: [&str; 4] = [
-    "KeysWithPlonkVerifier.sol",
-    "TokenInit.sol",
-    ".tslintrc.js",
-    ".prettierrc.js",
-];
+const IGNORE_FILE: &str = "etc/lint-config/ignore.yaml";
 
 #[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
 #[strum(serialize_all = "lowercase")]
-pub enum Extension {
+pub enum Target {
     Md,
     Sol,
     Js,
     Ts,
     Rs,
+    Contracts,
 }
 
-pub fn get_unignored_files(shell: &Shell, extension: &Extension) -> anyhow::Result<Vec<String>> {
+#[derive(Deserialize, Serialize, Debug)]
+struct IgnoredData {
+    files: Vec<String>,
+    dirs: Vec<String>,
+}
+
+pub fn get_unignored_files(shell: &Shell, target: &Target) -> anyhow::Result<Vec<String>> {
     let mut files = Vec::new();
+    let ignored_files: IgnoredData = serde_yaml::from_str(&shell.read_file(IGNORE_FILE)?)?;
     let output = cmd!(shell, "git ls-files --recurse-submodules").read()?;
 
     for line in output.lines() {
         let path = line.to_string();
-        if !IGNORED_DIRS.iter().any(|dir| path.contains(dir))
-            && !IGNORED_FILES.contains(&path.as_str())
-            && path.ends_with(&format!(".{}", extension))
+        if !ignored_files.dirs.iter().any(|dir| path.contains(dir))
+            && !ignored_files.files.contains(&path)
+            && path.ends_with(&format!(".{}", target))
         {
             files.push(path);
         }

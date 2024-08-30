@@ -4,7 +4,7 @@ use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmExecutionMode, VmExecutionResultAndLogs,
     },
     vm_latest::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},

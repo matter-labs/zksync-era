@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
+use zksync_external_proof_integration_api::{Api, Processor};
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
@@ -34,7 +31,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ExternalProofIntegrationApiTask,
+    pub task: Api,
 }
 
 impl ExternalProofIntegrationApiLayer {
@@ -62,39 +59,23 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
         let replica_pool = input.replica_pool.get().await.unwrap();
         let blob_store = input.object_store.0;
 
-        let task = ExternalProofIntegrationApiTask {
-            external_proof_integration_api_config: self.external_proof_integration_api_config,
-            blob_store,
-            replica_pool,
-            commitment_mode: self.commitment_mode,
-        };
+        let processor = Processor::new(blob_store, replica_pool, self.commitment_mode);
+        let task = Api::new(
+            processor,
+            self.external_proof_integration_api_config.http_port,
+        );
 
         Ok(Output { task })
     }
 }
 
-#[derive(Debug)]
-pub struct ExternalProofIntegrationApiTask {
-    external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
-    blob_store: Arc<dyn ObjectStore>,
-    replica_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
-}
-
 #[async_trait::async_trait]
-impl Task for ExternalProofIntegrationApiTask {
+impl Task for Api {
     fn id(&self) -> TaskId {
         "external_proof_integration_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_external_proof_integration_api::run_server(
-            self.external_proof_integration_api_config,
-            self.blob_store,
-            self.replica_pool,
-            self.commitment_mode,
-            stop_receiver.0,
-        )
-        .await
+        (*self).run(stop_receiver.0).await
     }
 }

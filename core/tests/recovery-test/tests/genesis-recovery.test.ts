@@ -34,6 +34,7 @@ describe('genesis recovery', () => {
         ZKSYNC_ENV: externalNodeEnvProfile,
         EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
     };
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
@@ -52,11 +53,17 @@ describe('genesis recovery', () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const externalNodeGeneralConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolderSuffix: 'external_node',
+                config: 'general.yaml'
+            });
 
             ethRpcUrl = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-            externalNodeUrl = 'http://127.0.0.1:3150';
-            extNodeHealthUrl = 'http://127.0.0.1:3171/health';
+            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
         } else {
             ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
             apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
@@ -66,7 +73,9 @@ describe('genesis recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        await NodeProcess.stopAll('KILL');
+        if (autoKill) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     let fundedWallet: FundedWallet;
@@ -96,7 +105,7 @@ describe('genesis recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node w/o a tree', async () => {
@@ -104,8 +113,9 @@ describe('genesis recovery', () => {
             externalNodeEnv,
             'genesis-recovery.log',
             pathToHome,
+            NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
             fileConfig.loadFromFile,
-            NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
+            fileConfig.chain
         );
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
@@ -186,8 +196,9 @@ describe('genesis recovery', () => {
             externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
+            NodeComponents.WITH_TREE_FETCHER,
             fileConfig.loadFromFile,
-            NodeComponents.WITH_TREE_FETCHER
+            fileConfig.chain
         );
 
         let isNodeReady = false;
