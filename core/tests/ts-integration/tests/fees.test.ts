@@ -263,15 +263,16 @@ testFees('Test fees', () => {
         for (let i = 0; i < 20; i++) {
             await utils.sleep(0.5);
             const newFeeParams = await alice._providerL2().getFeeParams();
-            // we need ts-ignore as FeeParams is missing existing conversion_ratio field
-            // @ts-ignore
+            // we need any as FeeParams is missing existing conversion_ratio field
+
             if (
-                (newFeeParams.V2['conversion_ratio'].numerator as number) !=
-                (beginFeeParams.V2['conversion_ratio'].numerator as number)
+                ((newFeeParams.V2 as any)['conversion_ratio'].numerator as number) !=
+                ((beginFeeParams.V2 as any)['conversion_ratio'].numerator as number)
             ) {
                 // @ts-ignore
                 const diff =
-                    newFeeParams.V2['conversion_ratio'].numerator - beginFeeParams.V2['conversion_ratio'].numerator;
+                    (newFeeParams.V2 as any)['conversion_ratio'].numerator -
+                    (beginFeeParams.V2 as any)['conversion_ratio'].numerator;
                 expect(diff).toBeLessThan(25); //25 = 25%*100
                 expect(diff).toBeGreaterThan(-25);
                 changedL2 = true;
