@@ -1,60 +1,33 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::{Multipart, Path},
-    http::header,
-    response::{IntoResponse, Response},
-};
 use zksync_basic_types::{
     basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::{bincode, ObjectStore};
+use zksync_object_store::ObjectStore;
 use zksync_prover_interface::{
-    api::{ProofGenerationData, VerifyProofRequest},
+    api::ProofGenerationData,
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::L1BatchProofForL1,
 };
 
-use crate::error::ProcessorError;
+use crate::{
+    error::ProcessorError,
+    types::{ExternalProof, ProofGenerationDataResponse},
+};
 
-pub(crate) struct ProofGenerationDataResponse(ProofGenerationData);
-
-impl IntoResponse for ProofGenerationDataResponse {
-    fn into_response(self) -> Response {
-        let l1_batch_number = self.0.l1_batch_number;
-        let data = match bincode::serialize(&self.0) {
-            Ok(data) => data,
-            Err(err) => {
-                return ProcessorError::Serialization(err).into_response();
-            }
-        };
-
-        let headers = [
-            (header::CONTENT_TYPE, "application/octet-stream"),
-            (
-                header::CONTENT_DISPOSITION,
-                &format!(
-                    "attachment; filename=\"witness_inputs_{}.bin\"",
-                    l1_batch_number.0
-                ),
-            ),
-        ];
-        (headers, data).into_response()
-    }
-}
-
+/// Backend-agnostic implementation of the API logic.
 #[derive(Clone)]
-pub(crate) struct Processor {
+pub struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
 impl Processor {
-    pub(crate) fn new(
+    pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
@@ -68,76 +41,22 @@ impl Processor {
 
     pub(crate) async fn verify_proof(
         &self,
-        Path(l1_batch_number): Path<u32>,
-        mut multipart: Multipart,
+        l1_batch_number: L1BatchNumber,
+        proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
-        tracing::debug!(
-            "Received request to verify proof for batch: {:?}",
-            l1_batch_number
-        );
-
-        let latest_available_batch = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .proof_generation_dal()
-            .get_latest_proven_batch()
+        let expected_proof = self
+            .blob_store
+            .get::<L1BatchProofForL1>((l1_batch_number, proof.protocol_version()))
             .await?;
-
-        if l1_batch_number > latest_available_batch {
-            return Err(ProcessorError::BatchNotReady(l1_batch_number));
-        }
-
-        let mut serialized_proof = vec![];
-
-        while let Some(field) = multipart
-            .next_field()
-            .await
-            .map_err(|_| ProcessorError::InvalidProof)?
-        {
-            if field.name() == Some("proof")
-                && field.content_type() == Some("application/octet-stream")
-            {
-                serialized_proof.extend_from_slice(&field.bytes().await.unwrap());
-                break;
-            }
-        }
-
-        tracing::info!("Received proof is size: {}", serialized_proof.len());
-
-        let payload: VerifyProofRequest = bincode::deserialize(&serialized_proof)?;
-
-        let expected_proof = bincode::serialize(
-            &self
-                .blob_store
-                .get::<L1BatchProofForL1>((l1_batch_number, payload.0.protocol_version))
-                .await
-                .map_err(ProcessorError::ObjectStore)?,
-        )?;
-
-        if serialized_proof != expected_proof {
-            return Err(ProcessorError::InvalidProof);
-        }
-
+        proof.verify(expected_proof)?;
         Ok(())
     }
 
     pub(crate) async fn get_proof_generation_data(
-        &mut self,
+        &self,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
         tracing::debug!("Received request for proof generation data");
-
-        let latest_available_batch = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .proof_generation_dal()
-            .get_latest_proven_batch()
-            .await?;
-
+        let latest_available_batch = self.latest_available_batch().await?;
         self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
             .await
             .map(ProofGenerationDataResponse)
@@ -145,22 +64,14 @@ impl Processor {
 
     pub(crate) async fn proof_generation_data_for_existing_batch(
         &self,
-        Path(l1_batch_number): Path<u32>,
+        l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
         tracing::debug!(
             "Received request for proof generation data for batch: {:?}",
             l1_batch_number
         );
 
-        let latest_available_batch = self
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .proof_generation_dal()
-            .get_latest_proven_batch()
-            .await?;
+        let latest_available_batch = self.latest_available_batch().await?;
 
         if l1_batch_number > latest_available_batch {
             tracing::error!(
@@ -176,44 +87,44 @@ impl Processor {
             .map(ProofGenerationDataResponse)
     }
 
+    async fn latest_available_batch(&self) -> Result<L1BatchNumber, ProcessorError> {
+        Ok(self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_latest_proven_batch()
+            .await?)
+    }
+
     async fn proof_generation_data_for_existing_batch_internal(
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(ProcessorError::ObjectStore)?;
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(ProcessorError::ObjectStore)?;
+        let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
+        let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
-        let mut conn = self.pool.connection().await.map_err(ProcessorError::Dal)?;
+        let mut conn = self.pool.connection().await?;
 
         let previous_batch_metadata = conn
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
-            .await
-            .map_err(ProcessorError::Dal)?
+            .await?
             .expect("No metadata for previous batch");
 
         let header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(ProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let minor_version = header.protocol_version.unwrap();
         let protocol_version = conn
             .protocol_versions_dal()
             .get_protocol_version_with_latest_patch(minor_version)
-            .await
-            .map_err(ProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| {
                 panic!("Missing l1 verifier info for protocol version {minor_version}")
             });
@@ -221,8 +132,7 @@ impl Processor {
         let batch_header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(ProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let eip_4844_blobs = match self.commitment_mode {
