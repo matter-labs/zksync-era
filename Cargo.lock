@@ -8068,6 +8068,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "chrono",
  "hex",
  "rand 0.8.5",
