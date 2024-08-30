@@ -238,7 +238,6 @@ testFees('Test fees', () => {
     });
 
     test('Test base token ratio fluctuations', async () => {
-        const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
         const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
@@ -280,7 +279,7 @@ testFees('Test fees', () => {
             }
         }
         expect(changedL2).toBeTruthy();
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 40; i++) {
             const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
             if (newL1Nominator != beginL1Nominator) {
                 const diff = newL1Nominator - beginL1Nominator;
