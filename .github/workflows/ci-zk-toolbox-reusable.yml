@@ -30,6 +30,9 @@ jobs:
           ci_localnet_up
           ci_run sccache --start-server
 
+      - name: Build zk_toolbox
+        run: ci_run bash -c "./bin/zkt"
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
@@ -55,9 +58,6 @@ jobs:
           echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
           echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
-
-      - name: Build zk_toolbox
-        run: ci_run bash -c "./bin/zkt"
 
       - name: Initialize ecosystem
         run: |
@@ -240,7 +240,7 @@ jobs:
           wait $PID3
 
 
-      # Upgrade tests should run last, because as soon as they 
+      # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
