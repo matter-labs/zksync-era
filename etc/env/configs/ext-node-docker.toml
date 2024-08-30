@@ -1,11 +1,11 @@
-__imports__ = [ "configs/ext-node.toml" ]
+__imports__ = ["configs/ext-node.toml"]
 
-database_url = "postgres://postgres:notsecurepassword@postgres/_ext_node"
-template_database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
-test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test_ext_node"
+database_url = "postgres://postgres:notsecurepassword@localhost:5432/_ext_node"
+template_database_url = "postgres://postgres:notsecurepassword@localhost:5432/zksync_local"
+test_database_url = "postgres://postgres:notsecurepassword@localhost:5433/zksync_local_test_ext_node"
 
 [en]
-eth_client_url = "http://reth:8545"
+eth_client_url = "http://localhost:8545"
 
 [_metadata]
 base = ["ext-node.toml"]
