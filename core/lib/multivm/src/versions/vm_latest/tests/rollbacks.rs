@@ -6,7 +6,7 @@ use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{

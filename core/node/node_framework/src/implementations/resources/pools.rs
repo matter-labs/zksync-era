@@ -86,7 +86,20 @@ impl<P: PoolKind> PoolResource<P> {
     }
 
     pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<P::DbMarker>> {
-        let result = self.builder().set_max_size(size).build().await;
+        self.build(|builder| {
+            builder.set_max_size(size);
+        })
+        .await
+    }
+
+    pub async fn build<F>(&self, build_fn: F) -> anyhow::Result<ConnectionPool<P::DbMarker>>
+    where
+        F: FnOnce(&mut ConnectionPoolBuilder<P::DbMarker>),
+    {
+        let mut builder = self.builder();
+        build_fn(&mut builder);
+        let size = builder.max_size();
+        let result = builder.build().await;
 
         if result.is_ok() {
             let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
