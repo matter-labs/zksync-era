@@ -114,7 +114,6 @@ async fn reset_test_databases(
     for dal in dals {
         let mut url = dal.url.clone();
         url.set_path("");
-        logger::debug(&format!("Waiting for database: {}", url));
         wait_for_db(&url, 3).await?;
         database::reset::reset_database(shell, link_to_code, dal.clone()).await?;
     }

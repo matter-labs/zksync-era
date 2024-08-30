@@ -68,7 +68,7 @@ jobs:
           ci_run zk_supervisor test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
+          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
