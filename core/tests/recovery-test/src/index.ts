@@ -83,9 +83,11 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(useZkSupervisor: boolean, env: { [key: string]: string }) {
+export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
     if (useZkSupervisor) {
-        await executeNodeCommand(env, 'zk_inception external-node init');
+        let cmd = 'zk_inception external-node init';
+        cmd += chain ? ` --chain ${chain}` : '';
+        await executeNodeCommand(env, cmd);
     } else {
         await executeNodeCommand(env, 'zk db reset');
         await executeNodeCommand(env, 'zk clean --database');
@@ -100,7 +102,7 @@ async function executeNodeCommand(env: { [key: string]: string }, command: strin
         env
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
     }
@@ -110,11 +112,11 @@ export async function executeCommandWithLogs(command: string, logsPath: string) 
     const logs = await fs.open(logsPath, 'w');
     const childProcess = spawn(command, {
         cwd: process.env.ZKSYNC_HOME!!,
-        stdio: [null, logs.fd, logs.fd],
+        stdio: ['ignore', logs.fd, logs.fd],
         shell: true
     });
     try {
-        await waitForProcess(childProcess, true);
+        await waitForProcess(childProcess);
     } finally {
         childProcess.kill();
         await logs.close();
@@ -145,21 +147,58 @@ export class NodeProcess {
         }
     }
 
+    async stop(signal: 'INT' | 'KILL' = 'INT') {
+        interface ChildProcessError extends Error {
+            readonly code: number | null;
+        }
+
+        let signalNumber;
+        if (signal == 'KILL') {
+            signalNumber = 9;
+        } else {
+            signalNumber = 15;
+        }
+        try {
+            let childs = [this.childProcess.pid];
+            while (true) {
+                try {
+                    let child = childs.at(-1);
+                    childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
+                } catch (e) {
+                    break;
+                }
+            }
+            // We always run the test using additional tools, that means we have to kill not the main process, but the child process
+            for (let i = childs.length - 1; i >= 0; i--) {
+                await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+            }
+        } catch (err) {
+            const typedErr = err as ChildProcessError;
+            if (typedErr.code === 1) {
+                // No matching processes were found; this is fine.
+            } else {
+                throw err;
+            }
+        }
+    }
+
     static async spawn(
         env: { [key: string]: string },
         logsFile: FileHandle | string,
         pathToHome: string,
-        useZkInception: boolean,
-        components: NodeComponents = NodeComponents.STANDARD
+        components: NodeComponents = NodeComponents.STANDARD,
+        useZkInception?: boolean,
+        chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
 
         let childProcess = runExternalNodeInBackground({
             components: [components],
-            stdio: [null, logs.fd, logs.fd],
+            stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
             env,
-            useZkInception
+            useZkInception,
+            chain
         });
 
         return new NodeProcess(childProcess, logs);
@@ -172,22 +211,26 @@ export class NodeProcess {
     }
 
     async stopAndWait(signal: 'INT' | 'KILL' = 'INT') {
-        await NodeProcess.stopAll(signal);
-        await waitForProcess(this.childProcess, signal === 'INT');
+        let processWait = waitForProcess(this.childProcess);
+        await this.stop(signal);
+        await processWait;
+        console.log('stopped');
     }
 }
 
-async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean) {
-    await new Promise((resolve, reject) => {
+function waitForProcess(childProcess: ChildProcess): Promise<any> {
+    return new Promise((resolve, reject) => {
+        childProcess.on('close', (_code, _signal) => {
+            resolve(undefined);
+        });
         childProcess.on('error', (error) => {
             reject(error);
         });
-        childProcess.on('exit', (code) => {
-            if (!checkExitCode || code === 0) {
-                resolve(undefined);
-            } else {
-                reject(new Error(`Process exited with non-zero code: ${code}`));
-            }
+        childProcess.on('exit', (_code) => {
+            resolve(undefined);
+        });
+        childProcess.on('disconnect', () => {
+            resolve(undefined);
         });
     });
 }
@@ -197,11 +240,16 @@ async function waitForProcess(childProcess: ChildProcess, checkExitCode: boolean
  */
 export class FundedWallet {
     static async create(mainNode: zksync.Provider, eth: ethers.Provider): Promise<FundedWallet> {
-        const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
-        const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
-        const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
-        const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
-        const wallet = new zksync.Wallet(walletHD.privateKey, mainNode, eth);
+        if (!process.env.MASTER_WALLET_PK) {
+            const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant/eth.json`);
+            const ethTestConfig = JSON.parse(await fs.readFile(testConfigPath, { encoding: 'utf-8' }));
+            const mnemonic = ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic);
+            const walletHD = ethers.HDNodeWallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
+
+            process.env.MASTER_WALLET_PK = walletHD.privateKey;
+        }
+
+        const wallet = new zksync.Wallet(process.env.MASTER_WALLET_PK, mainNode, eth);
 
         return new FundedWallet(wallet);
     }
