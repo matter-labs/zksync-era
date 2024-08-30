@@ -3,30 +3,27 @@ use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_node_genesis::GenesisParams;
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state::OwnedStorage;
 use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, L2BlockHasher},
+    block::{L1BatchHeader, L2BlockHasher},
     fee::Fee,
     get_intrinsic_constants,
     l2::L2Tx,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
-use super::{BatchExecuteData, OutputHandlerFactory, VmRunnerIo};
-use crate::storage::{load_batch_execute_data, StorageLoader};
+use super::{OutputHandlerFactory, VmRunnerIo};
 
 mod output_handler;
 mod playground;
@@ -35,33 +32,6 @@ mod storage;
 mod storage_writer;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
-#[derive(Debug)]
-struct PostgresLoader(ConnectionPool<Core>);
-
-#[async_trait]
-impl StorageLoader for PostgresLoader {
-    async fn load_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
-        let mut conn = self.0.connection().await?;
-        let Some(data) = load_batch_execute_data(
-            &mut conn,
-            l1_batch_number,
-            &L1BatchParamsProvider::new(),
-            L2ChainId::default(),
-        )
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-        Ok(Some((data, storage)))
-    }
-}
 
 #[derive(Debug, Default)]
 struct IoMock {
@@ -244,7 +214,7 @@ pub fn create_l2_transaction(
 async fn store_l1_batches(
     conn: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
-    contract_hashes: BaseSystemContractsHashes,
+    genesis_params: &GenesisParams,
     accounts: &mut [Account],
 ) -> anyhow::Result<Vec<L1BatchHeader>> {
     let mut rng = rand::thread_rng();
@@ -308,7 +278,7 @@ async fn store_l1_batches(
         digest.push_tx_hash(tx.hash());
         new_l2_block.hash = digest.finalize(ProtocolVersionId::latest());
 
-        new_l2_block.base_system_contracts_hashes = contract_hashes;
+        new_l2_block.base_system_contracts_hashes = genesis_params.base_system_contracts().hashes();
         new_l2_block.l2_tx_count = 1;
         conn.blocks_dal().insert_l2_block(&new_l2_block).await?;
         last_l2_block_hash = new_l2_block.hash;
@@ -337,20 +307,24 @@ async fn store_l1_batches(
         last_l2_block_hash = fictive_l2_block.hash;
         l2_block_number += 1;
 
-        let header = L1BatchHeader::new(
+        let mut header = L1BatchHeader::new(
             l1_batch_number,
             l2_block_number.0 as u64 - 2, // Matches the first L2 block in the batch
-            BaseSystemContractsHashes::default(),
+            genesis_params.base_system_contracts().hashes(),
             ProtocolVersionId::default(),
         );
-        let predicted_gas = BlockGasCount {
-            commit: 2,
-            prove: 3,
-            execute: 10,
-        };
-        conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
-            .await?;
+
+        // Conservatively assume that the bootloader / transactions touch *all* system contracts + default AA.
+        // By convention, bootloader hash isn't included into `used_contract_hashes`.
+        header.used_contract_hashes = genesis_params
+            .system_contracts()
+            .iter()
+            .map(|contract| hash_bytecode(&contract.bytecode))
+            .chain([genesis_params.base_system_contracts().hashes().default_aa])
+            .map(h256_to_u256)
+            .collect();
+
+        conn.blocks_dal().insert_mock_l1_batch(&header).await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
             .await?;
