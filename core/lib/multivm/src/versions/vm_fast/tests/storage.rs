@@ -3,7 +3,9 @@ use zksync_contracts::{load_contract, read_bytecode};
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    },
     vm_fast::tests::tester::VmTesterBuilder,
 };
 

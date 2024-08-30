@@ -4,7 +4,9 @@ use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    },
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 

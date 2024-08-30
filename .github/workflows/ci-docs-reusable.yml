@@ -20,13 +20,15 @@ jobs:
 
       - name: Start services
         run: |
-          mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+          run_retried docker compose pull zk
+          docker compose up -d zk
+      
+      - name: Build
+        run: |
+          ci_run ./bin/zkt
+          ci_run yarn install
+          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
-          ci_run zk
-          ci_run zk fmt md --check
-          ci_run zk lint md --check
-
+          ci_run zk_supervisor lint -t md --check

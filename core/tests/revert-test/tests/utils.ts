@@ -15,6 +15,7 @@ export function background({
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
+    console.log(`Run command ${command}`);
     return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
 
@@ -42,15 +43,25 @@ export function runServerInBackground({
     stdio,
     cwd,
     env,
-    useZkInception
+    useZkInception,
+    chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
+    chain?: string;
 }): ChildProcessWithoutNullStreams {
-    let command = useZkInception ? 'zk_inception server' : 'zk server';
+    let command = '';
+    if (useZkInception) {
+        command = 'zk_inception server';
+        if (chain) {
+            command += ` --chain ${chain}`;
+        }
+    } else {
+        command = 'zk server';
+    }
     return runInBackground({ command, components, stdio, cwd, env });
 }
 
@@ -59,15 +70,24 @@ export function runExternalNodeInBackground({
     stdio,
     cwd,
     env,
-    useZkInception
+    useZkInception,
+    chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
     useZkInception?: boolean;
+    chain?: string;
 }): ChildProcessWithoutNullStreams {
-    let command = useZkInception ? 'zk_inception external-node run' : 'zk external-node';
+    let command = '';
+    if (useZkInception) {
+        command = 'zk_inception external-node run';
+        command += chain ? ` --chain ${chain}` : '';
+    } else {
+        command = 'zk external-node';
+    }
+
     return runInBackground({ command, components, stdio, cwd, env });
 }
 
@@ -75,6 +95,7 @@ export function runExternalNodeInBackground({
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
 // returns { stdout, stderr }
 const promisified = promisify(_exec);
+
 export function exec(command: string, options: ProcessEnvOptions) {
     command = command.replace(/\n/g, ' ');
     return promisified(command, options);

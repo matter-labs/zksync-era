@@ -5,7 +5,7 @@ use zksync_test_account::TxType;
 use zksync_types::{utils::deployed_address_create, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     tracers::PrestateTracer,
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,

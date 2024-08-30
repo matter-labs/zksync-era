@@ -1,5 +1,5 @@
 use crate::{
-    interface::{storage::WriteStorage, VmInterface},
+    interface::storage::WriteStorage,
     vm_boojum_integration::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };

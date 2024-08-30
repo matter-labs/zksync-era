@@ -215,7 +215,7 @@ impl CommandReceiver {
         }
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
-        let gas_remaining = vm.gas_remaining();
+        let gas_remaining = tx_result.statistics.gas_remaining;
 
         Ok(TxExecutionResult::Success {
             tx_result: Box::new(tx_result),
@@ -281,11 +281,9 @@ impl CommandReceiver {
             vec![]
         };
 
-        if let (Ok(()), tx_result) =
+        if let (Ok(compressed_bytecodes), tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
-            let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-
             let calls = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
@@ -311,8 +309,8 @@ impl CommandReceiver {
 
         let (compression_result, tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
-        compression_result.context("compression failed when it wasn't applied")?;
-        let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+        let compressed_bytecodes =
+            compression_result.context("compression failed when it wasn't applied")?;
 
         // TODO implement tracer manager which will be responsible
         //   for collecting result from all tracers and save it to the database
@@ -341,10 +339,9 @@ impl CommandReceiver {
             vec![]
         };
 
-        let (published_bytecodes, mut tx_result) =
+        let (bytecodes_result, mut tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
-        if published_bytecodes.is_ok() {
-            let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+        if let Ok(compressed_bytecodes) = bytecodes_result {
             let calls = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
