@@ -4,8 +4,6 @@ mod middleware;
 mod processor;
 mod types;
 
-pub use crate::processor::Processor;
-
 use std::net::SocketAddr;
 
 use anyhow::Context;
@@ -20,6 +18,7 @@ use tokio::sync::watch;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
+pub use crate::processor::Processor;
 use crate::{
     metrics::{CallOutcome, Method},
     middleware::MetricsMiddleware,
