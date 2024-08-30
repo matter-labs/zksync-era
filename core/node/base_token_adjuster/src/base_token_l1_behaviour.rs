@@ -53,13 +53,13 @@ impl BaseTokenL1Behaviour {
         let prev_ratio = if let Some(prev_ratio) = last_persisted_l1_ratio {
             prev_ratio.clone()
         } else {
-            let prev_ratio = self.get_current_ratio_from_l1(l1_params).await?.clone();
+            let prev_ratio = self.get_current_ratio_from_l1(l1_params).await?;
             self.update_last_persisted_l1_ratio(prev_ratio.clone());
             tracing::info!(
                 "Fetched current base token ratio from the L1: {}",
                 prev_ratio.to_bigint().unwrap()
             );
-            prev_ratio.clone()
+            prev_ratio
         };
 
         let current_ratio = BigDecimal::from(new_ratio.numerator.get())
