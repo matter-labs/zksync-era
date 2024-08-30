@@ -656,9 +656,9 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         self.tracer = Default::default();
         self.inner.state.cycle_counts = Default::default();
+        self.inner.world_diff.storage_application_cycles = 0;
 
         let start = self.inner.world_diff.snapshot();
-        let storage_cycle_start = self.inner.world_diff.storage_application_cycles_snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
 
         let (result, refunds) = self.run(execution_mode, track_refunds);
@@ -721,10 +721,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             self.inner.state.cycle_counts.secp256v1_verify_cycles as u32;
         self.tracer.code_decommitter_cycles =
             self.inner.state.cycle_counts.code_decommitter_cycles as u32;
-        self.tracer.storage_application_cycles =
-            self.inner
-                .world_diff
-                .storage_application_cycles_after(&storage_cycle_start) as u32;
+        self.tracer.storage_application_cycles = self.inner.world_diff.storage_application_cycles;
 
         let circuit_statistic = self.tracer.circuit_statistic();
 
