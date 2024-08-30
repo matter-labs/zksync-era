@@ -38,15 +38,16 @@ pub(super) const MSG_ECOSYSTEM_CONFIG_INVALID_ERR: &str = "Invalid ecosystem con
 pub(super) const MSG_LINK_TO_CODE_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_LINK_TO_CODE_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_NOT_MAIN_REPO_OR_FORK_ERR: &str =
-    "It's not a zkSync Era main repository or fork";
+    "It's not a ZKsync Era main repository or fork";
 pub(super) const MSG_CONFIRM_STILL_USE_FOLDER: &str = "Do you still want to use this folder?";
 
 pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
-    format!("Path to zkSync Era repo does not exist: {path:?}")
+    format!("Path to ZKsync Era repo does not exist: {path:?}")
 }
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
+pub(super) const MSG_PORT_OFFSET_HELP: &str = "Add a costant offset to the ports exposed by the components. Useful when running multiple chains on the same machine";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
@@ -57,7 +58,7 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
-pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZkSync ecosystem config. \
+pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZKsync ecosystem config. \
 For using this config, you need to have governance wallet";
 pub(super) const MSG_L1_RPC_URL_INVALID_ERR: &str = "Invalid RPC URL";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path";
@@ -77,10 +78,16 @@ pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
+pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
+    "Token multiplier setter updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
+
+pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
+    format!("Not found preexisting ecosystem Contracts with chains {chains}")
+}
 
 pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
     format!("Initializing chain {chain_name}")
@@ -161,6 +168,8 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+/// Chain update related messages
+pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
 
 pub(super) fn msg_server_db_url_prompt(chain_name: &str) -> String {
     format!("Please provide server database url for chain {chain_name}")
@@ -217,6 +226,15 @@ pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
+/// Portal related messages
+pub(super) const MSG_PORTAL_CONFIG_IS_EMPTY_ERR: &str = "Hyperchains config is empty";
+pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
+pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run portal docker container";
+pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
+    format!("Starting portal on http://{host}:{port}")
+}
+
 /// Forge utils related messages
 pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
 
@@ -246,6 +264,7 @@ pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
 pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
@@ -342,8 +361,8 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
 /// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
-pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZkSync";
-pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZkSync updated successfully";
+pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";
+pub(super) const MSG_ZKSYNC_UPDATED: &str = "ZKsync updated successfully";
 pub(super) const MSG_PULLING_ZKSYNC_CODE_SPINNER: &str = "Pulling zksync-era repo...";
 pub(super) const MSG_UPDATING_SUBMODULES_SPINNER: &str = "Updating submodules...";
 pub(super) const MSG_DIFF_GENERAL_CONFIG: &str =

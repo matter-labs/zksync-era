@@ -244,11 +244,9 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             vec![]
         };
 
-        if let (Ok(()), tx_result) =
+        if let (Ok(compressed_bytecodes), tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
-            let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-
             let call_traces = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
@@ -257,7 +255,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 tx_result: Box::new(tx_result),
                 compressed_bytecodes,
                 call_traces,
-                gas_remaining: vm.gas_remaining(),
             });
         }
 
@@ -275,8 +272,8 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
 
         let (compression_result, tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
-        compression_result.context("compression failed when it wasn't applied")?;
-        let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+        let compressed_bytecodes =
+            compression_result.context("compression failed when it wasn't applied")?;
 
         // TODO implement tracer manager which will be responsible
         //   for collecting result from all tracers and save it to the database
@@ -288,7 +285,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,
             call_traces,
-            gas_remaining: vm.gas_remaining(),
         })
     }
 
@@ -306,10 +302,9 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             vec![]
         };
 
-        let (published_bytecodes, mut tx_result) =
+        let (bytecodes_result, mut tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
-        if published_bytecodes.is_ok() {
-            let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+        if let Ok(compressed_bytecodes) = bytecodes_result {
             let call_traces = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
@@ -318,7 +313,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 tx_result: Box::new(tx_result),
                 compressed_bytecodes,
                 call_traces,
-                gas_remaining: vm.gas_remaining(),
             })
         } else {
             // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
@@ -329,7 +323,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 tx_result: Box::new(tx_result),
                 compressed_bytecodes: vec![],
                 call_traces: vec![],
-                gas_remaining: vm.gas_remaining(),
             })
         }
     }

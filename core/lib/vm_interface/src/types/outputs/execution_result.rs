@@ -303,7 +303,6 @@ pub struct BatchTransactionExecutionResult {
     pub tx_result: Box<VmExecutionResultAndLogs>,
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     pub call_traces: Vec<Call>,
-    pub gas_remaining: u32,
 }
 
 impl BatchTransactionExecutionResult {

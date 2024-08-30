@@ -5,10 +5,7 @@ use zksync_types::{
     prover_dal::JobCountStatistics,
 };
 
-use crate::{
-    metrics::{JobStatus, PROVER_JOB_MONITOR_METRICS},
-    task_wiring::Task,
-};
+use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
 /// `WitnessGeneratorQueueReporter` is a task that reports witness generator jobs status.
 /// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
@@ -38,15 +35,15 @@ impl WitnessGeneratorQueueReporter {
             );
         }
 
-        PROVER_JOB_MONITOR_METRICS.witness_generator_jobs_by_round[&(
-            JobStatus::Queued,
-            round.to_string(),
+        SERVER_METRICS.witness_generator_jobs_by_round[&(
+            "queued",
+            format!("{:?}", round),
             protocol_version.to_string(),
         )]
             .set(stats.queued as u64);
-        PROVER_JOB_MONITOR_METRICS.witness_generator_jobs_by_round[&(
-            JobStatus::InProgress,
-            round.to_string(),
+        SERVER_METRICS.witness_generator_jobs_by_round[&(
+            "in_progress",
+            format!("{:?}", round),
             protocol_version.to_string(),
         )]
             .set(stats.in_progress as u64);

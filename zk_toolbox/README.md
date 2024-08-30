@@ -20,7 +20,7 @@ Install `zk_inception` from Git:
 cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor --force
 ```
 
-Or manually build from a local copy of the [ZkSync](https://github.com/matter-labs/zksync-era/) repository:
+Or manually build from a local copy of the [ZKsync](https://github.com/matter-labs/zksync-era/) repository:
 
 ```bash
 ./bin/zkt
@@ -37,7 +37,7 @@ Foundry is used for deploying smart contracts. Pass flags for Foundry integratio
 
 ZK Stack allows you to create a new ecosystem or connect to an existing one. An ecosystem includes components like the
 BridgeHub, shared bridges, and state transition managers.
-[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges.html).
+[Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges).
 
 #### Global Config
 
@@ -260,7 +260,7 @@ needed.
 
 ## ZK Supervisor
 
-Tools for developing zkSync.
+Tools for developing ZKsync.
 
 ### Database
 
@@ -296,7 +296,7 @@ Possible commands:
 
 ### Tests
 
-Run zkSync tests:
+Run ZKsync tests:
 
 ```bash
 zk_supervisor test
@@ -307,6 +307,10 @@ Possible commands:
 - `integration`: Run integration tests.
 - `revert`: Run revert tests.
 - `recovery`: Run recovery tests.
+- `upgrade`: Run upgrade tests.
+- `rust`: Run unit tests.
+- `l1-contracts`: Run L1 contracts tests.
+- `prover`: Run prover tests.
 
 ### Snapshot Commands
 
@@ -315,3 +319,35 @@ Create a snapshot of the current chain:
 ```bash
 zks snapshot create
 ```
+
+### Format
+
+Format code:
+
+```bash
+zks fmt
+```
+
+By default, this command runs all formatters. To run a specific fomatter use the following subcommands:
+
+- `rustfmt`: Runs `cargo fmt`.
+- `prettier`: Runs `prettier`.
+- `contract`: Runs `prettier` on contracts.
+
+### Lint
+
+Lint code:
+
+```bash
+zks lint
+```
+
+By default, this command runs the linter on all files. To target specific file types, use the `--target` option.
+Supported extensions include:
+
+- `rs`: Rust files.
+- `md`: Markdown files.
+- `sol`: Solidity files.
+- `js`: JavaScript files.
+- `ts`: TypeScript files.
+- `contracts`: files in `contracts` directory.

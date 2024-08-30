@@ -15,7 +15,7 @@ use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface,
+        VmInterface, VmInterfaceExt,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,

@@ -140,7 +140,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: vk_setup_data_generator_server_fri/data
+  setup_data_path: crates/bin/vk_setup_data_generator_server_fri/data
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
@@ -350,6 +350,8 @@ experimental_vm:
   playground:
     db_path: "./db/main/vm_playground"
     fast_vm_mode: SHADOW
+    first_processed_batch: 0
+    window_size: 1
 
 snapshot_recovery:
   enabled: false

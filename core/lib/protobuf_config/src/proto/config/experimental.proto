@@ -31,6 +31,7 @@ message VmPlayground {
   optional string db_path = 2; // optional; defaults to `./db/vm_playground`
   optional uint32 first_processed_batch = 3; // optional; defaults to 0
   optional bool reset = 4; // optional; defaults to false
+  optional uint32 window_size = 5; // optional; non-zero; defaults to 1
 }
 
 message Vm {

@@ -46,10 +46,10 @@ impl TxExecutionResult {
             ExecutionResult::Halt { reason } => Self::RejectedByVm { reason },
             _ => Self::Success {
                 tx_metrics: Box::new(ExecutionMetricsForCriteria::new(Some(tx), &res.tx_result)),
+                gas_remaining: res.tx_result.statistics.gas_remaining,
                 tx_result: res.tx_result,
                 compressed_bytecodes: res.compressed_bytecodes,
                 call_tracer_result: res.call_traces,
-                gas_remaining: res.gas_remaining,
             },
         }
     }

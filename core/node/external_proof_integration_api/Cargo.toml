@@ -11,13 +11,15 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-axum.workspace = true
+axum = { workspace = true, features = ["multipart"] }
+async-trait.workspace = true
 tracing.workspace = true
+thiserror.workspace = true
 zksync_prover_interface.workspace = true
 zksync_basic_types.workspace = true
-zksync_config.workspace = true
 zksync_object_store.workspace = true
 zksync_dal.workspace = true
 tokio.workspace = true
 bincode.workspace = true
 anyhow.workspace = true
+vise.workspace = true

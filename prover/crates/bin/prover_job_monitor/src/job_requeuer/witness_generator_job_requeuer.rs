@@ -4,7 +4,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::prover_dal::StuckJobs;
 
 use crate::{
-    metrics::{WitnessType, PROVER_JOB_MONITOR_METRICS},
+    metrics::{WitnessType, SERVER_METRICS},
     task_wiring::Task,
 };
 
@@ -29,8 +29,7 @@ impl WitnessGeneratorJobRequeuer {
         for stuck_job in stuck_jobs {
             tracing::info!("requeued {:?} {:?}", witness_type, stuck_job);
         }
-        PROVER_JOB_MONITOR_METRICS.requeued_witness_generator_jobs[&witness_type]
-            .inc_by(stuck_jobs.len() as u64);
+        SERVER_METRICS.requeued_jobs[&witness_type].inc_by(stuck_jobs.len() as u64);
     }
 
     async fn requeue_stuck_basic_jobs(&self, connection: &mut Connection<'_, Prover>) {
@@ -38,7 +37,7 @@ impl WitnessGeneratorJobRequeuer {
             .fri_witness_generator_dal()
             .requeue_stuck_basic_jobs(self.processing_timeouts.basic(), self.max_attempts)
             .await;
-        self.emit_telemetry(WitnessType::BasicWitnessGenerator, &stuck_jobs);
+        self.emit_telemetry(WitnessType::WitnessInputsFri, &stuck_jobs);
     }
 
     async fn requeue_stuck_leaf_jobs(&self, connection: &mut Connection<'_, Prover>) {
@@ -46,7 +45,7 @@ impl WitnessGeneratorJobRequeuer {
             .fri_witness_generator_dal()
             .requeue_stuck_leaf_jobs(self.processing_timeouts.leaf(), self.max_attempts)
             .await;
-        self.emit_telemetry(WitnessType::LeafWitnessGenerator, &stuck_jobs);
+        self.emit_telemetry(WitnessType::LeafAggregationJobsFri, &stuck_jobs);
     }
 
     async fn requeue_stuck_node_jobs(&self, connection: &mut Connection<'_, Prover>) {
@@ -54,7 +53,7 @@ impl WitnessGeneratorJobRequeuer {
             .fri_witness_generator_dal()
             .requeue_stuck_node_jobs(self.processing_timeouts.node(), self.max_attempts)
             .await;
-        self.emit_telemetry(WitnessType::NodeWitnessGenerator, &stuck_jobs);
+        self.emit_telemetry(WitnessType::NodeAggregationJobsFri, &stuck_jobs);
     }
 
     async fn requeue_stuck_recursion_tip_jobs(&self, connection: &mut Connection<'_, Prover>) {
@@ -65,7 +64,7 @@ impl WitnessGeneratorJobRequeuer {
                 self.max_attempts,
             )
             .await;
-        self.emit_telemetry(WitnessType::RecursionTipWitnessGenerator, &stuck_jobs);
+        self.emit_telemetry(WitnessType::RecursionTipJobsFri, &stuck_jobs);
     }
 
     async fn requeue_stuck_scheduler_jobs(&self, connection: &mut Connection<'_, Prover>) {
@@ -73,7 +72,7 @@ impl WitnessGeneratorJobRequeuer {
             .fri_witness_generator_dal()
             .requeue_stuck_scheduler_jobs(self.processing_timeouts.scheduler(), self.max_attempts)
             .await;
-        self.emit_telemetry(WitnessType::SchedulerWitnessGenerator, &stuck_jobs);
+        self.emit_telemetry(WitnessType::SchedulerJobsFri, &stuck_jobs);
     }
 }
 
