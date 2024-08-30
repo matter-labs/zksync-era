@@ -41,7 +41,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
 
     let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &setup_key_path, &chain_config)?;
 
