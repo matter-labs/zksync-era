@@ -52,12 +52,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
           ci_run run_retried rustup show
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
           ci_run ./bin/zkt
 
       - name: Contracts unit tests
