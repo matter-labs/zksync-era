@@ -77,6 +77,7 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             &governance_contract(),
             &chain_admin_contract(),
+            Box::new(eth_client.clone()),
             Box::new(eth_client),
             main_pool,
             self.eth_watch_config.poll_interval(),

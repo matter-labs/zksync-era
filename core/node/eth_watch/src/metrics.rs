@@ -7,7 +7,6 @@ use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum PollStage {
-    Request,
     PersistL1Txs,
     PersistUpgrades,
 }

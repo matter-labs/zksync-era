@@ -28,3 +28,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 zksync_concurrency.workspace = true
+test-log.workspace = true

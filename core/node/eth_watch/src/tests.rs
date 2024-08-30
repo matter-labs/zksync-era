@@ -13,7 +13,7 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     web3::{BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
-    ProtocolVersionId, Transaction, H256, U256,
+    ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
 use crate::{client::EthClient, EthWatch};
@@ -24,6 +24,8 @@ struct FakeEthClientData {
     diamond_upgrades: HashMap<u64, Vec<Log>>,
     governance_upgrades: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
+    chain_id: u64,
+    processed_priority_transactions_count: u64,
 }
 
 impl FakeEthClientData {
@@ -33,6 +35,8 @@ impl FakeEthClientData {
             diamond_upgrades: Default::default(),
             governance_upgrades: Default::default(),
             last_finalized_block_number: 0,
+            chain_id: 42,
+            processed_priority_transactions_count: 0,
         }
     }
 
@@ -43,6 +47,8 @@ impl FakeEthClientData {
                 .entry(eth_block.0 as u64)
                 .or_default()
                 .push(tx_into_log(transaction.clone()));
+            self.processed_priority_transactions_count =
+                self.processed_priority_transactions_count + 1;
         }
     }
 
@@ -57,6 +63,10 @@ impl FakeEthClientData {
 
     fn set_last_finalized_block_number(&mut self, number: u64) {
         self.last_finalized_block_number = number;
+    }
+
+    fn set_processed_priority_transactions_count(&mut self, number: u64) {
+        self.processed_priority_transactions_count = number;
     }
 }
 
@@ -105,6 +115,7 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
+        topic: H256,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
@@ -121,10 +132,11 @@ impl EthClient for MockEthClient {
                 logs.extend_from_slice(ops);
             }
         }
-        Ok(logs)
+        Ok(logs
+            .into_iter()
+            .filter(|log| log.topics.contains(&topic))
+            .collect())
     }
-
-    fn set_topics(&mut self, _topics: Vec<Hash>) {}
 
     async fn scheduler_vk_hash(
         &self,
@@ -142,6 +154,18 @@ impl EthClient for MockEthClient {
         _packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
         unimplemented!()
+    }
+
+    async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
+        Ok(self
+            .inner
+            .read()
+            .await
+            .processed_priority_transactions_count)
+    }
+
+    async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
+        Ok(self.inner.read().await.chain_id.into())
     }
 }
 
@@ -211,6 +235,7 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
         &governance_contract(),
         &chain_admin_contract(),
         Box::new(client.clone()),
+        Box::new(client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
@@ -221,7 +246,7 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
     (watcher, client)
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn test_normal_operation_l1_txs() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
@@ -260,7 +285,7 @@ async fn test_normal_operation_l1_txs() {
     assert_eq!(db_tx.common_data.serial_id.0, 2);
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
@@ -293,7 +318,7 @@ async fn test_gap_in_governance_upgrades() {
     assert_eq!(db_versions[1].minor, next_version);
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn test_normal_operation_governance_upgrades() {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -304,6 +329,7 @@ async fn test_normal_operation_governance_upgrades() {
         Address::default(),
         &governance_contract(),
         &chain_admin_contract(),
+        Box::new(client.clone()),
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
@@ -378,7 +404,7 @@ async fn test_normal_operation_governance_upgrades() {
     assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[should_panic]
 async fn test_gap_in_single_batch() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -399,7 +425,7 @@ async fn test_gap_in_single_batch() {
     watcher.loop_iteration(&mut storage).await.unwrap();
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 #[should_panic]
 async fn test_gap_between_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
@@ -427,7 +453,7 @@ async fn test_gap_between_batches() {
     watcher.loop_iteration(&mut storage).await.unwrap();
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn test_overlapping_batches() {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
