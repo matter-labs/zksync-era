@@ -178,7 +178,7 @@ impl BaseTokenL1Behaviour {
             .as_ref()
             .nonce_at_for_account(
                 l1_params.token_multiplier_setter_account_address,
-                BlockNumber::Pending,
+                BlockNumber::Latest,
             )
             .await
             .with_context(|| "failed getting transaction count")?
