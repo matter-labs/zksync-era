@@ -37,6 +37,69 @@ pub trait StorageLoader: 'static + Send + Sync + fmt::Debug {
     ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>>;
 }
 
+/// Simplified storage loader that always gets data from Postgres (i.e., doesn't do RocksDB caching).
+#[derive(Debug)]
+pub(crate) struct PostgresLoader {
+    pool: ConnectionPool<Core>,
+    l1_batch_params_provider: L1BatchParamsProvider,
+    chain_id: L2ChainId,
+    shadow_snapshots: bool,
+}
+
+impl PostgresLoader {
+    pub async fn new(pool: ConnectionPool<Core>, chain_id: L2ChainId) -> anyhow::Result<Self> {
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        let mut conn = pool.connection().await?;
+        l1_batch_params_provider.initialize(&mut conn).await?;
+        Ok(Self {
+            pool,
+            l1_batch_params_provider,
+            chain_id,
+            shadow_snapshots: true,
+        })
+    }
+
+    /// Enables or disables snapshot storage shadowing.
+    pub fn shadow_snapshots(&mut self, shadow_snapshots: bool) {
+        self.shadow_snapshots = shadow_snapshots;
+    }
+}
+
+#[async_trait]
+impl StorageLoader for PostgresLoader {
+    #[tracing::instrument(skip_all, l1_batch_number = l1_batch_number.0)]
+    async fn load_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
+        let mut conn = self.pool.connection().await?;
+        let Some(data) = load_batch_execute_data(
+            &mut conn,
+            l1_batch_number,
+            &self.l1_batch_params_provider,
+            self.chain_id,
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        if let Some(snapshot) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
+            let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+            let storage = snapshot.with_fallback(postgres, self.shadow_snapshots);
+            let storage = OwnedStorage::from(storage);
+            return Ok(Some((data, storage)));
+        }
+
+        tracing::info!(
+            "Incomplete data to create storage snapshot for batch; will use sequential storage"
+        );
+        let conn = self.pool.connection().await?;
+        let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
+        Ok(Some((data, storage.into())))
+    }
+}
+
 /// Data needed to execute an L1 batch.
 #[derive(Debug, Clone)]
 pub struct BatchExecuteData {
@@ -142,7 +205,7 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
 
             return Ok(if let Some(data) = batch_data {
                 let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-                Some((data, storage))
+                Some((data, storage.into()))
             } else {
                 None
             });
