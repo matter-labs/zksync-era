@@ -221,8 +221,8 @@ testFees('Test fees', () => {
                 newL1GasPrice: l1GasPrice.toString(),
                 newPubdataPrice: l1GasPrice.toString(),
                 customBaseToken: true,
-                forcedBaseTokenPriceNumerator: 271,
-                forcedBaseTokenPriceDenumerator: 100
+                forcedBaseTokenRatioNumerator: 271,
+                forcedBaseTokenRatioDenumerator: 100
             });
 
             const receipt2 = await (
@@ -235,6 +235,63 @@ testFees('Test fees', () => {
             const expectedCustomGasPrice = expectedETHGasPrice * 2.71;
             expect(receipt2.gasPrice).toBe(BigInt(expectedCustomGasPrice));
         }
+    });
+
+    test('Test base token ratio fluctuations', async () => {
+        const receiver = ethers.Wallet.createRandom().address;
+        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
+        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+
+        if (isETHBasedChain) return;
+
+        await setInternalL1GasPrice(alice._providerL2(), {
+            newL1GasPrice: l1GasPrice.toString(),
+            newPubdataPrice: l1GasPrice.toString(),
+            customBaseToken: true,
+            forcedBaseTokenRatioNumerator: 300,
+            forcedBaseTokenRatioDenumerator: 100,
+            forcedBaseTokenRatioFluctuationsAmplitude: 20,
+            forcedBaseTokenRatioFluctuationsFrequencyMs: 1000
+        });
+
+        const beginFeeParams = await alice._providerL2().getFeeParams();
+        const mainContract = await alice.getMainContract();
+        const beginL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
+        let changedL2 = false;
+        let changedL1 = false;
+        for (let i = 0; i < 20; i++) {
+            await utils.sleep(0.5);
+            const newFeeParams = await alice._providerL2().getFeeParams();
+            // we need ts-ignore as FeeParams is missing existing conversion_ratio field
+            // @ts-ignore
+            if (
+                (newFeeParams.V2['conversion_ratio'].numerator as number) !=
+                (beginFeeParams.V2['conversion_ratio'].numerator as number)
+            ) {
+                // @ts-ignore
+                const diff =
+                    newFeeParams.V2['conversion_ratio'].numerator - beginFeeParams.V2['conversion_ratio'].numerator;
+                expect(diff).toBeLessThan(25); //25 = 25%*100
+                expect(diff).toBeGreaterThan(-25);
+                changedL2 = true;
+                break;
+            }
+        }
+        expect(changedL2).toBeTruthy();
+        for (let i = 0; i < 20; i++) {
+            const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
+            if (newL1Nominator != beginL1Nominator) {
+                const diff = newL1Nominator - beginL1Nominator;
+                expect(diff).toBeLessThan(25); //25 = 25%*100
+                expect(diff).toBeGreaterThan(-25);
+                changedL1 = true;
+                break;
+            }
+            await utils.sleep(0.5);
+        }
+
+        expect(changedL1).toBeTruthy();
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
@@ -395,8 +452,10 @@ async function setInternalL1GasPrice(
         newL1GasPrice?: string;
         newPubdataPrice?: string;
         customBaseToken?: boolean;
-        forcedBaseTokenPriceNumerator?: number;
-        forcedBaseTokenPriceDenumerator?: number;
+        forcedBaseTokenRatioNumerator?: number;
+        forcedBaseTokenRatioDenumerator?: number;
+        forcedBaseTokenRatioFluctuationsAmplitude?: number;
+        forcedBaseTokenRatioFluctuationsFrequencyMs?: number;
         disconnect?: boolean;
     }
 ) {
@@ -425,12 +484,21 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    if (options.forcedBaseTokenPriceNumerator) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenPriceNumerator} ${command}`;
+    if (options.forcedBaseTokenRatioNumerator) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenRatioNumerator} ${command}`;
     }
 
-    if (options.forcedBaseTokenPriceDenumerator) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenPriceDenumerator} ${command}`;
+    if (options.forcedBaseTokenRatioDenumerator) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenRatioDenumerator} ${command}`;
+    }
+
+    if (options.forcedBaseTokenRatioFluctuationsAmplitude) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=${options.forcedBaseTokenRatioFluctuationsAmplitude} ${command}`;
+    }
+
+    if (options.forcedBaseTokenRatioFluctuationsFrequencyMs) {
+        const cacheUpdateInterval = options.forcedBaseTokenRatioFluctuationsFrequencyMs / 2;
+        command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
     }
 
     const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
