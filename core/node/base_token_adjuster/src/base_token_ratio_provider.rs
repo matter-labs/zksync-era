@@ -48,13 +48,13 @@ impl DBBaseTokenRatioProvider {
         let mut timer = tokio::time::interval(self.config.price_cache_update_interval());
 
         while !*stop_receiver.borrow_and_update() {
-            // TODO(PE-129): Implement latest ratio usability logic.
-            self.update_latest_price().await?;
-
             tokio::select! {
                 _ = timer.tick() => { /* continue iterations */ }
                 _ = stop_receiver.changed() => break,
             }
+
+            // TODO(PE-129): Implement latest ratio usability logic.
+            self.update_latest_price().await?;
         }
 
         tracing::info!("Stop signal received, base_token_ratio_provider is shutting down");
