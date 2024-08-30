@@ -8,10 +8,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    consts::{
-        EXPLORER_BACKEND_DOCKER_COMPOSE_FILE, EXPLORER_DOCKER_COMPOSE_FILE, LOCAL_APPS_PATH,
-        LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH,
-    },
+    apps::AppsChainExplorerConfig,
+    consts::{EXPLORER_DOCKER_COMPOSE_FILE, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH},
     docker_compose::{DockerComposeConfig, DockerComposeService},
     traits::ZkToolboxConfig,
 };
@@ -24,36 +22,21 @@ pub struct ExplorerComposeConfig {
     pub docker_compose: DockerComposeConfig,
 }
 
-/// Chain-level explorer backend docker compose file. This file is created when the explorer is
-/// initialized for the chain. It contains the configuration for the chain explorer backend
-/// services and serves as a building block for the main explorer docker compose file.
+impl ZkToolboxConfig for ExplorerComposeConfig {}
+
+/// Chain-level explorer backend docker compose config. It contains the configuration for
+/// api, data fetcher, and worker services. This configs is generated during "explorer" command
+/// and serves as a building block for the main explorer
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExplorerBackendComposeConfig {
     #[serde(flatten)]
     pub docker_compose: DockerComposeConfig,
 }
 
-impl ZkToolboxConfig for ExplorerComposeConfig {}
-impl ZkToolboxConfig for ExplorerBackendComposeConfig {}
-
 #[derive(Debug, Clone)]
 pub struct ExplorerAppServiceConfig {
     pub port: u16,
     pub config_path: PathBuf,
-}
-
-#[derive(Debug, Clone)]
-pub struct ExplorerBackendServiceConfig {
-    pub db_url: String,
-    pub l2_rpc_url: String,
-    pub service_ports: ExplorerBackendServicePorts,
-}
-
-#[derive(Debug, Clone)]
-pub struct ExplorerBackendServicePorts {
-    pub api_port: u16,
-    pub data_fetcher_port: u16,
-    pub worker_port: u16,
 }
 
 impl ExplorerComposeConfig {
@@ -113,11 +96,15 @@ impl ExplorerComposeConfig {
 }
 
 impl ExplorerBackendComposeConfig {
-    pub fn new(chain_name: &str, config: ExplorerBackendServiceConfig) -> anyhow::Result<Self> {
-        let config = config.adjust_for_docker()?;
+    pub fn new(
+        chain_name: &str,
+        l2_rpc_url: Url,
+        config: &AppsChainExplorerConfig,
+    ) -> anyhow::Result<Self> {
+        let db_url = DockerComposeConfig::adjust_host_for_docker(config.database_url.clone())?;
+        let l2_rpc_url = DockerComposeConfig::adjust_host_for_docker(l2_rpc_url)?;
 
         // Parse database URL
-        let db_url = Url::parse(&config.db_url).context("Failed to parse database URL")?;
         let db_host = db_url
             .host_str()
             .context("Failed to parse database URL: no host")?
@@ -132,26 +119,31 @@ impl ExplorerBackendComposeConfig {
         let mut services: HashMap<String, DockerComposeService> = HashMap::new();
         services.insert(
             format!("explorer-api-{}", chain_name),
-            Self::create_api_service(chain_name, config.service_ports.api_port, &config.db_url),
+            Self::create_api_service(
+                chain_name,
+                config.services.api_http_port,
+                &db_url.to_string(),
+            ),
         );
         services.insert(
             format!("explorer-data-fetcher-{}", chain_name),
             Self::create_data_fetcher_service(
-                config.service_ports.data_fetcher_port,
-                &config.l2_rpc_url,
+                config.services.data_fetcher_http_port,
+                &l2_rpc_url.to_string(),
             ),
         );
         services.insert(
             format!("explorer-worker-{}", chain_name),
             Self::create_worker_service(
                 chain_name,
-                config.service_ports.worker_port,
-                config.service_ports.data_fetcher_port,
-                &config.l2_rpc_url,
+                config.services.worker_http_port,
+                config.services.data_fetcher_http_port,
+                &l2_rpc_url.to_string(),
                 &db_host,
                 &db_user,
                 &db_password,
                 &db_name,
+                config.services.get_batches_processing_polling_interval(),
             ),
         );
 
@@ -205,6 +197,7 @@ impl ExplorerBackendComposeConfig {
         db_user: &str,
         db_password: &str,
         db_name: &str,
+        batches_processing_polling_interval: u64,
     ) -> DockerComposeService {
         let data_fetcher_url = format!(
             "http://explorer-data-fetcher-{}:{}",
@@ -229,57 +222,10 @@ impl ExplorerBackendComposeConfig {
                 ("DATA_FETCHER_URL".to_string(), data_fetcher_url),
                 (
                     "BATCHES_PROCESSING_POLLING_INTERVAL".to_string(),
-                    "1000".to_string(),
+                    batches_processing_polling_interval.to_string(),
                 ),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
         }
-    }
-
-    pub fn get_config_path(ecosystem_base_path: &Path, chain_name: &str) -> PathBuf {
-        ecosystem_base_path
-            .join(LOCAL_CHAINS_PATH)
-            .join(chain_name)
-            .join(LOCAL_CONFIGS_PATH)
-            .join(LOCAL_APPS_PATH)
-            .join(EXPLORER_BACKEND_DOCKER_COMPOSE_FILE)
-    }
-}
-
-impl ExplorerBackendServiceConfig {
-    fn is_localhost(host: &str) -> bool {
-        host == "localhost" || host == "127.0.0.1" || host == "[::1]"
-    }
-
-    pub fn adjust_for_docker(&self) -> anyhow::Result<Self> {
-        // Parse database URL
-        let mut db_url = Url::parse(&self.db_url).context("Failed to parse database URL")?;
-        let db_host = db_url
-            .host_str()
-            .context("Failed to parse database URL: no host")?
-            .to_string();
-
-        // Replace localhost with host.docker.internal for database URL
-        if Self::is_localhost(&db_host) {
-            db_url.set_host(Some("host.docker.internal"))?;
-        }
-
-        // Parse L2 RPC URL
-        let mut l2_rpc_url = Url::parse(&self.l2_rpc_url).context("Failed to parse L2 RPC URL")?;
-        let l2_host = l2_rpc_url
-            .host_str()
-            .context("Failed to parse L2 RPC URL: no host")?
-            .to_string();
-
-        // Replace localhost with host.docker.internal for L2 RPC URL
-        if Self::is_localhost(&l2_host) {
-            l2_rpc_url.set_host(Some("host.docker.internal"))?;
-        }
-
-        Ok(Self {
-            db_url: db_url.to_string(),
-            l2_rpc_url: l2_rpc_url.to_string(),
-            service_ports: self.service_ports.clone(),
-        })
     }
 }

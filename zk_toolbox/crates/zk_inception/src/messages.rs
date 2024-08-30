@@ -244,6 +244,8 @@ pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
 }
 
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR: &str =
+    "Failed to allocate ports for explorer services";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {

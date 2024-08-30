@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-async fn create_portal_chain_config(
+async fn build_portal_chain_config(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
@@ -84,17 +84,17 @@ async fn create_portal_chain_config(
     })
 }
 
-pub async fn create_and_save_portal_chain_config(
+pub async fn create_portal_chain_config(
     chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<PortalChainConfig> {
-    let portal_config = create_portal_chain_config(chain_config).await?;
+    let portal_config = build_portal_chain_config(chain_config).await?;
     let config_path = PortalChainConfig::get_config_path(&shell.current_dir(), &chain_config.name);
     portal_config.save(shell, config_path)?;
     Ok(portal_config)
 }
 
-async fn create_portal_runtime_config(
+async fn build_portal_runtime_config(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     chain_names: Vec<String>,
@@ -108,7 +108,7 @@ async fn create_portal_runtime_config(
         let portal_chain_config = match PortalChainConfig::read(shell, &config_path) {
             Ok(config) => Some(config),
             Err(_) => match ecosystem_config.load_chain(Some(chain_name.clone())) {
-                Some(chain_config) => match create_portal_chain_config(&chain_config).await {
+                Some(chain_config) => match build_portal_chain_config(&chain_config).await {
                     Ok(config) => Some(config),
                     Err(_) => None,
                 },
@@ -137,7 +137,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         .unwrap_or_else(|| ecosystem_config.list_of_chains());
 
     // Generate portal runtime config
-    let runtime_config = create_portal_runtime_config(shell, &ecosystem_config, chains_enabled)
+    let runtime_config = build_portal_runtime_config(shell, &ecosystem_config, chains_enabled)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
     let config_path = PortalRuntimeConfig::get_config_path(&shell.current_dir());

@@ -6,11 +6,12 @@ use crate::cmd::Cmd;
 
 pub fn up(shell: &Shell, docker_compose_file: &str, detach: bool) -> anyhow::Result<()> {
     let args = if detach { vec!["-d"] } else { vec![] };
-    Ok(Cmd::new(cmd!(
+    let mut cmd = Cmd::new(cmd!(
         shell,
         "docker compose -f {docker_compose_file} up {args...}"
-    ))
-    .run()?)
+    ));
+    cmd = if !detach { cmd.with_force_run() } else { cmd };
+    Ok(cmd.run()?)
 }
 
 pub fn down(shell: &Shell, docker_compose_file: &str) -> anyhow::Result<()> {

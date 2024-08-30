@@ -1,21 +1,32 @@
 use std::{
     collections::{HashMap, HashSet},
     fs,
+    ops::Range,
     path::Path,
 };
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+use common::logger;
 use serde_yaml::Value;
 
 #[derive(Debug, Clone)]
 pub struct PortInfo {
-    pub file_name: String,
-    pub key_path: String,
+    pub description: String,
 }
 
 impl PortInfo {
-    pub fn to_string(&self) -> String {
-        format!("[{}] {}", self.file_name, self.key_path)
+    pub fn new(description: String) -> Self {
+        Self { description }
+    }
+
+    pub fn from_config(file_path: &Path, key_path: String) -> Self {
+        Self {
+            description: format!("[{}] {}", file_path.display(), key_path),
+        }
+    }
+
+    pub fn dynamically_allocated() -> Self {
+        Self::new("Dynamically allocated".to_string())
     }
 }
 
@@ -26,16 +37,18 @@ pub struct EcosystemPorts {
 impl EcosystemPorts {
     pub fn new() -> Self {
         Self {
-            ports: HashMap::new(),
+            ports: HashMap::from([
+                (3000, vec![PortInfo::new("Observability".to_string())]),
+                (
+                    3052,
+                    vec![PortInfo::new("External node gateway".to_string())],
+                ),
+            ]),
         }
     }
 
     pub fn get_assigned_ports(&self) -> HashSet<u16> {
         self.ports.keys().cloned().collect()
-    }
-
-    pub fn get_port_info(&self, port: u16) -> Option<&Vec<PortInfo>> {
-        self.ports.get(&port)
     }
 
     pub fn is_port_assigned(&self, port: u16) -> bool {
@@ -46,12 +59,57 @@ impl EcosystemPorts {
         self.ports.entry(port).or_insert_with(Vec::new).push(info);
     }
 
+    pub fn allocate_port(&mut self, range: Range<u16>) -> Result<u16> {
+        for port in range {
+            if !self.is_port_assigned(port) {
+                self.add_port_info(port, PortInfo::dynamically_allocated());
+                return Ok(port);
+            }
+        }
+        anyhow::bail!("No available ports in the given range")
+    }
+
+    /// Allocates a set of ports based on given base ports, incrementing by offset if needed.
+    /// Tries base ports first, then base + offset, base + 2*offset, etc., until finding
+    /// available ports or exceeding the range. Returns allocated ports or an error if
+    /// no suitable ports are found.
+    pub fn allocate_ports(
+        &mut self,
+        base_ports: &[u16],
+        range: Range<u16>,
+        offset: u16,
+    ) -> Result<Vec<u16>> {
+        let mut i = 0;
+        loop {
+            let candidate_ports: Vec<u16> =
+                base_ports.iter().map(|&port| port + i * offset).collect();
+
+            // Check if all candidate ports are within the range
+            if candidate_ports.iter().any(|&port| !range.contains(&port)) {
+                anyhow::bail!("No suitable ports found within the given range");
+            }
+
+            // Check if all candidate ports are available
+            if candidate_ports
+                .iter()
+                .all(|&port| !self.is_port_assigned(port))
+            {
+                // Allocate all ports
+                for &port in &candidate_ports {
+                    self.add_port_info(port, PortInfo::dynamically_allocated());
+                }
+                return Ok(candidate_ports);
+            }
+            i += 1;
+        }
+    }
+
     pub fn print(&self) {
         let mut port_vec: Vec<_> = self.ports.iter().collect();
         port_vec.sort_by_key(|&(key, _)| key);
         for (port, port_infos) in port_vec {
             for port_info in port_infos {
-                println!("{} > {}", port_info.to_string(), port);
+                println!("{} > {}", port_info.description, port);
             }
         }
     }
@@ -60,10 +118,11 @@ impl EcosystemPorts {
 pub struct EcosystemPortsScanner {}
 
 impl EcosystemPortsScanner {
-    /// Scans the ecosystem directory for YAML files and extracts port information
-    /// Does not work with docker files
+    /// Scans the ecosystem directory for YAML files and extracts port information.
+    /// Specifically, it looks for keys ending with "port" and collects their values.
+    /// Note: Port information from Docker Compose files will not be picked up by this method.
     pub fn scan(ecosystem_dir: &Path) -> Result<EcosystemPorts> {
-        let skip_dirs: HashSet<&str> = vec!["db", "target", "volumes"].into_iter().collect();
+        let skip_dirs: HashSet<&str> = vec!["db", "volumes"].into_iter().collect();
 
         let mut ecosystem_ports = EcosystemPorts::new();
 
@@ -72,7 +131,7 @@ impl EcosystemPortsScanner {
             let dir = ecosystem_dir.join(subdir);
             if dir.is_dir() {
                 if let Err(e) = Self::scan_directory(&dir, &mut ecosystem_ports, &skip_dirs) {
-                    eprintln!("Error scanning directory {:?}: {}", dir, e);
+                    logger::warn(format!("Error scanning directory {:?}: {}", dir, e));
                 }
             }
         }
@@ -91,19 +150,14 @@ impl EcosystemPortsScanner {
             }
         }
 
-        for entry in fs::read_dir(dir).context("Failed to read directory")? {
-            let entry = entry.context("Failed to read directory entry")?;
-            let path = entry.path();
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
             if path.is_dir() {
-                if let Err(e) = Self::scan_directory(&path, ecosystem_ports, skip_dirs) {
-                    eprintln!("Error scanning directory {:?}: {}", path, e);
-                }
+                let _ = Self::scan_directory(&path, ecosystem_ports, skip_dirs);
             } else if path.is_file() {
                 if let Some(extension) = path.extension() {
                     if extension == "yaml" || extension == "yml" {
-                        if let Err(e) = Self::process_yaml_file(&path, ecosystem_ports) {
-                            eprintln!("Error processing file {:?}: {}", path, e);
-                        }
+                        let _ = Self::process_yaml_file(&path, ecosystem_ports);
                     }
                 }
             }
@@ -112,10 +166,8 @@ impl EcosystemPortsScanner {
     }
 
     fn process_yaml_file(file_path: &Path, ecosystem_ports: &mut EcosystemPorts) -> Result<()> {
-        let contents = fs::read_to_string(file_path)
-            .with_context(|| format!("Failed to read file: {:?}", file_path))?;
-        let value: Value = serde_yaml::from_str(&contents)
-            .with_context(|| format!("Failed to parse YAML in file: {:?}", file_path))?;
+        let contents = fs::read_to_string(file_path)?;
+        let value: Value = serde_yaml::from_str(&contents)?;
         Self::traverse_yaml(&value, "", file_path, ecosystem_ports);
         Ok(())
     }
@@ -139,10 +191,7 @@ impl EcosystemPortsScanner {
                         if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
                             ecosystem_ports.add_port_info(
                                 port,
-                                PortInfo {
-                                    file_name: file_path.to_string_lossy().into_owned(),
-                                    key_path: new_path.clone(),
-                                },
+                                PortInfo::from_config(file_path, new_path.clone()),
                             );
                         }
                     }

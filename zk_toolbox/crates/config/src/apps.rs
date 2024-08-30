@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 use xshell::Shell;
 
 use crate::{
-    consts::{APPS_CONFIG_FILE, LOCAL_CONFIGS_PATH},
+    consts::{APPS_CONFIG_FILE, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
 };
 
@@ -30,6 +31,28 @@ impl ZkToolboxConfig for AppsEcosystemConfig {}
 impl FileConfigWithDefaultName for AppsEcosystemConfig {
     const FILE_NAME: &'static str = APPS_CONFIG_FILE;
 }
+
+/// Chain level configuration for the apps.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppsChainConfig {
+    pub explorer: AppsChainExplorerConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppsChainExplorerConfig {
+    pub database_url: Url,
+    pub services: ExplorerServicesConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExplorerServicesConfig {
+    pub api_http_port: u16,
+    pub data_fetcher_http_port: u16,
+    pub worker_http_port: u16,
+    pub batches_processing_polling_interval: Option<u64>,
+}
+
+impl ZkToolboxConfig for AppsChainConfig {}
 
 impl AppsEcosystemConfig {
     pub fn default() -> Self {
@@ -63,5 +86,32 @@ impl AppsEcosystemConfig {
                 Ok(config)
             }
         }
+    }
+}
+
+impl AppsChainConfig {
+    pub fn new(explorer: AppsChainExplorerConfig) -> Self {
+        AppsChainConfig { explorer }
+    }
+
+    pub fn get_config_path(ecosystem_base_path: &Path, chain_name: &str) -> PathBuf {
+        ecosystem_base_path
+            .join(LOCAL_CHAINS_PATH)
+            .join(chain_name)
+            .join(LOCAL_CONFIGS_PATH)
+            .join(APPS_CONFIG_FILE)
+    }
+}
+
+impl ExplorerServicesConfig {
+    pub fn get_batches_processing_polling_interval(&self) -> u64 {
+        self.batches_processing_polling_interval
+            .unwrap_or_else(|| 1000)
+    }
+
+    pub fn with_defaults(mut self) -> Self {
+        self.batches_processing_polling_interval =
+            Some(self.get_batches_processing_polling_interval());
+        self
     }
 }
