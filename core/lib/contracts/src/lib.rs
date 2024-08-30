@@ -16,10 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_config::configs::{
-    house_keeper::HouseKeeperConfig,
-    use_evm_simulator::{self, UseEvmSimulator},
-};
+use zksync_config::configs::use_evm_simulator::UseEvmSimulator;
 use zksync_env_config::FromEnv;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
 
