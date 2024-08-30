@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
+use common::docker::adjust_localhost_for_docker;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -25,8 +26,8 @@ pub struct ExplorerComposeConfig {
 impl ZkToolboxConfig for ExplorerComposeConfig {}
 
 /// Chain-level explorer backend docker compose config. It contains the configuration for
-/// api, data fetcher, and worker services. This configs is generated during "explorer" command
-/// and serves as a building block for the main explorer
+/// api, data fetcher, and worker services. This config is generated during "explorer" command
+/// and serves as a building block for the main explorer docker compose file.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExplorerBackendComposeConfig {
     #[serde(flatten)]
@@ -101,8 +102,8 @@ impl ExplorerBackendComposeConfig {
         l2_rpc_url: Url,
         config: &AppsChainExplorerConfig,
     ) -> anyhow::Result<Self> {
-        let db_url = DockerComposeConfig::adjust_host_for_docker(config.database_url.clone())?;
-        let l2_rpc_url = DockerComposeConfig::adjust_host_for_docker(l2_rpc_url)?;
+        let db_url = adjust_localhost_for_docker(config.database_url.clone())?;
+        let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
 
         // Parse database URL
         let db_host = db_url
@@ -122,14 +123,14 @@ impl ExplorerBackendComposeConfig {
             Self::create_api_service(
                 chain_name,
                 config.services.api_http_port,
-                &db_url.to_string(),
+                db_url.as_ref(),
             ),
         );
         services.insert(
             format!("explorer-data-fetcher-{}", chain_name),
             Self::create_data_fetcher_service(
                 config.services.data_fetcher_http_port,
-                &l2_rpc_url.to_string(),
+                l2_rpc_url.as_ref(),
             ),
         );
         services.insert(
@@ -138,7 +139,7 @@ impl ExplorerBackendComposeConfig {
                 chain_name,
                 config.services.worker_http_port,
                 config.services.data_fetcher_http_port,
-                &l2_rpc_url.to_string(),
+                l2_rpc_url.as_ref(),
                 &db_host,
                 &db_user,
                 &db_password,

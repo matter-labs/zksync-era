@@ -48,8 +48,6 @@ pub const EXPLORER_RUNTIME_CONFIG_FILE: &str = "explorer.config.js";
 pub const EXPLORER_CHAIN_CONFIG_FILE: &str = "explorer.config.json";
 /// Name of explorer docker compose file (auto-generated)
 pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
-/// Name of chain-level explorer backend docker compose file
-pub const EXPLORER_BACKEND_DOCKER_COMPOSE_FILE: &str = "explorer-backend-docker-compose.yml";
 
 /// Path to ecosystem contacts
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";

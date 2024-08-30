@@ -55,21 +55,6 @@ pub struct ExplorerServicesConfig {
 impl ZkToolboxConfig for AppsChainConfig {}
 
 impl AppsEcosystemConfig {
-    pub fn default() -> Self {
-        AppsEcosystemConfig {
-            portal: AppEcosystemConfig {
-                http_port: DEFAULT_PORTAL_PORT,
-                http_url: format!("http://127.0.0.1:{}", DEFAULT_PORTAL_PORT),
-                chains_enabled: None,
-            },
-            explorer: AppEcosystemConfig {
-                http_port: DEFAULT_EXPLORER_PORT,
-                http_url: format!("http://127.0.0.1:{}", DEFAULT_EXPLORER_PORT),
-                chains_enabled: None,
-            },
-        }
-    }
-
     pub fn get_config_path(ecosystem_base_path: &Path) -> PathBuf {
         ecosystem_base_path
             .join(LOCAL_CONFIGS_PATH)
@@ -85,6 +70,23 @@ impl AppsEcosystemConfig {
                 config.save(shell, &config_path)?;
                 Ok(config)
             }
+        }
+    }
+}
+
+impl Default for AppsEcosystemConfig {
+    fn default() -> Self {
+        AppsEcosystemConfig {
+            portal: AppEcosystemConfig {
+                http_port: DEFAULT_PORTAL_PORT,
+                http_url: format!("http://127.0.0.1:{}", DEFAULT_PORTAL_PORT),
+                chains_enabled: None,
+            },
+            explorer: AppEcosystemConfig {
+                http_port: DEFAULT_EXPLORER_PORT,
+                http_url: format!("http://127.0.0.1:{}", DEFAULT_EXPLORER_PORT),
+                chains_enabled: None,
+            },
         }
     }
 }
@@ -106,7 +108,7 @@ impl AppsChainConfig {
 impl ExplorerServicesConfig {
     pub fn get_batches_processing_polling_interval(&self) -> u64 {
         self.batches_processing_polling_interval
-            .unwrap_or_else(|| 1000)
+            .unwrap_or(1000)
     }
 
     pub fn with_defaults(mut self) -> Self {

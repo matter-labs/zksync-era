@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use url::Url;
 use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
@@ -29,4 +30,15 @@ pub fn run(
         args.push(value);
     }
     Ok(Cmd::new(cmd!(shell, "docker run {args...} {docker_image}")).run()?)
+}
+
+pub fn adjust_localhost_for_docker(mut url: Url) -> anyhow::Result<Url> {
+    if let Some(host) = url.host_str() {
+        if host == "localhost" || host == "127.0.0.1" {
+            url.set_host(Some("host.docker.internal"))?;
+        }
+    } else {
+        anyhow::bail!("Failed to parse: no host");
+    }
+    Ok(url)
 }
