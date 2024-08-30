@@ -29,6 +29,7 @@ mod genesis;
 mod prover_job_monitor;
 #[cfg(test)]
 mod test_utils;
+mod use_evm_simulator;
 mod vm_runner;
 mod wallets;
 
