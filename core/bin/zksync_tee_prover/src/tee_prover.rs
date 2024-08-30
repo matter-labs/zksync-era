@@ -1,6 +1,6 @@
 use std::fmt;
 
-use secp256k1::{ecdsa::Signature, Message};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
 use zksync_basic_types::H256;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -62,7 +62,6 @@ impl fmt::Debug for TeeProver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TeeProver")
             .field("config", &self.config)
-            .field("public_key", &self.config.public_key)
             .finish()
     }
 }
@@ -90,7 +89,7 @@ impl TeeProver {
         }
     }
 
-    async fn step(&self) -> Result<Option<L1BatchNumber>, TeeProverError> {
+    async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job(self.config.tee_type).await? {
             Some(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
@@ -98,7 +97,7 @@ impl TeeProver {
                     .submit_proof(
                         batch_number,
                         signature,
-                        &self.config.public_key,
+                        public_key,
                         root_hash,
                         self.config.tee_type,
                     )
@@ -122,13 +121,15 @@ impl Task for TeeProver {
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
-        let attestation_quote_bytes = std::fs::read(&self.config.attestation_quote_file_path)?;
+        let config = &self.config;
+        let attestation_quote_bytes = std::fs::read(&config.attestation_quote_file_path)?;
+        let public_key = config.signing_key.public_key(&Secp256k1::new());
         self.api_client
-            .register_attestation(attestation_quote_bytes, &self.config.public_key)
+            .register_attestation(attestation_quote_bytes, &public_key)
             .await?;
 
         let mut retries = 1;
-        let mut backoff = self.config.initial_retry_backoff;
+        let mut backoff = config.initial_retry_backoff;
         let mut observer = METRICS.job_waiting_time.start();
 
         loop {
@@ -136,11 +137,11 @@ impl Task for TeeProver {
                 tracing::info!("Stop signal received, shutting down TEE Prover component");
                 return Ok(());
             }
-            let result = self.step().await;
+            let result = self.step(&public_key).await;
             let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
-                    backoff = self.config.initial_retry_backoff;
+                    backoff = config.initial_retry_backoff;
                     if let Some(batch_number) = batch_number {
                         observer.observe();
                         observer = METRICS.job_waiting_time.start();
@@ -154,14 +155,14 @@ impl Task for TeeProver {
                 }
                 Err(err) => {
                     METRICS.network_errors_counter.inc_by(1);
-                    if !err.is_retriable() || retries > self.config.max_retries {
+                    if !err.is_retriable() || retries > config.max_retries {
                         return Err(err.into());
                     }
-                    tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", self.config.max_retries, backoff.as_millis());
+                    tracing::warn!(%err, "Failed TEE prover step function {retries}/{}, retrying in {} milliseconds.", config.max_retries, backoff.as_millis());
                     retries += 1;
                     backoff = std::cmp::min(
-                        backoff.mul_f32(self.config.retry_backoff_multiplier),
-                        self.config.max_backoff,
+                        backoff.mul_f32(config.retry_backoff_multiplier),
+                        config.max_backoff,
                     );
                     true
                 }

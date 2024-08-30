@@ -5520,6 +5520,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "secp256k1-sys",
+ "serde",
 ]
 
 [[package]]
@@ -9618,6 +9619,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "envy",
  "reqwest 0.12.5",
  "secp256k1",
  "serde",
