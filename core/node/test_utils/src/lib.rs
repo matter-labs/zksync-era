@@ -217,10 +217,14 @@ impl Snapshot {
         Snapshot {
             l1_batch,
             l2_block,
-            factory_deps: [&contracts.bootloader, &contracts.default_aa]
-                .into_iter()
-                .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
-                .collect(),
+            factory_deps: [
+                &contracts.bootloader,
+                &contracts.default_aa,
+                &contracts.evm_simulator,
+            ]
+            .into_iter()
+            .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
+            .collect(),
             storage_logs,
         }
     }
