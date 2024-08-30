@@ -71,7 +71,13 @@ impl WiringLayer for VmPlaygroundLayer {
         //   to DB for querying last processed batch and last ready to be loaded batch.
         // - `window_size` connections for running VM instances.
         let connection_pool = replica_pool
-            .get_custom(2 + self.config.window_size.get())
+            .build(|builder| {
+                builder
+                    .set_max_size(2 + self.config.window_size.get())
+                    .set_statement_timeout(None);
+                // Unlike virtually all other replica pool uses, VM playground has some long-living operations,
+                // so the default statement timeout would only get in the way.
+            })
             .await?;
 
         let cursor = VmPlaygroundCursorOptions {
