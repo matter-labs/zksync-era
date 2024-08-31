@@ -241,7 +241,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         let vm = if let VmInstance::Vm1_5_0(vm) = &self {
             vm
         } else {
-            panic!("No supported for old VMs");
+            return vec![];
         };
 
         let mut result = vec![];
