@@ -4,8 +4,8 @@ genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319f
 genesis_protocol_semantic_version: '0.24.1'
 # deprecated
 genesis_protocol_version: 24
-default_aa_hash: 0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32
-bootloader_hash: 0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e
+default_aa_hash: 0x0100058d9eee51f4b9e9a9ecb7fd7e8301e90bef018c2bd913ed36e583fec8c2
+bootloader_hash: 0x010008bbde6fc402ea3a3d6cb15cb97e70245d3d4e48fb74362d4961b74c16b1
 l1_chain_id: 9
 l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
@@ -13,3 +13,4 @@ prover:
   recursion_scheduler_level_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
   dummy_verifier: true
 l1_batch_commit_data_generator_mode: Rollup
+evm_simulator_hash: 0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91
