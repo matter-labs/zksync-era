@@ -24,18 +24,18 @@ struct FakeEthClientData {
     diamond_upgrades: HashMap<u64, Vec<Log>>,
     governance_upgrades: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
-    chain_id: u64,
+    chain_id: SLChainId,
     processed_priority_transactions_count: u64,
 }
 
 impl FakeEthClientData {
-    fn new() -> Self {
+    fn new(chain_id: SLChainId) -> Self {
         Self {
             transactions: Default::default(),
             diamond_upgrades: Default::default(),
             governance_upgrades: Default::default(),
             last_finalized_block_number: 0,
-            chain_id: 42,
+            chain_id,
             processed_priority_transactions_count: 0,
         }
     }
@@ -76,9 +76,9 @@ struct MockEthClient {
 }
 
 impl MockEthClient {
-    fn new() -> Self {
+    fn new(chain_id: SLChainId) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(FakeEthClientData::new())),
+            inner: Arc::new(RwLock::new(FakeEthClientData::new(chain_id))),
         }
     }
 
@@ -95,6 +95,13 @@ impl MockEthClient {
             .write()
             .await
             .set_last_finalized_block_number(number);
+    }
+
+    async fn set_processed_priority_transactions_count(&mut self, number: u64) {
+        self.inner
+            .write()
+            .await
+            .set_processed_priority_transactions_count(number)
     }
 
     async fn block_to_number(&self, block: BlockNumber) -> u64 {
@@ -165,7 +172,7 @@ impl EthClient for MockEthClient {
     }
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
-        Ok(self.inner.read().await.chain_id.into())
+        Ok(self.inner.read().await.chain_id)
     }
 }
 
@@ -228,14 +235,22 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
         .unwrap()
 }
 
-async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch, MockEthClient) {
-    let client = MockEthClient::new();
+async fn create_test_watcher(
+    connection_pool: ConnectionPool<Core>,
+    is_gateway: bool,
+) -> (EthWatch, MockEthClient, MockEthClient) {
+    let l1_client = MockEthClient::new(SLChainId(42));
+    let sl_client = if is_gateway {
+        MockEthClient::new(SLChainId(123))
+    } else {
+        l1_client.clone()
+    };
     let watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
         &chain_admin_contract(),
-        Box::new(client.clone()),
-        Box::new(client.clone()),
+        Box::new(l1_client.clone()),
+        Box::new(sl_client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
@@ -243,14 +258,27 @@ async fn create_test_watcher(connection_pool: ConnectionPool<Core>) -> (EthWatch
     .await
     .unwrap();
 
-    (watcher, client)
+    (watcher, l1_client, sl_client)
+}
+
+async fn create_l1_test_watcher(
+    connection_pool: ConnectionPool<Core>,
+) -> (EthWatch, MockEthClient) {
+    let (watcher, l1_client, _) = create_test_watcher(connection_pool, false).await;
+    (watcher, l1_client)
+}
+
+async fn create_gateway_test_watcher(
+    connection_pool: ConnectionPool<Core>,
+) -> (EthWatch, MockEthClient, MockEthClient) {
+    create_test_watcher(connection_pool, true).await
 }
 
 #[test_log::test(tokio::test)]
 async fn test_normal_operation_l1_txs() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -289,7 +317,7 @@ async fn test_normal_operation_l1_txs() {
 async fn test_gap_in_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -324,7 +352,7 @@ async fn test_normal_operation_governance_upgrades() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
-    let mut client = MockEthClient::new();
+    let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
@@ -409,7 +437,7 @@ async fn test_normal_operation_governance_upgrades() {
 async fn test_gap_in_single_batch() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -430,7 +458,7 @@ async fn test_gap_in_single_batch() {
 async fn test_gap_between_batches() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -458,7 +486,7 @@ async fn test_overlapping_batches() {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_test_watcher(connection_pool.clone()).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
@@ -494,6 +522,52 @@ async fn test_overlapping_batches() {
     assert_eq!(tx.common_data.serial_id.0, 2);
     let tx = db_txs[4].clone();
     assert_eq!(tx.common_data.serial_id.0, 4);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_transactions_get_gradually_processed_by_gateway() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut l1_client, mut gateway_client) =
+        create_gateway_test_watcher(connection_pool.clone()).await;
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    l1_client
+        .add_transactions(&[
+            build_l1_tx(0, 10),
+            build_l1_tx(1, 14),
+            build_l1_tx(2, 14),
+            build_l1_tx(3, 20),
+            build_l1_tx(4, 22),
+        ])
+        .await;
+    l1_client.set_last_finalized_block_number(15).await;
+    gateway_client
+        .set_processed_priority_transactions_count(2)
+        .await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_txs = get_all_db_txs(&mut storage).await;
+    assert_eq!(db_txs.len(), 2);
+
+    l1_client.set_last_finalized_block_number(25).await;
+    gateway_client
+        .set_processed_priority_transactions_count(4)
+        .await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_txs = get_all_db_txs(&mut storage).await;
+    assert_eq!(db_txs.len(), 4);
+    let mut db_txs: Vec<L1Tx> = db_txs
+        .into_iter()
+        .map(|tx| tx.try_into().unwrap())
+        .collect();
+    db_txs.sort_by_key(|tx| tx.common_data.serial_id);
+    let tx = db_txs[2].clone();
+    assert_eq!(tx.common_data.serial_id.0, 2);
+    let tx = db_txs[3].clone();
+    assert_eq!(tx.common_data.serial_id.0, 3);
 }
 
 async fn get_all_db_txs(storage: &mut Connection<'_, Core>) -> Vec<Transaction> {

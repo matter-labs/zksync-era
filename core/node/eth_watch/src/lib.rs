@@ -174,7 +174,7 @@ impl EthWatch {
                 )
                 .await?;
             let processed_events_count = processor
-                .process_events(storage, &*self.l1_client, processor_events.clone())
+                .process_events(storage, &*self.sl_client, processor_events.clone())
                 .await?;
 
             let next_block_to_process = if processed_events_count == processor_events.len() {
