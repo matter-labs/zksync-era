@@ -321,6 +321,10 @@ async fn store_l1_batches(
             .iter()
             .map(|contract| hash_bytecode(&contract.bytecode))
             .chain([genesis_params.base_system_contracts().hashes().default_aa])
+            .chain([genesis_params
+                .base_system_contracts()
+                .hashes()
+                .evm_simulator])
             .map(h256_to_u256)
             .collect();
 

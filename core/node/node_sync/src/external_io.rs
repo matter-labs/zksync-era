@@ -346,7 +346,7 @@ impl StateKeeperIO for ExternalIO {
             .default_account_code_hash()
             .context("Missing default account code hash")?;
         let evm_simulator_code_hash = protocol_version
-            .default_evm_simulator_code_hash()
+            .evm_simulator_code_hash()
             .context("Missing evm simulator code hash")?;
         let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool

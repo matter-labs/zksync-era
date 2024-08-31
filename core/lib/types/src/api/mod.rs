@@ -638,7 +638,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm simulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -696,7 +696,7 @@ impl ProtocolVersion {
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
     }
 
-    pub fn default_evm_simulator_code_hash(&self) -> Option<H256> {
+    pub fn evm_simulator_code_hash(&self) -> Option<H256> {
         self.evm_simulator_code_hash.or_else(|| {
             self.base_system_contracts
                 .map(|hashes| hashes.evm_simulator)
