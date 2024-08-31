@@ -7,6 +7,7 @@ use xshell::Shell;
 use crate::{
     consts::{APPS_CONFIG_FILE, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
+    EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
 };
 
 pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
@@ -108,7 +109,7 @@ impl AppsChainConfig {
 impl ExplorerServicesConfig {
     pub fn get_batches_processing_polling_interval(&self) -> u64 {
         self.batches_processing_polling_interval
-            .unwrap_or(1000)
+            .unwrap_or(EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL)
     }
 
     pub fn with_defaults(mut self) -> Self {

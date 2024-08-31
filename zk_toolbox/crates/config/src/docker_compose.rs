@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::traits::ZkToolboxConfig;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct DockerComposeConfig {
     pub services: HashMap<String, DockerComposeService>,
 }
@@ -32,9 +32,7 @@ impl ZkToolboxConfig for DockerComposeConfig {}
 
 impl DockerComposeConfig {
     pub fn new() -> Self {
-        DockerComposeConfig {
-            services: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn add_service(&mut self, name: &str, service: DockerComposeService) {
@@ -42,8 +40,3 @@ impl DockerComposeConfig {
     }
 }
 
-impl Default for DockerComposeConfig {
-    fn default() -> Self {
-        Self::new()
-    }
-}

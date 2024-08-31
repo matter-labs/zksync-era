@@ -108,13 +108,13 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
         // Should initialize? Check if apps chain config exists
         let mut should_initialize = false;
-        let apps_chain_config_path = AppsChainConfig::get_config_path(&ecosystem_path, &chain_name);
+        let apps_chain_config_path = AppsChainConfig::get_config_path(&ecosystem_path, chain_name);
         let apps_chain_config = match AppsChainConfig::read(shell, &apps_chain_config_path) {
             Ok(config) => config,
             Err(_) => {
                 should_initialize = true;
                 // Initialize explorer database
-                logger::info(msg_explorer_initializing_database_for(&chain_name));
+                logger::info(msg_explorer_initializing_database_for(chain_name));
                 let db_config = fill_database_values_with_prompt(&chain_config);
                 initialize_explorer_database(&db_config).await?;
 
@@ -174,7 +174,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     };
     let explorer_compose_config = ExplorerComposeConfig::new(app_config, backend_configs)?;
     let explorer_compose_path = ExplorerComposeConfig::get_config_path(&ecosystem_path);
-    explorer_compose_config.save(&shell, &explorer_compose_path)?;
+    explorer_compose_config.save(shell, &explorer_compose_path)?;
 
     // Launch explorer using docker compose
     logger::info(format!(
@@ -208,7 +208,7 @@ fn fill_database_values_with_prompt(config: &ChainConfig) -> db::DatabaseConfig 
         .default(&defaul_db_name)
         .ask();
     let explorer_db_name = slugify!(&explorer_db_name, separator = "_");
-    return db::DatabaseConfig::new(explorer_db_url, explorer_db_name);
+    db::DatabaseConfig::new(explorer_db_url, explorer_db_name)
 }
 
 pub async fn initialize_explorer_database(
@@ -235,7 +235,7 @@ fn allocate_explorer_services_ports(
     let ports = match ecosystem_ports {
         Some(ref mut res) => res,
         None => ecosystem_ports.get_or_insert(
-            EcosystemPortsScanner::scan(&ecosystem_path)
+            EcosystemPortsScanner::scan(ecosystem_path)
                 .context("Failed to scan ecosystem ports")?,
         ),
     };

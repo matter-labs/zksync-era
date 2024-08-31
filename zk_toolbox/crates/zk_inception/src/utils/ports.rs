@@ -56,7 +56,7 @@ impl EcosystemPorts {
     }
 
     pub fn add_port_info(&mut self, port: u16, info: PortInfo) {
-        self.ports.entry(port).or_insert_with(Vec::new).push(info);
+        self.ports.entry(port).or_default().push(info);
     }
 
     pub fn allocate_port(&mut self, range: Range<u16>) -> Result<u16> {
