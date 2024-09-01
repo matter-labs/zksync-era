@@ -1,10 +1,8 @@
-genesis_root: 0xabdb766b18a479a5c783a4b80e12686bc8ea3cc2d8a3050491b701d72370ebb5
-genesis_rollup_leaf_index: 54
-genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd
-genesis_protocol_semantic_version: '0.24.1'
-# deprecated
+genesis_root: 0x2e86468e2aa39e313daed4f4ea1865ef11876cc700fea35a1695de22af99915b
+genesis_rollup_leaf_index: 56
+genesis_batch_commitment: 0x667177606c5d72ce5988172b151b0a97e6cd67de002f86ec66c3899cd9ce7d4c
 genesis_protocol_version: 24
-default_aa_hash: 0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32
+default_aa_hash: 0x01000567eb1d0eac3e32d1a5b5a0ececcbaf7a0b38b3fd7ce1eb8ff8296ef544
 bootloader_hash: 0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e
 l1_chain_id: 9
 l2_chain_id: 270
@@ -15,4 +13,5 @@ prover:
   recursion_leaf_level_vk_hash: 0xf9664f4324c1400fa5c3822d667f30e873f53f1b8033180cd15fe41c1e2355c6
   recursion_circuits_set_vks_hash: '0x0000000000000000000000000000000000000000000000000000000000000000'
   dummy_verifier: true
+genesis_protocol_semantic_version: 0.24.0
 l1_batch_commit_data_generator_mode: Rollup

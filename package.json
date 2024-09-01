@@ -29,6 +29,7 @@
     "local-prep": "yarn workspace local-setup-preparation",
     "l1-contracts": "yarn workspace l1-contracts",
     "l2-contracts": "yarn workspace l2-contracts",
+    "sc": "yarn workspace system-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
     "recovery-test": "yarn workspace recovery-test",
