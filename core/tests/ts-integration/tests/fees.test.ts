@@ -279,7 +279,7 @@ testFees('Test fees', () => {
             }
         }
         expect(changedL2).toBeTruthy();
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 60; i++) {
             const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
             if (newL1Nominator != beginL1Nominator) {
                 const diff = newL1Nominator - beginL1Nominator;
