@@ -28,7 +28,11 @@ nixsgxLib.mkSGXContainer {
       log_level = "error";
 
       env = {
-        TEE_API_URL.passthrough = true;
+        TEE_PROVER_API_URL.passthrough = true;
+        TEE_PROVER_MAX_RETRIES.passthrough = true;
+        TEE_PROVER_INITIAL_RETRY_BACKOFF_SECONDS.passthrough = true;
+        TEE_PROVER_RETRY_BACKOFF_MULTIPLIER.passthrough = true;
+        TEE_PROVER_MAX_BACKOFF_SECONDS.passthrough = true;
         API_PROMETHEUS_LISTENER_PORT.passthrough = true;
         API_PROMETHEUS_PUSHGATEWAY_URL.passthrough = true;
         API_PROMETHEUS_PUSH_INTERVAL_MS.passthrough = true;

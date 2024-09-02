@@ -1,21 +1,21 @@
 {
-    "maxWorkers": "70%",
-    "reporters": [
-        "default",
-        "github-actions"
-    ],
-    "transform": {
-        "^.+\\.ts?$": "ts-jest"
-    },
-    "//": "!!! Do not increase the test timeout blindly!!!",
-    "//": "Timeout is set to match ~4 L1 operations with 10 blocks confirmation",
-    "//": "If you need bigger timeout, consider either disabling the test outside of fast mode or increasing timeout on a single test",
-    "//": "If this value would be too big, it may cause tests on stage to get stuck for too long",
-    "testTimeout": 605000,
-    "globalSetup": "<rootDir>/src/jest-setup/global-setup.ts",
-    "globalTeardown": "<rootDir>/src/jest-setup/global-teardown.ts",
-    "setupFilesAfterEnv": [
-        "<rootDir>/src/jest-setup/add-matchers.ts"
-    ],
-    "slowTestThreshold": 120
+  "maxWorkers": "70%",
+  "reporters": [
+    "default",
+    "github-actions"
+  ],
+  "transform": {
+    "^.+\\.ts?$": "ts-jest"
+  },
+  "//": "!!! Do not increase the test timeout blindly!!!",
+  "//": "Timeout is set to match ~4 L1 operations with 10 blocks confirmation",
+  "//": "If you need bigger timeout, consider either disabling the test outside of fast mode or increasing timeout on a single test",
+  "//": "If this value would be too big, it may cause tests on stage to get stuck for too long",
+  "testTimeout": 605000,
+  "globalSetup": "<rootDir>/src/jest-setup/global-setup.ts",
+  "globalTeardown": "<rootDir>/src/jest-setup/global-teardown.ts",
+  "setupFilesAfterEnv": [
+    "<rootDir>/src/jest-setup/add-matchers.ts"
+  ],
+  "slowTestThreshold": 120
 }
