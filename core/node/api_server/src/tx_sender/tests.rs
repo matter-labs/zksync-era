@@ -9,12 +9,10 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 use zksync_types::{api, get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
-use crate::{
-    execution_sandbox::{testonly::MockOneshotExecutor, BlockStartInfo},
-    web3::testonly::create_test_tx_sender,
-};
+use crate::{execution_sandbox::BlockStartInfo, web3::testonly::create_test_tx_sender};
 
 #[tokio::test]
 async fn getting_nonce_for_account() {

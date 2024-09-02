@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
-    interface::{Call, CallType, ExecutionResult, TxExecutionMode},
+    interface::{Call, CallType, ExecutionResult, TxExecutionArgs, TxExecutionMode},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
@@ -16,10 +16,11 @@ use zksync_types::{
     transaction_request::CallRequest,
     web3, AccountTreeId, H256, U256,
 };
+use zksync_vm_executor::oneshot::ApiTracer;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::{ApiTracer, TxExecutionArgs, TxSetupArgs},
+    execution_sandbox::TxSetupArgs,
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };

@@ -4,20 +4,21 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::{
-    interface::ExecutionResult,
+    interface::{executor::OneshotExecutor, ExecutionResult, TxExecutionArgs},
     tracers::{ValidationError as RawValidationError, ValidationTracerParams},
 };
 use zksync_types::{
     api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
     TRUSTED_TOKEN_SLOTS,
 };
+use zksync_vm_executor::oneshot::ApiTracer;
 
 use super::{
     apply,
     execute::TransactionExecutor,
     storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSetupArgs, VmPermit,
+    BlockArgs, TxSetupArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error

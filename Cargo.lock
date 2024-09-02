@@ -9043,6 +9043,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_executor",
  "zksync_web3_decl",
 ]
 
@@ -9803,6 +9804,7 @@ dependencies = [
  "zksync_dal",
  "zksync_multivm",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

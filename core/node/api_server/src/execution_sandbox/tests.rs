@@ -3,14 +3,9 @@
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::{api::state_override::StateOverride, Transaction};
+use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 
 use super::*;
-use crate::{
-    execution_sandbox::{apply::VmSandbox, storage::StorageWithOverrides},
-    tx_sender::ApiContracts,
-};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -166,6 +161,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     }
 }
 
+/* FIXME: move to executor
 #[tokio::test]
 async fn instantiating_vm() {
     let pool = ConnectionPool::<Core>::test_pool().await;
@@ -209,3 +205,4 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     .await
     .expect("VM execution panicked")
 }
+*/

@@ -11,6 +11,7 @@ use zksync_types::{
     L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;

@@ -14,12 +14,10 @@ use zksync_types::{
     fee_model::{BatchFeeInput, FeeParams},
     L2ChainId,
 };
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{
-    execution_sandbox::{testonly::MockOneshotExecutor, TransactionExecutor},
-    tx_sender::TxSenderConfig,
-};
+use crate::{execution_sandbox::TransactionExecutor, tx_sender::TxSenderConfig};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);

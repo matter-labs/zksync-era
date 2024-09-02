@@ -42,6 +42,7 @@ use zksync_types::{
     U256, U64,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     jsonrpsee::{
@@ -57,10 +58,7 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{
-    execution_sandbox::testonly::MockOneshotExecutor,
-    web3::testonly::{spawn_http_server, spawn_ws_server},
-};
+use crate::web3::testonly::{spawn_http_server, spawn_ws_server};
 
 mod debug;
 mod filters;

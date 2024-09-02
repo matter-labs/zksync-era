@@ -1,15 +1,11 @@
 use std::fmt;
 
 use async_trait::async_trait;
-#[cfg(test)]
-use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
-    VmExecutionResultAndLogs,
+    executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, ExecutionResult,
+    OneshotEnv, TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
-
-use super::{execute::TransactionExecutor, OneshotExecutor, TxExecutionArgs};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
@@ -30,10 +26,7 @@ impl Default for MockOneshotExecutor {
     fn default() -> Self {
         Self {
             call_responses: Box::new(|tx, _| {
-                panic!(
-                    "Unexpected call with data {}",
-                    hex::encode(tx.execute.calldata())
-                );
+                panic!("Unexpected call with data {:?}", tx.execute.calldata());
             }),
             tx_responses: Box::new(|tx, _| {
                 panic!("Unexpect transaction call: {tx:?}");
@@ -43,23 +36,20 @@ impl Default for MockOneshotExecutor {
 }
 
 impl MockOneshotExecutor {
-    #[cfg(test)]
-    pub(crate) fn set_call_responses<F>(&mut self, responses: F)
+    pub fn set_call_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         self.call_responses = self.wrap_responses(responses);
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_tx_responses<F>(&mut self, responses: F)
+    pub fn set_tx_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
     {
         self.tx_responses = self.wrap_responses(responses);
     }
 
-    #[cfg(test)]
     fn wrap_responses<F>(&mut self, responses: F) -> Box<TxResponseFn>
     where
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
@@ -76,8 +66,7 @@ impl MockOneshotExecutor {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_tx_responses_with_logs<F>(&mut self, responses: F)
+    pub fn set_tx_responses_with_logs<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + 'static + Send + Sync,
     {
@@ -122,11 +111,5 @@ where
         VmExecutionResultAndLogs,
     )> {
         Ok((Ok(()), self.mock_inspect(env, args)))
-    }
-}
-
-impl From<MockOneshotExecutor> for TransactionExecutor {
-    fn from(executor: MockOneshotExecutor) -> Self {
-        Self::Mock(executor)
     }
 }

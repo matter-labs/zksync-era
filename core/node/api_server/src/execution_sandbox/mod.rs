@@ -4,13 +4,9 @@ use std::{
 };
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
-use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
-    VmExecutionResultAndLogs,
-};
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
@@ -19,8 +15,7 @@ use zksync_types::{
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{TransactionExecutor, TxExecutionArgs},
-    tracers::ApiTracer,
+    execute::TransactionExecutor,
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -31,10 +26,8 @@ mod apply;
 mod error;
 mod execute;
 mod storage;
-pub mod testonly;
 #[cfg(test)]
 mod tests;
-mod tracers;
 mod validate;
 mod vm_metrics;
 
@@ -168,26 +161,6 @@ pub(crate) struct TxSetupArgs {
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
     pub enforced_base_fee: Option<u64>,
-}
-
-impl TxSetupArgs {
-    #[cfg(test)]
-    pub fn mock(
-        execution_mode: TxExecutionMode,
-        base_system_contracts: MultiVMBaseSystemContracts,
-    ) -> Self {
-        Self {
-            execution_mode,
-            operator_account: AccountTreeId::default(),
-            fee_input: BatchFeeInput::l1_pegged(55, 555),
-            base_system_contracts,
-            caches: PostgresStorageCaches::new(1, 1),
-            validation_computational_gas_limit: u32::MAX,
-            chain_id: L2ChainId::default(),
-            whitelisted_tokens_for_aa: Vec::new(),
-            enforced_base_fee: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -416,29 +389,4 @@ impl BlockArgs {
             )
         )
     }
-}
-
-/// VM executor capable of executing isolated transactions / calls (as opposed to batch execution).
-#[async_trait]
-trait OneshotExecutor<S: ReadStorage> {
-    type Tracers: Default;
-
-    async fn inspect_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<VmExecutionResultAndLogs>;
-
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )>;
 }

@@ -3,81 +3,13 @@
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TransactionExecutionMetrics,
-    VmExecutionResultAndLogs,
+    executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, OneshotEnv,
+    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
-use zksync_types::{
-    api::state_override::StateOverride, l2::L2Tx, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
-};
+use zksync_types::api::state_override::StateOverride;
+use zksync_vm_executor::oneshot::{ApiTracer, MainOneshotExecutor, MockOneshotExecutor};
 
-use super::{
-    apply::{self, MainOneshotExecutor},
-    storage::StorageWithOverrides,
-    testonly::MockOneshotExecutor,
-    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSetupArgs, VmPermit,
-};
-
-/// Executor-independent arguments necessary to for oneshot transaction execution.
-///
-/// # Developer guidelines
-///
-/// Please don't add fields that duplicate `SystemEnv` or `L1BatchEnv` information, since both of these
-/// are also provided to an executor.
-#[derive(Debug)]
-pub(crate) struct TxExecutionArgs {
-    /// Transaction / call itself.
-    pub transaction: Transaction,
-    /// Nonce override for the initiator account.
-    pub enforced_nonce: Option<Nonce>,
-    /// Balance added to the initiator account.
-    pub added_balance: U256,
-    /// If `true`, then the batch's L1 / pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-    /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-    /// current L1 prices for gas or pubdata.
-    pub adjust_pubdata_price: bool,
-}
-
-impl TxExecutionArgs {
-    pub fn for_validation(tx: L2Tx) -> Self {
-        Self {
-            enforced_nonce: Some(tx.nonce()),
-            added_balance: U256::zero(),
-            adjust_pubdata_price: true,
-            transaction: tx.into(),
-        }
-    }
-
-    pub fn for_eth_call(mut call: L2Tx) -> Self {
-        if call.common_data.signature.is_empty() {
-            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
-        }
-
-        Self {
-            enforced_nonce: None,
-            added_balance: U256::zero(),
-            adjust_pubdata_price: false,
-            transaction: call.into(),
-        }
-    }
-
-    pub fn for_gas_estimate(transaction: Transaction) -> Self {
-        // For L2 transactions we need to explicitly put enough balance into the account of the users
-        // while for L1->L2 transactions the `to_mint` field plays this role
-        let added_balance = match &transaction.common_data {
-            ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
-            ExecuteTransactionCommon::L1(_) => U256::zero(),
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
-        };
-
-        Self {
-            enforced_nonce: transaction.nonce(),
-            added_balance,
-            adjust_pubdata_price: true,
-            transaction,
-        }
-    }
-}
+use super::{apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionExecutionOutput {
@@ -134,6 +66,12 @@ impl TransactionExecutor {
             metrics,
             are_published_bytecodes_ok: published_bytecodes.is_ok(),
         })
+    }
+}
+
+impl From<MockOneshotExecutor> for TransactionExecutor {
+    fn from(executor: MockOneshotExecutor) -> Self {
+        Self::Mock(executor)
     }
 }
 
