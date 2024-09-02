@@ -5,6 +5,10 @@ use ethers::{
     utils::format_ether,
 };
 
+pub(super) const MSG_SETUP_KEYS_DOWNLOAD_HELP: &str =
+    "Do you want to download the setup keys or generate them";
+pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
+    "From which region you want setup keys to be downloaded?";
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =

@@ -30,15 +30,7 @@ const DOCKER_COMPOSE_PREREQUISITE: Prerequisite = Prerequisite {
     download_link: "https://docs.docker.com/compose/install/",
 };
 
-const PROVER_PREREQUISITES: [Prerequisite; 5] = [
-    Prerequisite {
-        name: "gcloud",
-        download_link: "https://cloud.google.com/sdk/docs/install",
-    },
-    Prerequisite {
-        name: "wget",
-        download_link: "https://www.gnu.org/software/wget/",
-    },
+pub const GPU_PREREQUISITES: [Prerequisite; 3] = [
     Prerequisite {
         name: "cmake",
         download_link: "https://cmake.org/download/",
@@ -53,6 +45,16 @@ const PROVER_PREREQUISITES: [Prerequisite; 5] = [
     }, // CUDA GPU driver
 ];
 
+pub const WGET_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
+    name: "wget",
+    download_link: "https://www.gnu.org/software/wget/",
+}];
+
+pub const GCLOUD_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
+    name: "gcloud",
+    download_link: "https://cloud.google.com/sdk/docs/install",
+}];
+
 struct Prerequisite {
     name: &'static str,
     download_link: &'static str,
@@ -66,7 +68,7 @@ pub fn check_prover_prequisites(shell: &Shell) {
     check_prerequisites(shell, &PROVER_PREREQUISITES, false);
 }
 
-fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_compose: bool) {
+pub fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_compose: bool) {
     let mut missing_prerequisites = vec![];
 
     for prerequisite in prerequisites {

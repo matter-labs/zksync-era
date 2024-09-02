@@ -14,7 +14,6 @@ services:
       - POSTGRES_PASSWORD=notsecurepassword
   witness-generator:
     build: "./docker/witness-generator/Dockerfile"
-    comm
   witness-vector-generator:
     build: "./docker/witness-vector-generator/Dockerfile"
   prover-gpu:
