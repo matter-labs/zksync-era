@@ -62,46 +62,6 @@ testFees('Test fees', () => {
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
-
-        const mainWallet = new zksync.Wallet(
-            testMaster.environment().mainWalletPK,
-            alice._providerL2(),
-            alice._providerL1()
-        );
-
-        const bridgehub = await mainWallet.getBridgehubContract();
-        const chainId = testMaster.environment().l2ChainId;
-        const baseTokenAddress = await bridgehub.baseToken(chainId);
-
-        console.log(`Alice address ${alice.address}. Main wallet address: ${mainWallet.address}`);
-        console.log(
-            `Before deposit: Alice balance ${ethers.formatEther(
-                await alice.getBalance()
-            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
-        );
-        const depositTx = await mainWallet.deposit({
-            token: baseTokenAddress,
-            amount: ethers.parseEther('100'),
-            approveERC20: true,
-            approveBaseERC20: true
-        });
-        await depositTx.wait();
-        await Promise.all(
-            await sendTransfers(
-                zksync.utils.ETH_ADDRESS,
-                mainWallet,
-                { alice: alice.privateKey },
-                ethers.parseEther('100'),
-                undefined,
-                undefined,
-                new Reporter()
-            )
-        );
-        console.log(
-            `After deposit: Alice balance ${ethers.formatEther(
-                await alice.getBalance()
-            )}. Main wallet balance: ${ethers.formatEther(await mainWallet.getBalance())}`
-        );
     });
 
     test('Test fees', async () => {
