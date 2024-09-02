@@ -471,11 +471,11 @@ async function setInternalL1GasPrice(
     if (options.customBaseToken) command += ',base_token_ratio_persister';
     command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
 
-    if (options.newPubdataPrice) {
+    if (options.newPubdataPrice !== undefined) {
         command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${options.newPubdataPrice} ${command}`;
     }
 
-    if (options.newL1GasPrice) {
+    if (options.newL1GasPrice !== undefined) {
         // We need to ensure that each transaction gets into its own batch for more fair comparison.
         command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${options.newL1GasPrice}  ${command}`;
     }
@@ -486,24 +486,24 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioNumerator) {
+    if (options.forcedBaseTokenRatioNumerator !== undefined) {
         command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenRatioNumerator} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioDenominator) {
+    if (options.forcedBaseTokenRatioDenominator !== undefined) {
         command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenRatioDenominator} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioFluctuationsAmplitude) {
+    if (options.forcedBaseTokenRatioFluctuationsAmplitude !== undefined) {
         command = `EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=${options.forcedBaseTokenRatioFluctuationsAmplitude} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioFluctuationsFrequencyMs) {
+    if (options.forcedBaseTokenRatioFluctuationsFrequencyMs !== undefined) {
         const cacheUpdateInterval = options.forcedBaseTokenRatioFluctuationsFrequencyMs / 2;
         command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
     }
 
-    if (options.baseTokenAdjusterL1UpdateDeviationPercentage) {
+    if (options.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
         command = `BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE=${options.baseTokenAdjusterL1UpdateDeviationPercentage} ${command}`;
     }
 
