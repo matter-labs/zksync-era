@@ -11,6 +11,7 @@ import * as ethers from 'ethers';
 import path from 'node:path';
 import { expect } from 'chai';
 import { runExternalNodeInBackground } from './utils';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 export interface Health<T> {
     readonly status: string;
@@ -159,19 +160,7 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            let childs = [this.childProcess.pid];
-            while (true) {
-                try {
-                    let child = childs.at(-1);
-                    childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
-                } catch (e) {
-                    break;
-                }
-            }
-            // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-            for (let i = childs.length - 1; i >= 0; i--) {
-                await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
-            }
+            await killPidWithAllChilds(this.childProcess.pid!, signalNumber);
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {
@@ -190,7 +179,7 @@ export class NodeProcess {
         useZkInception?: boolean,
         chain?: string
     ) {
-        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
+        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
 
         let childProcess = runExternalNodeInBackground({
             components: [components],
