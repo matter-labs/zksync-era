@@ -36,21 +36,21 @@ contract LoadnextContract {
                 );
         }
 
+        require(repeatedWrites <= readArray.length);
         uint sum = 0;
 
         // Somehow use result of storage read for compiler to not optimize this place.
-        for (uint i = 0; i < reads; i++) {
+        for (uint i = 0; i < repeatedWrites; i++) {
+            uint value = readArray[i];
+            sum += value;
+            readArray[i] = value + 1;
+        }
+        for (uint i = repeatedWrites; i < reads; i++) {
             sum += readArray[i];
         }
 
         for (uint i = 0; i < initialWrites; i++) {
             writeArray.push(i);
-        }
-
-        uint arrayLength = writeArray.length;
-        require(arrayLength > 0);
-        for (uint i = 0; i < repeatedWrites; i++) {
-            writeArray[i % arrayLength] = i;
         }
 
         for (uint i = 0; i < events; i++) {
