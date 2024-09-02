@@ -13,7 +13,7 @@ jobs:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -63,10 +63,18 @@ jobs:
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
-        run: ci_run zk test rust
+        run: |
+          ci_run zk test rust
+          # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
+          # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
+          ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode: [ "old", "new" ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -82,7 +90,8 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT="16000" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="150" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
@@ -105,7 +114,9 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
+          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE" \
+            ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
       - name: Deploy legacy era contracts
@@ -131,13 +142,13 @@ jobs:
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher,base_token_ratio_persister${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -232,7 +243,7 @@ jobs:
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
           SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
-          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          ETH_CLIENT_WEB3_URL="http://localhost:8545" \
           PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test snapshot-recovery-test
 
@@ -240,7 +251,7 @@ jobs:
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          ETH_CLIENT_WEB3_URL="http://localhost:8545" \
           PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test genesis-recovery-test
 
@@ -303,13 +314,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
-    runs-on: [matterlabs-ci-runner]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher,base_token_ratio_persister${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:
@@ -420,3 +431,4 @@ jobs:
         run: |
           ci_run sccache --show-stats || true
           ci_run cat /tmp/sccache_log.txt || true
+

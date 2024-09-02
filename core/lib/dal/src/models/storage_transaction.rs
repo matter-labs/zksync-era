@@ -10,7 +10,6 @@ use zksync_types::{
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    vm_trace::{Call, LegacyCall, LegacyMixedCall},
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
     PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
@@ -18,7 +17,9 @@ use zksync_types::{
     PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
+use zksync_vm_interface::Call;
 
+use super::call::{LegacyCall, LegacyMixedCall};
 use crate::BigDecimal;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -296,7 +297,7 @@ impl From<StorageTransaction> for Transaction {
         let hash = H256::from_slice(&tx.hash);
         let execute = serde_json::from_value::<Execute>(tx.data.clone())
             .unwrap_or_else(|_| panic!("invalid json in database for tx {:?}", hash));
-        let received_timestamp_ms = tx.received_at.timestamp_millis() as u64;
+        let received_timestamp_ms = tx.received_at.and_utc().timestamp_millis() as u64;
         match tx.tx_format {
             Some(t) if t == i32::from(PRIORITY_OPERATION_L2_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
@@ -337,6 +338,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub effective_gas_price: Option<BigDecimal>,
     pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
 }
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
@@ -506,6 +508,19 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
+        // For legacy and EIP-2930 transactions it is gas price willing to be paid by the sender in wei.
+        // For other transactions it should be the effective gas price if transaction is included in block,
+        // otherwise this value should be set equal to the max fee per gas.
+        let gas_price = match self.tx_format {
+            None | Some(0) | Some(1) => self
+                .max_fee_per_gas
+                .clone()
+                .unwrap_or_else(BigDecimal::zero),
+            _ => self
+                .effective_gas_price
+                .or_else(|| self.max_fee_per_gas.clone())
+                .unwrap_or_else(BigDecimal::zero),
+        };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -515,11 +530,7 @@ impl StorageApiTransaction {
             from: Some(Address::from_slice(&self.initiator_address)),
             to: Some(serde_json::from_value(self.execute_contract_address).unwrap()),
             value: bigdecimal_to_u256(self.value),
-            gas_price: Some(bigdecimal_to_u256(
-                self.effective_gas_price
-                    .or_else(|| self.max_fee_per_gas.clone())
-                    .unwrap_or_else(BigDecimal::zero),
-            )),
+            gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
             input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
             v: signature.as_ref().map(|s| U64::from(s.v())),

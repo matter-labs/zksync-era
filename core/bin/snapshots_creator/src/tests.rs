@@ -10,6 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
+use zksync_config::SnapshotsCreatorConfig;
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
@@ -153,6 +154,7 @@ async fn create_l2_block(
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     };
 
     conn.blocks_dal()

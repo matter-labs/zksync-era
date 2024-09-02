@@ -49,7 +49,7 @@ mod tests {
     use std::num::{NonZeroU32, NonZeroUsize};
 
     use super::*;
-    use crate::test_utils::{addr, hash, EnvMutex};
+    use crate::test_utils::{addr, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
@@ -66,11 +66,6 @@ mod tests {
                 subscriptions_limit: Some(10000),
                 pubsub_polling_interval: Some(200),
                 max_nonce_ahead: 5,
-                request_timeout: Some(10),
-                account_pks: Some(vec![
-                    hash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-                    hash("0x0000000000000000000000000000000000000000000000000000000000000002"),
-                ]),
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
@@ -103,7 +98,7 @@ mod tests {
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
-                pushgateway_url: "http://127.0.0.1:9091".into(),
+                pushgateway_url: Some("http://127.0.0.1:9091".into()),
                 push_interval_ms: Some(100),
             },
             healthcheck: HealthCheckConfig {
@@ -130,10 +125,8 @@ mod tests {
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
-            API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
             API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
-            API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000

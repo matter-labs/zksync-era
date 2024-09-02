@@ -5,23 +5,50 @@
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 import * as utils from 'utils';
 import { Tester } from './tester';
+import { exec, runServerInBackground, runExternalNodeInBackground } from './utils';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
+import {
+    getAllConfigsPath,
+    loadConfig,
+    shouldLoadConfigFromFile,
+    replaceAggregatedBlockExecuteDeadline
+} from 'utils/build/file-configs';
+import path from 'path';
+import { ChildProcessWithoutNullStreams } from 'child_process';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 let mainEnv: string;
 let extEnv: string;
-if (process.env.DEPLOYMENT_MODE == 'Validium') {
+
+let deploymentMode: string;
+
+if (fileConfig.loadFromFile) {
+    const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
+    deploymentMode = genesisConfig.deploymentMode;
+} else {
+    if (!process.env.DEPLOYMENT_MODE) {
+        throw new Error('DEPLOYMENT_MODE is not set');
+    }
+    if (!['Validium', 'Rollup'].includes(process.env.DEPLOYMENT_MODE)) {
+        throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
+    }
+    deploymentMode = process.env.DEPLOYMENT_MODE;
+}
+
+if (deploymentMode == 'Validium') {
     mainEnv = process.env.IN_DOCKER ? 'dev_validium_docker' : 'dev_validium';
     extEnv = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
-} else if (process.env.DEPLOYMENT_MODE == 'Rollup') {
+} else {
+    // Rollup deployment mode
     mainEnv = process.env.IN_DOCKER ? 'docker' : 'dev';
     extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-} else {
-    throw new Error(`Unknown deployment mode: ${process.env.DEPLOYMENT_MODE}`);
 }
 const mainLogsPath: string = 'revert_main.log';
 const extLogsPath: string = 'revert_ext.log';
@@ -44,10 +71,6 @@ function parseSuggestedValues(jsonString: string): SuggestedValues {
         nonce: json.nonce,
         priorityFee: json.priority_fee
     };
-}
-
-function spawn(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.ChildProcess {
-    return child_process.spawn(cmd, args, options);
 }
 
 function run(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.SpawnSyncReturns<Buffer> {
@@ -79,27 +102,42 @@ function fetchEnv(zksyncEnv: string): any {
     return { ...process.env, ...dotenv.parse(res.stdout) };
 }
 
-function runBlockReverter(args: string[]): string {
+async function runBlockReverter(args: string[]): Promise<string> {
     let env = fetchEnv(mainEnv);
-    env.RUST_LOG = 'off';
-    let res = run('./target/release/block_reverter', args, {
+
+    let fileConfigFlags = '';
+    if (fileConfig.loadFromFile) {
+        const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
+        fileConfigFlags = `
+                --config-path=${configPaths['general.yaml']}
+                --contracts-config-path=${configPaths['contracts.yaml']}
+                --secrets-path=${configPaths['secrets.yaml']}
+                --wallets-path=${configPaths['wallets.yaml']}
+                --genesis-path=${configPaths['genesis.yaml']}
+            `;
+    }
+
+    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --bin block_reverter --release -- ${args.join(
+        ' '
+    )} ${fileConfigFlags}`;
+    const executedProcess = await exec(cmd, {
         cwd: env.ZKSYNC_HOME,
         env: {
             ...env,
             PATH: process.env.PATH
         }
     });
-    console.log(res.stderr.toString());
-    return res.stdout.toString();
+
+    return executedProcess.stdout;
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, server: string) {
-    await utils.exec(`killall -9 ${server}`);
+async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
+    await proc.terminate();
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
         try {
-            await tester.syncWallet.provider.getBlockNumber();
+            await proc.tester.syncWallet.provider.getBlockNumber();
             await utils.sleep(2);
             iter += 1;
         } catch (_) {
@@ -112,9 +150,27 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) {}
+
+    public async terminate() {
+        try {
+            let child = this.proc.pid;
+            while (true) {
+                try {
+                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+                } catch (e) {
+                    break;
+                }
+            }
+            await utils.exec(`kill -9 ${child}`);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_server');
@@ -129,53 +185,77 @@ class MainNode {
     public static async spawn(
         logs: fs.WriteStream,
         enableConsensus: boolean,
-        enableExecute: boolean
+        enableExecute: boolean,
+        ethClientWeb3Url: string,
+        apiWeb3JsonRpcHttpUrl: string,
+        baseTokenAddress: string
     ): Promise<MainNode> {
         let env = fetchEnv(mainEnv);
         env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
-        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
 
-        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+        if (fileConfig.loadFromFile) {
+            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, enableExecute ? 1 : 10000);
+        }
+
+        let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
         if (enableConsensus) {
             components += ',consensus';
         }
-
-        let proc = spawn('./target/release/zksync_server', ['--components', components], {
-            cwd: env.ZKSYNC_HOME,
-            stdio: [null, logs, logs],
-            env: {
-                ...env,
-                PATH: process.env.PATH
-            }
+        if (baseTokenAddress != zksync.utils.LEGACY_ETH_ADDRESS) {
+            components += ',base_token_ratio_persister';
+        }
+        let proc = runServerInBackground({
+            components: [components],
+            stdio: ['ignore', logs, logs],
+            cwd: pathToHome,
+            env: env,
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
+
         // Wait until the main node starts responding.
-        let tester: Tester = await Tester.init(
-            env.ETH_CLIENT_WEB3_URL,
-            env.API_WEB3_JSON_RPC_HTTP_URL,
-            env.CONTRACTS_BASE_TOKEN_ADDR
-        );
+        let tester: Tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         while (true) {
             try {
-                await tester.syncWallet.provider.getBlockNumber();
+                console.log(`Web3 ${apiWeb3JsonRpcHttpUrl}`);
+                await tester.syncWallet.provider.getBridgehubContractAddress();
                 break;
             } catch (err) {
                 if (proc.exitCode != null) {
                     assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('MainNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new MainNode(tester, proc);
+        return new MainNode(tester, proc, fileConfig.loadFromFile);
     }
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) {}
+
+    public async terminate() {
+        try {
+            let child = this.proc.pid;
+            while (true) {
+                try {
+                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
+                } catch (e) {
+                    break;
+                }
+            }
+            await utils.exec(`kill -9 ${child}`);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_external_node');
@@ -186,27 +266,30 @@ class ExtNode {
 
     // Spawns an external node.
     // If enableConsensus is set, the node will use consensus P2P network to fetch blocks.
-    public static async spawn(logs: fs.WriteStream, enableConsensus: boolean): Promise<ExtNode> {
+    public static async spawn(
+        logs: fs.WriteStream,
+        enableConsensus: boolean,
+        ethClientWeb3Url: string,
+        enEthClientUrl: string,
+        baseTokenAddress: string
+    ): Promise<ExtNode> {
         let env = fetchEnv(extEnv);
-        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
         let args = [];
         if (enableConsensus) {
             args.push('--enable-consensus');
         }
-        let proc = spawn('./target/release/zksync_external_node', args, {
-            cwd: env.ZKSYNC_HOME,
-            stdio: [null, logs, logs],
-            env: {
-                ...env,
-                PATH: process.env.PATH
-            }
+
+        // Run server in background.
+        let proc = runExternalNodeInBackground({
+            stdio: ['ignore', logs, logs],
+            cwd: pathToHome,
+            env: env,
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
+
         // Wait until the node starts responding.
-        let tester: Tester = await Tester.init(
-            env.EN_ETH_CLIENT_URL,
-            `http://127.0.0.1:${env.EN_HTTP_PORT}`,
-            env.CONTRACTS_BASE_TOKEN_ADDR
-        );
+        let tester: Tester = await Tester.init(ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
         while (true) {
             try {
                 await tester.syncWallet.provider.getBlockNumber();
@@ -215,11 +298,11 @@ class ExtNode {
                 if (proc.exitCode != null) {
                     assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('ExtNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new ExtNode(tester, proc);
+        return new ExtNode(tester, proc, fileConfig.loadFromFile);
     }
 
     // Waits for the node process to exit.
@@ -232,49 +315,122 @@ class ExtNode {
 }
 
 describe('Block reverting test', function () {
-    if (process.env.SKIP_COMPILATION !== 'true') {
-        compileBinaries();
-    }
-    console.log(`PWD = ${process.env.PWD}`);
-    const mainLogs: fs.WriteStream = fs.createWriteStream(mainLogsPath, { flags: 'a' });
-    const extLogs: fs.WriteStream = fs.createWriteStream(extLogsPath, { flags: 'a' });
-    const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-    console.log(`enableConsensus = ${enableConsensus}`);
-    const depositAmount = ethers.parseEther('0.001');
+    let ethClientWeb3Url: string;
+    let apiWeb3JsonRpcHttpUrl: string;
+    let baseTokenAddress: string;
+    let enEthClientUrl: string;
+    let operatorAddress: string;
+    let mainLogs: fs.WriteStream;
+    let extLogs: fs.WriteStream;
+    let depositAmount: bigint;
+    let enableConsensus: boolean;
+    let mainNode: MainNode;
+    let extNode: ExtNode;
+
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+
+    before('initialize test', async () => {
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
+            const externalNodeGeneralConfig = loadConfig({
+                pathToHome,
+                configsFolderSuffix: 'external_node',
+                chain: fileConfig.chain,
+                config: 'general.yaml'
+            });
+            const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+
+            ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+            baseTokenAddress = contractsConfig.l1.base_token_addr;
+            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+            operatorAddress = walletsConfig.operator.address;
+            mainLogs = fs.createWriteStream(`${fileConfig.chain}_${mainLogsPath}`, { flags: 'a' });
+            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogsPath}`, { flags: 'a' });
+        } else {
+            let env = fetchEnv(mainEnv);
+            ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
+            apiWeb3JsonRpcHttpUrl = env.API_WEB3_JSON_RPC_HTTP_URL;
+            baseTokenAddress = env.CONTRACTS_BASE_TOKEN_ADDR;
+            enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
+            // TODO use env variable for this?
+            operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
+            mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
+            extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
+        }
+
+        if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
+            compileBinaries();
+        }
+        enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+
+        console.log(`enableConsensus = ${enableConsensus}`);
+        depositAmount = ethers.parseEther('0.001');
+    });
 
     step('run', async () => {
-        console.log('Make sure that nodes are not running');
-        await ExtNode.terminateAll();
-        await MainNode.terminateAll();
+        if (autoKill) {
+            console.log('Make sure that nodes are not running');
+            await ExtNode.terminateAll();
+            await MainNode.terminateAll();
+        }
 
         console.log('Start main node');
-        let mainNode = await MainNode.spawn(mainLogs, enableConsensus, true);
+        mainNode = await MainNode.spawn(
+            mainLogs,
+            enableConsensus,
+            true,
+            ethClientWeb3Url,
+            apiWeb3JsonRpcHttpUrl,
+            baseTokenAddress
+        );
         console.log('Start ext node');
-        let extNode = await ExtNode.spawn(extLogs, enableConsensus);
+        extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
 
         await mainNode.tester.fundSyncWallet();
         await extNode.tester.fundSyncWallet();
 
         const main_contract = await mainNode.tester.syncWallet.getMainContract();
-        const baseTokenAddress = await mainNode.tester.syncWallet.getBaseToken();
-        const isETHBasedChain = baseTokenAddress === zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        const baseToken = await mainNode.tester.syncWallet.getBaseToken();
+        const isETHBasedChain = baseToken === zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         const alice: zksync.Wallet = extNode.tester.emptyWallet();
 
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
-        const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
-            amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true,
-            approveERC20: true
-        });
-        await h.waitFinalize();
+
+        for (let iter = 0; iter < 30; iter++) {
+            try {
+                const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
+                    token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
+                    amount: depositAmount,
+                    to: alice.address,
+                    approveBaseERC20: true,
+                    approveERC20: true
+                });
+                await h.waitFinalize();
+                break;
+            } catch (error: any) {
+                if (error.message == 'server shutting down') {
+                    await utils.sleep(2);
+                    continue;
+                }
+            }
+        }
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
-        mainNode = await MainNode.spawn(mainLogs, enableConsensus, false);
+        await mainNode.terminate();
+        await killServerAndWaitForShutdown(mainNode);
+        mainNode = await MainNode.spawn(
+            mainLogs,
+            enableConsensus,
+            false,
+            ethClientWeb3Url,
+            apiWeb3JsonRpcHttpUrl,
+            baseTokenAddress
+        );
 
         console.log('Commit at least 2 L1 batches which are not executed');
         const lastExecuted = await main_contract.getTotalBatchesExecuted();
@@ -282,7 +438,7 @@ describe('Block reverting test', function () {
         // it gets updated with some batch logs only at the start of the next batch.
         const initialL1BatchNumber = await main_contract.getTotalBatchesCommitted();
         const firstDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -295,7 +451,7 @@ describe('Block reverting test', function () {
         }
 
         const secondDepositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -306,31 +462,31 @@ describe('Block reverting test', function () {
             await utils.sleep(0.3);
         }
 
+        const alice2 = await alice.getBalance();
         while (true) {
             const lastCommitted = await main_contract.getTotalBatchesCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted - lastExecuted >= 2n) {
+                console.log('Terminate the main node');
+                await killServerAndWaitForShutdown(mainNode);
                 break;
             }
             await utils.sleep(0.3);
         }
-        const alice2 = await alice.getBalance();
-        console.log('Terminate the main node');
-        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
-        const values_json = runBlockReverter([
+        const values_json = await runBlockReverter([
             'print-suggested-values',
             '--json',
             '--operator-address',
-            '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7'
+            operatorAddress
         ]);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
         assert(lastExecuted === values.lastExecutedL1BatchNumber);
 
         console.log('Send reverting transaction to L1');
-        runBlockReverter([
+        await runBlockReverter([
             'send-eth-transaction',
             '--l1-batch-number',
             values.lastExecutedL1BatchNumber.toString(),
@@ -346,27 +502,35 @@ describe('Block reverting test', function () {
         assert(lastCommitted2 === lastExecuted);
 
         console.log('Rollback db');
-        runBlockReverter([
+        await runBlockReverter([
             'rollback-db',
             '--l1-batch-number',
             values.lastExecutedL1BatchNumber.toString(),
             '--rollback-postgres',
             '--rollback-tree',
-            '--rollback-sk-cache'
+            '--rollback-sk-cache',
+            '--rollback-vm-runners-cache'
         ]);
 
         console.log('Start main node.');
-        mainNode = await MainNode.spawn(mainLogs, enableConsensus, true);
+        mainNode = await MainNode.spawn(
+            mainLogs,
+            enableConsensus,
+            true,
+            ethClientWeb3Url,
+            apiWeb3JsonRpcHttpUrl,
+            baseTokenAddress
+        );
 
         console.log('Wait for the external node to detect reorg and terminate');
         await extNode.waitForExit();
 
         console.log('Restart external node and wait for it to revert.');
-        extNode = await ExtNode.spawn(extLogs, enableConsensus);
+        extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
 
         console.log('Execute an L1 transaction');
         const depositHandle = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseTokenAddress,
+            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
             amount: depositAmount,
             to: alice.address,
             approveBaseERC20: true,
@@ -407,9 +571,13 @@ describe('Block reverting test', function () {
         await checkedRandomTransfer(alice, 1n);
     });
 
-    after('Terminate nodes', async () => {
-        await MainNode.terminateAll();
-        await ExtNode.terminateAll();
+    after('terminate nodes', async () => {
+        await mainNode.terminate();
+        await extNode.terminate();
+
+        if (fileConfig.loadFromFile) {
+            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
+        }
     });
 });
 

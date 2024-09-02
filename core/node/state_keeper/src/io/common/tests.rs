@@ -9,14 +9,15 @@ use futures::FutureExt;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
     prepare_recovery_snapshot,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee::TransactionExecutionMetrics,
-    protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::L2BlockHasher, protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion,
+    ProtocolVersionId,
 };
 use zksync_vm_utils::storage::L1BatchParamsProvider;
 
@@ -102,7 +103,8 @@ async fn waiting_for_l1_batch_params_with_genesis() {
         .await
         .unwrap();
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let (hash, timestamp) = provider
         .wait_for_l1_batch_params(&mut storage, L1BatchNumber(0))
         .await
@@ -141,7 +143,8 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let (hash, timestamp) = provider
         .wait_for_l1_batch_params(&mut storage, snapshot_recovery.l1_batch_number)
         .await
@@ -189,7 +192,8 @@ async fn getting_first_l2_block_in_batch_with_genesis() {
         .await
         .unwrap();
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let mut batches_and_l2_blocks = HashMap::from([
         (L1BatchNumber(0), Ok(Some(L2BlockNumber(0)))),
         (L1BatchNumber(1), Ok(Some(L2BlockNumber(1)))),
@@ -260,7 +264,8 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let mut batches_and_l2_blocks = HashMap::from([
         (L1BatchNumber(1), Err(())),
         (snapshot_recovery.l1_batch_number, Err(())),
@@ -316,7 +321,8 @@ async fn loading_pending_batch_with_genesis() {
     )
     .await;
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let first_l2_block_in_batch = provider
         .load_first_l2_block_in_batch(&mut storage, L1BatchNumber(1))
         .await
@@ -397,7 +403,8 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     )
     .await;
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let first_l2_block_in_batch = provider
         .load_first_l2_block_in_batch(&mut storage, snapshot_recovery.l1_batch_number + 1)
         .await
@@ -459,7 +466,8 @@ async fn getting_batch_version_with_genesis() {
         .await
         .unwrap();
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let version = provider
         .load_l1_batch_protocol_version(&mut storage, L1BatchNumber(0))
         .await
@@ -498,7 +506,8 @@ async fn getting_batch_version_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
+    let mut provider = L1BatchParamsProvider::new();
+    provider.initialize(&mut storage).await.unwrap();
     let version = provider
         .load_l1_batch_protocol_version(&mut storage, snapshot_recovery.l1_batch_number)
         .await

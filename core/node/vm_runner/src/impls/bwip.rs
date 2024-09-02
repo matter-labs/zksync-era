@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
+use zksync_state_keeper::{BatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{
     block::StorageOracleInfo, witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId,
     H256,
@@ -30,6 +30,7 @@ impl BasicWitnessInputProducer {
     pub async fn new(
         pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
+        batch_executor: Box<dyn BatchExecutor>,
         rocksdb_path: String,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
@@ -47,13 +48,12 @@ impl BasicWitnessInputProducer {
         };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutor::new(false, false);
         let vm_runner = VmRunner::new(
             pool,
             Box::new(io),
             Arc::new(loader),
             Box::new(output_handler_factory),
-            Box::new(batch_processor),
+            batch_executor,
         );
         Ok((
             Self { vm_runner },
@@ -75,8 +75,7 @@ impl BasicWitnessInputProducer {
     }
 }
 
-/// A collections of tasks that need to be run in order for BWIP to work as
-/// intended.
+/// Collection of tasks that need to be run in order for BWIP to work as intended.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerTasks {
     /// Task that synchronizes storage with new available batches.
@@ -86,6 +85,7 @@ pub struct BasicWitnessInputProducerTasks {
         ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
 }
 
+/// IO implementation for the basic witness input producer.
 #[derive(Debug, Clone)]
 pub struct BasicWitnessInputProducerIo {
     first_processed_batch: L1BatchNumber,
@@ -119,15 +119,25 @@ impl VmRunnerIo for BasicWitnessInputProducerIo {
             .await?)
     }
 
-    async fn mark_l1_batch_as_completed(
+    async fn mark_l1_batch_as_processing(
         &self,
         conn: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<()> {
         Ok(conn
             .vm_runner_dal()
-            .mark_bwip_batch_as_completed(l1_batch_number)
+            .mark_bwip_batch_as_processing(l1_batch_number)
             .await?)
+    }
+
+    async fn mark_l1_batch_as_completed(
+        &self,
+        conn: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        conn.vm_runner_dal()
+            .mark_bwip_batch_as_completed(l1_batch_number)
+            .await
     }
 }
 
@@ -143,6 +153,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "BasicWitnessInputProducerOutputHandler::handle_l1_batch",
+        skip_all,
+        fields(l1_batch = %updates_manager.l1_batch.number)
+    )]
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,
@@ -163,6 +178,11 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
 
         connection
             .proof_generation_dal()
+            .insert_proof_generation_details(l1_batch_number)
+            .await?;
+
+        connection
+            .proof_generation_dal()
             .save_vm_runner_artifacts_metadata(l1_batch_number, &blob_url)
             .await?;
 
@@ -170,6 +190,7 @@ impl StateKeeperOutputHandler for BasicWitnessInputProducerOutputHandler {
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn get_updates_manager_witness_input_data(
     connection: &mut Connection<'_, Core>,
     updates_manager: Arc<UpdatesManager>,
@@ -246,6 +267,7 @@ async fn get_updates_manager_witness_input_data(
     })
 }
 
+#[tracing::instrument(skip_all)]
 async fn assert_database_witness_input_data(
     connection: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,

@@ -19,7 +19,7 @@ use zksync_prover_interface::inputs::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::Verify;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
 use zksync_vm_utils::storage::L1BatchParamsProvider;
 
@@ -77,7 +77,9 @@ impl TeeVerifierInputProducer {
             .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?
             .unwrap();
 
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
+        l1_batch_params_provider
+            .initialize(&mut connection)
             .await
             .context("failed initializing L1 batch params provider")?;
 
@@ -239,7 +241,7 @@ impl JobProcessor for TeeVerifierInputProducer {
             .context("failed to mark job as successful for TeeVerifierInputProducer")?;
         transaction
             .tee_proof_generation_dal()
-            .insert_tee_proof_generation_job(job_id)
+            .insert_tee_proof_generation_job(job_id, TeeType::Sgx)
             .await?;
         transaction
             .commit()

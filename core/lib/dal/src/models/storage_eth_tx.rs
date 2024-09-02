@@ -4,7 +4,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, Nonce, H256,
+    Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
 
 #[derive(Debug, Clone)]
@@ -29,6 +29,8 @@ pub struct StorageEthTx {
     //
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
+    pub is_gateway: bool,
+    pub chain_id: Option<i64>,
 }
 
 #[derive(Debug, Default)]
@@ -77,12 +79,16 @@ impl From<StorageEthTx> for EthTx {
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
             tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
-            created_at_timestamp: tx.created_at.timestamp() as u64,
+            created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost as u64,
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
             blob_sidecar: tx.blob_sidecar.map(|b| {
                 bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
             }),
+            is_gateway: tx.is_gateway,
+            chain_id: tx
+                .chain_id
+                .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
         }
     }
 }

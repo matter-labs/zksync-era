@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_api_server"
-version = "0.1.0"
+description = "ZKsync API server"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -11,6 +12,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_config.workspace = true
+zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true

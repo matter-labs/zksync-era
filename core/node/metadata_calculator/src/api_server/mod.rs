@@ -12,7 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
@@ -240,8 +240,8 @@ impl CheckHealth for TreeApiHttpClient {
             // Tree API is not a critical component, so its errors are not considered fatal for the app health.
             Err(err) => Health::from(HealthStatus::Affected).with_details(serde_json::json!({
                 "error": err.to_string(),
-                // Transient error detection is a best-effort estimate
-                "is_transient_error": matches!(err, TreeApiError::NotReady(_)),
+                // Retriable error detection is a best-effort estimate
+                "is_retriable_error": matches!(err, TreeApiError::NotReady(_)),
             })),
         }
     }

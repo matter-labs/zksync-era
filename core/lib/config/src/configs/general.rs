@@ -2,21 +2,24 @@ use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
         chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
-        CommitmentGeneratorConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ExternalProofIntegrationApiConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneralConfig {
     pub postgres_config: Option<PostgresConfig>,
     pub api_config: Option<ApiConfig>,
@@ -31,7 +34,7 @@ pub struct GeneralConfig {
     pub prover_gateway: Option<FriProverGatewayConfig>,
     pub witness_vector_generator: Option<FriWitnessVectorGeneratorConfig>,
     pub prover_group_config: Option<FriProverGroupConfig>,
-    pub witness_generator: Option<FriWitnessGeneratorConfig>,
+    pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub db_config: Option<DBConfig>,
@@ -46,4 +49,9 @@ pub struct GeneralConfig {
     pub pruning: Option<PruningConfig>,
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster: Option<BaseTokenAdjusterConfig>,
+    pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub consensus_config: Option<ConsensusConfig>,
+    pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
+    pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
 }

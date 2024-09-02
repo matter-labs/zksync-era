@@ -11,12 +11,12 @@ services:
         source: ./etc/reth/chaindata
         target: /chaindata
 
-    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545  --dev.block-time 300ms --chain /chaindata/reth_config
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
     ports:
       - 127.0.0.1:8545:8545
 
   zk:
-    image: matterlabs/zk-environment:cuda-12-0-latest
+    image: ghcr.io/matter-labs/zk-environment:cuda-12-0-latest
     depends_on:
       - reth
       - postgres

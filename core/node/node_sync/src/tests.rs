@@ -113,12 +113,11 @@ impl StateKeeperHandles {
 
         tokio::spawn(l2_block_sealer.run());
         let io = ExternalIO::new(
-            pool,
+            pool.clone(),
             actions,
             Box::new(main_node_client),
             L2ChainId::default(),
         )
-        .await
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);

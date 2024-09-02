@@ -5,9 +5,9 @@
 use std::fmt::Formatter;
 
 use anyhow::Context as _;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_eth_client::EthInterface;
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
@@ -17,11 +17,11 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VerifierParams},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, H256,
+    AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -151,6 +151,7 @@ impl GenesisParams {
     }
 }
 
+#[derive(Debug)]
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,
@@ -158,8 +159,6 @@ pub struct GenesisBatchParams {
 }
 
 pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::L1ChainId;
-
     let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
     let first_l1_verifier_config = L1VerifierConfig::default();
 
@@ -174,12 +173,8 @@ pub fn mock_genesis_config() -> GenesisConfig {
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         l1_chain_id: L1ChainId(9),
+        sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
-        recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
-        recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-        recursion_circuits_set_vks_hash: first_l1_verifier_config
-            .params
-            .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
         fee_account: Default::default(),
@@ -195,11 +190,6 @@ pub async fn insert_genesis_batch(
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
-        params: VerifierParams {
-            recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: genesis_params.config.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: H256::zero(),
-        },
         recursion_scheduler_level_vk_hash: genesis_params.config.recursion_scheduler_level_vk_hash,
     };
 
@@ -268,6 +258,10 @@ pub async fn insert_genesis_batch(
         commitment: block_commitment.hash().commitment,
         rollup_last_leaf_index,
     })
+}
+
+pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
+    Ok(storage.blocks_dal().is_genesis_needed().await?)
 }
 
 pub async fn ensure_genesis_state(
@@ -365,6 +359,7 @@ pub async fn create_genesis_l1_batch(
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
         gas_limit: 0,
+        logs_bloom: Bloom::zero(),
     };
 
     let mut transaction = storage.start_transaction().await?;
@@ -411,15 +406,11 @@ pub async fn create_genesis_l1_batch(
 // Save chain id transaction into the database
 // We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
+    storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    database_secrets: &DatabaseSecrets,
 ) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url()?;
-    let pool = ConnectionPool::<Core>::singleton(db_url).build().await?;
-    let mut storage = pool.connection().await?;
-
     let to = query_client.block_number().await?.as_u64();
     let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()

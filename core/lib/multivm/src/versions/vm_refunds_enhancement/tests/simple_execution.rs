@@ -24,7 +24,7 @@ fn estimate_fee() {
     vm_tester.vm.push_transaction(tx);
 
     let result = vm_tester.vm.execute(VmExecutionMode::OneTx);
-    assert!(matches!(result.result, ExecutionResult::Success { .. }));
+    assert_matches!(result.result, ExecutionResult::Success { .. });
 }
 
 #[test]
@@ -67,11 +67,11 @@ fn simple_execute() {
     vm.push_transaction(tx2);
     vm.push_transaction(tx3);
     let tx = vm.execute(VmExecutionMode::OneTx);
-    assert!(matches!(tx.result, ExecutionResult::Success { .. }));
+    assert_matches!(tx.result, ExecutionResult::Success { .. });
     let tx = vm.execute(VmExecutionMode::OneTx);
-    assert!(matches!(tx.result, ExecutionResult::Revert { .. }));
+    assert_matches!(tx.result, ExecutionResult::Revert { .. });
     let tx = vm.execute(VmExecutionMode::OneTx);
-    assert!(matches!(tx.result, ExecutionResult::Success { .. }));
+    assert_matches!(tx.result, ExecutionResult::Success { .. });
     let block_tip = vm.execute(VmExecutionMode::Batch);
-    assert!(matches!(block_tip.result, ExecutionResult::Success { .. }));
+    assert_matches!(block_tip.result, ExecutionResult::Success { .. });
 }

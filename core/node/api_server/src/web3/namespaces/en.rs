@@ -22,8 +22,8 @@ impl EnNamespace {
     }
 
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-        let Some(genesis) = storage
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(genesis) = conn
             .consensus_dal()
             .genesis()
             .await
@@ -34,6 +34,33 @@ impl EnNamespace {
         Ok(Some(en::ConsensusGenesis(
             zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
         )))
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn attestation_status_impl(
+        &self,
+    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
+        let status = self
+            .state
+            .acquire_connection()
+            .await?
+            // unwrap is ok, because we start outermost transaction.
+            .transaction_builder()
+            .unwrap()
+            // run readonly transaction to perform consistent reads.
+            .set_readonly()
+            .build()
+            .await
+            .context("TransactionBuilder::build()")?
+            .consensus_dal()
+            .attestation_status()
+            .await?;
+
+        Ok(status.map(|s| {
+            en::AttestationStatus(
+                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
+            )
+        }))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
@@ -128,10 +155,8 @@ impl EnNamespace {
             bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
             default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
             l1_chain_id: self.state.api_config.l1_chain_id,
+            sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,
-            recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
-            recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: Default::default(),
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
             fee_account,
             dummy_verifier: self.state.api_config.dummy_verifier,

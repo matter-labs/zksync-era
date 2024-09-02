@@ -37,8 +37,8 @@ use zksync_types::url::SensitiveUrl;
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
-    mock::MockClient,
-    network::{ForNetwork, Network, TaggedClient, L1, L2},
+    mock::{MockClient, MockClientBuilder},
+    network::{ForWeb3Network, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
 
@@ -46,6 +46,7 @@ mod boxed;
 mod metrics;
 mod mock;
 mod network;
+mod rustls;
 mod shared;
 #[cfg(test)]
 mod tests;
@@ -140,6 +141,8 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
 impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
     pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = HttpClientBuilder::default().build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }
@@ -150,6 +153,8 @@ impl<Net: Network> WsClient<Net> {
     pub async fn ws(
         url: SensitiveUrl,
     ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = ws_client::WsClientBuilder::default()
             .build(url.expose_str())
             .await?;
@@ -222,7 +227,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
     }
 }
 
-impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
+impl<Net: Network, C: ClientBase> ForWeb3Network for Client<Net, C> {
     type Net = Net;
 
     fn network(&self) -> Self::Net {

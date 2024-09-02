@@ -5,8 +5,8 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -15,24 +15,32 @@ use zksync_types::{
 };
 
 use crate::{
-    client::{ForNetwork, L2},
+    client::{ForWeb3Network, L2},
     types::{Bytes, Token},
 };
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee>;
 
     #[method(name = "estimateGasL1ToL2")]
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256>;
 
     #[method(name = "getBridgehubContract")]
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>>;

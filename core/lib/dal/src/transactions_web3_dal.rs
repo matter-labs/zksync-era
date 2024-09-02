@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::once};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::NaiveDateTime;
@@ -9,9 +9,10 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, event::DEPLOY_EVENT_SIGNATURE, Address, L2BlockNumber, L2ChainId,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
+    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
@@ -40,10 +41,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         hashes: &[H256],
     ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
+
         // Clarification for first part of the query(`WITH` clause):
         // Looking for `ContractDeployed` event in the events table
         // to find the address of deployed contract
-        let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
+        let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
             WITH
@@ -75,7 +77,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit AS gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                events.topic4 AS "contract_address?"
+                events.topic4 AS "contract_address?",
+                miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
                 JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
@@ -87,16 +90,19 @@ impl TransactionsWeb3Dal<'_, '_> {
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
             CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            DEPLOY_EVENT_SIGNATURE.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")
         .with_arg("hashes.len", &hashes.len())
         .fetch_all(self.storage)
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect();
+        .await?;
+
+        let block_timestamps: Vec<Option<i64>> =
+            st_receipts.iter().map(|x| x.block_timestamp).collect();
+
+        let mut receipts: Vec<TransactionReceipt> =
+            st_receipts.into_iter().map(Into::into).collect();
 
         let mut logs = self
             .storage
@@ -110,15 +116,23 @@ impl TransactionsWeb3Dal<'_, '_> {
             .get_l2_to_l1_logs_by_hashes(hashes)
             .await?;
 
-        for receipt in &mut receipts {
+        for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps.into_iter()) {
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
+                let iter = logs.iter().flat_map(|log| {
+                    log.topics
+                        .iter()
+                        .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                        .chain(once(BloomInput::Raw(log.address.as_bytes())))
+                });
+                receipt.logs_bloom = build_bloom(iter);
                 receipt.logs = logs
                     .into_iter()
                     .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);
                         log.l1_batch_number = receipt.l1_batch_number;
+                        log.block_timestamp = block_timestamp.map(|t| (t as u64).into());
                         log
                     })
                     .collect();
@@ -474,9 +488,8 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{
-        fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId};
+    use zksync_vm_interface::TransactionExecutionMetrics;
 
     use super::*;
     use crate::{

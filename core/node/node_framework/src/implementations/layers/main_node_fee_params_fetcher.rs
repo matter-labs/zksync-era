@@ -4,47 +4,57 @@ use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource, main_node_client::MainNodeClientResource,
+        fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
+        main_node_client::MainNodeClientResource,
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for main node fee params fetcher -- a fee input resource used on
 /// the external node.
-///
-/// ## Requests resources
-///
-/// - `MainNodeClientResource`
-///
-/// ## Adds resources
-///
-/// - `FeeInputResource`
-///
-/// ## Adds tasks
-///
-/// - `MainNodeFeeParamsFetcherTask`
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcherLayer;
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub main_node_client: MainNodeClientResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub sequencer_fee_input: SequencerFeeInputResource,
+    pub api_fee_input: ApiFeeInputResource,
+    #[context(task)]
+    pub fetcher: MainNodeFeeParamsFetcherTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for MainNodeFeeParamsFetcherLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "main_node_fee_params_fetcher_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let MainNodeClientResource(main_node_client) = context.get_resource()?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let MainNodeClientResource(main_node_client) = input.main_node_client;
         let fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client));
-        context.insert_resource(FeeInputResource(fetcher.clone()))?;
-        context.add_task(MainNodeFeeParamsFetcherTask { fetcher });
-        Ok(())
+        Ok(Output {
+            sequencer_fee_input: fetcher.clone().into(),
+            api_fee_input: fetcher.clone().into(),
+            fetcher: MainNodeFeeParamsFetcherTask { fetcher },
+        })
     }
 }
 
 #[derive(Debug)]
-struct MainNodeFeeParamsFetcherTask {
+pub struct MainNodeFeeParamsFetcherTask {
     fetcher: Arc<MainNodeFeeParamsFetcher>,
 }
 

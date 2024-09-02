@@ -43,18 +43,13 @@ pub struct ExternalIO {
 }
 
 impl ExternalIO {
-    pub async fn new(
+    pub fn new(
         pool: ConnectionPool<Core>,
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.connection_tagged("sync_layer").await?;
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
-            .await
-            .context("failed initializing L1 batch params provider")?;
-        drop(storage);
-
+        let l1_batch_params_provider = L1BatchParamsProvider::new();
         Ok(Self {
             pool,
             l1_batch_params_provider,
@@ -137,6 +132,10 @@ impl StateKeeperIO for ExternalIO {
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let cursor = IoCursor::new(&mut storage).await?;
+        self.l1_batch_params_provider
+            .initialize(&mut storage)
+            .await
+            .context("failed initializing L1 batch params provider")?;
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current L2 block number {}",
             cursor.l1_batch,

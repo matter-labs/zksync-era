@@ -1,6 +1,7 @@
 [package]
 name = "zksync_commitment_generator"
-version = "0.1.0"
+description = "ZKsync commitment generator"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -34,6 +35,7 @@ anyhow.workspace = true
 tracing.workspace = true
 itertools.workspace = true
 serde_json.workspace = true
+serde = { version = "1.0.189", features = ["derive"] }
 
 [dev-dependencies]
 zksync_web3_decl.workspace = true

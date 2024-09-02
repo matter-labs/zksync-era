@@ -9,9 +9,10 @@ use std::{
 
 use zksync_node_framework::{
     resource::Resource,
-    service::{ServiceContext, StopReceiver, ZkStackServiceBuilder},
+    service::{StopReceiver, ZkStackServiceBuilder},
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 /// This will be an example of a shared resource. Basically, something that can be used by multiple
@@ -160,53 +161,100 @@ impl Task for CheckTask {
 /// and another layer to fetch it. The benefit here is that if you want to swap the database
 /// implementation, you only have to inject a different wiring layer for database, and the
 /// wiring layers for the tasks will remain unchanged.
+///
+/// Each wiring layer has to implement the `WiringLayer` trait.
+/// It will receive its inputs and has to produce outputs, which will be stored in the node.
+/// Added resources will be available for the layers that are added after this one,
+/// and added tasks will be launched once the wiring completes.
+///
+/// Inputs and outputs for the layers are defined by the [`FromContext`] and [`IntoContext`]
+/// traits correspondingly. These traits have a few ready implementations, for example:
+///
+/// - `()` can be used if you don't need inputs or don't produce outputs
+/// - Any type `T` or `Option<T>` that implements `Resource` also implements both [`FromContext`]
+///   and [`IntoContext`]. This can be handy if you work with a single resource.
+/// - Otherwise, the most convenient way is to define a struct that will hold all the inputs/ouptuts
+///   and derive [`FromContext`] and [`IntoContext`] for it.
+///
+/// See the trait documentation for more detail.
 struct DatabaseLayer;
+
+/// Here we use a derive macro to define outputs for our layer.
+#[derive(IntoContext)]
+struct DatabaseLayerOutput {
+    pub db: DatabaseResource,
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for DatabaseLayer {
+    // We don't need any input for this layer.
+    type Input = ();
+    // We will produce a database resource.
+    type Output = DatabaseLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "database_layer"
     }
 
     /// `wire` method will be invoked by the service before the tasks are started.
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         let database = Arc::new(MemoryDatabase {
             data: Arc::new(Mutex::new(HashMap::new())),
         });
         // We add the resource to the service context. This way it will be available for the tasks.
-        context.insert_resource(DatabaseResource(database))?;
-        Ok(())
+        Ok(DatabaseLayerOutput {
+            db: DatabaseResource(database),
+        })
     }
 }
 
 /// Layer where we add tasks.
 struct TasksLayer;
 
+#[derive(FromContext)]
+struct TasksLayerInput {
+    pub db: DatabaseResource,
+}
+
+#[derive(IntoContext)]
+struct TasksLayerOutput {
+    // Note that when using derive macros, all the fields are assumed to be resources by default.
+    // If you want to add a task, you need to apply a special attribute on the field.
+    #[context(task)]
+    pub put_task: PutTask,
+    #[context(task)]
+    pub check_task: CheckTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TasksLayer {
+    // Here we both receive input and produce output.
+    type Input = TasksLayerInput;
+    type Output = TasksLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "tasks_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // We fetch the database resource from the context.
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        // We received the database resource from the context as `input`.
         // Note that we don't really care where it comes from or what's the actual implementation is.
-        // We only care whether it's available and bail out if not.
-        let db = context.get_resource::<DatabaseResource>()?.0;
+        let db = input.db.0;
         let put_task = PutTask { db: db.clone() };
         let check_task = CheckTask { db };
         // These tasks will be launched by the service once the wiring process is complete.
-        context.add_task(put_task);
-        context.add_task(check_task);
-        Ok(())
+        Ok(TasksLayerOutput {
+            put_task,
+            check_task,
+        })
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    ZkStackServiceBuilder::new()
-        .add_layer(DatabaseLayer)
-        .add_layer(TasksLayer)
-        .build()?
-        .run()?;
+    let mut builder = ZkStackServiceBuilder::new()?;
+
+    builder.add_layer(DatabaseLayer).add_layer(TasksLayer);
+
+    builder.build().run(None)?;
     Ok(())
 }

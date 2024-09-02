@@ -3,10 +3,11 @@ use zksync_types::{
     l2::L2Tx, transaction_request::PaymasterParams, Execute, Nonce, CONTRACT_DEPLOYER_ADDRESS, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
+use zksync_web3_decl::namespaces::EthNamespaceClient;
 
 use crate::sdk::{
     error::ClientError, operations::SyncTransactionHandle, wallet::Wallet, zksync_types::fee::Fee,
-    EthNamespaceClient, ZksNamespaceClient,
+    ZksNamespaceClient,
 };
 
 pub struct DeployContractBuilder<'a, S: EthereumSigner, P> {
@@ -155,7 +156,7 @@ where
         );
         self.wallet
             .provider
-            .estimate_fee(l2_tx.into())
+            .estimate_fee(l2_tx.into(), None)
             .await
             .map_err(Into::into)
     }

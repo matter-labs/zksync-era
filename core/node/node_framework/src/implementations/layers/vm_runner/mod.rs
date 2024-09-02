@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub mod bwip;
+pub mod playground;
 pub mod protective_reads;
 
 #[async_trait::async_trait]
@@ -14,10 +15,8 @@ impl<Io: VmRunnerIo> Task for StorageSyncTask<Io> {
         format!("vm_runner/{}/storage_sync", self.io().name()).into()
     }
 
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        StorageSyncTask::run(*self, stop_receiver.0.clone()).await?;
-        stop_receiver.0.changed().await?;
-        Ok(())
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }
 
@@ -27,9 +26,7 @@ impl<Io: VmRunnerIo> Task for ConcurrentOutputHandlerFactoryTask<Io> {
         format!("vm_runner/{}/output_handler", self.io().name()).into()
     }
 
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        ConcurrentOutputHandlerFactoryTask::run(*self, stop_receiver.0.clone()).await?;
-        stop_receiver.0.changed().await?;
-        Ok(())
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

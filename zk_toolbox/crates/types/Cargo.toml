@@ -1,6 +1,6 @@
 [package]
 name = "types"
-version.workspace = true
+version = "0.1.0"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -15,5 +15,5 @@ clap.workspace = true
 ethers.workspace = true
 serde.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 thiserror.workspace = true
+zksync_basic_types.workspace = true

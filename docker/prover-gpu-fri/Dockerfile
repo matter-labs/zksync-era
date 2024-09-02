@@ -14,8 +14,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2024-05-07 && \
-    rustup default nightly-2024-05-07
+    rustup install nightly-2024-08-01 && \
+    rustup default nightly-2024-08-01
 
 RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
     chmod +x cmake-3.24.2-linux-x86_64.sh && \
@@ -31,7 +31,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # copy finalization hints required for assembly generation
-COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+COPY prover/crates/bin/vk_setup_data_generator_server_fri/data/ /prover/crates/bin/vk_setup_data_generator_server_fri/data/
 
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_prover_fri /usr/bin/
 

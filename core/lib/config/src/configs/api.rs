@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::Context as _;
 use serde::{de, Deserialize, Deserializer};
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::Address;
 
 pub use crate::configs::PrometheusConfig;
 
@@ -165,10 +165,6 @@ pub struct Web3JsonRpcConfig {
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
     pub gas_price_scale_factor: f64,
-    /// Timeout for requests (in s)
-    pub request_timeout: Option<u64>,
-    /// Private keys for accounts managed by node
-    pub account_pks: Option<Vec<H256>>,
     /// The factor by which to scale the gasLimit
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
@@ -239,8 +235,6 @@ impl Web3JsonRpcConfig {
             pubsub_polling_interval: Some(200),
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            request_timeout: Default::default(),
-            account_pks: Default::default(),
             estimate_gas_scale_factor: 1.2,
             estimate_gas_acceptable_overestimation: 1000,
             max_tx_size: 1000000,
@@ -285,14 +279,6 @@ impl Web3JsonRpcConfig {
 
     pub fn pubsub_interval(&self) -> Duration {
         Duration::from_millis(self.pubsub_polling_interval.unwrap_or(200))
-    }
-
-    pub fn request_timeout(&self) -> Duration {
-        Duration::from_secs(self.request_timeout.unwrap_or(10))
-    }
-
-    pub fn account_pks(&self) -> Vec<H256> {
-        self.account_pks.clone().unwrap_or_default()
     }
 
     pub fn vm_concurrency_limit(&self) -> usize {

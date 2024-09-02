@@ -12,7 +12,7 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 use crate::{
     ethabi::Token,
-    vm_version::VmVersion,
+    vm::VmVersion,
     web3::contract::{Detokenize, Error},
     H256, U256,
 };
@@ -238,7 +238,6 @@ impl Detokenize for VerifierParams {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct L1VerifierConfig {
-    pub params: VerifierParams,
     pub recursion_scheduler_level_vk_hash: H256,
 }
 

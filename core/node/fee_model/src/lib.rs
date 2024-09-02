@@ -1,13 +1,12 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, fmt::Debug, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_base_token_adjuster::BaseTokenRatioProvider;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     fee_model::{
-        BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
-        L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput,
+        BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams,
+        FeeParamsV1, FeeParamsV2, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput,
     },
     U256,
 };
@@ -16,6 +15,13 @@ use zksync_utils::ceil_div_u256;
 use crate::l1_gas_price::GasAdjuster;
 
 pub mod l1_gas_price;
+
+/// Trait responsible for providing numerator and denominator for adjusting gas price that is denominated
+/// in a non-eth base token
+#[async_trait]
+pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
+}
 
 /// Trait responsible for providing fee info for a batch
 #[async_trait]
@@ -34,13 +40,13 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
                 params,
                 l1_gas_price_scale_factor,
             )),
-            FeeParams::V2(params) => {
-                BatchFeeInput::PubdataIndependent(compute_batch_fee_model_input_v2(
+            FeeParams::V2(params) => BatchFeeInput::PubdataIndependent(
+                clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(
                     params,
                     l1_gas_price_scale_factor,
                     l1_pubdata_price_scale_factor,
-                ))
-            }
+                )),
+            ),
         })
     }
 
@@ -191,7 +197,7 @@ fn compute_batch_fee_model_input_v2(
     let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
 
     let fair_l2_gas_price = {
-        // Firstly, we calculate which part of the overall overhead overhead each unit of L2 gas should cover.
+        // Firstly, we calculate which part of the overall overhead each unit of L2 gas should cover.
         let l1_batch_overhead_per_gas =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
 
@@ -206,7 +212,7 @@ fn compute_batch_fee_model_input_v2(
     };
 
     let fair_pubdata_price = {
-        // Firstly, we calculate which part of the overall overhead overhead each pubdata byte should cover.
+        // Firstly, we calculate which part of the overall overhead each pubdata byte should cover.
         let l1_batch_overhead_per_pubdata =
             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
 
@@ -224,6 +230,43 @@ fn compute_batch_fee_model_input_v2(
         l1_gas_price,
         fair_l2_gas_price,
         fair_pubdata_price,
+    }
+}
+
+/// Bootloader places limitations on fair_l2_gas_price and fair_pubdata_price.
+/// (MAX_ALLOWED_FAIR_L2_GAS_PRICE and MAX_ALLOWED_FAIR_PUBDATA_PRICE in bootloader code respectively)
+/// Server needs to clip this prices in order to allow chain continues operation at a loss. The alternative
+/// would be to stop accepting the transactions until the conditions improve.
+/// TODO (PE-153): to be removed when bootloader limitation is removed
+fn clip_batch_fee_model_input_v2(
+    fee_model: PubdataIndependentBatchFeeModelInput,
+) -> PubdataIndependentBatchFeeModelInput {
+    /// MAX_ALLOWED_FAIR_L2_GAS_PRICE
+    const MAXIMUM_L2_GAS_PRICE: u64 = 10_000_000_000_000;
+    /// MAX_ALLOWED_FAIR_PUBDATA_PRICE
+    const MAXIMUM_PUBDATA_PRICE: u64 = 1_000_000_000_000_000;
+    PubdataIndependentBatchFeeModelInput {
+        l1_gas_price: fee_model.l1_gas_price,
+        fair_l2_gas_price: if fee_model.fair_l2_gas_price < MAXIMUM_L2_GAS_PRICE {
+            fee_model.fair_l2_gas_price
+        } else {
+            tracing::warn!(
+                "Fair l2 gas price {} exceeds maximum. Limitting to {}",
+                fee_model.fair_l2_gas_price,
+                MAXIMUM_L2_GAS_PRICE
+            );
+            MAXIMUM_L2_GAS_PRICE
+        },
+        fair_pubdata_price: if fee_model.fair_pubdata_price < MAXIMUM_PUBDATA_PRICE {
+            fee_model.fair_pubdata_price
+        } else {
+            tracing::warn!(
+                "Fair pubdata price {} exceeds maximum. Limitting to {}",
+                fee_model.fair_pubdata_price,
+                MAXIMUM_PUBDATA_PRICE
+            );
+            MAXIMUM_PUBDATA_PRICE
+        },
     }
 }
 
@@ -249,9 +292,9 @@ impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
 mod tests {
     use std::num::NonZeroU64;
 
-    use zksync_base_token_adjuster::NoOpRatioProvider;
+    use l1_gas_price::GasAdjusterClient;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
-    use zksync_eth_client::{clients::MockEthereum, BaseFees};
+    use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
     use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
 
     use super::*;
@@ -259,9 +302,10 @@ mod tests {
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
-    const GIANT_L1_GAS_PRICE: u64 = 100_000_000_000_000;
+    const GWEI: u64 = 1_000_000_000;
+    const GIANT_L1_GAS_PRICE: u64 = 100_000 * GWEI;
 
-    // As a small small L2 gas price we'll use the value of 1 wei.
+    // As a small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: u64 = 1;
 
     #[test]
@@ -314,7 +358,8 @@ mod tests {
             BaseTokenConversionRatio::default(),
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
 
         assert_eq!(input.l1_gas_price, SMALL_L1_GAS_PRICE);
         assert_eq!(input.fair_l2_gas_price, SMALL_L1_GAS_PRICE);
@@ -340,7 +385,8 @@ mod tests {
             BaseTokenConversionRatio::default(),
         );
 
-        let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one.
         assert_eq!(input.fair_l2_gas_price, 100_000_000_000);
@@ -491,6 +537,82 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_gas_price_over_limit_due_to_l1_gas() {
+        // In this test we check the gas price limit works as expected
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: 100 * GWEI,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let l1_gas_price = 1_000_000_000 * GWEI;
+        let params = FeeParamsV2::new(
+            config,
+            l1_gas_price,
+            GIANT_L1_GAS_PRICE,
+            BaseTokenConversionRatio::default(),
+        );
+
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
+        assert_eq!(input.l1_gas_price, l1_gas_price);
+        // The fair L2 gas price is identical to the maximum
+        assert_eq!(input.fair_l2_gas_price, 10_000 * GWEI);
+        assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
+    }
+
+    #[test]
+    fn test_compute_batch_fee_model_input_v2_gas_price_over_limit_due_to_conversion_rate() {
+        // In this test we check the gas price limit works as expected
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: GWEI,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let params = FeeParamsV2::new(
+            config,
+            GWEI,
+            2 * GWEI,
+            BaseTokenConversionRatio {
+                numerator: NonZeroU64::new(3_000_000).unwrap(),
+                denominator: NonZeroU64::new(1).unwrap(),
+            },
+        );
+
+        let input =
+            clip_batch_fee_model_input_v2(compute_batch_fee_model_input_v2(params, 1.0, 1.0));
+        assert_eq!(input.l1_gas_price, 3_000_000 * GWEI);
+        // The fair L2 gas price is identical to the maximum
+        assert_eq!(input.fair_l2_gas_price, 10_000 * GWEI);
+        assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
+    }
+
+    #[derive(Debug, Clone)]
+    struct DummyTokenRatioProvider {
+        ratio: BaseTokenConversionRatio,
+    }
+
+    impl DummyTokenRatioProvider {
+        pub fn new(ratio: BaseTokenConversionRatio) -> Self {
+            Self { ratio }
+        }
+    }
+
+    #[async_trait]
+    impl BaseTokenRatioProvider for DummyTokenRatioProvider {
+        fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+            self.ratio
+        }
+    }
+
     #[tokio::test]
     async fn test_get_fee_model_params() {
         struct TestCase {
@@ -544,7 +666,7 @@ mod tests {
                 expected_l1_pubdata_price: 3000,
             },
             TestCase {
-                name: "Large conversion - 1 ETH = 1_000 BaseToken",
+                name: "Large conversion - 1 ETH = 1_000_000 BaseToken",
                 conversion_ratio: BaseTokenConversionRatio {
                     numerator: NonZeroU64::new(1_000_000).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
@@ -601,7 +723,7 @@ mod tests {
             let gas_adjuster =
                 setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
 
-            let base_token_ratio_provider = NoOpRatioProvider::new(case.conversion_ratio);
+            let base_token_ratio_provider = DummyTokenRatioProvider::new(case.conversion_ratio);
 
             let config = FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: case.input_minimal_l2_gas_price,
@@ -646,19 +768,20 @@ mod tests {
     }
 
     // Helper function to create BaseFees.
-    fn base_fees(block: u64, blob: U256) -> BaseFees {
+    fn test_base_fees(block: u64, blob: U256, pubdata: U256) -> BaseFees {
         BaseFees {
             base_fee_per_gas: block,
             base_fee_per_blob_gas: blob,
+            l2_pubdata_price: pubdata,
         }
     }
 
     // Helper function to setup the GasAdjuster.
     async fn setup_gas_adjuster(l1_gas_price: u64, l1_pubdata_price: u64) -> GasAdjuster {
-        let mock = MockEthereum::builder()
+        let mock = MockSettlementLayer::builder()
             .with_fee_history(vec![
-                base_fees(0, U256::from(4)),
-                base_fees(1, U256::from(3)),
+                test_base_fees(0, U256::from(4), U256::from(0)),
+                test_base_fees(1, U256::from(3), U256::from(0)),
             ])
             .build();
         mock.advance_block_number(2); // Ensure we have enough blocks for the fee history
@@ -672,7 +795,7 @@ mod tests {
         };
 
         GasAdjuster::new(
-            Box::new(mock.into_client()),
+            GasAdjusterClient::from_l1(Box::new(mock.into_client())),
             gas_adjuster_config,
             PubdataSendingMode::Blobs,
             L1BatchCommitmentMode::Rollup,

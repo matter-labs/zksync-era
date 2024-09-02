@@ -1,11 +1,11 @@
-use std::{fmt, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
 };
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_types::Address;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -15,15 +15,16 @@ use zksync_web3_decl::{
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource,
+        fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
 #[derive(Debug)]
@@ -61,6 +62,28 @@ pub struct TxSenderLayer {
     whitelisted_tokens_for_aa_cache: bool,
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub tx_sink: TxSinkResource,
+    pub replica_pool: PoolResource<ReplicaPool>,
+    pub fee_input: ApiFeeInputResource,
+    pub main_node_client: Option<MainNodeClientResource>,
+    pub sealer: Option<ConditionalSealerResource>,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub tx_sender: TxSenderResource,
+    #[context(task)]
+    pub vm_concurrency_barrier: VmConcurrencyBarrier,
+    #[context(task)]
+    pub postgres_storage_caches_task: Option<PostgresStorageCachesTask>,
+    #[context(task)]
+    pub whitelisted_tokens_for_aa_update_task: Option<WhitelistedTokensForAaUpdateTask>,
+}
+
 impl TxSenderLayer {
     pub fn new(
         tx_sender_config: TxSenderConfig,
@@ -89,21 +112,19 @@ impl TxSenderLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for TxSenderLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "tx_sender_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get required resources.
-        let tx_sink = context.get_resource::<TxSinkResource>()?.0;
-        let pool_resource = context.get_resource::<PoolResource<ReplicaPool>>()?;
-        let replica_pool = pool_resource.get().await?;
-        let sealer = match context.get_resource::<ConditionalSealerResource>() {
-            Ok(sealer) => Some(sealer.0),
-            Err(WiringError::ResourceLacking { .. }) => None,
-            Err(other) => return Err(other),
-        };
-        let fee_input = context.get_resource::<FeeInputResource>()?.0;
+        let tx_sink = input.tx_sink.0;
+        let replica_pool = input.replica_pool.get().await?;
+        let sealer = input.sealer.map(|s| s.0);
+        let fee_input = input.fee_input.0;
 
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
@@ -114,20 +135,18 @@ impl WiringLayer for TxSenderLayer {
         let mut storage_caches =
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
-        if values_capacity > 0 {
-            let values_cache_task = storage_caches
-                .configure_storage_values_cache(values_capacity, replica_pool.clone());
-            context.add_task(PostgresStorageCachesTask {
-                task: values_cache_task,
-            });
-        }
+        let postgres_storage_caches_task = if values_capacity > 0 {
+            Some(
+                storage_caches
+                    .configure_storage_values_cache(values_capacity, replica_pool.clone()),
+            )
+        } else {
+            None
+        };
 
         // Initialize `VmConcurrencyLimiter`.
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
-        context.add_task(VmConcurrencyBarrierTask {
-            barrier: vm_concurrency_barrier,
-        });
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
@@ -136,15 +155,23 @@ impl WiringLayer for TxSenderLayer {
         }
 
         // Add the task for updating the whitelisted tokens for the AA cache.
-        if self.whitelisted_tokens_for_aa_cache {
-            let MainNodeClientResource(main_node_client) = context.get_resource()?;
+        let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
+            let MainNodeClientResource(main_node_client) =
+                input.main_node_client.ok_or_else(|| {
+                    WiringError::Configuration(
+                        "Main node client is required for the whitelisted tokens for AA cache"
+                            .into(),
+                    )
+                })?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
-            context.add_task(WhitelistedTokensForAaUpdateTask {
+            tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens.clone());
+            Some(WhitelistedTokensForAaUpdateTask {
                 whitelisted_tokens: whitelisted_tokens.clone(),
                 main_node_client,
-            });
-            tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens);
-        }
+            })
+        } else {
+            None
+        };
 
         let tx_sender = tx_sender.build(
             fee_input,
@@ -152,20 +179,13 @@ impl WiringLayer for TxSenderLayer {
             self.api_contracts,
             storage_caches,
         );
-        context.insert_resource(TxSenderResource(tx_sender))?;
 
-        Ok(())
-    }
-}
-
-struct PostgresStorageCachesTask {
-    task: zksync_state::PostgresStorageCachesTask,
-}
-
-impl fmt::Debug for PostgresStorageCachesTask {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PostgresStorageCachesTask")
-            .finish_non_exhaustive()
+        Ok(Output {
+            tx_sender: tx_sender.into(),
+            postgres_storage_caches_task,
+            vm_concurrency_barrier,
+            whitelisted_tokens_for_aa_update_task,
+        })
     }
 }
 
@@ -176,16 +196,12 @@ impl Task for PostgresStorageCachesTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.task.run(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }
 
-struct VmConcurrencyBarrierTask {
-    barrier: VmConcurrencyBarrier,
-}
-
 #[async_trait::async_trait]
-impl Task for VmConcurrencyBarrierTask {
+impl Task for VmConcurrencyBarrier {
     fn id(&self) -> TaskId {
         "vm_concurrency_barrier_task".into()
     }
@@ -194,18 +210,18 @@ impl Task for VmConcurrencyBarrierTask {
         // Wait for the stop signal.
         stop_receiver.0.changed().await?;
         // Stop signal was received: seal the barrier so that no new VM requests are accepted.
-        self.barrier.close();
+        self.close();
         // Wait until all the existing API requests are processed.
         // We don't have to synchronize this with API servers being stopped, as they can decide themselves how to handle
         // ongoing requests during the shutdown.
         // We don't have to implement a timeout here either, as it'll be handled by the framework itself.
-        self.barrier.wait_until_stopped().await;
+        self.wait_until_stopped().await;
         Ok(())
     }
 }
 
 #[derive(Debug)]
-struct WhitelistedTokensForAaUpdateTask {
+pub struct WhitelistedTokensForAaUpdateTask {
     whitelisted_tokens: Arc<RwLock<Vec<Address>>>,
     main_node_client: Box<DynClient<L2>>,
 }

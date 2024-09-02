@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_types::{
-    ethabi, web3, Address, K256PrivateKey, L1ChainId, EIP_4844_TX_TYPE, H160, U256,
+    ethabi, web3, Address, K256PrivateKey, SLChainId, EIP_4844_TX_TYPE, H160, U256,
 };
 use zksync_web3_decl::client::{DynClient, L1};
 
@@ -22,7 +22,7 @@ impl PKSigningClient {
         operator_private_key: K256PrivateKey,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
-        l1_chain_id: L1ChainId,
+        chain_id: SLChainId,
         query_client: Box<DynClient<L1>>,
     ) -> Self {
         let operator_address = operator_private_key.address();
@@ -35,7 +35,7 @@ impl PKSigningClient {
             signer,
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
-            l1_chain_id,
+            chain_id,
         )
     }
 }
@@ -58,7 +58,7 @@ struct EthDirectClientInner<S: EthereumSigner> {
     sender_account: Address,
     contract_addr: H160,
     contract: ethabi::Contract,
-    chain_id: L1ChainId,
+    chain_id: SLChainId,
     default_priority_fee_per_gas: U256,
 }
 
@@ -74,9 +74,9 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
     }
 }
 
-impl<S: EthereumSigner> AsRef<DynClient<L1>> for SigningClient<S> {
-    fn as_ref(&self) -> &DynClient<L1> {
-        self.query_client.as_ref()
+impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
+    fn as_ref(&self) -> &(dyn EthInterface + 'static) {
+        &self.query_client
     }
 }
 
@@ -101,7 +101,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         self.inner.contract_addr
     }
 
-    fn chain_id(&self) -> L1ChainId {
+    fn chain_id(&self) -> SLChainId {
         self.inner.chain_id
     }
 
@@ -217,7 +217,7 @@ impl<S: EthereumSigner> SigningClient<S> {
         eth_signer: S,
         contract_eth_addr: H160,
         default_priority_fee_per_gas: U256,
-        chain_id: L1ChainId,
+        chain_id: SLChainId,
     ) -> Self {
         Self {
             inner: Arc::new(EthDirectClientInner {

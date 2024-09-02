@@ -1,7 +1,8 @@
+use assert_matches::assert_matches;
 use zksync_types::U256;
 
 use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         tests::{
@@ -47,10 +48,10 @@ fn test_bootloader_out_of_gas() {
 
     let res = vm.vm.execute(VmExecutionMode::Batch);
 
-    assert!(matches!(
+    assert_matches!(
         res.result,
         ExecutionResult::Halt {
             reason: Halt::BootloaderOutOfGas
         }
-    ));
+    );
 }

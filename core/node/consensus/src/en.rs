@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_executor as executor;
-use zksync_consensus_roles::validator;
+use zksync_consensus_executor::{self as executor, attestation};
+use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 
@@ -32,6 +36,13 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
     ) -> anyhow::Result<()> {
+        let attester = config::attester_key(&secrets).context("attester_key")?;
+
+        tracing::debug!(
+            is_attester = attester.is_some(),
+            "external node attester mode"
+        );
+
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
@@ -39,55 +50,67 @@ impl EN {
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
+
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
+
             let mut payload_queue = conn
                 .new_payload_queue(ctx, actions, self.sync_state.clone())
                 .await
                 .wrap("new_payload_queue()")?;
+
             drop(conn);
 
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut payload_queue, Some(genesis.first_block))
-                .await?;
+                .await
+                .wrap("fetch_blocks()")?;
+
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
-            s.spawn_bg::<()>(async {
-                let old = genesis;
-                loop {
-                    if let Ok(new) = self.fetch_genesis(ctx).await {
-                        if new != old {
-                            return Err(anyhow::format_err!(
-                                "genesis changed: old {old:?}, new {new:?}"
-                            )
-                            .into());
+            s.spawn_bg::<()>({
+                let old = genesis.clone();
+                async {
+                    let old = old;
+                    loop {
+                        if let Ok(new) = self.fetch_genesis(ctx).await {
+                            if new != old {
+                                return Err(anyhow::format_err!(
+                                    "genesis changed: old {old:?}, new {new:?}"
+                                )
+                                .into());
+                            }
                         }
+                        ctx.sleep(time::Duration::seconds(5)).await?;
                     }
-                    ctx.sleep(time::Duration::seconds(5)).await?;
                 }
             });
 
             // Run consensus component.
+            // External nodes have a payload queue which they use to fetch data from the main node.
             let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
                 .await
                 .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            // Dummy batch store - we don't gossip batches yet, but we need one anyway.
+
             let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BatchStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
+            let attestation = Arc::new(attestation::Controller::new(attester));
+            s.spawn_bg(self.run_attestation_updater(ctx, genesis.clone(), attestation.clone()));
+
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets)?,
                 block_store,
                 batch_store,
-                attester: None,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
@@ -95,8 +118,11 @@ impl EN {
                         replica_store: Box::new(store.clone()),
                         payload_manager: Box::new(store.clone()),
                     }),
+                attestation,
             };
+            tracing::info!("running the external node executor");
             executor.run(ctx).await?;
+
             Ok(())
         })
         .await;
@@ -112,6 +138,10 @@ impl EN {
         ctx: &ctx::Ctx,
         actions: ActionQueueSender,
     ) -> anyhow::Result<()> {
+        tracing::warn!("\
+            WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
+            Please follow this instruction to switch to p2p synchronization: \
+            https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/09_decentralization.md");
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
@@ -129,6 +159,62 @@ impl EN {
         match res {
             Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
+        }
+    }
+
+    /// Monitors the `AttestationStatus` on the main node,
+    /// and updates the attestation config accordingly.
+    async fn run_attestation_updater(
+        &self,
+        ctx: &ctx::Ctx,
+        genesis: validator::Genesis,
+        attestation: Arc<attestation::Controller>,
+    ) -> ctx::Result<()> {
+        const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+        let Some(committee) = &genesis.attesters else {
+            return Ok(());
+        };
+        let committee = Arc::new(committee.clone());
+        let mut next = attester::BatchNumber(0);
+        loop {
+            let status = loop {
+                match self.fetch_attestation_status(ctx).await {
+                    Err(err) => tracing::warn!("{err:#}"),
+                    Ok(status) => {
+                        if status.genesis != genesis.hash() {
+                            return Err(anyhow::format_err!("genesis mismatch").into());
+                        }
+                        if status.next_batch_to_attest >= next {
+                            break status;
+                        }
+                    }
+                }
+                ctx.sleep(POLL_INTERVAL).await?;
+            };
+            tracing::info!(
+                "waiting for hash of batch {:?}",
+                status.next_batch_to_attest
+            );
+            let hash = self
+                .pool
+                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+                .await?;
+            tracing::info!(
+                "attesting batch {:?} with hash {hash:?}",
+                status.next_batch_to_attest
+            );
+            attestation
+                .start_attestation(Arc::new(attestation::Info {
+                    batch_to_attest: attester::Batch {
+                        genesis: status.genesis,
+                        hash,
+                        number: status.next_batch_to_attest,
+                    },
+                    committee: committee.clone(),
+                }))
+                .await
+                .context("start_attestation()")?;
+            next = status.next_batch_to_attest.next();
         }
     }
 
@@ -152,13 +238,39 @@ impl EN {
     }
 
     /// Fetches genesis from the main node.
+    #[tracing::instrument(skip_all)]
     async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
         let genesis = ctx
             .wait(self.client.fetch_consensus_genesis())
             .await?
             .context("fetch_consensus_genesis()")?
             .context("main node is not running consensus component")?;
-        Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
+        // Deserialize the json, but don't allow for unknown fields.
+        // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
+        // do.
+        Ok(validator::GenesisRaw::read(
+            &zksync_protobuf::serde::deserialize_proto_with_options(
+                &genesis.0, /*deny_unknown_fields=*/ true,
+            )
+            .context("deserialize")?,
+        )?
+        .with_hash())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn fetch_attestation_status(
+        &self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<consensus_dal::AttestationStatus> {
+        match ctx.wait(self.client.fetch_attestation_status()).await? {
+            Ok(Some(status)) => Ok(zksync_protobuf::serde::deserialize(&status.0)
+                .context("deserialize(AttestationStatus")?),
+            Ok(None) => Err(anyhow::format_err!("empty response").into()),
+            Err(err) => Err(anyhow::format_err!(
+                "AttestationStatus call to main node HTTP RPC failed: {err:#}"
+            )
+            .into()),
+        }
     }
 
     /// Fetches (with retries) the given block from the main node.
@@ -170,7 +282,7 @@ impl EN {
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if err.is_transient() => {}
+                Err(err) if err.is_retriable() => {}
                 Err(err) => {
                     return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}", n).into());
                 }

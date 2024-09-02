@@ -5,10 +5,10 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        initialize_bridges::output::InitializeBridgeOutput,
+        deploy_l2_contracts::output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -72,6 +72,7 @@ impl ContractsConfig {
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
+        self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 
     pub fn set_l2_shared_bridge(
@@ -82,11 +83,21 @@ impl ContractsConfig {
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         Ok(())
     }
+
+    pub fn set_default_l2_upgrade(
+        &mut self,
+        default_upgrade_output: &DefaultL2UpgradeOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
+
+impl ZkToolboxConfig for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -97,7 +108,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
 }
 
-impl FileConfig for EcosystemContracts {}
+impl ZkToolboxConfig for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {
@@ -117,6 +128,8 @@ pub struct L1Contracts {
     pub default_upgrade_addr: Address,
     pub diamond_proxy_addr: Address,
     pub governance_addr: Address,
+    #[serde(default)]
+    pub chain_admin_addr: Address,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
@@ -126,4 +139,5 @@ pub struct L1Contracts {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
+    pub default_l2_upgrader: Address,
 }

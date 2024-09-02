@@ -1,9 +1,8 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_types::U256;
 
 use crate::{
-    interface::{VmExecutionStatistics, VmMemoryMetrics},
+    interface::{storage::WriteStorage, VmExecutionStatistics, VmMemoryMetrics},
     vm_refunds_enhancement::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };

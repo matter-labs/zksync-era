@@ -18,7 +18,10 @@ impl FromEnv for FriProverConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::{
-        configs::{fri_prover::SetupLoadMode, object_store::ObjectStoreMode},
+        configs::{
+            fri_prover::{CloudConnectionMode, SetupLoadMode},
+            object_store::ObjectStoreMode,
+        },
         ObjectStoreConfig,
     };
 
@@ -57,6 +60,7 @@ mod tests {
                 local_mirror_path: None,
             }),
             availability_check_interval_in_secs: Some(1_800),
+            cloud_type: CloudConnectionMode::GCP,
         }
     }
 

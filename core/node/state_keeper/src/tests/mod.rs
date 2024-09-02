@@ -11,16 +11,15 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
         ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        VmExecutionLogs, VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    tx::tx_execution_info::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
     ZKPORTER_IS_AVAILABLE,
@@ -210,7 +209,7 @@ async fn sealed_by_gas() {
     };
     let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
         l1_gas: l1_gas_per_tx,
-        execution_metrics: ExecutionMetrics::default(),
+        execution_metrics: VmExecutionMetrics::default(),
     });
 
     TestScenario::new()
@@ -261,7 +260,7 @@ async fn sealed_by_gas_then_by_num_tx() {
             prove: 0,
             execute: 0,
         },
-        execution_metrics: ExecutionMetrics::default(),
+        execution_metrics: VmExecutionMetrics::default(),
     });
 
     // 1st tx is sealed by gas sealer; 2nd, 3rd, & 4th are sealed by slots sealer.

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, ops::RangeInclusive};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -10,11 +10,11 @@ use zksync_db_connection::{
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
-    event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    Address, L1BatchNumber, L2BlockNumber, VmEvent, H256,
+    Address, L1BatchNumber, L2BlockNumber, H256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
@@ -222,7 +222,8 @@ impl EventsDal<'_, '_> {
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
-                event_index_in_tx
+                event_index_in_tx,
+                NULL::BIGINT AS "block_timestamp?"
             FROM
                 events
             WHERE
@@ -277,7 +278,7 @@ impl EventsDal<'_, '_> {
             i64::from(from_l2_block.0),
             i64::from(to_l2_block.0),
             L1_MESSENGER_ADDRESS.as_bytes(),
-            L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
+            VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
         .instrument("get_l1_batch_raw_published_bytecode_hashes")
         .with_arg("from_l2_block", &from_l2_block)
@@ -407,6 +408,47 @@ impl EventsDal<'_, '_> {
             })
             .collect();
         Ok(Some(events))
+    }
+
+    pub async fn get_bloom_items_for_l2_blocks(
+        &mut self,
+        l2_block_range: RangeInclusive<L2BlockNumber>,
+    ) -> DalResult<HashMap<L2BlockNumber, Vec<Vec<u8>>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                address,
+                topic1,
+                topic2,
+                topic3,
+                topic4,
+                miniblock_number
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            ORDER BY
+                miniblock_number
+            "#,
+            i64::from(l2_block_range.start().0),
+            i64::from(l2_block_range.end().0),
+        )
+        .instrument("get_bloom_items_for_l2_blocks")
+        .fetch_all(self.storage)
+        .await?;
+
+        let mut items = HashMap::new();
+        for row in rows {
+            let block = L2BlockNumber(row.miniblock_number as u32);
+            let vec: &mut Vec<_> = items.entry(block).or_default();
+
+            let iter = [row.address, row.topic1, row.topic2, row.topic3, row.topic4]
+                .into_iter()
+                .filter(|x| !x.is_empty());
+            vec.extend(iter);
+        }
+
+        Ok(items)
     }
 }
 

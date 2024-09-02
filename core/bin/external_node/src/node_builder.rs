@@ -2,6 +2,7 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context as _;
+use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
@@ -15,19 +16,26 @@ use zksync_node_api_server::{tx_sender::ApiContracts, web3::Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
+        block_reverter::BlockReverterLayer,
         commitment_generator::CommitmentGeneratorLayer,
-        consensus::{ConsensusLayer, Mode},
+        consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        node_storage_init::{
+            external_node_strategy::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
+            NodeStorageInitializerLayer,
+        },
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
+        reorg_detector::ReorgDetectorLayer,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -41,7 +49,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::TxSinkLayer,
+            tx_sink::ProxySinkLayer,
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -50,20 +58,29 @@ use zksync_state::RocksdbStorageOptions;
 
 use crate::{
     config::{self, ExternalNodeConfig},
+    metrics::framework::ExternalNodeMetricsLayer,
     Component,
 };
 
 /// Builder for the external node.
 #[derive(Debug)]
 pub(crate) struct ExternalNodeBuilder {
-    node: ZkStackServiceBuilder,
+    pub(crate) node: ZkStackServiceBuilder,
     config: ExternalNodeConfig,
 }
 
 impl ExternalNodeBuilder {
-    pub fn new(config: ExternalNodeConfig) -> Self {
+    #[cfg(test)]
+    pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
+            config,
+        })
+    }
+
+    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig) -> Self {
         Self {
-            node: ZkStackServiceBuilder::new(),
+            node: ZkStackServiceBuilder::on_runtime(runtime),
             config,
         }
     }
@@ -83,7 +100,11 @@ impl ExternalNodeBuilder {
             max_connections_master: Some(self.config.postgres.max_connections),
             acquire_timeout_sec: None,
             statement_timeout_sec: None,
-            long_connection_threshold_ms: None,
+            long_connection_threshold_ms: self
+                .config
+                .optional
+                .long_connection_threshold()
+                .map(|d| d.as_millis() as u64),
             slow_query_threshold_ms: self
                 .config
                 .optional
@@ -107,6 +128,16 @@ impl ExternalNodeBuilder {
 
     fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresMetricsLayer);
+        Ok(self)
+    }
+
+    fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ExternalNodeMetricsLayer {
+            l1_chain_id: self.config.required.l1_chain_id,
+            sl_chain_id: self.config.required.settlement_layer_id(),
+            l2_chain_id: self.config.required.l2_chain_id,
+            postgres_pool_size: self.config.postgres.max_connections,
+        });
         Ok(self)
     }
 
@@ -149,8 +180,10 @@ impl ExternalNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = QueryEthClientLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
+            // TODO(EVM-676): add this config for external node
+            Default::default(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -198,8 +231,8 @@ impl ExternalNodeBuilder {
             rocksdb_options,
         );
         self.node
-            .add_layer(persistence_layer)
             .add_layer(io_layer)
+            .add_layer(persistence_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)
@@ -209,11 +242,7 @@ impl ExternalNodeBuilder {
         let config = self.config.consensus.clone();
         let secrets =
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
-        let layer = ConsensusLayer {
-            mode: Mode::External,
-            config,
-            secrets,
-        };
+        let layer = ExternalNodeConsensusLayer { config, secrets };
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -234,7 +263,7 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.remote.diamond_proxy_addr,
+            self.config.diamond_proxy_address(),
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -243,7 +272,7 @@ impl ExternalNodeBuilder {
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
@@ -253,7 +282,7 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.remote.diamond_proxy_addr,
+            self.config.diamond_proxy_address(),
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
@@ -280,7 +309,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.remote.diamond_proxy_addr);
+        let layer = TreeDataFetcherLayer::new(self.config.diamond_proxy_address());
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -359,7 +388,7 @@ impl ExternalNodeBuilder {
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
-        self.node.add_layer(TxSinkLayer::ProxySink);
+        self.node.add_layer(ProxySinkLayer);
         self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
@@ -384,6 +413,11 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
+        Ok(self)
+    }
+
     fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
@@ -392,11 +426,12 @@ impl ExternalNodeBuilder {
         Web3ServerOptionalConfig {
             namespaces: Some(self.config.optional.api_namespaces()),
             filters_limit: Some(self.config.optional.filters_limit),
-            subscriptions_limit: Some(self.config.optional.filters_limit),
+            subscriptions_limit: Some(self.config.optional.subscriptions_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+            polling_interval: Some(self.config.optional.polling_interval()),
             websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit
         }
@@ -425,6 +460,65 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_reorg_detector_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ReorgDetectorLayer);
+        Ok(self)
+    }
+
+    fn add_block_reverter_layer(mut self) -> anyhow::Result<Self> {
+        let mut layer = BlockReverterLayer::new(NodeRole::External);
+        // Reverting executed batches is more-or-less safe for external nodes.
+        layer
+            .allow_rolling_back_executed_batches()
+            .enable_rolling_back_postgres()
+            .enable_rolling_back_merkle_tree(self.config.required.merkle_tree_path.clone())
+            .enable_rolling_back_state_keeper_cache(self.config.required.state_cache_path.clone());
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    /// This layer will make sure that the database is initialized correctly,
+    /// e.g.:
+    /// - genesis or snapshot recovery will be performed if it's required.
+    /// - we perform the storage rollback if required (e.g. if reorg is detected).
+    ///
+    /// Depending on the `kind` provided, either a task or a precondition will be added.
+    ///
+    /// *Important*: the task should be added by at most one component, because
+    /// it assumes unique control over the database. Multiple components adding this
+    /// layer in a distributed mode may result in the database corruption.
+    ///
+    /// This task works in pair with precondition, which must be present in every component:
+    /// the precondition will prevent node from starting until the database is initialized.
+    fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        let config = &self.config;
+        let snapshot_recovery_config =
+            config
+                .optional
+                .snapshots_recovery_enabled
+                .then_some(SnapshotRecoveryConfig {
+                    snapshot_l1_batch_override: config.experimental.snapshots_recovery_l1_batch,
+                    drop_storage_key_preimages: config
+                        .experimental
+                        .snapshots_recovery_drop_storage_key_preimages,
+                    object_store_config: config.optional.snapshots_recovery_object_store.clone(),
+                });
+        self.node.add_layer(ExternalNodeInitStrategyLayer {
+            l2_chain_id: self.config.required.l2_chain_id,
+            max_postgres_concurrency: self
+                .config
+                .optional
+                .snapshots_recovery_postgres_max_concurrency,
+            snapshot_recovery_config,
+        });
+        let mut layer = NodeStorageInitializerLayer::new();
+        if matches!(kind, LayerKind::Precondition) {
+            layer = layer.as_precondition();
+        }
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -433,12 +527,29 @@ impl ExternalNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_pools_layer()?
             .add_main_node_client_layer()?
-            .add_query_eth_client_layer()?;
+            .add_query_eth_client_layer()?
+            .add_reorg_detector_layer()?;
+
+        // Add layers that must run only on a single component.
+        if components.contains(&Component::Core) {
+            // Core is a singleton & mandatory component,
+            // so until we have a dedicated component for "auxiliary" tasks,
+            // it's responsible for things like metrics.
+            self = self
+                .add_postgres_metrics_layer()?
+                .add_external_node_metrics_layer()?;
+            // We assign the storage initialization to the core, as it's considered to be
+            // the "main" component.
+            self = self
+                .add_block_reverter_layer()?
+                .add_storage_initialization_layer(LayerKind::Task)?;
+        }
 
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_validate_chain_ids_layer()?;
+            .add_validate_chain_ids_layer()?
+            .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
@@ -490,11 +601,6 @@ impl ExternalNodeBuilder {
                     self = self.add_tree_data_fetcher_layer()?;
                 }
                 Component::Core => {
-                    // Core is a singleton & mandatory component,
-                    // so until we have a dedicated component for "auxiliary" tasks,
-                    // it's responsible for things like metrics.
-                    self = self.add_postgres_metrics_layer()?;
-
                     // Main tasks
                     self = self
                         .add_state_keeper_layer()?
@@ -502,11 +608,19 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?;
+                        .add_batch_status_updater_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
             }
         }
 
-        Ok(self.node.build()?)
+        Ok(self.node.build())
     }
+}
+
+/// Marker for layers that can add either a task or a precondition.
+#[derive(Debug)]
+enum LayerKind {
+    Task,
+    Precondition,
 }

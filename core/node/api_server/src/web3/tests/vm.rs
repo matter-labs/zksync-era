@@ -2,17 +2,13 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use itertools::Itertools;
-use zksync_multivm::{
-    interface::{ExecutionResult, VmRevertReason},
-    vm_latest::{VmExecutionLogs, VmExecutionResultAndLogs},
+use api::state_override::{OverrideAccount, StateOverride};
+use zksync_multivm::interface::{
+    ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
-    api::{ApiStorageLog, Log},
-    get_intrinsic_constants,
-    transaction_request::CallRequest,
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
-    U256,
+    api::ApiStorageLog, get_intrinsic_constants, transaction_request::CallRequest, K256PrivateKey,
+    L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -34,15 +30,15 @@ impl CallTest {
         }
     }
 
-    fn create_executor(only_block: L2BlockNumber) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
-        tx_executor.set_call_responses(move |tx, block_args| {
+    fn create_executor(latest_block: L2BlockNumber) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
+        tx_executor.set_call_responses(move |tx, env| {
             let expected_block_number = match tx.execute.calldata() {
-                b"pending" => only_block + 1,
-                b"first" => only_block,
+                b"pending" => latest_block + 1,
+                b"latest" => latest_block,
                 data => panic!("Unexpected calldata: {data:?}"),
             };
-            assert_eq!(block_args.resolved_block_number(), expected_block_number);
+            assert_eq!(env.l1_batch.first_l2_block.number, expected_block_number.0);
 
             ExecutionResult::Success {
                 output: b"output".to_vec(),
@@ -54,27 +50,34 @@ impl CallTest {
 
 #[async_trait]
 impl HttpTest for CallTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        Self::create_executor(L2BlockNumber(0))
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        Self::create_executor(L2BlockNumber(1))
     }
 
     async fn test(
         &self,
         client: &DynClient<L2>,
-        _pool: &ConnectionPool<Core>,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        let call_result = client.call(Self::call_request(b"pending"), None).await?;
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        drop(connection);
+
+        let call_result = client
+            .call(Self::call_request(b"pending"), None, None)
+            .await?;
         assert_eq!(call_result.0, b"output");
 
         let valid_block_numbers_and_calldata = [
             (api::BlockNumber::Pending, b"pending" as &[_]),
-            (api::BlockNumber::Latest, b"first"),
-            (0.into(), b"first"),
+            (api::BlockNumber::Latest, b"latest"),
+            (0.into(), b"latest"),
         ];
         for (number, calldata) in valid_block_numbers_and_calldata {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
-                .call(Self::call_request(calldata), Some(number))
+                .call(Self::call_request(calldata), Some(number), None)
                 .await?;
             assert_eq!(call_result.0, b"output");
         }
@@ -82,7 +85,7 @@ impl HttpTest for CallTest {
         let invalid_block_number = api::BlockNumber::from(100);
         let number = api::BlockIdVariant::BlockNumber(invalid_block_number);
         let error = client
-            .call(Self::call_request(b"100"), Some(number))
+            .call(Self::call_request(b"100"), Some(number), None)
             .await
             .unwrap_err();
         if let ClientError::Call(error) = error {
@@ -109,7 +112,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(first_local_l2_block)
     }
@@ -120,7 +123,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let call_result = client
-            .call(CallTest::call_request(b"pending"), None)
+            .call(CallTest::call_request(b"pending"), None, None)
             .await?;
         assert_eq!(call_result.0, b"output");
         let pending_block_number = api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending);
@@ -128,6 +131,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             .call(
                 CallTest::call_request(b"pending"),
                 Some(pending_block_number),
+                None,
             )
             .await?;
         assert_eq!(call_result.0, b"output");
@@ -137,7 +141,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
-                .call(CallTest::call_request(b"pruned"), Some(number))
+                .call(CallTest::call_request(b"pruned"), Some(number), None)
                 .await
                 .unwrap_err();
             assert_pruned_block_error(&error, first_local_l2_block);
@@ -147,7 +151,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         for number in first_l2_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
-                .call(CallTest::call_request(b"first"), Some(number))
+                .call(CallTest::call_request(b"latest"), Some(number), None)
                 .await?;
             assert_eq!(call_result.0, b"output");
         }
@@ -214,16 +218,16 @@ impl HttpTest for SendRawTransactionTest {
         }
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let pending_block = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
             L2BlockNumber(1)
         };
-        tx_executor.set_tx_responses(move |tx, block_args| {
+        tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.hash(), Self::transaction_bytes_and_hash().1);
-            assert_eq!(block_args.resolved_block_number(), pending_block);
+            assert_eq!(env.l1_batch.first_l2_block.number, pending_block.0);
             ExecutionResult::Success { output: vec![] }
         });
         tx_executor
@@ -312,8 +316,8 @@ impl SendTransactionWithDetailedOutputTest {
 }
 #[async_trait]
 impl HttpTest for SendTransactionWithDetailedOutputTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
         let vm_execution_logs = VmExecutionLogs {
             storage_logs: self.storage_logs(),
@@ -323,9 +327,9 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             total_log_queries_count: 0,
         };
 
-        tx_executor.set_tx_responses_with_logs(move |tx, block_args| {
+        tx_executor.set_tx_responses_with_logs(move |tx, env| {
             assert_eq!(tx.hash(), tx_bytes_and_hash.1);
-            assert_eq!(block_args.resolved_block_number(), L2BlockNumber(1));
+            assert_eq!(env.l1_batch.first_l2_block.number, 1);
 
             VmExecutionResultAndLogs {
                 result: ExecutionResult::Success { output: vec![] },
@@ -357,24 +361,24 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             .send_raw_transaction_with_detailed_output(tx_bytes.into())
             .await?;
         assert_eq!(send_result.transaction_hash, tx_hash);
-        assert_eq!(
-            send_result.events,
-            self.vm_events()
-                .iter()
-                .map(|x| {
-                    let mut l = Log::from(x);
-                    l.transaction_hash = Some(tx_hash);
-                    l
-                })
-                .collect_vec()
-        );
+
+        let expected_events = self.vm_events();
+        assert_eq!(send_result.events.len(), expected_events.len());
+        for (event, expected_event) in send_result.events.iter().zip(&expected_events) {
+            assert_eq!(event.transaction_hash, Some(tx_hash));
+            assert_eq!(event.address, expected_event.address);
+            assert_eq!(event.topics, expected_event.indexed_topics);
+            assert_eq!(event.l1_batch_number, Some(1.into()));
+            assert_eq!(event.transaction_index, Some(1.into()));
+        }
+
         assert_eq!(
             send_result.storage_logs,
             self.storage_logs()
                 .iter()
                 .filter(|x| x.log.is_write())
                 .map(ApiStorageLog::from)
-                .collect_vec()
+                .collect::<Vec<_>>()
         );
         Ok(())
     }
@@ -407,15 +411,20 @@ impl TraceCallTest {
 
 #[async_trait]
 impl HttpTest for TraceCallTest {
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        CallTest::create_executor(L2BlockNumber(0))
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        CallTest::create_executor(L2BlockNumber(1))
     }
 
     async fn test(
         &self,
         client: &DynClient<L2>,
-        _pool: &ConnectionPool<Core>,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        drop(connection);
+
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result);
@@ -425,13 +434,9 @@ impl HttpTest for TraceCallTest {
             .await?;
         Self::assert_debug_call(&call_request, &call_result);
 
-        let genesis_block_numbers = [
-            api::BlockNumber::Earliest,
-            api::BlockNumber::Latest,
-            0.into(),
-        ];
-        let call_request = CallTest::call_request(b"first");
-        for number in genesis_block_numbers {
+        let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
+        let call_request = CallTest::call_request(b"latest");
+        for number in latest_block_numbers {
             let call_result = client
                 .trace_call(
                     call_request.clone(),
@@ -475,7 +480,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
         let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         CallTest::create_executor(number)
     }
@@ -499,13 +504,13 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
-                .call(CallTest::call_request(b"pruned"), Some(number))
+                .call(CallTest::call_request(b"pruned"), Some(number), None)
                 .await
                 .unwrap_err();
             assert_pruned_block_error(&error, first_local_l2_block);
         }
 
-        let call_request = CallTest::call_request(b"first");
+        let call_request = CallTest::call_request(b"latest");
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
@@ -545,18 +550,18 @@ impl HttpTest for EstimateGasTest {
         SendRawTransactionTest { snapshot_recovery }.storage_initialization()
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        let mut tx_executor = MockTransactionExecutor::default();
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
         let pending_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
             L2BlockNumber(1)
         };
         let gas_limit_threshold = self.gas_limit_threshold.clone();
-        tx_executor.set_call_responses(move |tx, block_args| {
+        tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
             assert_eq!(tx.nonce(), Some(Nonce(0)));
-            assert_eq!(block_args.resolved_block_number(), pending_block_number);
+            assert_eq!(env.l1_batch.first_l2_block.number, pending_block_number.0);
 
             let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
             if tx.gas_limit() >= U256::from(gas_limit_threshold) {
@@ -579,7 +584,7 @@ impl HttpTest for EstimateGasTest {
         for threshold in [10_000, 50_000, 100_000, 1_000_000] {
             self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
             let output = client
-                .estimate_gas(l2_transaction.clone().into(), None)
+                .estimate_gas(l2_transaction.clone().into(), None, None)
                 .await?;
             assert!(
                 output >= U256::from(threshold),
@@ -604,10 +609,15 @@ impl HttpTest for EstimateGasTest {
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(SendRawTransactionTest::private_key().address());
         call_request.value = Some(1_000_000.into());
-        client.estimate_gas(call_request.clone(), None).await?;
+        client
+            .estimate_gas(call_request.clone(), None, None)
+            .await?;
 
         call_request.value = Some(U256::max_value());
-        let error = client.estimate_gas(call_request, None).await.unwrap_err();
+        let error = client
+            .estimate_gas(call_request, None, None)
+            .await
+            .unwrap_err();
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(
@@ -629,4 +639,76 @@ async fn estimate_gas_basics() {
 #[tokio::test]
 async fn estimate_gas_after_snapshot_recovery() {
     test_http_server(EstimateGasTest::new(true)).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasWithStateOverrideTest {
+    inner: EstimateGasTest,
+}
+
+#[async_trait]
+impl HttpTest for EstimateGasWithStateOverrideTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        self.inner.storage_initialization()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        self.inner.transaction_executor()
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Transaction with balance override
+        let l2_transaction = create_l2_transaction(10, 100);
+        let mut call_request = CallRequest::from(l2_transaction);
+        let request_initiator = Address::random();
+        call_request.from = Some(request_initiator);
+        call_request.value = Some(1_000_000.into());
+
+        let state_override = HashMap::from([(
+            request_initiator,
+            OverrideAccount {
+                balance: Some(U256::max_value()),
+                ..OverrideAccount::default()
+            },
+        )]);
+        let state_override = StateOverride::new(state_override);
+
+        client
+            .estimate_gas(call_request.clone(), None, Some(state_override))
+            .await?;
+
+        // Transaction that should fail without balance override
+        let l2_transaction = create_l2_transaction(10, 100);
+        let mut call_request = CallRequest::from(l2_transaction);
+        call_request.from = Some(Address::random());
+        call_request.value = Some(1_000_000.into());
+
+        let error = client
+            .estimate_gas(call_request.clone(), None, None)
+            .await
+            .unwrap_err();
+
+        if let ClientError::Call(error) = error {
+            let error_msg = error.message();
+            assert!(
+                error_msg
+                    .to_lowercase()
+                    .contains("insufficient balance for transfer"),
+                "{error_msg}"
+            );
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_gas_with_state_override() {
+    let inner = EstimateGasTest::new(false);
+    test_http_server(EstimateGasWithStateOverrideTest { inner }).await;
 }

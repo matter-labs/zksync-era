@@ -5,11 +5,9 @@ use assert_matches::assert_matches;
 use tokio::{runtime::Runtime, sync::Barrier};
 
 use crate::{
-    service::{
-        ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
-        ZkStackServiceError,
-    },
+    service::{StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder, ZkStackServiceError},
     task::{Task, TaskId},
+    IntoContext,
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.
@@ -18,7 +16,7 @@ fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
 
     let initialization_result =
-        runtime.block_on(async { ZkStackServiceBuilder::new().build().unwrap_err() });
+        runtime.block_on(async { ZkStackServiceBuilder::new().unwrap_err() });
 
     assert_matches!(initialization_result, ZkStackServiceError::RuntimeDetected);
 }
@@ -30,11 +28,14 @@ struct DefaultLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for DefaultLayer {
+    type Input = ();
+    type Output = ();
+
     fn layer_name(&self) -> &'static str {
         self.name
     }
 
-    async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(())
     }
 }
@@ -42,7 +43,7 @@ impl WiringLayer for DefaultLayer {
 // `add_layer` should add multiple layers.
 #[test]
 fn test_add_layer() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer {
             name: "first_layer",
@@ -60,7 +61,7 @@ fn test_add_layer() {
 // `add_layer` should ignore already added layers.
 #[test]
 fn test_layers_are_unique() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer {
             name: "default_layer",
@@ -78,7 +79,7 @@ fn test_layers_are_unique() {
 // `ZkStack` Service's `run()` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
-    let empty_run_result = ZkStackServiceBuilder::new().build().unwrap().run();
+    let empty_run_result = ZkStackServiceBuilder::new().unwrap().build().run(None);
     assert_matches!(empty_run_result.unwrap_err(), ZkStackServiceError::NoTasks);
 }
 
@@ -87,11 +88,14 @@ struct WireErrorLayer;
 
 #[async_trait::async_trait]
 impl WiringLayer for WireErrorLayer {
+    type Input = ();
+    type Output = ();
+
     fn layer_name(&self) -> &'static str {
         "wire_error_layer"
     }
 
-    async fn wire(self: Box<Self>, _node: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         Err(WiringError::Internal(anyhow!("wiring error")))
     }
 }
@@ -99,10 +103,10 @@ impl WiringLayer for WireErrorLayer {
 // `ZkStack` Service's `run()` method has to take into account errors on wiring step.
 #[test]
 fn test_run_with_error_tasks() {
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
-    let result = zk_stack_service.build().unwrap().run();
+    let result = zk_stack_service.build().run(None);
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Wiring(_));
 }
 
@@ -110,15 +114,24 @@ fn test_run_with_error_tasks() {
 #[derive(Debug)]
 struct TaskErrorLayer;
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+struct TaskErrorLayerOutput {
+    #[context(task)]
+    task: ErrorTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TaskErrorLayer {
+    type Input = ();
+    type Output = TaskErrorLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "task_error_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(ErrorTask);
-        Ok(())
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(TaskErrorLayerOutput { task: ErrorTask })
     }
 }
 
@@ -138,9 +151,9 @@ impl Task for ErrorTask {
 // `ZkStack` Service's `run()` method has to take into account errors inside task execution.
 #[test]
 fn test_run_with_failed_tasks() {
-    let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new();
+    let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service.add_layer(TaskErrorLayer);
-    let result = zk_stack_service.build().unwrap().run();
+    let result = zk_stack_service.build().run(None);
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Task(_));
 }
 
@@ -150,25 +163,32 @@ struct TasksLayer {
     remaining_task_was_run: Arc<Mutex<bool>>,
 }
 
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+struct TasksLayerOutput {
+    #[context(task)]
+    successful_task: SuccessfulTask,
+    #[context(task)]
+    remaining_task: RemainingTask,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TasksLayer {
+    type Input = ();
+    type Output = TasksLayerOutput;
+
     fn layer_name(&self) -> &'static str {
         "tasks_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Barrier is needed to make sure that both tasks have started, otherwise the second task
-        // may exit even before it starts.
+    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         let barrier = Arc::new(Barrier::new(2));
-        node.add_task(SuccessfulTask(
-            barrier.clone(),
-            self.successful_task_was_run.clone(),
-        ))
-        .add_task(RemainingTask(
-            barrier.clone(),
-            self.remaining_task_was_run.clone(),
-        ));
-        Ok(())
+        let successful_task = SuccessfulTask(barrier.clone(), self.successful_task_was_run.clone());
+        let remaining_task = RemainingTask(barrier, self.remaining_task_was_run.clone());
+        Ok(TasksLayerOutput {
+            successful_task,
+            remaining_task,
+        })
     }
 }
 
@@ -215,7 +235,7 @@ fn test_task_run() {
     let successful_task_was_run = Arc::new(Mutex::new(false));
     let remaining_task_was_run = Arc::new(Mutex::new(false));
 
-    let mut zk_stack_service = ZkStackServiceBuilder::new();
+    let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
 
     zk_stack_service.add_layer(TasksLayer {
         successful_task_was_run: successful_task_was_run.clone(),
@@ -223,7 +243,7 @@ fn test_task_run() {
     });
 
     assert!(
-        zk_stack_service.build().unwrap().run().is_ok(),
+        zk_stack_service.build().run(None).is_ok(),
         "ZkStackServiceBuilder run finished with an error, but it shouldn't"
     );
     let res1 = *successful_task_was_run.lock().unwrap();

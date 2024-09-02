@@ -21,6 +21,11 @@ enum SetupLoadMode {
   FROM_MEMORY = 1;
 }
 
+enum CloudType {
+  GCP = 0;
+  LOCAL = 1;
+}
+
 message Prover {
   optional string setup_data_path = 1; // required; fs path?
   optional uint32 prometheus_port = 2; // required; u16
@@ -35,6 +40,7 @@ message Prover {
   optional bool shall_save_to_public_bucket = 13; // required
   optional config.object_store.ObjectStore public_object_store = 22;
   optional config.object_store.ObjectStore prover_object_store = 23;
+  optional CloudType cloud_type = 24; // optional
   reserved 5, 6, 9; reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "witness_vector_generator_thread_count";
 }
 
@@ -81,6 +87,8 @@ message WitnessGenerator {
   optional uint32 node_generation_timeout_in_secs = 10; // optional;
   optional uint32 scheduler_generation_timeout_in_secs = 11; // optional;
   optional uint32 recursion_tip_timeout_in_secs = 12; // optional;
+  optional uint32 prometheus_listener_port = 13; // optional;
+  optional uint64 max_circuits_in_flight = 14; // optional;
   reserved 3, 4, 6;
   reserved "dump_arguments_for_blocks", "force_process_block", "blocks_proving_percentage";
 }

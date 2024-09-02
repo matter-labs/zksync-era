@@ -1,6 +1,7 @@
 [package]
 name = "zksync_node_framework"
-version = "0.1.0"
+description = "ZKsync node framework"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -50,6 +51,10 @@ zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true
 zksync_node_db_pruner.workspace = true
 zksync_base_token_adjuster.workspace = true
+zksync_node_storage_init.workspace = true
+zksync_external_price_api.workspace = true
+zksync_external_proof_integration_api.workspace = true
+zksync_logs_bloom_backfill.workspace = true
 
 pin-project-lite.workspace = true
 tracing.workspace = true

@@ -1,0 +1,79 @@
+name: Build TEE Prover images
+on:
+  workflow_call:
+    secrets:
+      DOCKERHUB_USER:
+        description: "DOCKERHUB_USER"
+        required: true
+      DOCKERHUB_TOKEN:
+        description: "DOCKERHUB_TOKEN"
+        required: true
+      ATTIC_TOKEN:
+        description: "ATTIC_TOKEN"
+        required: false
+    inputs:
+      image_tag_suffix:
+        description: "Optional suffix to override tag name generation"
+        type: string
+        required: false
+      action:
+        description: "Action with docker image"
+        type: string
+        default: "push"
+        required: false
+jobs:
+  build-images:
+    name: Build and Push Docker Images
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    runs-on: [matterlabs-ci-runner-high-performance]
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ github.token }}
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= tee-pot:SS6HcrpG87S1M6HZGPsfo7d1xJccCGev7/tXc5+I4jg=
+            substituters = https://cache.nixos.org/ https://attic.teepot.org/tee-pot
+            sandbox = true
+
+      - name: Setup Attic cache
+        uses: ryanccn/attic-action@v0
+        with:
+          endpoint: https://attic.teepot.org/
+          cache: tee-pot
+          token: ${{ secrets.ATTIC_TOKEN }}
+
+      - name: Build Docker images
+        id: build
+        run: |
+          nix build -L .#container-tee-prover-azure
+          export IMAGE_TAG=$(docker load -i result | grep -Po 'Loaded image.*: \K.*')
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_NAME=${IMAGE_TAG%:*}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker registries
+        if: ${{ inputs.action == 'push' }}
+        run: |
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Push Docker images
+        if: ${{ inputs.action == 'push' }}
+        run: |
+          export IMAGE_TAG="${{ steps.build.outputs.IMAGE_TAG }}"
+          export IMAGE_NAME="${{ steps.build.outputs.IMAGE_NAME }}"
+          for repo in matterlabsrobot us-docker.pkg.dev/matterlabs-infra/matterlabs-docker; do
+            for tag in "${IMAGE_TAG}" "${IMAGE_NAME}:latest" "${IMAGE_NAME}:${IMAGE_TAG_SUFFIX}"; do
+              docker tag "${IMAGE_TAG}" "${repo}/${tag}"
+              docker push "${repo}/${tag}"
+            done
+          done
+

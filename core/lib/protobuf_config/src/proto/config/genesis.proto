@@ -9,10 +9,8 @@ enum L1BatchCommitDataGeneratorMode {
 
 message Prover {
   optional string recursion_scheduler_level_vk_hash = 1; // required; H256
-  optional string recursion_node_level_vk_hash = 2; // required; H256
-  optional string recursion_leaf_level_vk_hash = 3; // required; H256
-  optional string recursion_circuits_set_vks_hash = 4; // required; H256
   optional bool dummy_verifier = 5;
+  reserved 2, 3, 4; reserved "recursion_node_level_vk_hash", "recursion_leaf_level_vk_hash", "recursion_circuits_set_vks_hash";
 }
 
 
