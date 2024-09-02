@@ -297,9 +297,8 @@ base_token_adjuster:
 external_price_api_client:
   source: "forced"
   client_timeout_ms: 10000
-  forced:
-    numerator: 314
-    denominator: 1000
+  forced_numerator: 314
+  forced_denominator: 1000
 
 
 house_keeper:
