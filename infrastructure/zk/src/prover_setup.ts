@@ -30,8 +30,7 @@ export async function setupProver(proverType: ProverType) {
         } else {
             env.modify(
                 'FRI_PROVER_SETUP_DATA_PATH',
-                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
-                    proverType === ProverType.GPU ? 'gpu' : 'cpu'
+                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
                 }/`,
                 process.env.ENV_FILE!
             );
@@ -98,8 +97,7 @@ async function setupProverKeys(proverType: ProverType) {
 
     env.modify(
         'FRI_PROVER_SETUP_DATA_PATH',
-        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
-            proverType === ProverType.GPU ? 'gpu' : 'cpu'
+        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
         }/`,
         process.env.ENV_FILE!
     );
@@ -204,7 +202,7 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: string) 
     );
 
     await utils.spawn(
-        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
+        `cp -r ${process.env.ZKSYNC_HOME}/prover/data/keys/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
 }
 
