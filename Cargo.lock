@@ -8068,6 +8068,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "chrono",
  "hex",
  "rand 0.8.5",
@@ -8776,13 +8777,14 @@ name = "zksync_external_proof_integration_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bincode",
+ "thiserror",
  "tokio",
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_config",
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -9782,6 +9784,7 @@ dependencies = [
  "assert_matches",
  "hex",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "zksync_contracts",
@@ -9794,6 +9797,7 @@ name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "backon",
  "dashmap",

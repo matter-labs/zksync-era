@@ -18,6 +18,7 @@ use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        VmInterfaceExt,
     },
     versions::vm_fast::{tests::utils::read_test_contract, vm::Vm},
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, utils::l2_blocks::load_last_l2_block},
