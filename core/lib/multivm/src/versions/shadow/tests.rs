@@ -15,7 +15,7 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::{
-    interface::{storage::InMemoryStorage, ExecutionResult},
+    interface::{storage::InMemoryStorage, ExecutionResult, VmInterfaceExt},
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
         default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,

@@ -5,7 +5,7 @@ use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, E
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{get_empty_storage, VmTesterBuilder},

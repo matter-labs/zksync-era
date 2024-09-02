@@ -13,6 +13,7 @@ use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        VmInterfaceExt,
     },
     versions::{
         testonly::{default_l1_batch, default_system_env, make_account_rich, ContractToDeploy},

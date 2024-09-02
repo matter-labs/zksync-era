@@ -9,7 +9,9 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{
+        storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+    },
     versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{Account, VmTester, VmTesterBuilder},

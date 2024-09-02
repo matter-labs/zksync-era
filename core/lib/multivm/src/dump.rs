@@ -5,15 +5,13 @@ use zksync_types::{
     block::L2BlockExecutionData, web3, L1BatchNumber, L2BlockNumber, Transaction, H256, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_interface::storage::WriteStorage;
 
 use crate::{
     interface::{
-        storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView, WriteStorage},
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_fast, vm_latest, HistoryMode,
 };
@@ -210,24 +208,12 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         self.inner.push_transaction(tx);
     }
 
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inner.execute(execution_mode)
-    }
-
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
-    }
-
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        self.inner.get_bootloader_memory()
-    }
-
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.inner.get_last_tx_compressed_bytecodes()
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -241,32 +227,12 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         self.inner.start_new_l2_block(l2_block_env);
     }
 
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        self.inner.get_current_execution_state()
-    }
-
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        self.record_transaction(tx.clone());
-        self.inner
-            .execute_transaction_with_bytecode_compression(tx, with_compression)
-    }
-
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         self.record_transaction(tx.clone());
         self.inner
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
@@ -274,10 +240,6 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.inner.record_vm_memory_metrics()
-    }
-
-    fn gas_remaining(&self) -> u32 {
-        self.inner.gas_remaining()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

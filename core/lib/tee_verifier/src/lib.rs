@@ -244,7 +244,7 @@ fn execute_tx<S: ReadStorage>(
     // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();
     if vm
-        .execute_transaction_with_bytecode_compression(tx.clone(), true)
+        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), true)
         .0
         .is_ok()
     {
@@ -255,7 +255,7 @@ fn execute_tx<S: ReadStorage>(
     // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
     if vm
-        .execute_transaction_with_bytecode_compression(tx.clone(), false)
+        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), false)
         .0
         .is_err()
     {

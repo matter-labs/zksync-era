@@ -11,10 +11,9 @@ use crate::{
     dump::{DumpingVm, VmDump, VmTrackingContracts},
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_fast,
 };
@@ -171,20 +170,6 @@ where
         self.main.push_transaction(tx);
     }
 
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        let main_result = self.main.execute(execution_mode);
-        if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_result = shadow.vm.execute(execution_mode);
-            let mut errors = DivergenceErrors::new();
-            errors.check_results_match(&main_result, &shadow_result);
-            if let Err(err) = errors.into_result() {
-                let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.report(err.context(ctx));
-            }
-        }
-        main_result
-    }
-
     fn inspect(
         &mut self,
         dispatcher: Self::TracerDispatcher,
@@ -206,39 +191,6 @@ where
         main_result
     }
 
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        let main_memory = self.main.get_bootloader_memory();
-        let borrow = self.shadow.borrow();
-        if let Some(shadow) = &*borrow {
-            let shadow_memory = shadow.vm.get_bootloader_memory();
-            let result =
-                DivergenceErrors::single("get_bootloader_memory", &main_memory, &shadow_memory);
-            if let Err(err) = result {
-                drop(borrow);
-                self.report_shared(err);
-            }
-        }
-        main_memory
-    }
-
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        let main_bytecodes = self.main.get_last_tx_compressed_bytecodes();
-        let borrow = self.shadow.borrow();
-        if let Some(shadow) = &*borrow {
-            let shadow_bytecodes = shadow.vm.get_last_tx_compressed_bytecodes();
-            let result = DivergenceErrors::single(
-                "get_last_tx_compressed_bytecodes",
-                &main_bytecodes,
-                &shadow_bytecodes,
-            );
-            if let Err(err) = result {
-                drop(borrow);
-                self.report_shared(err);
-            }
-        }
-        main_bytecodes
-    }
-
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.main.start_new_l2_block(l2_block_env);
         if let Some(shadow) = self.shadow.get_mut() {
@@ -246,58 +198,12 @@ where
         }
     }
 
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let main_state = self.main.get_current_execution_state();
-        let borrow = self.shadow.borrow();
-        if let Some(shadow) = &*borrow {
-            let shadow_state = shadow.vm.get_current_execution_state();
-            let result =
-                DivergenceErrors::single("get_current_execution_state", &main_state, &shadow_state);
-            if let Err(err) = result {
-                drop(borrow);
-                self.report_shared(err);
-            }
-        }
-        main_state
-    }
-
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        let tx_hash = tx.hash();
-        let main_result = self
-            .main
-            .execute_transaction_with_bytecode_compression(tx.clone(), with_compression);
-        if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_result = shadow
-                .vm
-                .execute_transaction_with_bytecode_compression(tx, with_compression);
-            let mut errors = DivergenceErrors::new();
-            errors.check_results_match(&main_result.1, &shadow_result.1);
-            if let Err(err) = errors.into_result() {
-                let ctx = format!(
-                    "executing transaction {tx_hash:?}, with_compression={with_compression:?}"
-                );
-                self.report(err.context(ctx));
-            }
-        }
-        main_result
-    }
-
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
         let main_result = self.main.inspect_transaction_with_bytecode_compression(
             tracer,
@@ -324,20 +230,6 @@ where
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.main.record_vm_memory_metrics()
-    }
-
-    fn gas_remaining(&self) -> u32 {
-        let main_gas = self.main.gas_remaining();
-        let borrow = self.shadow.borrow();
-        if let Some(shadow) = &*borrow {
-            let shadow_gas = shadow.vm.gas_remaining();
-            let result = DivergenceErrors::single("gas_remaining", &main_gas, &shadow_gas);
-            if let Err(err) = result {
-                drop(borrow);
-                self.report_shared(err);
-            }
-        }
-        main_gas
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
@@ -414,12 +306,6 @@ impl DivergenceErrors {
         self
     }
 
-    fn single<T: fmt::Debug + PartialEq>(context: &str, main: &T, shadow: &T) -> Result<(), Self> {
-        let mut this = Self::new();
-        this.check_match(context, main, shadow);
-        this.into_result()
-    }
-
     fn check_results_match(
         &mut self,
         main_result: &VmExecutionResultAndLogs,
@@ -445,6 +331,11 @@ impl DivergenceErrors {
         let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
+        self.check_match(
+            "gas_remaining",
+            &main_result.statistics.gas_remaining,
+            &shadow_result.statistics.gas_remaining,
+        );
     }
 
     fn check_match<T: fmt::Debug + PartialEq>(&mut self, context: &str, main: &T, shadow: &T) {

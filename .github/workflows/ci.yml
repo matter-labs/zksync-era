@@ -62,6 +62,7 @@ jobs:
               - '!**/*.MD'
               - 'docker-compose.yml'
             zk_toolbox:
+              - '.github/workflows/ci-zk-toolbox-reusable.yml'
               - 'zk_toolbox/**'
               - '!**/*.md'
               - '!**/*.MD'

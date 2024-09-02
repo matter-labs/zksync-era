@@ -87,7 +87,7 @@ zksync_periodic_job = { path = "../core/lib/periodic_job" }
 zksync_prover_dal = { path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
-vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 
 # for `perf` profiling
 [profile.perf]

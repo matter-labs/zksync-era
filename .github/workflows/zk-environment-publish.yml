@@ -76,7 +76,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: matterlabs-ci-runner
+          - runner: matterlabs-ci-runner-high-performance
             arch: amd64
           - runner: matterlabs-ci-runner-arm
             arch: arm64
@@ -129,7 +129,8 @@ jobs:
       packages: write
       contents: read
     needs: [changed_files, get_short_sha, zk_environment]
-    runs-on: matterlabs-ci-runner
+    # TODO: After migraton switch to CI
+    runs-on: [matterlabs-default-infra-runners]
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -188,7 +189,7 @@ jobs:
       packages: write
       contents: read
     needs: changed_files
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
         cuda_version: ['11_8', '12_0']
