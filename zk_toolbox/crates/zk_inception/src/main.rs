@@ -61,7 +61,7 @@ pub enum InceptionSubcommands {
     ContractVerifier(ContractVerifierCommands),
     /// Run dapp-portal
     Portal(PortalArgs),
-    /// Update zkSync
+    /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
     #[command(hide = true)]

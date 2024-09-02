@@ -30,12 +30,21 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
             l1_receipt_checking_max_attempts: self
                 .l1_receipt_checking_max_attempts
                 .unwrap_or(Self::Type::default_l1_receipt_checking_max_attempts()),
+            price_fetching_sleep_ms: self
+                .price_fetching_sleep_ms
+                .unwrap_or(Self::Type::default_price_fetching_sleep_ms()),
+            price_fetching_max_attempts: self
+                .price_fetching_max_attempts
+                .unwrap_or(Self::Type::default_price_fetching_max_attempts()),
             l1_tx_sending_max_attempts: self
                 .l1_tx_sending_max_attempts
                 .unwrap_or(Self::Type::default_l1_tx_sending_max_attempts()),
             l1_tx_sending_sleep_ms: self
                 .l1_tx_sending_sleep_ms
                 .unwrap_or(Self::Type::default_l1_tx_sending_sleep_ms()),
+            l1_update_deviation_percentage: self
+                .l1_update_deviation_percentage
+                .unwrap_or(Self::Type::default_l1_update_deviation_percentage()),
         })
     }
 
@@ -47,6 +56,9 @@ impl ProtoRepr for proto::BaseTokenAdjuster {
             l1_receipt_checking_max_attempts: Some(this.l1_receipt_checking_max_attempts),
             l1_tx_sending_max_attempts: Some(this.l1_tx_sending_max_attempts),
             l1_tx_sending_sleep_ms: Some(this.l1_tx_sending_sleep_ms),
+            l1_update_deviation_percentage: Some(this.l1_update_deviation_percentage),
+            price_fetching_max_attempts: Some(this.price_fetching_max_attempts),
+            price_fetching_sleep_ms: Some(this.price_fetching_sleep_ms),
             max_tx_gas: Some(this.max_tx_gas),
             default_priority_fee_per_gas: Some(this.default_priority_fee_per_gas),
             max_acceptable_priority_fee_in_gwei: Some(this.max_acceptable_priority_fee_in_gwei),

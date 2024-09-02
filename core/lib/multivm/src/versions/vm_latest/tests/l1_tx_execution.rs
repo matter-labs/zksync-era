@@ -10,7 +10,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{

@@ -4,7 +4,8 @@ on:
 
 jobs:
   lint:
-    runs-on: [matterlabs-ci-runner]
+    # TODO: After migraton switch to CI
+    runs-on: matterlabs-default-infra-runners
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -19,13 +20,15 @@ jobs:
 
       - name: Start services
         run: |
-          mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+          run_retried docker compose pull zk
+          docker compose up -d zk
+      
+      - name: Build
+        run: |
+          ci_run ./bin/zkt
+          ci_run yarn install
+          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
-          ci_run zk
-          ci_run zk fmt md --check
-          ci_run zk lint md --check
-
+          ci_run zk_supervisor lint -t md --check

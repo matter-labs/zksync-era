@@ -1,6 +1,8 @@
 genesis_root: 0x6414d0df09aabdca68407a4471052e5716ac048f0c83cfadd7a02c607046e21d
 genesis_rollup_leaf_index: 54
-genesis_batch_commitment: 0x69e28fce23f18f151beaf8d6dc8381c79939728cb6c81b2428b748c5954a66b8
+genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd
+genesis_protocol_semantic_version: '0.24.2'
+# deprecated
 genesis_protocol_version: 24
 default_aa_hash: 0x0100052953cac95f35a20eb07894f017c474d4077f6a7a4bb6feab0ba6ed4407
 bootloader_hash: 0x010008e714cf7777041ba71c2a39d913db383e11451aaf2acbc32f6a85bba92f
@@ -10,5 +12,4 @@ fee_account: '0x0000000000000000000000000000000000000001'
 prover:
   recursion_scheduler_level_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
   dummy_verifier: true
-genesis_protocol_semantic_version: 0.24.0
 l1_batch_commit_data_generator_mode: Rollup

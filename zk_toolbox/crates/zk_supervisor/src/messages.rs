@@ -1,4 +1,4 @@
-use crate::commands::lint_utils::Extension;
+use crate::commands::lint_utils::Target;
 
 // Ecosystem related messages
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
@@ -47,6 +47,10 @@ pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
 pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
+pub(super) const MSG_DATABASE_COMMON_PROVER_URL_HELP: &str =
+    "URL of the Prover database. If not specified, it is used from the current chain's secrets";
+pub(super) const MSG_DATABASE_COMMON_CORE_URL_HELP: &str =
+    "URL of the Core database. If not specified, it is used from the current chain's secrets.";
 pub(super) const MSG_DATABASE_COMMON_CORE_HELP: &str = "Core database";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP: &str =
     "Database to create new migration for";
@@ -84,7 +88,10 @@ pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
+pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
+pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 pub(super) const MSG_UNIT_TESTS_RUN_SUCCESS: &str = "Unit tests ran successfully";
@@ -114,8 +121,6 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 
 // Revert tests related messages
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
-pub(super) const MSG_REVERT_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
 pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
@@ -135,8 +140,6 @@ pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran succes
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
-pub(super) const MSG_UPGRADE_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_UPGRADE_TEST_RUN_SUCCESS: &str = "Upgrade test ran successfully";
 
 // Cleaning related messages
@@ -152,30 +155,32 @@ pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
 pub(super) const MSG_RUNNING_SNAPSHOT_CREATOR: &str = "Running snapshot creator";
 
 // Lint related messages
-pub(super) fn msg_running_linters_for_files(extensions: &[Extension]) -> String {
-    let extensions: Vec<String> = extensions.iter().map(|e| format!(".{}", e)).collect();
-    format!(
-        "Running linters for files with extensions: {:?}",
-        extensions
-    )
+pub(super) fn msg_running_linters_for_files(targets: &[Target]) -> String {
+    let targets: Vec<String> = targets.iter().map(|e| format!(".{}", e)).collect();
+    format!("Running linters for targets: {:?}", targets)
 }
 
-pub(super) fn msg_running_linter_for_extension_spinner(extension: &Extension) -> String {
-    format!("Running linter for files with extension: .{}", extension)
+pub(super) fn msg_running_linter_for_extension_spinner(target: &Target) -> String {
+    format!("Running linter for files with extension: .{}", target)
 }
 
-pub(super) fn msg_running_fmt_for_extension_spinner(extension: Extension) -> String {
-    format!("Running prettier for: {extension:?}")
+pub(super) fn msg_running_fmt_for_extension_spinner(target: Target) -> String {
+    format!("Running prettier for: {target:?}")
 }
 
 pub(super) fn msg_running_rustfmt_for_dir_spinner(dir: &str) -> String {
     format!("Running rustfmt for: {dir:?}")
 }
 
-pub(super) fn msg_running_fmt_for_extensions_spinner(extensions: &[Extension]) -> String {
-    format!("Running prettier for: {extensions:?} and rustfmt")
+pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> String {
+    format!("Running prettier for: {targets:?} and rustfmt")
 }
 
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
 pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
+
+// Test wallets related messages
+pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
+pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
+pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";

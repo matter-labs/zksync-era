@@ -37,7 +37,6 @@ async fn main() -> anyhow::Result<()> {
 
     let general_config = load_general_config(opt.config_path).context("general config")?;
 
-    println!("general_config = {general_config:?}");
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
 
     let observability_config = general_config
