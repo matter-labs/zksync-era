@@ -251,7 +251,8 @@ testFees('Test fees', () => {
             forcedBaseTokenRatioNumerator: 300,
             forcedBaseTokenRatioDenumerator: 100,
             forcedBaseTokenRatioFluctuationsAmplitude: 20,
-            forcedBaseTokenRatioFluctuationsFrequencyMs: 1000
+            forcedBaseTokenRatioFluctuationsFrequencyMs: 1000,
+            baseTokenAdjusterL1UpdateDeviationPercentage: 0
         });
 
         const beginFeeParams = await alice._providerL2().getFeeParams();
@@ -456,6 +457,7 @@ async function setInternalL1GasPrice(
         forcedBaseTokenRatioDenumerator?: number;
         forcedBaseTokenRatioFluctuationsAmplitude?: number;
         forcedBaseTokenRatioFluctuationsFrequencyMs?: number;
+        baseTokenAdjusterL1UpdateDeviationPercentage?: number;
         disconnect?: boolean;
     }
 ) {
@@ -499,6 +501,10 @@ async function setInternalL1GasPrice(
     if (options.forcedBaseTokenRatioFluctuationsFrequencyMs) {
         const cacheUpdateInterval = options.forcedBaseTokenRatioFluctuationsFrequencyMs / 2;
         command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
+    }
+
+    if (options.baseTokenAdjusterL1UpdateDeviationPercentage) {
+        command = `BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE=${options.baseTokenAdjusterL1UpdateDeviationPercentage} ${command}`;
     }
 
     const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
