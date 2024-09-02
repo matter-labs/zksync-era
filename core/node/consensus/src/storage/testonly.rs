@@ -12,6 +12,7 @@ use zksync_types::{
 };
 
 use super::{Connection, ConnectionPool};
+use crate::registry;
 
 impl Connection<'_> {
     /// Wrapper for `consensus_dal().batch_of_block()`.
@@ -198,6 +199,7 @@ impl ConnectionPool {
         &self,
         ctx: &ctx::Ctx,
         want_last: attester::BatchNumber,
+        registry_addr: Option<registry::Address>,
     ) -> ctx::Result<()> {
         // Wait for the last batch to be attested.
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
@@ -223,7 +225,7 @@ impl ConnectionPool {
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let committee = genesis.attesters.as_ref().unwrap();
+        let registry = registry::Registry::new(genesis.clone(), self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let hash = conn
@@ -239,8 +241,13 @@ impl ConnectionPool {
             if cert.message.hash != hash {
                 return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());
             }
-            cert.verify(genesis.hash(), committee)
-                .context("cert[{i:?}].verify()")?;
+            let committee = registry
+                .attester_committee_for(ctx, registry_addr, i)
+                .await
+                .context("attester_committee_for()")?
+                .context("committee not specified")?;
+            cert.verify(genesis.hash(), &committee)
+                .with_context(|| format!("cert[{i:?}].verify()"))?;
         }
         Ok(())
     }

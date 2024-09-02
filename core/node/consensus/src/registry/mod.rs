@@ -7,6 +7,8 @@ use zksync_contracts::consensus as contracts;
 use crate::{storage::ConnectionPool, vm::VM};
 
 #[cfg(test)]
+pub(crate) mod testonly;
+#[cfg(test)]
 mod tests;
 
 fn decode_attester_key(k: &contracts::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {

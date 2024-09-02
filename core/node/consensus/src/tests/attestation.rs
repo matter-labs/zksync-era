@@ -1,5 +1,6 @@
 use anyhow::Context as _;
-use test_casing::{test_casing, Product};
+use rand::Rng as _;
+use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
@@ -8,10 +9,16 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::consensus_dal::AttestationStatus;
 use zksync_node_sync::MainNodeClient;
+use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
-use super::{FROM_SNAPSHOT, VERSIONS};
-use crate::{mn::run_main_node, storage::ConnectionPool, testonly};
+use super::VERSIONS;
+use crate::{
+    mn::run_main_node,
+    registry::{testonly, Registry},
+    storage::ConnectionPool,
+    testonly::{new_configs, StateKeeper},
+};
 
 #[test_casing(2, VERSIONS)]
 #[tokio::test]
@@ -19,15 +26,16 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, version).await;
-        let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        let (mut sk, runner) = StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
         // Setup nontrivial genesis.
         while sk.last_sealed_batch() < L1BatchNumber(3) {
-            sk.push_random_blocks(rng, 10).await;
+            sk.push_random_blocks(rng, account, 10).await;
         }
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = sk.last_block();
@@ -94,10 +102,6 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
 // Test running a couple of attesters (which are also validators).
 // Main node is expected to collect all certificates.
 // External nodes are expected to just vote for the batch.
-//
-// TODO: it would be nice to use `StateKeeperRunner::run_real()` in this test,
-// however as of now it doesn't work with ENs and it doesn't work with
-// `ConnectionPool::from_snapshot`.
 #[test_casing(2, VERSIONS)]
 #[tokio::test]
 async fn test_multiple_attesters(version: ProtocolVersionId) {
@@ -106,28 +110,51 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    
+    let account = &mut Account::random();
+    let to_fund = &[account.address];
+    let setup = Setup::new(rng, 4);
+    let cfgs = new_configs(rng, &setup, NODES);
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
-        let (mut validator, runner) =
-            testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
+        let (mut validator, runner) = StateKeeper::new(ctx, validator_pool.clone()).await?;
         s.spawn_bg(async {
             runner
-                .run_real(ctx)
+                .run_real(ctx, to_fund)
                 .instrument(tracing::info_span!("validator"))
                 .await
                 .context("validator")
         });
 
-        // TODO: configure registry
-
-        let mut spec = SetupSpec::new(rng, 4);
-        spec.first_block = validator.last_block();
-        let setup = Setup::from(spec);
-        let cfgs = testonly::new_configs(rng, &setup, NODES);
-
-        // API server needs at least 1 L1 batch to start.
+        tracing::info!("deploy registry with 1 attester");
+        let attesters: Vec<_> = setup.genesis.attesters.as_ref().unwrap().iter().collect();
+        let registry = Registry::new(setup.genesis.clone(), validator_pool.clone()).await;
+        let (registry_addr, tx) = registry.deploy(account);
+        let mut txs = vec![tx];
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.initialize(account.address),
+        ));
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry
+                .add(
+                    rng.gen(),
+                    testonly::gen_validator(rng),
+                    attesters[0].clone(),
+                )
+                .unwrap(),
+        ));
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.commit_attester_committee(),
+        ));
+        validator.push_block(&txs).await;
         validator.seal_batch().await;
+
+        tracing::info!("wait for the batch to be processed before starting consensus");
         validator_pool
             .wait_for_payload(ctx, validator.last_block())
             .await?;
@@ -138,7 +165,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             validator_pool.clone(),
-            None,
+            Some(registry_addr),
         ));
 
         tracing::info!("Run nodes.");
@@ -146,12 +173,12 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
         for (i, cfg) in cfgs[1..].iter().enumerate() {
             let i = ctx::NoCopy(i);
             let pool = ConnectionPool::test(false, version).await;
-            let (node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+            let (node, runner) = StateKeeper::new(ctx, pool.clone()).await?;
             node_pools.push(pool.clone());
             s.spawn_bg(async {
                 let i = i;
                 runner
-                    .run(ctx)
+                    .run_real(ctx, to_fund)
                     .instrument(tracing::info_span!("node", i = *i))
                     .await
                     .with_context(|| format!("node{}", *i))
@@ -159,13 +186,33 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
             s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, cfg.clone()));
         }
 
-        tracing::info!("Create some batches");
-        validator.push_random_blocks(rng, 20).await;
-        validator.seal_batch().await;
+        tracing::info!("add attesters one by one");
+        for i in 1..attesters.len() {
+            let mut txs = vec![];
+            txs.push(testonly::make_tx(
+                account,
+                registry_addr,
+                registry
+                    .add(
+                        rng.gen(),
+                        testonly::gen_validator(rng),
+                        attesters[i].clone(),
+                    )
+                    .unwrap(),
+            ));
+            txs.push(testonly::make_tx(
+                account,
+                registry_addr,
+                registry.commit_attester_committee(),
+            ));
+            validator.push_block(&txs).await;
+            validator.seal_batch().await;
+        }
+
         tracing::info!("Wait for the batches to be attested");
         let want_last = attester::BatchNumber(validator.last_sealed_batch().0.into());
         validator_pool
-            .wait_for_batch_certificates_and_verify(ctx, want_last)
+            .wait_for_batch_certificates_and_verify(ctx, want_last, Some(registry_addr))
             .await?;
         Ok(())
     })
