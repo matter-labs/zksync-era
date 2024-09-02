@@ -17,8 +17,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
-import { sendTransfers } from '../src/context-owner';
-import { Reporter } from '../src/reporter';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
