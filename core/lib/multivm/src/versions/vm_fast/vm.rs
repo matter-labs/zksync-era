@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, VirtualMachine,
+    ExecutionEnd, Program, Settings, StorageInterface, Tracer, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -54,9 +54,9 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S> {
-    pub(crate) world: World<S>,
-    pub(crate) inner: VirtualMachine,
+pub struct Vm<S, T = ()> {
+    pub(crate) world: World<S, T>,
+    pub(crate) inner: VirtualMachine<T, World<S, T>>,
     suspended_at: u16,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
@@ -65,9 +65,10 @@ pub struct Vm<S> {
     snapshot: Option<VmSnapshot>,
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, T: Tracer> Vm<S, T> {
     fn run(
         &mut self,
+        tracer: &mut T,
         execution_mode: VmExecutionMode,
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
@@ -79,14 +80,8 @@ impl<S: ReadStorage> Vm<S> {
         let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
-            let hook = match self.inner.resume_from(self.suspended_at, &mut self.world) {
-                ExecutionEnd::SuspendedOnHook {
-                    hook,
-                    pc_to_resume_from,
-                } => {
-                    self.suspended_at = pc_to_resume_from;
-                    hook
-                }
+            let hook = match self.inner.run(&mut self.world, tracer) {
+                ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
                     break match TxRevertReason::parse_error(&output) {
@@ -96,7 +91,7 @@ impl<S: ReadStorage> Vm<S> {
                 }
                 ExecutionEnd::Panicked => {
                     break ExecutionResult::Halt {
-                        reason: if self.gas_remaining() == 0 {
+                        reason: if self.inner.state.current_frame.gas == 0 {
                             Halt::BootloaderOutOfGas
                         } else {
                             Halt::VMPanic
@@ -387,13 +382,15 @@ impl<S: ReadStorage> Vm<S> {
             .hash
             .into();
 
-        let program_cache = HashMap::from([convert_system_contract_code(
+        let program_cache = HashMap::from([World::convert_system_contract_code(
             &system_env.base_system_smart_contracts.default_aa,
             false,
         )]);
 
-        let (_, bootloader) =
-            convert_system_contract_code(&system_env.base_system_smart_contracts.bootloader, true);
+        let (_, bootloader) = World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.bootloader,
+            true,
+        );
         let bootloader_memory = bootloader_initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
@@ -499,7 +496,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
 
-        let (result, refunds) = self.run(execution_mode, track_refunds);
+        let (result, refunds) = self.run(&mut (), execution_mode, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -686,50 +683,59 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
 }
 
 #[derive(Debug)]
-pub(crate) struct World<S> {
+pub(crate) struct World<S, T> {
     pub(crate) storage: S,
-    // TODO (PLA-1008): Store `Program`s in an LRU cache
-    program_cache: HashMap<U256, Program>,
+    program_cache: HashMap<U256, Program<T, Self>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
 
-impl<S: ReadStorage> World<S> {
-    fn new(storage: S, program_cache: HashMap<U256, Program>) -> Self {
+impl<S: ReadStorage, T: Tracer> World<S, T> {
+    fn new(storage: S, program_cache: HashMap<U256, Program<T, Self>>) -> Self {
         Self {
             storage,
             program_cache,
             bytecode_cache: Default::default(),
         }
     }
+
+    fn bytecode_to_program(bytecode: &[u8]) -> Program<T, Self> {
+        Program::new(
+            decode_program(
+                &bytecode
+                    .chunks_exact(8)
+                    .map(|chunk| u64::from_be_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>(),
+                false,
+            ),
+            bytecode
+                .chunks_exact(32)
+                .map(U256::from_big_endian)
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn convert_system_contract_code(
+        code: &SystemContractCode,
+        is_bootloader: bool,
+    ) -> (U256, Program<T, Self>) {
+        (
+            h256_to_u256(code.hash),
+            Program::new(
+                decode_program(
+                    &code
+                        .code
+                        .iter()
+                        .flat_map(|x| x.0.into_iter().rev())
+                        .collect::<Vec<_>>(),
+                    is_bootloader,
+                ),
+                code.code.clone(),
+            ),
+        )
+    }
 }
 
-impl<S: ReadStorage> vm2::World for World<S> {
-    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
-        self.decommit(hash)
-            .code_page()
-            .as_ref()
-            .iter()
-            .flat_map(|u| {
-                let mut buffer = [0u8; 32];
-                u.to_big_endian(&mut buffer);
-                buffer
-            })
-            .collect()
-    }
-
-    fn decommit(&mut self, hash: U256) -> Program {
-        self.program_cache
-            .entry(hash)
-            .or_insert_with(|| {
-                bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    self.storage
-                        .load_factory_dep(u256_to_h256(hash))
-                        .expect("vm tried to decommit nonexistent bytecode")
-                }))
-            })
-            .clone()
-    }
-
+impl<S: ReadStorage, T: Tracer> StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {
@@ -774,35 +780,30 @@ impl<S: ReadStorage> vm2::World for World<S> {
     }
 }
 
-fn bytecode_to_program(bytecode: &[u8]) -> Program {
-    Program::new(
-        decode_program(
-            &bytecode
-                .chunks_exact(8)
-                .map(|chunk| u64::from_be_bytes(chunk.try_into().unwrap()))
-                .collect::<Vec<_>>(),
-            false,
-        ),
-        bytecode
-            .chunks_exact(32)
-            .map(U256::from_big_endian)
-            .collect::<Vec<_>>(),
-    )
-}
+impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
+    fn decommit(&mut self, hash: U256) -> Program<T, Self> {
+        self.program_cache
+            .entry(hash)
+            .or_insert_with(|| {
+                Self::bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
+                    self.storage
+                        .load_factory_dep(u256_to_h256(hash))
+                        .expect("vm tried to decommit nonexistent bytecode")
+                }))
+            })
+            .clone()
+    }
 
-fn convert_system_contract_code(code: &SystemContractCode, is_bootloader: bool) -> (U256, Program) {
-    (
-        h256_to_u256(code.hash),
-        Program::new(
-            decode_program(
-                &code
-                    .code
-                    .iter()
-                    .flat_map(|x| x.0.into_iter().rev())
-                    .collect::<Vec<_>>(),
-                is_bootloader,
-            ),
-            code.code.clone(),
-        ),
-    )
+    fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
+        self.decommit(hash)
+            .code_page()
+            .as_ref()
+            .iter()
+            .flat_map(|u| {
+                let mut buffer = [0u8; 32];
+                u.to_big_endian(&mut buffer);
+                buffer
+            })
+            .collect()
+    }
 }

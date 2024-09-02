@@ -12,12 +12,15 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::interface::storage::ReadStorage;
+use crate::{interface::storage::ReadStorage, vm_fast::vm::World};
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, HeapId, u32)>) {
+pub(crate) fn verify_required_memory<S: ReadStorage>(
+    state: &State<(), World<S, ()>>,
+    required_values: Vec<(U256, HeapId, u32)>,
+) {
     for (required_value, memory_page, cell) in required_values {
         let current_value = state.heaps[memory_page].read_u256(cell * 32);
         assert_eq!(current_value, required_value);
