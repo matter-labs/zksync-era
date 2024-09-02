@@ -45,7 +45,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 sha3 = "0.10.8"
-sqlx = { version = "0.8.0", default-features = false }
+sqlx = { version = "0.8.1", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.26" }
 tempfile = "3"
@@ -56,13 +56,13 @@ tracing-subscriber = { version = "0.3" }
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.2"
-circuit_sequencer_api = "=0.150.2"
-zkevm_test_harness = "=0.150.2"
+circuit_definitions = "=0.150.4"
+circuit_sequencer_api = "=0.150.4"
+zkevm_test_harness = "=0.150.4"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.0" }
-shivini = "=0.150.3"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.4" }
+shivini = "=0.150.4"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -81,6 +81,7 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
+zksync_periodic_job = { path = "../core/lib/periodic_job" }
 
 # Prover workspace dependencies
 zksync_prover_dal = { path = "crates/lib/prover_dal" }

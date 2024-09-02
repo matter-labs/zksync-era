@@ -257,7 +257,7 @@ describe('ETH token checks', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
         // await withdrawalTx.waitFinalize();
 
-        await sleep(25);
+        await sleep(60);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

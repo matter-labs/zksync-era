@@ -1,6 +1,5 @@
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
-    event::extract_l2tol1logs_from_l1_messenger,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
     Transaction,
@@ -15,6 +14,7 @@ use crate::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
+    utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},

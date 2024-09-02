@@ -46,7 +46,9 @@ message Sender {
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
   optional PubdataSendingMode pubdata_sending_mode = 18; // required
   reserved 19; reserved "proof_loading_mode";
-  optional uint64 priority_op_start_index = 20; // optional
+  optional bool tx_aggregation_paused = 20; // required
+  optional bool tx_aggregation_only_prove_and_execute = 21; // required
+  optional uint64 priority_op_start_index = 22; // optional
 }
 
 message GasAdjuster {

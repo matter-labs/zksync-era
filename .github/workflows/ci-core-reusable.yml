@@ -68,7 +68,7 @@ jobs:
           ci_run zk test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run zk f cargo test --release -p vm-benchmark --bench criterion --bench fill_bootloader
+          ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   # FIXME: support loadtest together with sync layer.
   loadtest:
@@ -249,6 +249,8 @@ jobs:
           ci_run zk config compile test-chain --diff 5
           ci_run zk init hyper
           ci_run zk server --time-to-live 120 &>server2.log
+          sleep 120
+          ci_run zk server --tx-aggregation-paused --time-to-live 60 &>server2.log
           ci_run zk contract migrate-to-sync-layer 
           ci_run zk contract prepare-sync-layer-validators
           ci_run zk contract update-config-for-sync-layer

@@ -14,7 +14,6 @@ mod is_write_initial;
 mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
-mod migration;
 mod nonce_holder;
 mod precompiles;
 mod prestate_tracer;

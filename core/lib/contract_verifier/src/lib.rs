@@ -271,7 +271,9 @@ impl ContractVerifier {
                 let bytecode_str = artifact["bytecode"]
                     .as_str()
                     .ok_or(ContractVerifierError::InternalError)?;
-                let bytecode = hex::decode(bytecode_str).unwrap();
+                let bytecode_without_prefix =
+                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
+                let bytecode = hex::decode(bytecode_without_prefix).unwrap();
                 return Ok(CompilationArtifacts {
                     abi: artifact["abi"].clone(),
                     bytecode,

@@ -112,7 +112,8 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let keystore = Keystore::default();
+                    let keystore =
+                        Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
                     let artifact: GoldilocksGpuProverSetupData = keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
@@ -154,6 +155,7 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
             };
 
             let started_at = Instant::now();
@@ -196,6 +198,7 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }
@@ -345,7 +348,7 @@ pub mod gpu_prover {
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
-                let keystore = Keystore::default();
+                let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                     let setup_data = keystore

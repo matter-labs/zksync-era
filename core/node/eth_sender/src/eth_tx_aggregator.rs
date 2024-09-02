@@ -20,8 +20,9 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataDA,
+    settlement::SettlementMode,
     web3::{contract::Error as Web3ContractError, BlockNumber},
-    Address, L2ChainId, ProtocolVersionId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
@@ -62,12 +63,8 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-
-    /// Indicates that the nonce of the operator from DB should be ignored.
-    /// Two params for two operators
-    ///         // FIXME: remove this hack when in production
-    ignore_db_nonce_0: bool,
-    ignore_db_nonce_1: bool,
+    settlement_mode: SettlementMode,
+    sl_chain_id: SLChainId,
 }
 
 struct TxData {
@@ -87,6 +84,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
+        settlement_mode: SettlementMode,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -103,11 +101,10 @@ impl EthTxAggregator {
             ),
             None => None,
         };
-        let ignore_db_nonce = config.ignore_db_nonce.unwrap_or_default();
-        println!("\n\nIGNORE DB NONCE: {}", ignore_db_nonce);
+
+        let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
+
         Self {
-            ignore_db_nonce_0: ignore_db_nonce,
-            ignore_db_nonce_1: ignore_db_nonce,
             config,
             aggregator,
             eth_client,
@@ -120,6 +117,8 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
+            settlement_mode,
+            sl_chain_id,
         }
     }
 
@@ -343,7 +342,6 @@ impl EthTxAggregator {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
-        let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
         let recursion_scheduler_level_vk_hash = self
             .get_recursion_scheduler_level_vk_hash(verifier_address)
@@ -365,9 +363,27 @@ impl EthTxAggregator {
             )
             .await
         {
-            let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge)
-                .await?;
+            if self.config.tx_aggregation_paused {
+                tracing::info!(
+                    "Skipping sending operation of type {} for batches {}-{} \
+                as tx_aggregation_paused=true",
+                    agg_op.get_action_type(),
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
+                tracing::info!(
+                    "Skipping sending commit operation for batches {}-{} \
+                as tx_aggregation_only_prove_and_execute=true",
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+            let is_gateway = self.settlement_mode.is_gateway();
+            let tx = self.save_eth_tx(storage, &agg_op, is_gateway).await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
         Ok(())
@@ -406,18 +422,7 @@ impl EthTxAggregator {
             .await;
     }
 
-    fn encode_aggregated_op(
-        &self,
-        op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
-    ) -> TxData {
-        let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-
-        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
-        if contracts_are_pre_shared_bridge {
-            assert!(operation_is_pre_shared_bridge);
-        }
-
+    fn encode_aggregated_op(&self, op: &AggregatedOperation) -> TxData {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         let (calldata, sidecar) = match op {
@@ -430,18 +435,9 @@ impl EthTxAggregator {
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
-                let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
-                    (&self.functions.pre_shared_bridge_commit, commit_data_base)
-                } else {
-                    args.extend(commit_data_base);
-                    (
-                        self.functions
-                            .post_shared_bridge_commit
-                            .as_ref()
-                            .expect("Missing ABI for commitBatchesSharedBridge"),
-                        args,
-                    )
-                };
+                args.extend(commit_data_base);
+
+                let commit_data = args;
 
                 let l1_batch_for_sidecar = if PubdataDA::Blobs == self.aggregator.pubdata_da() {
                     Some(l1_batches[0].clone())
@@ -449,40 +445,28 @@ impl EthTxAggregator {
                     None
                 };
 
-                Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
+                Self::encode_commit_data(
+                    &self.functions.post_shared_bridge_commit,
+                    &commit_data,
+                    l1_batch_for_sidecar,
+                )
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_prove
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode prove transaction data")
-                } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_prove
-                        .as_ref()
-                        .expect("Missing ABI for proveBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode prove transaction data")
-                };
+                args.extend(op.into_tokens());
+                let calldata = self
+                    .functions
+                    .post_shared_bridge_prove
+                    .encode_input(&args)
+                    .expect("Failed to encode prove transaction data");
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_execute
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode execute transaction data")
-                } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_execute
-                        .as_ref()
-                        .expect("Missing ABI for executeBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode execute transaction data")
-                };
+                args.extend(op.into_tokens());
+                let calldata = self
+                    .functions
+                    .post_shared_bridge_execute
+                    .encode_input(&args)
+                    .expect("Failed to encode execute transaction data");
                 (calldata, None)
             }
         };
@@ -527,23 +511,22 @@ impl EthTxAggregator {
     }
 
     pub(super) async fn save_eth_tx(
-        &mut self,
+        &self,
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
+        is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match op_type {
-            AggregatedActionType::Commit => self.custom_commit_sender_addr,
-            _ => None,
+        let sender_addr = match (op_type, is_gateway) {
+            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
-        let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
+        let encoded_aggregated_op = self.encode_aggregated_op(aggregated_op);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
         let predicted_gas_for_batches = transaction
@@ -563,7 +546,14 @@ impl EthTxAggregator {
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
+                is_gateway,
             )
+            .await
+            .unwrap();
+
+        transaction
+            .eth_sender_dal()
+            .set_chain_id(eth_tx.id, self.sl_chain_id.0)
             .await
             .unwrap();
 
@@ -577,54 +567,26 @@ impl EthTxAggregator {
     }
 
     async fn get_next_nonce(
-        &mut self,
+        &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let no_unsent_txs = storage
-            .eth_sender_dal()
-            .get_unsent_txs()
-            .await
-            .unwrap()
-            .is_empty();
-
+        let is_gateway = self.settlement_mode.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr)
+            .get_next_nonce(from_addr, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);
-        // FIXME: refactor this
-        // The below is a big hack that tries to solve the following problem:
-        // - When migrating to sync layer the nonce drops to 0
-        // - Just erasing nonce everywhere to 0 during migration does not really help as the next_db_nonce becomes 1.
-        // - Delete all the transaction to not have this issue does not help
+        // Between server starts we can execute some txs using operator account or remove some txs from the database
+        // At the start we have to consider this fact and get the max nonce.
         Ok(if from_addr.is_none() {
-            if self.ignore_db_nonce_0 && self.base_nonce == 0 && no_unsent_txs {
-                self.ignore_db_nonce_0 = false;
-
-                self.base_nonce
-            } else {
-                self.ignore_db_nonce_0 = false;
-
-                db_nonce
-            }
-        } else if self.ignore_db_nonce_1 {
-            let base_nonce = self
-                .base_nonce_custom_commit_sender
-                .expect("custom base nonce is expected to be initialized; qed");
-
-            self.ignore_db_nonce_1 = false;
-
-            if base_nonce == 0 && no_unsent_txs {
-                base_nonce
-            } else {
-                db_nonce
-            }
+            db_nonce.max(self.base_nonce)
         } else {
-            self.ignore_db_nonce_1 = false;
-
-            db_nonce
+            db_nonce.max(
+                self.base_nonce_custom_commit_sender
+                    .expect("custom base nonce is expected to be initialized; qed"),
+            )
         })
     }
 }

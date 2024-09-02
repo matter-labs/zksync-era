@@ -4,22 +4,22 @@ use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
-    interface::ExecutionResult, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::{Call, CallType, ExecutionResult, TxExecutionMode},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    api::{BlockId, BlockNumber, DebugCall, DebugCallType, ResultDebugCall, TracerConfig},
     debug_flat_call::{flatten_debug_calls, DebugCallFlat},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
-    vm_trace::Call,
-    AccountTreeId, H256,
+    web3, AccountTreeId, H256, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::{ApiTracer, TxSharedArgs},
+    execution_sandbox::{ApiTracer, TxExecutionArgs, TxSetupArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
@@ -49,6 +49,35 @@ impl DebugNamespace {
             state,
             api_contracts,
         })
+    }
+
+    pub(crate) fn map_call(call: Call, only_top_call: bool) -> DebugCall {
+        let calls = if only_top_call {
+            vec![]
+        } else {
+            call.calls
+                .into_iter()
+                .map(|call| Self::map_call(call, false))
+                .collect()
+        };
+        let debug_type = match call.r#type {
+            CallType::Call(_) => DebugCallType::Call,
+            CallType::Create => DebugCallType::Create,
+            CallType::NearCall => unreachable!("We have to filter our near calls before"),
+        };
+        DebugCall {
+            r#type: debug_type,
+            from: call.from,
+            to: call.to,
+            gas: U256::from(call.gas),
+            gas_used: U256::from(call.gas_used),
+            value: call.value,
+            output: web3::Bytes::from(call.output),
+            input: web3::Bytes::from(call.input),
+            error: call.error,
+            revert_reason: call.revert_reason,
+            calls,
+        }
     }
 
     fn sender_config(&self) -> &TxSenderConfig {
@@ -86,10 +115,7 @@ impl DebugNamespace {
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
-                let mut result: DebugCall = call_trace.into();
-                if only_top_call {
-                    result.calls = vec![];
-                }
+                let result = Self::map_call(call_trace, only_top_call);
                 ResultDebugCall { result }
             })
             .collect();
@@ -120,13 +146,7 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace.map(|call_trace| {
-            let mut result: DebugCall = call_trace.into();
-            if only_top_call {
-                result.calls = vec![];
-            }
-            result
-        }))
+        Ok(call_trace.map(|call_trace| Self::map_call(call_trace, only_top_call)))
     }
 
     pub async fn debug_trace_call_impl(
@@ -147,29 +167,20 @@ impl DebugNamespace {
             .state
             .resolve_block_args(&mut connection, block_id)
             .await?;
-        drop(connection);
-
         self.current_method().set_block_diff(
             self.state
                 .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
-
         if request.gas.is_none() {
-            request.gas = Some(
-                self.state
-                    .tx_sender
-                    .get_default_eth_call_gas(block_args)
-                    .await
-                    .map_err(Web3Error::InternalError)?
-                    .into(),
-            )
+            request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
         }
+        drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let shared_args = self.shared_args().await;
+        let setup_args = self.call_args(call_overrides.enforced_base_fee).await;
         let vm_permit = self
             .state
             .tx_sender
@@ -186,20 +197,20 @@ impl DebugNamespace {
             vec![ApiTracer::CallTracer(call_tracer_result.clone())]
         };
 
+        let connection = self.state.acquire_connection().await?;
         let executor = &self.state.tx_sender.0.executor;
         let result = executor
-            .execute_tx_eth_call(
+            .execute_tx_in_sandbox(
                 vm_permit,
-                shared_args,
-                self.state.connection_pool.clone(),
-                call_overrides,
-                tx.clone(),
+                setup_args,
+                TxExecutionArgs::for_eth_call(tx.clone()),
+                connection,
                 block_args,
-                self.sender_config().vm_execution_cache_misses_limit,
-                custom_tracers,
                 None,
+                custom_tracers,
             )
-            .await?;
+            .await?
+            .vm;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
@@ -226,12 +237,13 @@ impl DebugNamespace {
             revert_reason,
             trace,
         );
-        Ok(call.into())
+        Ok(Self::map_call(call, false))
     }
 
-    async fn shared_args(&self) -> TxSharedArgs {
+    async fn call_args(&self, enforced_base_fee: Option<u64>) -> TxSetupArgs {
         let sender_config = self.sender_config();
-        TxSharedArgs {
+        TxSetupArgs {
+            execution_mode: TxExecutionMode::EthCall,
             operator_account: AccountTreeId::default(),
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
@@ -243,6 +255,7 @@ impl DebugNamespace {
                 .tx_sender
                 .read_whitelisted_tokens_for_aa_cache()
                 .await,
+            enforced_base_fee,
         }
     }
 }
