@@ -222,7 +222,7 @@ testFees('Test fees', () => {
                 newPubdataPrice: l1GasPrice.toString(),
                 customBaseToken: true,
                 forcedBaseTokenRatioNumerator: 271,
-                forcedBaseTokenRatioDenumerator: 100
+                forcedBaseTokenRatioDenominator: 100
             });
 
             const receipt2 = await (
@@ -249,7 +249,7 @@ testFees('Test fees', () => {
             newPubdataPrice: l1GasPrice.toString(),
             customBaseToken: true,
             forcedBaseTokenRatioNumerator: 300,
-            forcedBaseTokenRatioDenumerator: 100,
+            forcedBaseTokenRatioDenominator: 100,
             forcedBaseTokenRatioFluctuationsAmplitude: 20,
             forcedBaseTokenRatioFluctuationsFrequencyMs: 1000,
             baseTokenAdjusterL1UpdateDeviationPercentage: 0
@@ -280,7 +280,7 @@ testFees('Test fees', () => {
             }
         }
         expect(changedL2).toBeTruthy();
-        for (let i = 0; i < 60; i++) {
+        for (let i = 0; i < 10; i++) {
             const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
             if (newL1Nominator != beginL1Nominator) {
                 const diff = newL1Nominator - beginL1Nominator;
@@ -454,7 +454,7 @@ async function setInternalL1GasPrice(
         newPubdataPrice?: string;
         customBaseToken?: boolean;
         forcedBaseTokenRatioNumerator?: number;
-        forcedBaseTokenRatioDenumerator?: number;
+        forcedBaseTokenRatioDenominator?: number;
         forcedBaseTokenRatioFluctuationsAmplitude?: number;
         forcedBaseTokenRatioFluctuationsFrequencyMs?: number;
         baseTokenAdjusterL1UpdateDeviationPercentage?: number;
@@ -490,8 +490,8 @@ async function setInternalL1GasPrice(
         command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenRatioNumerator} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioDenumerator) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenRatioDenumerator} ${command}`;
+    if (options.forcedBaseTokenRatioDenominator) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenRatioDenominator} ${command}`;
     }
 
     if (options.forcedBaseTokenRatioFluctuationsAmplitude) {
