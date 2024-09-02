@@ -32,6 +32,8 @@ impl FromEnv for ContractsConfig {
             contracts.l2_shared_bridge_addr,
         ) {
             if legacy_addr != shared_addr {
+                println!("legacy_addr: {:?}", legacy_addr);
+                println!("shared_addr: {:?}", shared_addr);
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }

@@ -215,8 +215,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
-
     if (includePaymaster) {
         await utils.spawn(`yarn l2-contracts deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
@@ -225,7 +223,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -262,12 +259,6 @@ export async function deployL2ThroughL1({
         `yarn l2-contracts deploy-l2-da-validator-on-l2-through-l1 ${daArgs.join(' ')} | tee deployL2.log`
     );
 
-    await utils.spawn(
-        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee -a deployL2.log`
-    );
-
     if (includePaymaster) {
         await utils.spawn(
             `yarn l2-contracts deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`
@@ -280,25 +271,15 @@ export async function deployL2ThroughL1({
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_L1_DA_VALIDATOR_ADDR',
         'CONTRACTS_L2_DA_VALIDATOR_ADDR',
-        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
-        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
-        'CONTRACTS_L2_PROXY_ADMIN_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:
-    updateContractsEnv(
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`,
-        `CONTRACTS_L2_ERC20_BRIDGE_ADDR=${process.env.CONTRACTS_L2_SHARED_BRIDGE_ADDR}`,
-        l2DeploymentEnvVars
-    );
 }
 
 async function _deployL1(onlyVerifier: boolean): Promise<void> {
@@ -357,6 +338,9 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_STM_DEPLOYMENT_TRACKER_IMPL_ADDR',
         'CONTRACTS_STM_DEPLOYMENT_TRACKER_PROXY_ADDR',
         'CONTRACTS_STM_ASSET_INFO',
+
+        'CONTRACTS_L1_NULLIFIER_IMPL_ADDR',
+        'CONTRACTS_L1_NULLIFIER_PROXY_ADDR',
 
         /// temporary:
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
