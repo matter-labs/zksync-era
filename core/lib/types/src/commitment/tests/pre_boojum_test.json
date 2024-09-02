@@ -16,6 +16,7 @@
         "rollup_root_hash": "0xe47f013d1ecd4ce53b6872f6b762670b393815e7ddacdf2b0886af9c7f3a555b",
         "bootloader_code_hash": "0x010007ed0e328b940e241f7666a6303b7ffd4e3fd7e8c154d6e7556befe6cd6d",
         "default_aa_code_hash": "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9",
+        "evm_simulator_code_hash": "0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91",
         "protocol_version": "Version17"
       },
       "initial_writes": [
@@ -80,6 +81,7 @@
     "zkporter_is_available": false,
     "bootloader_code_hash": "0x010007ed0e328b940e241f7666a6303b7ffd4e3fd7e8c154d6e7556befe6cd6d",
     "default_aa_code_hash": "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9",
+    "evm_simulator_code_hash": "0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91",
     "protocol_version": "Version17"
   },
   "auxiliary_output": {
@@ -564,7 +566,7 @@
   "hashes": {
     "pass_through_data": "0x6a3ffc0f55d4abce9498b8bcb01a3018bc2b83d96acb27e23772fe9347954725",
     "aux_output": "0x688566b1fe957584256b3bbdc9f9862a7c98cd0a3fa542b3e73600e7bfcd63a3",
-    "meta_parameters": "0x3fec00ec17ecaff24bbbcbc15850ca3528ce1c287d3a35fee97a6c65655866c1",
-    "commitment": "0x8e0a1f1f866df7d53f0648dc6e642eabd452a1319e4acae8cdf58d364d25ee59"
+    "meta_parameters": "0x02531e5cc22688523a4ac9317e5097743771f6914015cf1152491cf22084bd58",
+    "commitment": "0xebf93d8addf13e664e78fc287468b8783954d9d92572a734f96f0aa63c536da2"
   }
 }

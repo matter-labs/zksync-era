@@ -278,7 +278,7 @@ async fn get_updates_manager_witness_input_data(
 
         bootloader_code,
         default_account_code_hash: account_code_hash,
-        evm_simulator_code_hash: evm_simulator_code_hash,
+        evm_simulator_code_hash,
         storage_refunds,
         pubdata_costs,
         witness_block_state,
