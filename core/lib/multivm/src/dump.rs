@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{
-    block::L2BlockExecutionData, web3, L1BatchNumber, L2BlockNumber, Transaction, H256, U256,
-};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, U256};
 use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{
-        storage::{InMemoryStorage, ReadStorage, StoragePtr, StorageView, WriteStorage},
+        storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView, WriteStorage},
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
@@ -34,81 +32,44 @@ impl<S: ReadStorage> VmTrackingContracts for vm_fast::Vm<S> {
     }
 }
 
-// FIXME: use storage snapshots (https://github.com/matter-labs/zksync-era/pull/2724)
-/// Part of the VM dump representing the storage oracle for a particular VM run.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct VmStorageDump {
-    /// Only existing keys (ones with an assigned enum index) are recorded.
-    pub(crate) read_storage_keys: HashMap<H256, (H256, u64)>,
-    /// Repeatedly written keys together with their enum indices. Only includes keys that were not read
-    /// (i.e., absent from `read_storage_keys`). Since `InMemoryStorage` returns `is_write_initial == true`
-    /// for all unknown keys, we don't need to record initial writes.
-    ///
-    /// Al least when the Fast VM is involved, this map always looks to be empty because the VM reads values
-    /// for all written keys (i.e., they all will be added to `read_storage_keys`).
-    pub(crate) repeated_writes: HashMap<H256, u64>,
-    pub(crate) factory_deps: HashMap<H256, web3::Bytes>,
-}
+fn create_storage_snapshot<S: ReadStorage>(
+    storage: &StoragePtr<StorageView<S>>,
+    used_contract_hashes: Vec<U256>,
+) -> StorageSnapshot {
+    let mut storage = storage.borrow_mut();
+    let storage_cache = storage.cache();
+    let mut storage_slots: HashMap<_, _> = storage_cache
+        .read_storage_keys()
+        .into_iter()
+        .map(|(key, value)| {
+            let enum_index = storage.get_enumeration_index(&key);
+            let value_and_index = enum_index.map(|idx| (value, idx));
+            (key.hashed_key(), value_and_index)
+        })
+        .collect();
 
-impl VmStorageDump {
-    /// Storage must be the one used by the VM.
-    pub(crate) fn new<S: ReadStorage>(
-        storage: &StoragePtr<StorageView<S>>,
-        used_contract_hashes: Vec<U256>,
-    ) -> Self {
-        let mut storage = storage.borrow_mut();
-        let storage_cache = storage.cache();
-        let read_storage_keys: HashMap<_, _> = storage_cache
-            .read_storage_keys()
-            .into_iter()
-            .filter_map(|(key, value)| {
-                let enum_index = storage.get_enumeration_index(&key)?;
-                Some((key.hashed_key(), (value, enum_index)))
-            })
-            .collect();
-        let repeated_writes = storage_cache
-            .initial_writes()
-            .into_iter()
-            .filter_map(|(key, is_initial)| {
-                let hashed_key = key.hashed_key();
-                if !is_initial && !read_storage_keys.contains_key(&hashed_key) {
-                    let enum_index = storage.get_enumeration_index(&key)?;
-                    Some((hashed_key, enum_index))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let factory_deps = used_contract_hashes
-            .into_iter()
-            .filter_map(|hash| {
-                let hash = u256_to_h256(hash);
-                Some((hash, web3::Bytes(storage.load_factory_dep(hash)?)))
-            })
-            .collect();
-        Self {
-            read_storage_keys,
-            repeated_writes,
-            factory_deps,
+    // Normally, all writes are internally read in order to calculate gas costs, so the code below
+    // is defensive programming.
+    for (key, _) in storage_cache.initial_writes() {
+        let hashed_key = key.hashed_key();
+        if storage_slots.contains_key(&hashed_key) {
+            continue;
         }
+
+        let enum_index = storage.get_enumeration_index(&key);
+        let value_and_index = enum_index.map(|idx| (storage.read_value(&key), idx));
+        storage_slots.insert(hashed_key, value_and_index);
     }
 
-    pub(crate) fn into_storage(self) -> InMemoryStorage {
-        let mut storage = InMemoryStorage::default();
-        for (key, (value, enum_index)) in self.read_storage_keys {
-            storage.set_value_hashed_enum(key, enum_index, value);
-        }
-        for (key, enum_index) in self.repeated_writes {
-            // The value shouldn't be read by the VM, so it doesn't matter.
-            storage.set_value_hashed_enum(key, enum_index, H256::zero());
-        }
-        for (hash, bytecode) in self.factory_deps {
-            storage.store_factory_dep(hash, bytecode.0);
-        }
-        storage
-    }
+    let factory_deps = used_contract_hashes
+        .into_iter()
+        .filter_map(|hash| {
+            let hash = u256_to_h256(hash);
+            Some((hash, storage.load_factory_dep(hash)?))
+        })
+        .collect();
+
+    StorageSnapshot::new(storage_slots, factory_deps)
 }
 
 /// VM dump allowing to re-run the VM on the same inputs. Opaque, but can be (de)serialized.
@@ -118,8 +79,7 @@ pub struct VmDump {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     pub(crate) l2_blocks: Vec<L2BlockExecutionData>,
-    #[serde(flatten)]
-    pub(crate) storage: VmStorageDump,
+    pub(crate) storage: StorageSnapshot,
 }
 
 impl VmDump {
@@ -128,9 +88,8 @@ impl VmDump {
     }
 
     /// Plays back this dump on the specified VM.
-    pub fn play_back<Vm: VmFactory<StorageView<InMemoryStorage>>>(self) -> Vm {
-        let storage = self.storage.into_storage();
-        let storage = StorageView::new(storage).to_rc_ptr();
+    pub fn play_back<Vm: VmFactory<StorageView<StorageSnapshot>>>(self) -> Vm {
+        let storage = StorageView::new(self.storage).to_rc_ptr();
         let mut vm = Vm::new(self.l1_batch_env, self.system_env, storage);
         Self::play_back_blocks(self.l2_blocks, &mut vm);
         vm
@@ -195,7 +154,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
             l2_blocks: self.l2_blocks.clone(),
-            storage: VmStorageDump::new(&self.storage, self.inner.used_contract_hashes()),
+            storage: create_storage_snapshot(&self.storage, self.inner.used_contract_hashes()),
         }
     }
 }

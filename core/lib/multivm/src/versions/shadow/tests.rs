@@ -91,22 +91,20 @@ impl Harness {
         );
     }
 
-    fn assert_dump(dump: &VmDump) {
+    fn assert_dump(dump: &mut VmDump) {
         assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
         let tx_counts_per_block: Vec<_> =
             dump.l2_blocks.iter().map(|block| block.txs.len()).collect();
         assert_eq!(tx_counts_per_block, [1, 2, 2, 0]);
-        assert!(!dump.storage.read_storage_keys.is_empty());
-        assert!(!dump.storage.factory_deps.is_empty());
 
         let storage_contract_key = StorageKey::new(
             AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
             H256::zero(),
-        )
-        .hashed_key();
-        let (value, enum_index) = dump.storage.read_storage_keys[&storage_contract_key];
+        );
+        let value = dump.storage.read_value(&storage_contract_key);
         assert_eq!(value, H256::from_low_u64_be(42));
-        assert_eq!(enum_index, 999);
+        let enum_index = dump.storage.get_enumeration_index(&storage_contract_key);
+        assert_eq!(enum_index, Some(999));
     }
 
     fn new_block(&mut self, vm: &mut impl VmInterface, tx_hashes: &[H256]) {
@@ -245,13 +243,13 @@ fn sanity_check_shadow_vm() {
 #[test]
 fn shadow_vm_basics() {
     let (vm, harness) = sanity_check_vm::<ShadowVm<_, ReferenceVm>>();
-    let dump = vm.main.dump_state();
-    Harness::assert_dump(&dump);
+    let mut dump = vm.main.dump_state();
+    Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
     let replayed_dump = dump
         .clone()
-        .play_back::<ShadowVm<_, ReferenceVm>>()
+        .play_back::<ShadowVm<_, ReferenceVm<_>>>()
         .main
         .dump_state();
     pretty_assertions::assert_eq!(replayed_dump, dump);
@@ -260,9 +258,8 @@ fn shadow_vm_basics() {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
-    let dump_storage = dump.storage.clone().into_storage();
-    let dump_storage = StorageView::new(dump_storage).to_rc_ptr();
-    let mut vm = ShadowVm::<_, ReferenceVm, ReferenceVm>::with_custom_shadow(
+    let dump_storage = StorageView::new(dump.storage.clone()).to_rc_ptr();
+    let mut vm = ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
         dump.l1_batch_env.clone(),
         dump.system_env.clone(),
         storage,
