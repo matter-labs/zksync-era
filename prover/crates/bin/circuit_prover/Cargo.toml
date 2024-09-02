@@ -1,5 +1,5 @@
 [package]
-name = "circuit_prover"
+name = "zksync_circuit_prover"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -23,4 +23,14 @@ zksync_prover_fri_types.workspace = true
 zksync_prover_fri_utils.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_types.workspace = true
-zksync_vk_setup_data_generator_server_fri.workspace = true
+zksync_vk_setup_data_generator_server_fri = { workspace = true, features = ["gpu"] }
+zksync_env_config.workspace = true
+zksync_core_leftovers.workspace = true
+
+
+shivini = { workspace = true, features = [
+    "circuit_definitions",
+    "zksync",
+] }
+zkevm_test_harness.workspace = true
+clap = { workspace = true, features = ["derive"] }
