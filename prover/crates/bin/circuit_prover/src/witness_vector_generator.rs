@@ -1,3 +1,41 @@
+use std::sync::Arc;
+
+use zksync_object_store::ObjectStore;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
+
+pub struct WitnessVectorGenerator {
+    object_store: Arc<dyn ObjectStore>,
+    connection_pool: ConnectionPool<Prover>,
+    protocol_version: ProtocolSemanticVersion,
+    max_attempts: u32,
+    keystore: Keystore,
+}
+
+impl WitnessVectorGenerator {
+    pub fn new(
+        object_store: Arc<dyn ObjectStore>,
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
+        max_attempts: u32,
+        setup_data_path: Option<String>,
+    ) -> Self {
+        let keystore = if let Some(setup_data_path) = setup_data_path {
+            Keystore::new_with_setup_data_path(setup_data_path)
+        } else {
+            Keystore::default()
+        };
+        Self {
+            object_store,
+            connection_pool,
+            protocol_version,
+            max_attempts,
+            keystore,
+        }
+    }
+}
 // use std::{
 //     net::SocketAddr,
 //     sync::Arc,

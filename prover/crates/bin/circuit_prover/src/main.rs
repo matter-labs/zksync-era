@@ -9,6 +9,8 @@ use anyhow::Context as _;
 use clap::Parser;
 // use tokio::sync::{oneshot, watch};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
+
+use zksync_circuit_prover::WitnessVectorGenerator;
 use zksync_prover_dal::{ConnectionPool, Prover};
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
@@ -48,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
         .context("observability config")?;
     let _observability_guard = observability_config.install()?;
     let wvg_count = opt.witness_vector_generator_count;
+
     // 1 connection for the prover and another one for each vector generator
     let max_connections = 1 + wvg_count as u32;
     let connection_pool = ConnectionPool::<Prover>::builder(
@@ -59,6 +62,8 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build connection pool")?;
+
+    let wvg = WitnessVectorGenerator::new();
 
     match tokio::signal::ctrl_c().await {
         Ok(()) => {}
