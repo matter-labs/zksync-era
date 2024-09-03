@@ -26,9 +26,9 @@ pub enum Mode {
 
 #[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
 pub enum Region {
-    US,
-    EUROPE,
-    ASIA,
+    Us,
+    Europe,
+    Asia,
 }
 
 impl SetupKeysArgs {

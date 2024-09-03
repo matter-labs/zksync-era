@@ -50,15 +50,15 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
             serde_json::from_reader(file).expect("Could not parse commitments.json");
 
         let bucket = &match region {
-            Region::US => json
+            Region::Us => json
                 .get("us")
                 .expect("Could not find link to US bucket")
                 .to_string(),
-            Region::EUROPE => json
+            Region::Europe => json
                 .get("europe")
                 .expect("Could not find link to Europe bucket")
                 .to_string(),
-            Region::ASIA => json
+            Region::Asia => json
                 .get("asia")
                 .expect("Could not find link to Asia bucket")
                 .to_string(),
