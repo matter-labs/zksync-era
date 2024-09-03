@@ -43,7 +43,7 @@ mod tests {
                 numerator: Some(100),
                 denominator: Some(1),
                 fluctuation: Some(10),
-                next_value_fluctuation: 2,
+                next_value_fluctuation: 1,
             }),
         }
     }
@@ -58,6 +58,7 @@ mod tests {
             EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=100
             EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=1
             EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=10
+            EXTERNAL_PRICE_API_CLIENT_FORCED_NEXT_VALUE_FLUCTUATION=1
         "#;
         lock.set_env(config);
 
