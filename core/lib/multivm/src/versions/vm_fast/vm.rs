@@ -3,7 +3,8 @@ use std::{collections::HashMap, fmt};
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface, Tracer, VirtualMachine,
+    CycleStats, ExecutionEnd, Opcode, OpcodeType, Program, Settings, StateInterface, Tracer,
+    VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -209,6 +210,18 @@ impl Tracer for CircuitsTracer {
             Opcode::AuxHeapRead | Opcode::HeapRead | Opcode::PointerRead /* StaticMemoryRead */ => {
                 self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
             }
+        }
+    }
+
+    fn on_extra_prover_cycles(&mut self, stats: CycleStats) {
+        match stats {
+            CycleStats::Keccak256(cycles) => self.keccak256_cycles += cycles,
+            CycleStats::Sha256(cycles) => self.sha256_cycles += cycles,
+            CycleStats::EcRecover(cycles) => self.ecrecover_cycles += cycles,
+            CycleStats::Secp256k1Verify(cycles) => self.secp256k1_verify_cycles += cycles,
+            CycleStats::Decommit(cycles) => self.code_decommitter_cycles += cycles,
+            CycleStats::StorageRead => self.storage_application_cycles += 1,
+            CycleStats::StorageWrite => self.storage_application_cycles += 2,
         }
     }
 }
@@ -655,8 +668,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
 
         self.tracer = Default::default();
-        self.inner.state.cycle_counts = Default::default();
-        self.inner.world_diff.storage_application_cycles = 0;
 
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
@@ -713,15 +724,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         let pubdata_after = self.inner.world_diff.pubdata();
-
-        self.tracer.keccak256_cycles = self.inner.state.cycle_counts.keccak256_cycles as u32;
-        self.tracer.ecrecover_cycles = self.inner.state.cycle_counts.ecrecover_cycles as u32;
-        self.tracer.sha256_cycles = self.inner.state.cycle_counts.sha256_cycles as u32;
-        self.tracer.secp256k1_verify_cycles =
-            self.inner.state.cycle_counts.secp256v1_verify_cycles as u32;
-        self.tracer.code_decommitter_cycles =
-            self.inner.state.cycle_counts.code_decommitter_cycles as u32;
-        self.tracer.storage_application_cycles = self.inner.world_diff.storage_application_cycles;
 
         let circuit_statistic = self.tracer.circuit_statistic();
 
