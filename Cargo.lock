@@ -9177,6 +9177,7 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
+ "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
 ]
@@ -9263,7 +9264,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
  "zksync_web3_decl",
 ]
 
@@ -9590,7 +9591,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -9677,7 +9678,7 @@ dependencies = [
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -9780,10 +9781,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vm_executor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "once_cell",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "assert_matches",
+ "async-trait",
  "hex",
  "serde",
  "serde_json",
@@ -9815,30 +9834,16 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_health_check",
- "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_storage",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
-]
-
-[[package]]
-name = "zksync_vm_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "tracing",
- "zksync_contracts",
- "zksync_dal",
- "zksync_types",
+ "zksync_vm_executor",
  "zksync_vm_interface",
 ]
 
