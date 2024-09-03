@@ -123,7 +123,7 @@ fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_comp
 
 fn check_prerequisite(shell: &Shell, prerequisite: &Prerequisite) -> bool {
     let name = prerequisite.name;
-    if !Cmd::new(cmd!(shell, "which {name}")).run().is_ok() {
+    if Cmd::new(cmd!(shell, "which {name}")).run().is_err() {
         return false;
     }
     let Some(custom) = &prerequisite.custom_validator else {
