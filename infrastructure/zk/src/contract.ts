@@ -280,7 +280,7 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_L1_DA_VALIDATOR_ADDR',
-        'CONTRACTS_L2_DA_VALIDATOR_ADDR',
+        'CONTRACTS_L2_DA_VALIDATOR_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:

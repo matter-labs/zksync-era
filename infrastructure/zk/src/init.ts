@@ -255,12 +255,16 @@ export const initHyperCmdAction = async ({
         deploymentMode
     });
 };
-
-export const configCmdAction = async (): Promise<void> => {
-    await Promise.all([
-        announced('Building L1 L2 contracts', contract.build(false)),
-        announced('Compile L2 system contracts', compiler.compileAll())
-    ]);
+type ConfigCmdActionOptions = {
+    skipContractCompilationOverride?: boolean;
+};
+export const configCmdAction = async ({ skipContractCompilationOverride }: ConfigCmdActionOptions): Promise<void> => {
+    if (!skipContractCompilationOverride) {
+        await Promise.all([
+            announced('Building L1 L2 contracts', contract.build(false)),
+            announced('Compile L2 system contracts', compiler.compileAll())
+        ]);
+    }
     await initDatabase(true);
     await announced('Running server genesis setup', server.genesisFromSources());
 };
@@ -305,4 +309,4 @@ initCommand
     .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
 
-initCommand.command('config').action(configCmdAction);
+initCommand.command('config').option('--skip-contract-compilation-override').action(configCmdAction);
