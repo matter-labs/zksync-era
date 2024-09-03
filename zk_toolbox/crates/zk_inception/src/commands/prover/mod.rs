@@ -1,7 +1,8 @@
-use crate::commands::prover::args::setup_keys::SetupKeysArgs;
 use args::{init::ProverInitArgs, init_bellman_cuda::InitBellmanCudaArgs, run::ProverRunArgs};
 use clap::Subcommand;
 use xshell::Shell;
+
+use crate::commands::prover::args::setup_keys::SetupKeysArgs;
 
 mod args;
 mod gcs;

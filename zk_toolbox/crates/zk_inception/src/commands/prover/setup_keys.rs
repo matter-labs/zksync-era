@@ -1,15 +1,16 @@
-use crate::commands::prover::args::setup_keys::{Region, SetupKeysApproach, SetupKeysArgs};
 use anyhow::Ok;
 use common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITES,
     GPU_PREREQUISITES,
 };
 use config::EcosystemConfig;
-use std::fs;
 use xshell::{cmd, Shell};
 
 use super::utils::get_link_to_prover;
-use crate::messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED};
+use crate::{
+    commands::prover::args::setup_keys::{Region, SetupKeysApproach, SetupKeysArgs},
+    messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
+};
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
@@ -43,12 +44,12 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
 
         let region = args.region.expect("Region is not provided");
 
-        let file = fs::File::open(path_to_keys_buckets)
+        let file = std::fs::File::open(path_to_keys_buckets)
             .expect("Could not find commitments file in zksync-era");
         let json: serde_json::Value =
             serde_json::from_reader(file).expect("Could not parse commitments.json");
 
-        let bucket = match region {
+        let bucket = &match region {
             Region::US => json
                 .get("us")
                 .expect("Could not find link to US bucket")
@@ -62,6 +63,9 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
                 .expect("Could not find link to Asia bucket")
                 .to_string(),
         };
+
+        let len = bucket.len() - 2usize;
+        let bucket = &bucket[1..len];
 
         let spinner = Spinner::new(&format!(
             "Downloading keys from bucket: {} to {:?}",

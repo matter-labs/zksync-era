@@ -1,10 +1,8 @@
-use crate::commands::prover::args::run::{
-    ProverComponent, WitnessGeneratorArgs, WitnessVectorGeneratorArgs,
-};
-use crate::messages::{MSG_SETUP_KEYS_DOWNLOAD_HELP, MSG_SETUP_KEYS_REGION_PROMPT};
 use clap::{Parser, ValueEnum};
 use common::PromptSelect;
-use strum::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
+
+use crate::messages::{MSG_SETUP_KEYS_DOWNLOAD_HELP, MSG_SETUP_KEYS_REGION_PROMPT};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct SetupKeysArgs {
@@ -21,13 +19,13 @@ pub struct SetupKeysArgsFinal {
 }
 
 #[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
-pub(crate) enum SetupKeysApproach {
+pub enum SetupKeysApproach {
     Download,
     Generate,
 }
 
 #[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
-pub(crate) enum Region {
+pub enum Region {
     US,
     EUROPE,
     ASIA,

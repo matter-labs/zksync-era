@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, Prerequisite, GPU_PREREQUISITES};
+use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 

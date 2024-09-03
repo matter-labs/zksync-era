@@ -55,17 +55,13 @@ pub const GCLOUD_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
     download_link: "https://cloud.google.com/sdk/docs/install",
 }];
 
-struct Prerequisite {
+pub struct Prerequisite {
     name: &'static str,
     download_link: &'static str,
 }
 
 pub fn check_general_prerequisites(shell: &Shell) {
     check_prerequisites(shell, &PREREQUISITES, true);
-}
-
-pub fn check_prover_prequisites(shell: &Shell) {
-    check_prerequisites(shell, &PROVER_PREREQUISITES, false);
 }
 
 pub fn check_prerequisites(shell: &Shell, prerequisites: &[Prerequisite], check_compose: bool) {

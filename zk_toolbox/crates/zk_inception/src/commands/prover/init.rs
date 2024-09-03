@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{
-    check_prover_prequisites,
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
@@ -34,7 +33,7 @@ use crate::{
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
+    // todo: check_prover_prequisites(shell);
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
