@@ -12,7 +12,7 @@ use crate::{
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
         MSG_DEV_ARG_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
+        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP,
     },
 };
 
@@ -112,15 +112,6 @@ impl EcosystemBuildArgs {
             (deploy_paymaster, deploy_erc20)
         };
         let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
-        let observability = if self.dev {
-            true
-        } else {
-            self.observability.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_OBSERVABILITY_PROMPT)
-                    .default(true)
-                    .ask()
-            })
-        };
 
         EcosystemBuildArgsFinal {
             deploy_paymaster,

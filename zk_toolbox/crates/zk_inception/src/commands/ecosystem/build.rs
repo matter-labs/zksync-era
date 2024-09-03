@@ -2,7 +2,6 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
-    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -33,17 +32,12 @@ use super::{
 };
 use crate::{
     accept_ownership::accept_owner,
-    commands::{
-        chain::{self, args::init::PortOffset},
-        ecosystem::create_configs::{
-            create_erc20_deployment_config, create_initial_deployments_config,
-        },
+    commands::ecosystem::create_configs::{
+        create_erc20_deployment_config, create_initial_deployments_config,
     },
     messages::{
-        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
-        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
+        MSG_DEPLOYING_ERC20, MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
     },
@@ -93,37 +87,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         .await?;
     }
 
-    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
-    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
-        vec![name]
-    } else {
-        ecosystem_config.list_of_chains()
-    };
-
-    for chain_name in &list_of_chains {
-        logger::info(msg_initializing_chain(chain_name));
-        let chain_config = ecosystem_config
-            .load_chain(Some(chain_name.clone()))
-            .context(MSG_CHAIN_NOT_INITIALIZED)?;
-
-        let mut chain_init_args = chain::args::init::InitArgsFinal {
-            forge_args: final_ecosystem_args.forge_args.clone(),
-            genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
-            deploy_paymaster: final_ecosystem_args.deploy_paymaster,
-            l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-            port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
-        };
-
-        chain::init::init(
-            &mut chain_init_args,
-            shell,
-            &ecosystem_config,
-            &chain_config,
-        )
-        .await?;
-    }
-
-    logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
+    logger::outro("TODO");
 
     Ok(())
 }
