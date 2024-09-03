@@ -140,7 +140,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: crates/bin/vk_setup_data_generator_server_fri/data
+  setup_data_path: data/keys
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
