@@ -8,6 +8,8 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 }
 
 // Subcommands help
+pub(super) const MSG_GENERATE_GENESIS_ABOUT: &str =
+    "Generate new genesis file based on current contracts";
 pub(super) const MSG_PROVER_VERSION_ABOUT: &str = "Protocol version used by provers";
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
@@ -184,3 +186,6 @@ pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for
 pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
+
+// Genesis
+pub(super) const MSG_GENESIS_FILE_GENERATION_STARTED: &str = "Regenerate genesis file";

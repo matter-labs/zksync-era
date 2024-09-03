@@ -10,9 +10,9 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_PROVER_VERSION_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    msg_global_chain_does_not_exist, MSG_GENERATE_GENESIS_ABOUT, MSG_PROVER_VERSION_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -49,6 +49,8 @@ enum SupervisorSubcommands {
     Markdown,
     #[command(about = MSG_PROVER_VERSION_ABOUT)]
     ProverVersion,
+    #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
+    GenerateGenesis,
 }
 
 #[derive(Parser, Debug)]
@@ -106,6 +108,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::ProverVersion => commands::prover_version::run(shell).await?,
+        SupervisorSubcommands::GenerateGenesis => commands::genesis::run(shell).await?,
     }
     Ok(())
 }
