@@ -54,7 +54,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
+    let mut final_ecosystem_args = args.fill_values_with_prompt();
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
@@ -78,7 +78,6 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
             &ecosystem_config,
             &contracts_config,
             final_ecosystem_args.forge_args.clone(),
-            final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
         )
         .await?;
     }
@@ -117,7 +116,6 @@ async fn deploy_erc20(
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
-    l1_rpc_url: String,
 ) -> anyhow::Result<ERC20Tokens> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     let wallets = ecosystem_config.get_wallets()?;
@@ -135,7 +133,6 @@ async fn deploy_erc20(
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -169,7 +166,6 @@ async fn deploy_ecosystem(
             forge_args,
             ecosystem_config,
             initial_deployment_config,
-            ecosystem.l1_rpc_url.clone(),
         )
         .await;
     }
@@ -230,7 +226,6 @@ async fn deploy_ecosystem_inner(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
-    l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
 
@@ -252,7 +247,6 @@ async fn deploy_ecosystem_inner(
     let mut forge = Forge::new(&config.path_to_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
         .with_broadcast();
 
     if config.l1_network == L1Network::Localhost {
@@ -274,40 +268,6 @@ async fn deploy_ecosystem_inner(
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        config,
-        contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
 
     Ok(contracts_config)
 }
