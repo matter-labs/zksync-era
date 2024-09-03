@@ -27,8 +27,8 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
             shell,
             "cargo run --features gpu --release --bin key_generator -- 
             generate-sk-gpu all --recompute-if-missing
-            --setup-path=crates/bin/vk_setup_data_generator_server_fri/data
-            --path={link_to_prover}/crates/bin/vk_setup_data_generator_server_fri/data"
+            --setup-path=data/keys
+            --path={link_to_prover}/data/keys"
         ));
         cmd.run()?;
         spinner.finish();
@@ -37,8 +37,7 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         check_prerequisites(shell, &GCLOUD_PREREQUISITES, false);
 
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let link_to_setup_keys = get_link_to_prover(&ecosystem_config)
-            .join("crates/bin/vk_setup_data_generator_server_fri/data");
+        let link_to_setup_keys = get_link_to_prover(&ecosystem_config).join("data/keys");
         let path_to_keys_buckets =
             get_link_to_prover(&ecosystem_config).join("setup-data-gpu-keys.json");
 
