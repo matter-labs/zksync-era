@@ -8,6 +8,10 @@ pub use self::{
     l2_block::{L2BlockEnv, StoredL2BlockEnv},
     system_env::{SystemEnv, TxExecutionMode},
 };
+use crate::{
+    tracer::{ValidationTracerParams, ViolatedValidationRule},
+    Call,
+};
 
 mod execution_mode;
 mod l1_batch_env;
@@ -85,4 +89,14 @@ impl TxExecutionArgs {
             transaction,
         }
     }
+}
+
+#[derive(Debug)]
+pub enum OneshotTracers<'a> {
+    None,
+    Calls(&'a mut Vec<Call>),
+    Validation {
+        params: &'a ValidationTracerParams,
+        result: &'a mut Result<(), ViolatedValidationRule>,
+    },
 }

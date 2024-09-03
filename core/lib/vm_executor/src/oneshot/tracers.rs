@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
 use once_cell::sync::OnceCell;
 use zksync_multivm::{
-    interface::{storage::WriteStorage, Call},
-    tracers::{CallTracer, ValidationTracer, ValidationTracerParams, ViolatedValidationRule},
+    interface::{storage::WriteStorage, tracer::ViolatedValidationRule, Call, OneshotTracers},
+    tracers::{CallTracer, ValidationTracer},
     vm_latest::HistoryDisabled,
     MultiVMTracer, MultiVmTracerPointer,
 };
@@ -11,40 +11,61 @@ use zksync_types::ProtocolVersionId;
 
 /// Custom tracers supported by the API sandbox.
 #[derive(Debug)]
-pub enum ApiTracer {
-    CallTracer(Arc<OnceCell<Vec<Call>>>),
-    Validation {
-        params: ValidationTracerParams,
-        result: Arc<OnceCell<ViolatedValidationRule>>,
-    },
+pub(super) struct TracersAdapter<'a> {
+    inner: OneshotTracers<'a>,
+    calls_cell: Arc<OnceCell<Vec<Call>>>,
+    validation_cell: Arc<OnceCell<ViolatedValidationRule>>,
 }
 
-impl ApiTracer {
-    pub fn validation(
-        params: ValidationTracerParams,
-    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
-        let result = Arc::<OnceCell<_>>::default();
-        let this = Self::Validation {
-            params,
-            result: result.clone(),
-        };
-        (this, result)
+impl<'a> TracersAdapter<'a> {
+    pub fn new(inner: OneshotTracers<'a>) -> Self {
+        Self {
+            inner,
+            calls_cell: Arc::default(),
+            validation_cell: Arc::default(),
+        }
     }
 
-    pub(super) fn into_boxed<S>(
-        self,
+    pub fn to_boxed<S>(
+        &self,
         protocol_version: ProtocolVersionId,
-    ) -> MultiVmTracerPointer<S, HistoryDisabled>
+    ) -> Vec<MultiVmTracerPointer<S, HistoryDisabled>>
     where
         S: WriteStorage,
     {
-        match self {
-            Self::CallTracer(traces) => CallTracer::new(traces).into_tracer_pointer(),
-            Self::Validation { params, result } => {
-                let (mut tracer, _) =
-                    ValidationTracer::<HistoryDisabled>::new(params, protocol_version.into());
-                tracer.result = result;
-                tracer.into_tracer_pointer()
+        match self.inner {
+            OneshotTracers::None => vec![],
+            OneshotTracers::Calls(_) => {
+                vec![CallTracer::new(self.calls_cell.clone()).into_tracer_pointer()]
+            }
+            OneshotTracers::Validation { params, .. } => {
+                let (mut tracer, _) = ValidationTracer::<HistoryDisabled>::new(
+                    params.clone(),
+                    protocol_version.into(),
+                );
+                tracer.result = self.validation_cell.clone();
+                vec![tracer.into_tracer_pointer()]
+            }
+        }
+    }
+}
+
+impl Drop for TracersAdapter<'_> {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            return;
+        }
+
+        match &mut self.inner {
+            OneshotTracers::None => { /* do nothing */ }
+            OneshotTracers::Calls(calls) => {
+                **calls = self.calls_cell.get().cloned().unwrap_or_default();
+            }
+            OneshotTracers::Validation { result, .. } => {
+                **result = match self.validation_cell.get() {
+                    Some(rule) => Err(rule.clone()),
+                    None => Ok(()),
+                };
             }
         }
     }

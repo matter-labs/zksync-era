@@ -4,14 +4,16 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::{
-    interface::{executor::OneshotExecutor, ExecutionResult, TxExecutionArgs},
-    tracers::{ValidationError as RawValidationError, ValidationTracerParams},
+    interface::{
+        executor::OneshotExecutor, tracer::ValidationTracerParams, ExecutionResult, OneshotTracers,
+        TxExecutionArgs,
+    },
+    tracers::ValidationError as RawValidationError,
 };
 use zksync_types::{
     api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
     TRUSTED_TOKEN_SLOTS,
 };
-use zksync_vm_executor::oneshot::ApiTracer;
 
 use super::{
     apply,
@@ -56,20 +58,28 @@ impl TransactionExecutor {
             apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
         let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
+        let mut validation_result = Ok(());
         let execution_args = TxExecutionArgs::for_validation(tx);
-        let (tracer, validation_result) = ApiTracer::validation(params);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
         let result = self
-            .inspect_transaction(storage, env, execution_args, vec![tracer])
+            .inspect_transaction(
+                storage,
+                env,
+                execution_args,
+                OneshotTracers::Validation {
+                    params: &params,
+                    result: &mut validation_result,
+                },
+            )
             .instrument(tracing::debug_span!("validation"))
             .await?;
         drop(vm_permit);
         stage_latency.observe();
 
-        let validation_result = match (result.result, validation_result.get()) {
-            (_, Some(rule)) => Err(RawValidationError::ViolatedRule(rule.clone())),
+        let validation_result = match (result.result, validation_result) {
+            (_, Err(rule)) => Err(RawValidationError::ViolatedRule(rule)),
             (ExecutionResult::Halt { reason }, _) => Err(RawValidationError::FailedTx(reason)),
-            (_, None) => Ok(()),
+            (_, Ok(())) => Ok(()),
         };
         total_latency.observe();
         validation_result.map_err(ValidationError::Vm)

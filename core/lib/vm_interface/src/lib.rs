@@ -24,8 +24,8 @@ pub use crate::{
             VmRevertReason, VmRevertReasonParsingError,
         },
         inputs::{
-            L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionArgs,
-            TxExecutionMode, VmExecutionMode,
+            L1BatchEnv, L2BlockEnv, OneshotEnv, OneshotTracers, StoredL2BlockEnv, SystemEnv,
+            TxExecutionArgs, TxExecutionMode, VmExecutionMode,
         },
         outputs::{
             BatchTransactionExecutionResult, BootloaderMemory, Call, CallType, CircuitStatistic,

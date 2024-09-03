@@ -8,14 +8,14 @@ use zksync_multivm::{
     interface::{
         executor::OneshotExecutor,
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        BytecodeCompressionError, OneshotEnv, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        BytecodeCompressionError, OneshotEnv, OneshotTracers, StoredL2BlockEnv, TxExecutionArgs,
+        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     tracers::StorageInvocations,
     utils::adjust_pubdata_price_for_tx,
     vm_latest::HistoryDisabled,
     zk_evm_latest::ethereum_types::U256,
-    MultiVMTracer, MultiVmTracerPointer, VmInstance,
+    MultiVMTracer, VmInstance,
 };
 use zksync_types::{
     block::pack_block_info,
@@ -26,7 +26,8 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-pub use self::{mock::MockOneshotExecutor, tracers::ApiTracer};
+pub use self::mock::MockOneshotExecutor;
+use self::tracers::TracersAdapter;
 
 mod metrics;
 mod mock;
@@ -53,15 +54,15 @@ impl<S> OneshotExecutor<S> for MainOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    type Tracers = Vec<ApiTracer>;
-
     async fn inspect_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        let tracers = TracersAdapter::new(tracers);
+        let mut vm_tracers = tracers.to_boxed(env.system.version);
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
@@ -69,17 +70,20 @@ where
                 self.missed_storage_invocation_limit
             }
         };
+        vm_tracers
+            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
 
-        tokio::task::spawn_blocking(move || {
-            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
+        let result = tokio::task::spawn_blocking(move || {
             let executor = VmSandbox::new(storage, env, args);
             executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(vm_tracers.into(), VmExecutionMode::OneTx)
             })
         })
         .await
-        .context("VM execution panicked")
+        .context("VM execution panicked")?;
+
+        Ok(result)
     }
 
     async fn inspect_transaction_with_bytecode_compression(
@@ -87,11 +91,13 @@ where
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<(
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     )> {
+        let tracers = TracersAdapter::new(tracers);
+        let mut vm_tracers = tracers.to_boxed(env.system.version);
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
@@ -99,14 +105,15 @@ where
                 self.missed_storage_invocation_limit
             }
         };
+        vm_tracers
+            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
 
         tokio::task::spawn_blocking(move || {
-            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
             let executor = VmSandbox::new(storage, env, args);
             executor.apply(|vm, transaction| {
                 let (bytecodes_result, exec_result) = vm
                     .inspect_transaction_with_bytecode_compression(
-                        tracers.into(),
+                        vm_tracers.into(),
                         transaction,
                         true,
                     );
@@ -202,20 +209,6 @@ impl<S: ReadStorage> VmSandbox<S> {
         if storage_view_setup_time > Duration::from_millis(10) {
             tracing::debug!("Prepared the storage view (took {storage_view_setup_time:?})",);
         }
-    }
-
-    fn wrap_tracers(
-        tracers: Vec<ApiTracer>,
-        env: &OneshotEnv,
-        missed_storage_invocation_limit: usize,
-    ) -> Vec<MultiVmTracerPointer<StorageView<S>, HistoryDisabled>> {
-        let storage_invocation_tracer = StorageInvocations::new(missed_storage_invocation_limit);
-        let protocol_version = env.system.version;
-        tracers
-            .into_iter()
-            .map(|tracer| tracer.into_boxed(protocol_version))
-            .chain([storage_invocation_tracer.into_tracer_pointer()])
-            .collect()
     }
 
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T

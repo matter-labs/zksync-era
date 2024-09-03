@@ -3,7 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_multivm::interface::{
     executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, ExecutionResult,
-    OneshotEnv, TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
+    OneshotEnv, OneshotTracers, TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 
@@ -88,14 +88,12 @@ impl<S> OneshotExecutor<S> for MockOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    type Tracers = ();
-
     async fn inspect_transaction(
         &self,
         _storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        (): Self::Tracers,
+        _tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
         Ok(self.mock_inspect(env, args))
     }
@@ -105,7 +103,7 @@ where
         _storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        (): Self::Tracers,
+        _tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<(
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,

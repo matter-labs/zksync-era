@@ -4,10 +4,10 @@ use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, OneshotEnv,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+    OneshotTracers, TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
 use zksync_types::api::state_override::StateOverride;
-use zksync_vm_executor::oneshot::{ApiTracer, MainOneshotExecutor, MockOneshotExecutor};
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit};
 
@@ -46,7 +46,7 @@ impl TransactionExecutor {
         connection: Connection<'static, Core>,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
-        tracers: Vec<ApiTracer>,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
         let (env, storage) =
@@ -80,14 +80,12 @@ impl<S> OneshotExecutor<S> for TransactionExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    type Tracers = Vec<ApiTracer>;
-
     async fn inspect_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<VmExecutionResultAndLogs> {
         match self {
             Self::Real(executor) => {
@@ -95,7 +93,11 @@ where
                     .inspect_transaction(storage, env, args, tracers)
                     .await
             }
-            Self::Mock(executor) => executor.inspect_transaction(storage, env, args, ()).await,
+            Self::Mock(executor) => {
+                executor
+                    .inspect_transaction(storage, env, args, tracers)
+                    .await
+            }
         }
     }
 
@@ -104,7 +106,7 @@ where
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<(
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
@@ -117,7 +119,7 @@ where
             }
             Self::Mock(executor) => {
                 executor
-                    .inspect_transaction_with_bytecode_compression(storage, env, args, ())
+                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
                     .await
             }
         }

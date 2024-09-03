@@ -9,12 +9,13 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
+        tracer::ViolatedValidationRule,
         VmExecutionResultAndLogs,
     },
     tracers::{
         dynamic::vm_1_3_3::DynTracer,
         validator::{
-            types::{NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule},
+            types::{NewTrustedValidationItems, ValidationTracerMode},
             ValidationRoundResult, ValidationTracer,
         },
     },

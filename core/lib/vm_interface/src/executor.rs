@@ -8,7 +8,7 @@ use zksync_types::Transaction;
 use crate::{
     storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, BytecodeCompressionError, FinishedL1Batch, L1BatchEnv,
-    L2BlockEnv, OneshotEnv, SystemEnv, TxExecutionArgs, VmExecutionResultAndLogs,
+    L2BlockEnv, OneshotEnv, OneshotTracers, SystemEnv, TxExecutionArgs, VmExecutionResultAndLogs,
 };
 
 /// Factory of [`BatchExecutor`]s.
@@ -47,14 +47,12 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
 #[async_trait]
 pub trait OneshotExecutor<S: ReadStorage> {
-    type Tracers: Default; // FIXME: revise
-
     async fn inspect_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<VmExecutionResultAndLogs>;
 
     async fn inspect_transaction_with_bytecode_compression(
@@ -62,7 +60,7 @@ pub trait OneshotExecutor<S: ReadStorage> {
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
+        tracers: OneshotTracers<'_>,
     ) -> anyhow::Result<(
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,

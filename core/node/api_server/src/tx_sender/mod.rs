@@ -11,7 +11,8 @@ use zksync_dal::{
 };
 use zksync_multivm::{
     interface::{
-        TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
+        OneshotTracers, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
+        VmExecutionResultAndLogs,
     },
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
@@ -390,7 +391,7 @@ impl TxSender {
                 connection,
                 block_args,
                 None,
-                vec![],
+                OneshotTracers::None,
             )
             .await?;
         tracing::info!(
@@ -727,7 +728,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracers::None,
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
@@ -1027,7 +1028,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracers::None,
             )
             .await?;
         result.vm.into_api_call_result()
