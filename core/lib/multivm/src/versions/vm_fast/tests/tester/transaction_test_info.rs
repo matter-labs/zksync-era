@@ -7,10 +7,7 @@ use crate::{
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_fast::{
-        vm::{CircuitsTracer, World},
-        Vm,
-    },
+    vm_fast::{circuits_tracer::CircuitsTracer, vm::World, Vm},
 };
 
 #[derive(Debug, Clone)]
