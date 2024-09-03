@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_keyhash_generation() {
         let mut path_to_input = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        path_to_input.push("historical_data");
+        path_to_input.push("../../../data/historical_data");
 
         for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
             if entry.metadata().unwrap().is_dir() {
