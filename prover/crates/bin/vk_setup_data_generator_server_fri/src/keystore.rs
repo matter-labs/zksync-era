@@ -45,16 +45,28 @@ pub struct Keystore {
 }
 
 fn get_base_path() -> PathBuf {
+    // This will return the path to the _core_ workspace locally,
+    // otherwise (e.g. in Docker) it will return `.` (which is usually equivalent to `/`).
+    //
+    // Note: at the moment of writing this function, it locates the prover workspace, and uses
+    // `..` to get to the core workspace, so the path returned is something like:
+    // `/path/to/workspace/zksync-era/prover/..` (or `.` for binaries).
     let path = core_workspace_dir_or_current_dir();
 
-    let new_path = path.join("data/keys");
+    // Check if we're in the folder equivalent to the core workspace root.
+    // Path we're actually checking is:
+    // `/path/to/workspace/zksync-era/prover/../prover/data/keys`
+    let new_path = path.join("prover/data/keys");
     if new_path.exists() {
         return new_path;
     }
 
     let mut components = path.components();
+    // This removes the last component of `path`, so:
+    // for local workspace, we're removing `..` and putting ourselves back to the prover workspace.
+    // for binaries, we're removing `.` and getting the empty path.
     components.next_back().unwrap();
-    components.as_path().join("data/keys")
+    components.as_path().join("prover/data/keys")
 }
 
 impl Default for Keystore {
