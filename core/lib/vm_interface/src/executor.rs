@@ -7,8 +7,9 @@ use zksync_types::Transaction;
 
 use crate::{
     storage::{ReadStorage, StorageView},
-    BatchTransactionExecutionResult, BytecodeCompressionError, FinishedL1Batch, L1BatchEnv,
-    L2BlockEnv, OneshotEnv, OneshotTracers, SystemEnv, TxExecutionArgs, VmExecutionResultAndLogs,
+    tracer::{ValidationError, ValidationParams},
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
+    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
 };
 
 /// Factory of [`BatchExecutor`]s.
@@ -47,22 +48,19 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
 #[async_trait]
 pub trait OneshotExecutor<S: ReadStorage> {
-    async fn inspect_transaction(
+    async fn validate_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs>;
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>>;
 
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )>;
+        tracing: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult>;
 }

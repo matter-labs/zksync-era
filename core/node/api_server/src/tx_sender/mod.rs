@@ -11,7 +11,7 @@ use zksync_dal::{
 };
 use zksync_multivm::{
     interface::{
-        OneshotTracers, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
+        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
         VmExecutionResultAndLogs,
     },
     utils::{
@@ -391,7 +391,7 @@ impl TxSender {
                 connection,
                 block_args,
                 None,
-                OneshotTracers::None,
+                OneshotTracingParams::default(),
             )
             .await?;
         tracing::info!(
@@ -728,7 +728,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                OneshotTracers::None,
+                OneshotTracingParams::default(),
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
@@ -1028,7 +1028,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                OneshotTracers::None,
+                OneshotTracingParams::default(),
             )
             .await?;
         result.vm.into_api_call_result()

@@ -3,8 +3,11 @@
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, OneshotEnv,
-    OneshotTracers, TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+    executor::OneshotExecutor,
+    storage::ReadStorage,
+    tracer::{ValidationError, ValidationParams},
+    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
 use zksync_types::api::state_override::StateOverride;
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
@@ -15,6 +18,8 @@ use super::{apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetup
 pub(crate) struct TransactionExecutionOutput {
     /// Output of the VM.
     pub vm: VmExecutionResultAndLogs,
+    /// Traced calls if requested.
+    pub call_traces: Vec<Call>,
     /// Execution metrics.
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
@@ -46,7 +51,7 @@ impl TransactionExecutor {
         connection: Connection<'static, Core>,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
-        tracers: OneshotTracers<'_>,
+        tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
         let (env, storage) =
@@ -54,17 +59,23 @@ impl TransactionExecutor {
         let state_override = state_override.unwrap_or_default();
         let storage = StorageWithOverrides::new(storage, &state_override);
 
-        let (published_bytecodes, execution_result) = self
-            .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracers)
+        let result = self
+            .inspect_transaction_with_bytecode_compression(
+                storage,
+                env,
+                execution_args,
+                tracing_params,
+            )
             .await?;
         drop(vm_permit);
 
         let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
+            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
         Ok(TransactionExecutionOutput {
-            vm: execution_result,
+            vm: *result.tx_result,
+            call_traces: result.call_traces,
             metrics,
-            are_published_bytecodes_ok: published_bytecodes.is_ok(),
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
         })
     }
 }
@@ -80,22 +91,22 @@ impl<S> OneshotExecutor<S> for TransactionExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn inspect_transaction(
+    async fn validate_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
         match self {
             Self::Real(executor) => {
                 executor
-                    .inspect_transaction(storage, env, args, tracers)
+                    .validate_transaction(storage, env, args, validation_params)
                     .await
             }
             Self::Mock(executor) => {
                 executor
-                    .inspect_transaction(storage, env, args, tracers)
+                    .validate_transaction(storage, env, args, validation_params)
                     .await
             }
         }
@@ -106,20 +117,27 @@ where
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )> {
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         match self {
             Self::Real(executor) => {
                 executor
-                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
                     .await
             }
             Self::Mock(executor) => {
                 executor
-                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
                     .await
             }
         }

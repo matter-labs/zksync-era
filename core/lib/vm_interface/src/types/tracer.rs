@@ -43,7 +43,7 @@ pub enum VmExecutionStopReason {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidationTracerParams {
+pub struct ValidationParams {
     pub user_address: Address,
     pub paymaster_address: Address,
     /// Slots that are trusted (i.e. the user can access them).
@@ -84,6 +84,25 @@ impl fmt::Display for ViolatedValidationRule {
                     f,
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ValidationError {
+    FailedTx(Halt),
+    ViolatedRule(ViolatedValidationRule),
+}
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FailedTx(revert_reason) => {
+                write!(f, "Validation revert: {}", revert_reason)
+            }
+            Self::ViolatedRule(rule) => {
+                write!(f, "Violated validation rules: {}", rule)
             }
         }
     }

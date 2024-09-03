@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
     interface::{
-        Call, CallType, ExecutionResult, OneshotTracers, TxExecutionArgs, TxExecutionMode,
+        Call, CallType, ExecutionResult, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -189,11 +189,8 @@ impl DebugNamespace {
         let vm_permit = vm_permit.context("cannot acquire VM permit")?;
 
         // We don't need properly trace if we only need top call
-        let mut calls = vec![];
-        let custom_tracers = if only_top_call {
-            OneshotTracers::None
-        } else {
-            OneshotTracers::Calls(&mut calls)
+        let tracing_params = OneshotTracingParams {
+            trace_calls: !only_top_call,
         };
 
         let connection = self.state.acquire_connection().await?;
@@ -206,12 +203,11 @@ impl DebugNamespace {
                 connection,
                 block_args,
                 None,
-                custom_tracers,
+                tracing_params,
             )
-            .await?
-            .vm;
+            .await?;
 
-        let (output, revert_reason) = match result.result {
+        let (output, revert_reason) = match result.vm.result {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
             ExecutionResult::Halt { reason } => {
@@ -224,12 +220,12 @@ impl DebugNamespace {
 
         let call = Call::new_high_level(
             tx.common_data.fee.gas_limit.as_u64(),
-            result.statistics.gas_used,
+            result.vm.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,
             output,
             revert_reason,
-            calls,
+            result.call_traces,
         );
         Ok(Self::map_call(call, false))
     }

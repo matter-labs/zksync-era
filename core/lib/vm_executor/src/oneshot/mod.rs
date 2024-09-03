@@ -1,17 +1,22 @@
 //! Oneshot VM executor.
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::OneshotExecutor,
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        BytecodeCompressionError, OneshotEnv, OneshotTracers, StoredL2BlockEnv, TxExecutionArgs,
-        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        tracer::{ValidationError, ValidationParams},
+        ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
     },
-    tracers::StorageInvocations,
+    tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::HistoryDisabled,
     zk_evm_latest::ethereum_types::U256,
@@ -27,11 +32,9 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::mock::MockOneshotExecutor;
-use self::tracers::TracersAdapter;
 
 mod metrics;
 mod mock;
-mod tracers;
 
 /// Main [`OneshotExecutor`] implementation used by the API server.
 #[derive(Debug, Default)]
@@ -54,15 +57,13 @@ impl<S> OneshotExecutor<S> for MainOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn inspect_transaction(
+    async fn validate_transaction(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let tracers = TracersAdapter::new(tracers);
-        let mut vm_tracers = tracers.to_boxed(env.system.version);
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
@@ -70,20 +71,35 @@ where
                 self.missed_storage_invocation_limit
             }
         };
-        vm_tracers
-            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
 
-        let result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
+            let (validation_tracer, mut validation_result) =
+                ValidationTracer::<HistoryDisabled>::new(
+                    validation_params,
+                    env.system.version.into(),
+                );
+            let tracers = vec![
+                validation_tracer.into_tracer_pointer(),
+                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
+            ];
+
             let executor = VmSandbox::new(storage, env, args);
-            executor.apply(|vm, transaction| {
+            let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(vm_tracers.into(), VmExecutionMode::OneTx)
-            })
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            });
+            let validation_result = Arc::make_mut(&mut validation_result)
+                .take()
+                .map_or(Ok(()), Err);
+
+            match (exec_result.result, validation_result) {
+                (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
+                (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
+                _ => Ok(()),
+            }
         })
         .await
-        .context("VM execution panicked")?;
-
-        Ok(result)
+        .context("VM execution panicked")
     }
 
     async fn inspect_transaction_with_bytecode_compression(
@@ -91,13 +107,8 @@ where
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )> {
-        let tracers = TracersAdapter::new(tracers);
-        let mut vm_tracers = tracers.to_boxed(env.system.version);
+        params: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
             TxExecutionMode::VerifyExecute => usize::MAX,
@@ -105,20 +116,34 @@ where
                 self.missed_storage_invocation_limit
             }
         };
-        vm_tracers
-            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
 
         tokio::task::spawn_blocking(move || {
+            let mut tracers = vec![];
+            let mut calls_result = Arc::<OnceCell<_>>::default();
+            if params.trace_calls {
+                tracers.push(CallTracer::new(calls_result.clone()).into_tracer_pointer());
+            }
+            tracers.push(
+                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
+            );
+
             let executor = VmSandbox::new(storage, env, args);
-            executor.apply(|vm, transaction| {
-                let (bytecodes_result, exec_result) = vm
+            let mut result = executor.apply(|vm, transaction| {
+                let (compression_result, tx_result) = vm
                     .inspect_transaction_with_bytecode_compression(
-                        vm_tracers.into(),
+                        tracers.into(),
                         transaction,
                         true,
                     );
-                (bytecodes_result.map(drop), exec_result)
-            })
+                OneshotTransactionExecutionResult {
+                    tx_result: Box::new(tx_result),
+                    compression_result: compression_result.map(drop),
+                    call_traces: vec![],
+                }
+            });
+
+            result.call_traces = Arc::make_mut(&mut calls_result).take().unwrap_or_default();
+            result
         })
         .await
         .context("VM execution panicked")

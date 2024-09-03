@@ -2,8 +2,11 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_multivm::interface::{
-    executor::OneshotExecutor, storage::ReadStorage, BytecodeCompressionError, ExecutionResult,
-    OneshotEnv, OneshotTracers, TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
+    executor::OneshotExecutor,
+    storage::ReadStorage,
+    tracer::{ValidationError, ValidationParams},
+    ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+    TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 
@@ -88,14 +91,17 @@ impl<S> OneshotExecutor<S> for MockOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn inspect_transaction(
+    async fn validate_transaction(
         &self,
         _storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        _tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        Ok(self.mock_inspect(env, args))
+        _validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        Ok(match self.mock_inspect(env, args).result {
+            ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
+            ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => Ok(()),
+        })
     }
 
     async fn inspect_transaction_with_bytecode_compression(
@@ -103,11 +109,12 @@ where
         _storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        _tracers: OneshotTracers<'_>,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )> {
-        Ok((Ok(()), self.mock_inspect(env, args)))
+        _params: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
+        Ok(OneshotTransactionExecutionResult {
+            tx_result: Box::new(self.mock_inspect(env, args)),
+            compression_result: Ok(()),
+            call_traces: vec![],
+        })
     }
 }
