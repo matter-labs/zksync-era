@@ -156,7 +156,6 @@ pub mod gpu_prover {
                     GpuProofConfig::from_base_layer_circuit(circuit),
                     base_layer_proof_config(),
                     circuit.numeric_circuit_type(),
-                    circuit.numeric_circuit_type(),
                 ),
                 CircuitWrapper::Recursive(circuit) => (
                     GpuProofConfig::from_recursive_layer_circuit(circuit),
