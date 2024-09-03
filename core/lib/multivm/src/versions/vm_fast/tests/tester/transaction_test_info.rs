@@ -185,7 +185,7 @@ impl TransactionTestInfo {
 
 // TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug, PartialEq)]
-struct VmStateDump<S: PartialEq> {
+struct VmStateDump<S> {
     state: vm2::State<CircuitsTracer, World<S, CircuitsTracer>>,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,

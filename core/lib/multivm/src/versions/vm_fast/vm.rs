@@ -654,7 +654,7 @@ impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct World<S, T> {
     pub(crate) storage: S,
     // TODO (PLA-1008): Store `Program`s in an LRU cache
