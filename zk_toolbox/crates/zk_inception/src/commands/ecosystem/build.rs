@@ -53,6 +53,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
+    let sender = args.sender.clone();
     let mut final_ecosystem_args = args.fill_values_with_prompt();
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
@@ -62,6 +63,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         shell,
         &ecosystem_config,
         &initial_deployment_config,
+        sender.clone(),
     )
     .await?;
 
@@ -77,6 +79,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
             &ecosystem_config,
             &contracts_config,
             final_ecosystem_args.forge_args.clone(),
+            sender,
         )
         .await?;
     }
@@ -91,6 +94,7 @@ async fn init(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    sender: String,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
@@ -103,6 +107,7 @@ async fn init(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
+        sender,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -115,6 +120,7 @@ async fn deploy_erc20(
     ecosystem_config: &EcosystemConfig,
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
+    sender: String,
 ) -> anyhow::Result<ERC20Tokens> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     let wallets = ecosystem_config.get_wallets()?;
@@ -133,6 +139,7 @@ async fn deploy_erc20(
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url("127.0.0.1:8545".to_string())
+        .with_sender(sender)
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -159,6 +166,7 @@ async fn deploy_ecosystem(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    sender: String,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -166,6 +174,7 @@ async fn deploy_ecosystem(
             forge_args,
             ecosystem_config,
             initial_deployment_config,
+            sender,
         )
         .await;
     }
@@ -226,6 +235,7 @@ async fn deploy_ecosystem_inner(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    sender: String,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
 
@@ -248,6 +258,7 @@ async fn deploy_ecosystem_inner(
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url("127.0.0.1:8545".to_string())
+        .with_sender(sender)
         .with_broadcast();
 
     if config.l1_network == L1Network::Localhost {

@@ -96,6 +96,12 @@ impl ForgeScript {
         self
     }
 
+    /// Add the sender address to the forge script command.
+    pub fn with_sender(mut self, address: String) -> Self {
+        self.args.add_arg(ForgeScriptArg::Sender { address });
+        self
+    }
+
     /// Add the rpc-url flag to the forge script command.
     pub fn with_rpc_url(mut self, rpc_url: String) -> Self {
         self.args.add_arg(ForgeScriptArg::RpcUrl { url: rpc_url });
@@ -244,6 +250,10 @@ pub enum ForgeScriptArg {
     },
     Verify,
     Resume,
+    #[strum(to_string = "sender={address}")]
+    Sender {
+        address: String,
+    },
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
