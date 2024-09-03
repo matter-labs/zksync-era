@@ -15,11 +15,11 @@ use crate::messages::{
 
 #[derive(Debug, Parser)]
 pub struct ContractsArgs {
-    #[clap(long, help = MSG_BUILD_L1_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, alias = "l1", help = MSG_BUILD_L1_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub l1_contracts: Option<bool>,
-    #[clap(long, help = MSG_BUILD_L2_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, alias = "l2", help = MSG_BUILD_L2_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub l2_contracts: Option<bool>,
-    #[clap(long, help = MSG_BUILD_SYSTEM_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, alias = "sc", help = MSG_BUILD_SYSTEM_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub system_contracts: Option<bool>,
 }
 
