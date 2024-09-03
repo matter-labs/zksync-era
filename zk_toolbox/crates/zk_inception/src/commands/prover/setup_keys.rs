@@ -14,11 +14,10 @@ use crate::{
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     if args.mode == Mode::Generate {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
-
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let link_to_prover = get_link_to_prover(&ecosystem_config);
         shell.change_dir(&link_to_prover);
 
@@ -36,17 +35,17 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
     } else {
         check_prerequisites(shell, &GCLOUD_PREREQUISITES, false);
 
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let link_to_setup_keys = get_link_to_prover(&ecosystem_config).join("data/keys");
         let path_to_keys_buckets =
             get_link_to_prover(&ecosystem_config).join("setup-data-gpu-keys.json");
 
         let region = args.region.expect("Region is not provided");
 
-        let file = std::fs::File::open(path_to_keys_buckets)
+        let file = shell
+            .read_file(path_to_keys_buckets)
             .expect("Could not find commitments file in zksync-era");
         let json: serde_json::Value =
-            serde_json::from_reader(file).expect("Could not parse commitments.json");
+            serde_json::from_str(&file).expect("Could not parse commitments.json");
 
         let bucket = &match region {
             Region::Us => json
