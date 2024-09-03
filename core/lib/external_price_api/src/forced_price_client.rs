@@ -39,12 +39,23 @@ impl ForcedPriceClient {
             .next_value_fluctuation
             .clamp(0, 100);
 
-        Self {
-            ratio: BaseTokenAPIRatio {
+        let ratio = if numerator < 100 && fluctuation.is_some_and(|f| f > 0) {
+            // If numerator is too small we need to multiply by 100 to make sure fluctuations can be applied
+            BaseTokenAPIRatio {
+                numerator: NonZeroU64::new(numerator * 100).unwrap(),
+                denominator: NonZeroU64::new(denominator * 100).unwrap(),
+                ratio_timestamp: chrono::Utc::now(),
+            }
+        } else {
+            BaseTokenAPIRatio {
                 numerator: NonZeroU64::new(numerator).unwrap(),
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
-            },
+            }
+        };
+
+        Self {
+            ratio,
             previous_numerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
             fluctuation,
             next_value_fluctuation,
