@@ -1,10 +1,10 @@
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Context;
-use common::{docker, ethereum, logger};
+use common::{config::global_config, docker, ethereum, logger};
 use config::{
     portal::*,
-    traits::{ReadConfig, SaveConfig},
+    traits::{ConfigWithL2RpcUrl, ReadConfig, SaveConfig},
     AppsEcosystemConfig, ChainConfig, EcosystemConfig,
 };
 use ethers::types::Address;
@@ -23,12 +23,7 @@ async fn build_portal_chain_config(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
-    let general_config = chain_config.get_general_config()?;
-    let rpc_url: &String = general_config
-        .api_config
-        .as_ref()
-        .map(|api_config| &api_config.web3_json_rpc.http_url)
-        .context("api_config")?;
+    let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
     // Get L1 RPC URL from secrects config
     let secrets_config = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets_config
@@ -74,7 +69,7 @@ async fn build_portal_chain_config(
             id: chain_config.chain_id.as_u64(),
             key: chain_config.name.clone(),
             name: chain_config.name.clone(),
-            rpc_url: rpc_url.to_string(),
+            rpc_url: l2_rpc_url.to_string(),
             l1_network,
             public_l1_network_id: None,
             block_explorer_url: None,
@@ -131,10 +126,10 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
     // What chains to run the portal for?
-    let chains_enabled = apps_config
-        .portal
-        .chains_enabled
-        .unwrap_or_else(|| ecosystem_config.list_of_chains());
+    let chains_enabled = match global_config().chain_name {
+        Some(ref chain_name) => vec![chain_name.clone()],
+        None => ecosystem_config.list_of_chains(),
+    };
 
     // Generate portal runtime config
     let runtime_config = build_portal_runtime_config(shell, &ecosystem_config, chains_enabled)

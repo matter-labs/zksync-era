@@ -1,16 +1,15 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{db, docker, logger, Prompt};
+use common::{config::global_config, db, docker, logger, Prompt};
 use config::{
     explorer::*,
     explorer_compose::*,
-    traits::{ReadConfig, SaveConfig},
+    traits::{ConfigWithL2RpcUrl, ReadConfig, SaveConfig},
     AppsChainConfig, AppsChainExplorerConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig,
     ExplorerServicesConfig,
 };
 use slugify_rs::slugify;
-use url::Url;
 use xshell::Shell;
 
 use crate::{
@@ -27,24 +26,14 @@ use crate::{
     utils::ports::{EcosystemPorts, EcosystemPortsScanner},
 };
 
-fn get_l2_rpc_url(chain_config: &ChainConfig) -> anyhow::Result<String> {
-    // Get L2 RPC URL from general config
-    let general_config = chain_config.get_general_config()?;
-    let rpc_url = general_config
-        .api_config
-        .as_ref()
-        .map(|api_config| &api_config.web3_json_rpc.http_url)
-        .context("api_config")?;
-    Ok(rpc_url.to_string())
-}
-
-async fn build_explorer_chain_config(
+fn build_explorer_chain_config(
     chain_config: &ChainConfig,
     apps_chain_explorer_config: &AppsChainExplorerConfig,
 ) -> anyhow::Result<ExplorerChainConfig> {
-    let l2_rpc_url = get_l2_rpc_url(chain_config)?;
-    // Get Verification API URL from general config
     let general_config = chain_config.get_general_config()?;
+    // Get L2 RPC URL from general config
+    let l2_rpc_url = general_config.get_l2_rpc_url()?;
+    // Get Verification API URL from general config
     let verification_api_url = general_config
         .contract_verifier
         .as_ref()
@@ -72,12 +61,12 @@ async fn build_explorer_chain_config(
     })
 }
 
-pub async fn create_explorer_chain_config(
+pub fn create_explorer_chain_config(
     chain_config: &ChainConfig,
     apps_chain_config: &AppsChainExplorerConfig,
     shell: &Shell,
 ) -> anyhow::Result<ExplorerChainConfig> {
-    let explorer_config = build_explorer_chain_config(chain_config, apps_chain_config).await?;
+    let explorer_config = build_explorer_chain_config(chain_config, apps_chain_config)?;
     let config_path =
         ExplorerChainConfig::get_config_path(&shell.current_dir(), &chain_config.name);
     explorer_config.save(shell, config_path)?;
@@ -85,18 +74,18 @@ pub async fn create_explorer_chain_config(
 }
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let ecosystem_path = shell.current_dir();
     //  Keep track of allocated ports (initialized lazily)
     let mut ecosystem_ports: Option<EcosystemPorts> = None;
 
     // Get ecosystem level apps.yaml config
     let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
-    // What chains to run the explorer for
-    let chains_enabled = apps_config
-        .explorer
-        .chains_enabled
-        .unwrap_or_else(|| ecosystem_config.list_of_chains());
+    // What chains to run the explorer for?
+    let chains_enabled = match global_config().chain_name {
+        Some(ref chain_name) => vec![chain_name.clone()],
+        None => ecosystem_config.list_of_chains(),
+    };
 
     // For each chain - initialize if needed or read previously created configs
     let mut explorer_chain_configs = Vec::new();
@@ -119,9 +108,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
                 initialize_explorer_database(&db_config).await?;
 
                 // Allocate ports for backend services
-                let services_config =
-                    allocate_explorer_services_ports(&ecosystem_path, &mut ecosystem_ports)
-                        .context(MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR)?;
+                let services_config = allocate_explorer_services_ports(shell, &mut ecosystem_ports)
+                    .context(MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR)?;
 
                 // Build and save apps chain config
                 let app_chain_config = AppsChainConfig {
@@ -135,10 +123,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
             }
         };
 
-        let l2_rpc_url = get_l2_rpc_url(&chain_config)?;
-        let l2_rpc_url = Url::parse(&l2_rpc_url).context("Failed to parse L2 RPC URL")?;
-
         // Build backend compose config for the explorer chain services
+        let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
         let backend_compose_config =
             ExplorerBackendComposeConfig::new(chain_name, l2_rpc_url, &apps_chain_config.explorer)?;
         backend_configs.push(backend_compose_config);
@@ -148,14 +134,12 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
             ExplorerChainConfig::get_config_path(&ecosystem_path, chain_name);
         let explorer_chain_config = match should_initialize {
             true => {
-                create_explorer_chain_config(&chain_config, &apps_chain_config.explorer, shell)
-                    .await?
+                create_explorer_chain_config(&chain_config, &apps_chain_config.explorer, shell)?
             }
             false => match ExplorerChainConfig::read(shell, &explorer_chain_config_path) {
                 Ok(config) => config,
                 Err(_) => {
-                    create_explorer_chain_config(&chain_config, &apps_chain_config.explorer, shell)
-                        .await?
+                    create_explorer_chain_config(&chain_config, &apps_chain_config.explorer, shell)?
                 }
             },
         };
@@ -222,7 +206,7 @@ pub async fn initialize_explorer_database(
 }
 
 fn allocate_explorer_services_ports(
-    ecosystem_path: &Path,
+    shell: &Shell,
     ecosystem_ports: &mut Option<EcosystemPorts>,
 ) -> anyhow::Result<ExplorerServicesConfig> {
     let default_ports = vec![
@@ -235,8 +219,7 @@ fn allocate_explorer_services_ports(
     let ports = match ecosystem_ports {
         Some(ref mut res) => res,
         None => ecosystem_ports.get_or_insert(
-            EcosystemPortsScanner::scan(ecosystem_path)
-                .context("Failed to scan ecosystem ports")?,
+            EcosystemPortsScanner::scan(shell).context("Failed to scan ecosystem ports")?,
         ),
     };
 
@@ -255,11 +238,9 @@ fn allocate_explorer_services_ports(
     };
 
     // Build the explorer services config
-    let services_config = ExplorerServicesConfig {
-        api_http_port: allocated[0],
-        data_fetcher_http_port: allocated[1],
-        worker_http_port: allocated[2],
-        batches_processing_polling_interval: None,
-    };
-    Ok(services_config.with_defaults())
+    Ok(ExplorerServicesConfig::new(
+        allocated[0],
+        allocated[1],
+        allocated[2],
+    ))
 }

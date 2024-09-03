@@ -26,6 +26,8 @@ pub struct DockerComposeService {
     pub restart: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_hosts: Option<Vec<String>>,
+    #[serde(flatten)]
+    pub other: serde_json::Value,
 }
 
 impl ZkToolboxConfig for DockerComposeConfig {}
@@ -39,4 +41,3 @@ impl DockerComposeConfig {
         self.services.insert(name.to_string(), service);
     }
 }
-

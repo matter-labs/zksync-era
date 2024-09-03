@@ -1,48 +1,31 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fmt, fs,
     ops::Range,
     path::Path,
 };
 
 use anyhow::Result;
 use common::logger;
+use config::EcosystemConfig;
 use serde_yaml::Value;
+use xshell::Shell;
 
-#[derive(Debug, Clone)]
-pub struct PortInfo {
-    pub description: String,
-}
-
-impl PortInfo {
-    pub fn new(description: String) -> Self {
-        Self { description }
-    }
-
-    pub fn from_config(file_path: &Path, key_path: String) -> Self {
-        Self {
-            description: format!("[{}] {}", file_path.display(), key_path),
-        }
-    }
-
-    pub fn dynamically_allocated() -> Self {
-        Self::new("Dynamically allocated".to_string())
-    }
-}
+/// Ecosystem-level directories to include in the scan
+const INCLUDE_DIRS: &[&str] = &["chains", "configs"];
+/// Skip directories with these names at all levels
+const SKIP_DIRS: &[&str] = &["db", "volumes"];
 
 pub struct EcosystemPorts {
-    pub ports: HashMap<u16, Vec<PortInfo>>,
+    pub ports: HashMap<u16, Vec<String>>,
 }
 
 impl EcosystemPorts {
     pub fn new() -> Self {
         Self {
             ports: HashMap::from([
-                (3000, vec![PortInfo::new("Observability".to_string())]),
-                (
-                    3052,
-                    vec![PortInfo::new("External node gateway".to_string())],
-                ),
+                (3000, vec!["Observability".to_string()]),
+                (3052, vec!["External node gateway".to_string()]),
             ]),
         }
     }
@@ -55,14 +38,14 @@ impl EcosystemPorts {
         self.ports.contains_key(&port)
     }
 
-    pub fn add_port_info(&mut self, port: u16, info: PortInfo) {
+    pub fn add_port_info(&mut self, port: u16, info: String) {
         self.ports.entry(port).or_default().push(info);
     }
 
     pub fn allocate_port(&mut self, range: Range<u16>) -> Result<u16> {
         for port in range {
             if !self.is_port_assigned(port) {
-                self.add_port_info(port, PortInfo::dynamically_allocated());
+                self.add_port_info(port, "Dynamically allocated".to_string());
                 return Ok(port);
             }
         }
@@ -86,7 +69,12 @@ impl EcosystemPorts {
 
             // Check if all candidate ports are within the range
             if candidate_ports.iter().any(|&port| !range.contains(&port)) {
-                anyhow::bail!("No suitable ports found within the given range");
+                anyhow::bail!(
+                    "No suitable ports found within the given range {:?}. Tried {} iterations with offset {}",
+                    range,
+                    i,
+                    offset
+                )
             }
 
             // Check if all candidate ports are available
@@ -96,22 +84,25 @@ impl EcosystemPorts {
             {
                 // Allocate all ports
                 for &port in &candidate_ports {
-                    self.add_port_info(port, PortInfo::dynamically_allocated());
+                    self.add_port_info(port, "Dynamically allocated".to_string());
                 }
                 return Ok(candidate_ports);
             }
             i += 1;
         }
     }
+}
 
-    pub fn print(&self) {
+impl fmt::Display for EcosystemPorts {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut port_vec: Vec<_> = self.ports.iter().collect();
         port_vec.sort_by_key(|&(key, _)| key);
         for (port, port_infos) in port_vec {
             for port_info in port_infos {
-                println!("{} > {}", port_info.description, port);
+                writeln!(f, "{} > {}", port_info, port)?;
             }
         }
+        Ok(())
     }
 }
 
@@ -121,13 +112,13 @@ impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
     /// Specifically, it looks for keys ending with "port" and collects their values.
     /// Note: Port information from Docker Compose files will not be picked up by this method.
-    pub fn scan(ecosystem_dir: &Path) -> Result<EcosystemPorts> {
-        let skip_dirs: HashSet<&str> = vec!["db", "volumes"].into_iter().collect();
+    pub fn scan(shell: &Shell) -> Result<EcosystemPorts> {
+        let _ = EcosystemConfig::from_file(shell)?; // Find and validate the ecosystem directory
+        let ecosystem_dir = shell.current_dir();
 
+        let skip_dirs: HashSet<&str> = SKIP_DIRS.iter().cloned().collect();
         let mut ecosystem_ports = EcosystemPorts::new();
-
-        let subdirs = ["chains", "configs"];
-        for subdir in &subdirs {
+        for subdir in INCLUDE_DIRS {
             let dir = ecosystem_dir.join(subdir);
             if dir.is_dir() {
                 if let Err(e) = Self::scan_directory(&dir, &mut ecosystem_ports, &skip_dirs) {
@@ -153,11 +144,15 @@ impl EcosystemPortsScanner {
         for entry in fs::read_dir(dir)? {
             let path = entry?.path();
             if path.is_dir() {
-                let _ = Self::scan_directory(&path, ecosystem_ports, skip_dirs);
+                if let Err(e) = Self::scan_directory(&path, ecosystem_ports, skip_dirs) {
+                    logger::warn(format!("Error scanning directory {:?}: {}", path, e));
+                }
             } else if path.is_file() {
                 if let Some(extension) = path.extension() {
                     if extension == "yaml" || extension == "yml" {
-                        let _ = Self::process_yaml_file(&path, ecosystem_ports);
+                        if let Err(e) = Self::process_yaml_file(&path, ecosystem_ports) {
+                            logger::warn(format!("Error processing YAML file {:?}: {}", path, e));
+                        }
                     }
                 }
             }
@@ -189,10 +184,8 @@ impl EcosystemPortsScanner {
 
                     if key.as_str().map(|s| s.ends_with("port")).unwrap_or(false) {
                         if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
-                            ecosystem_ports.add_port_info(
-                                port,
-                                PortInfo::from_config(file_path, new_path.clone()),
-                            );
+                            let description = format!("[{}] {}", file_path.display(), new_path);
+                            ecosystem_ports.add_port_info(port, description);
                         }
                     }
 
@@ -207,5 +200,104 @@ impl EcosystemPortsScanner {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner};
+
+    #[test]
+    fn test_allocate_ports() {
+        let mut ecosystem_ports = EcosystemPorts::new();
+
+        // Test case 1: Allocate ports within range
+        let result = ecosystem_ports.allocate_ports(&[8000, 8001, 8002], 8000..9000, 100);
+        assert!(result.is_ok());
+        let allocated_ports = result.unwrap();
+        assert_eq!(allocated_ports, vec![8000, 8001, 8002]);
+
+        // Test case 2: Allocate ports with offset
+        let result = ecosystem_ports.allocate_ports(&[8000, 8001, 8002], 8000..9000, 100);
+        assert!(result.is_ok());
+        let allocated_ports = result.unwrap();
+        assert_eq!(allocated_ports, vec![8100, 8101, 8102]);
+
+        // Test case 3: Fail to allocate ports - not available with offset
+        let result = ecosystem_ports.allocate_ports(&[8000, 8001, 8002], 8000..8200, 100);
+        assert!(result.is_err());
+
+        // Test case 4: Fail to allocate ports - base ports outside range
+        let result = ecosystem_ports.allocate_ports(&[9500, 9501, 9502], 8000..9000, 100);
+        assert!(result.is_err());
+
+        // Test case 5: Allocate consecutive ports
+        let result = ecosystem_ports.allocate_ports(&[8000, 8001, 8002], 8000..9000, 1);
+        assert!(result.is_ok());
+        let allocated_ports = result.unwrap();
+        assert_eq!(allocated_ports, vec![8003, 8004, 8005]);
+
+        // Test case 6: Allocate ports at the edge of the range
+        let result = ecosystem_ports.allocate_ports(&[8998, 8999], 8000..9000, 1);
+        assert!(result.is_ok());
+        let allocated_ports = result.unwrap();
+        assert_eq!(allocated_ports, vec![8998, 8999]);
+    }
+
+    #[test]
+    fn test_traverse_yaml() {
+        let yaml_content = r#"
+            api:
+                web3_json_rpc:
+                    http_port: 3050
+                    ws_port: 3051
+                    api_namespaces:
+                    - eth
+                    gas_price_scale_factor: 1.5
+                prometheus:
+                    listener_port: 3412
+                    push_interval_ms: 100
+            contract_verifier:
+                port: 3070
+            prometheus:
+                listener_port: 3412
+        "#;
+
+        let value = serde_yaml::from_str(yaml_content).unwrap();
+        let mut ecosystem_ports = EcosystemPorts::new();
+        let file_path: PathBuf = PathBuf::from("test_config.yaml");
+
+        EcosystemPortsScanner::traverse_yaml(&value, "", &file_path, &mut ecosystem_ports);
+
+        // Assigned ports:
+        assert!(ecosystem_ports.is_port_assigned(3050));
+        assert!(ecosystem_ports.is_port_assigned(3051));
+        assert!(ecosystem_ports.is_port_assigned(3070));
+        assert!(ecosystem_ports.is_port_assigned(3412));
+
+        // Free ports:
+        assert!(!ecosystem_ports.is_port_assigned(3150));
+        assert!(!ecosystem_ports.is_port_assigned(3151));
+
+        // Check description:
+        let port_3050_info = ecosystem_ports.ports.get(&3050).unwrap();
+        assert_eq!(port_3050_info.len(), 1);
+        assert_eq!(
+            port_3050_info[0],
+            "[test_config.yaml] api:web3_json_rpc:http_port"
+        );
+
+        let port_3412_info = ecosystem_ports.ports.get(&3412).unwrap();
+        assert_eq!(port_3412_info.len(), 2);
+        assert_eq!(
+            port_3412_info[0],
+            "[test_config.yaml] api:prometheus:listener_port"
+        );
+        assert_eq!(
+            port_3412_info[1],
+            "[test_config.yaml] prometheus:listener_port"
+        );
     }
 }

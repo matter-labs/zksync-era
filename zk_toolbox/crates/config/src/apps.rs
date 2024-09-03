@@ -5,13 +5,13 @@ use url::Url;
 use xshell::Shell;
 
 use crate::{
-    consts::{APPS_CONFIG_FILE, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
+    consts::{
+        APPS_CONFIG_FILE, DEFAULT_EXPLORER_PORT, DEFAULT_PORTAL_PORT, LOCAL_CHAINS_PATH,
+        LOCAL_CONFIGS_PATH,
+    },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
     EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
 };
-
-pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
-pub const DEFAULT_PORTAL_PORT: u16 = 3030;
 
 /// Ecosystem level configuration for the apps (portal and explorer).
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,8 +24,6 @@ pub struct AppsEcosystemConfig {
 pub struct AppEcosystemConfig {
     pub http_port: u16,
     pub http_url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chains_enabled: Option<Vec<String>>,
 }
 
 impl ZkToolboxConfig for AppsEcosystemConfig {}
@@ -50,7 +48,7 @@ pub struct ExplorerServicesConfig {
     pub api_http_port: u16,
     pub data_fetcher_http_port: u16,
     pub worker_http_port: u16,
-    pub batches_processing_polling_interval: Option<u64>,
+    pub batches_processing_polling_interval: u64,
 }
 
 impl ZkToolboxConfig for AppsChainConfig {}
@@ -81,12 +79,10 @@ impl Default for AppsEcosystemConfig {
             portal: AppEcosystemConfig {
                 http_port: DEFAULT_PORTAL_PORT,
                 http_url: format!("http://127.0.0.1:{}", DEFAULT_PORTAL_PORT),
-                chains_enabled: None,
             },
             explorer: AppEcosystemConfig {
                 http_port: DEFAULT_EXPLORER_PORT,
                 http_url: format!("http://127.0.0.1:{}", DEFAULT_EXPLORER_PORT),
-                chains_enabled: None,
             },
         }
     }
@@ -107,14 +103,12 @@ impl AppsChainConfig {
 }
 
 impl ExplorerServicesConfig {
-    pub fn get_batches_processing_polling_interval(&self) -> u64 {
-        self.batches_processing_polling_interval
-            .unwrap_or(EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL)
-    }
-
-    pub fn with_defaults(mut self) -> Self {
-        self.batches_processing_polling_interval =
-            Some(self.get_batches_processing_polling_interval());
-        self
+    pub fn new(api_http_port: u16, data_fetcher_http_port: u16, worker_http_port: u16) -> Self {
+        ExplorerServicesConfig {
+            api_http_port,
+            data_fetcher_http_port,
+            worker_http_port,
+            batches_processing_polling_interval: EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
+        }
     }
 }

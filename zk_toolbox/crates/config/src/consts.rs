@@ -50,6 +50,11 @@ pub const EXPLORER_CHAIN_CONFIG_FILE: &str = "explorer.config.json";
 /// Name of explorer docker compose file (auto-generated)
 pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
 
+/// Default port for the explorer app
+pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
+/// Default port for the portal app
+pub const DEFAULT_PORTAL_PORT: u16 = 3030;
+
 pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
 pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";

@@ -93,6 +93,7 @@ impl ExplorerComposeConfig {
             restart: None,
             environment: None,
             extra_hosts: None,
+            other: serde_json::Value::Null,
         }
     }
 
@@ -132,7 +133,7 @@ impl ExplorerBackendComposeConfig {
             config.services.data_fetcher_http_port,
             l2_rpc_url.as_ref(),
             &db_url,
-            config.services.get_batches_processing_polling_interval(),
+            config.services.batches_processing_polling_interval,
         )
         .context("Failed to create worker service")?;
         services.insert(Self::worker_name(chain_name), worker);
@@ -157,6 +158,7 @@ impl ExplorerBackendComposeConfig {
                 ("DATABASE_URL".to_string(), db_url.to_string()),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            other: serde_json::Value::Null,
         }
     }
 
@@ -175,6 +177,7 @@ impl ExplorerBackendComposeConfig {
                 ("BLOCKCHAIN_RPC_URL".to_string(), l2_rpc_url.to_string()),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            other: serde_json::Value::Null,
         }
     }
 
@@ -226,6 +229,7 @@ impl ExplorerBackendComposeConfig {
                 ),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            other: serde_json::Value::Null,
         })
     }
 
