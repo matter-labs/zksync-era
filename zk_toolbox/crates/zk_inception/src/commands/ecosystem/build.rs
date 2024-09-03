@@ -10,12 +10,10 @@ use common::{
 use config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
-            },
-            output::{DeployL1Output, ERC20Tokens},
+            input::{DeployL1Config, InitialDeploymentConfig},
+            output::DeployL1Output,
         },
-        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
+        script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
@@ -31,16 +29,13 @@ use super::{
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
-    commands::ecosystem::create_configs::{
-        create_erc20_deployment_config, create_initial_deployments_config,
-    },
+    commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
         msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
-        MSG_DEPLOYING_ERC20, MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
-        MSG_INTALLING_DEPS_SPINNER,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::check_the_balance,
 };
 
 pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -58,7 +53,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
-    let contracts_config = init(
+    let _contracts_config = init(
         &mut final_ecosystem_args,
         shell,
         &ecosystem_config,
@@ -66,23 +61,6 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         sender.clone(),
     )
     .await?;
-
-    if final_ecosystem_args.deploy_erc20 {
-        logger::info(MSG_DEPLOYING_ERC20);
-        let erc20_deployment_config = match ecosystem_config.get_erc20_deployment_config() {
-            Ok(config) => config,
-            Err(_) => create_erc20_deployment_config(shell, &ecosystem_config.config)?,
-        };
-        deploy_erc20(
-            shell,
-            &erc20_deployment_config,
-            &ecosystem_config,
-            &contracts_config,
-            final_ecosystem_args.forge_args.clone(),
-            sender,
-        )
-        .await?;
-    }
 
     logger::outro("TODO");
 
@@ -112,52 +90,6 @@ async fn init(
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(contracts)
-}
-
-async fn deploy_erc20(
-    shell: &Shell,
-    erc20_deployment_config: &Erc20DeploymentConfig,
-    ecosystem_config: &EcosystemConfig,
-    contracts_config: &ContractsConfig,
-    forge_args: ForgeScriptArgs,
-    sender: String,
-) -> anyhow::Result<ERC20Tokens> {
-    let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
-    let wallets = ecosystem_config.get_wallets()?;
-    DeployErc20Config::new(
-        erc20_deployment_config,
-        contracts_config,
-        vec![
-            wallets.governor.address,
-            wallets.operator.address,
-            wallets.blob_operator.address,
-        ],
-    )
-    .save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
-        .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url("127.0.0.1:8545".to_string())
-        .with_sender(sender)
-        .with_broadcast();
-
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.deployer_private_key(),
-    )?;
-
-    let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-    spinner.finish();
-
-    let result = ERC20Tokens::read(
-        shell,
-        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
-    )?;
-    result.save_with_base_path(shell, &ecosystem_config.config)?;
-    Ok(result)
 }
 
 async fn deploy_ecosystem(

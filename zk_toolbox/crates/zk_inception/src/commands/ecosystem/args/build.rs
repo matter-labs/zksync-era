@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    messages::{
-        MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
-        MSG_GENESIS_ARGS_HELP,
-    },
+    messages::{MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_GENESIS_ARGS_HELP},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
@@ -45,12 +42,6 @@ pub struct EcosystemArgsFinal {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemBuildArgs {
-    /// Deploy Paymaster contract
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub deploy_paymaster: Option<bool>,
-    /// Deploy ERC20 contracts
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub deploy_erc20: Option<bool>,
     /// Address of the transaction sender.
     #[arg(long)]
     pub sender: String,
@@ -67,23 +58,10 @@ pub struct EcosystemBuildArgs {
 
 impl EcosystemBuildArgs {
     pub fn fill_values_with_prompt(self) -> EcosystemBuildArgsFinal {
-        let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
-            PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
-                .default(true)
-                .ask()
-        });
-        let deploy_erc20 = self.deploy_erc20.unwrap_or_else(|| {
-            PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
-                .default(true)
-                .ask()
-        });
-
         let ecosystem = self.ecosystem.fill_values_with_prompt();
 
         EcosystemBuildArgsFinal {
             sender: self.sender,
-            deploy_paymaster,
-            deploy_erc20,
             ecosystem,
             forge_args: self.forge_args.clone(),
         }
@@ -93,8 +71,6 @@ impl EcosystemBuildArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EcosystemBuildArgsFinal {
     pub sender: String,
-    pub deploy_paymaster: bool,
-    pub deploy_erc20: bool,
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
 }
