@@ -28,8 +28,7 @@ use types::{L1Network, ProverMode};
 use xshell::Shell;
 
 use super::{
-    args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
-    setup_observability,
+    args::build::{EcosystemArgsFinal, EcosystemBuildArgs, EcosystemBuildArgsFinal},
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
@@ -51,7 +50,7 @@ use crate::{
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
-pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
@@ -68,10 +67,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
-
-    if final_ecosystem_args.observability {
-        setup_observability::run(shell)?;
-    }
 
     let contracts_config = init(
         &mut final_ecosystem_args,
@@ -134,7 +129,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 async fn init(
-    init_args: &mut EcosystemInitArgsFinal,
+    init_args: &mut EcosystemBuildArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
