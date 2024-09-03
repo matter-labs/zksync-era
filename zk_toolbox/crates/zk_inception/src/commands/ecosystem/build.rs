@@ -31,7 +31,6 @@ use super::{
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
-    accept_ownership::accept_owner,
     commands::ecosystem::create_configs::{
         create_erc20_deployment_config, create_initial_deployments_config,
     },
@@ -133,6 +132,7 @@ async fn deploy_erc20(
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
+        .with_rpc_url("127.0.0.1:8545".to_string())
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -247,6 +247,7 @@ async fn deploy_ecosystem_inner(
     let mut forge = Forge::new(&config.path_to_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
+        .with_rpc_url("127.0.0.1:8545".to_string())
         .with_broadcast();
 
     if config.l1_network == L1Network::Localhost {
