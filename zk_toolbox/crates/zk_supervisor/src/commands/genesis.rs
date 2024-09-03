@@ -6,7 +6,7 @@ use xshell::{cmd, Shell};
 use crate::{
     commands::database::reset::reset_database,
     dals::get_core_dal,
-    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_FILE_GENERATION_STARTED, MSG_GENESIS_SUCCESS},
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_FILE_GENERATION_STARTED},
 };
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
