@@ -18,8 +18,8 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         shell,
         "cargo run --features gpu --release --bin key_generator -- 
             generate-sk-gpu all --recompute-if-missing
-            --setup-path=crates/bin/vk_setup_data_generator_server_fri/data
-            --path={link_to_prover}/crates/bin/vk_setup_data_generator_server_fri/data"
+            --setup-path=data/keys
+            --path={link_to_prover}/data/keys"
     ));
     cmd.run()?;
     spinner.finish();

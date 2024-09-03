@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
-    database::DatabaseCommands, lint::LintArgs, snapshot::SnapshotCommands, test::TestCommands,
+    contracts::ContractsArgs, database::DatabaseCommands, lint::LintArgs,
+    snapshot::SnapshotCommands, test::TestCommands,
 };
 use common::{
     check_general_prerequisites,
@@ -10,7 +11,7 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_GENERATE_GENESIS_ABOUT, MSG_PROVER_VERSION_ABOUT,
+    msg_global_chain_does_not_exist, MSG_GENERATE_GENESIS_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_CONTRACTS_ABOUT,
     MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
     MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
@@ -51,6 +52,8 @@ enum SupervisorSubcommands {
     ProverVersion,
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[command(about = MSG_CONTRACTS_ABOUT)]
+    Contracts(ContractsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -109,6 +112,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::ProverVersion => commands::prover_version::run(shell).await?,
         SupervisorSubcommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
     }
     Ok(())
 }

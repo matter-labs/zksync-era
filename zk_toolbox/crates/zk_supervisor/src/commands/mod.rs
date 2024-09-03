@@ -1,4 +1,5 @@
 pub mod clean;
+pub mod contracts;
 pub mod database;
 pub mod fmt;
 pub mod genesis;
