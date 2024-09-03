@@ -3,14 +3,17 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::L2BlockEnv;
-use zksync_state_keeper::{
-    BatchExecutor, BatchExecutorHandle, ExecutionMetricsForCriteria, L2BlockParams,
-    StateKeeperOutputHandler, TxExecutionResult, UpdatesManager,
-};
+use zksync_state::OwnedStorage;
 use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
+use zksync_vm_interface::{
+    executor::{BatchExecutor, BatchExecutorFactory},
+    L2BlockEnv,
+};
 
-use crate::{metrics::METRICS, storage::StorageLoader, OutputHandlerFactory, VmRunnerIo};
+use crate::{
+    metrics::METRICS, output_handler::OutputHandler, storage::StorageLoader, L1BatchOutput,
+    L2BlockOutput, OutputHandlerFactory, VmRunnerIo,
+};
 
 /// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
 /// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
@@ -29,7 +32,7 @@ pub struct VmRunner {
     io: Box<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
     output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_processor: Box<dyn BatchExecutor>,
+    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
 }
 
 impl VmRunner {
@@ -44,32 +47,27 @@ impl VmRunner {
         io: Box<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
         output_handler_factory: Box<dyn OutputHandlerFactory>,
-        batch_processor: Box<dyn BatchExecutor>,
+        batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     ) -> Self {
         Self {
             pool,
             io,
             loader,
             output_handler_factory,
-            batch_processor,
+            batch_executor_factory,
         }
     }
 
     async fn process_batch(
-        mut batch_executor: BatchExecutorHandle,
+        mut batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
         l2_blocks: Vec<L2BlockExecutionData>,
-        mut updates_manager: UpdatesManager,
-        mut output_handler: Box<dyn StateKeeperOutputHandler>,
+        mut output_handler: Box<dyn OutputHandler>,
     ) -> anyhow::Result<()> {
         let latency = METRICS.run_vm_time.start();
         for (i, l2_block) in l2_blocks.into_iter().enumerate() {
+            let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
             if i > 0 {
                 // First L2 block in every batch is already preloaded
-                updates_manager.push_l2_block(L2BlockParams {
-                    timestamp: l2_block.timestamp,
-                    virtual_blocks: l2_block.virtual_blocks,
-                });
-                let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
                 batch_executor
                     .start_next_l2_block(block_env)
                     .await
@@ -77,51 +75,36 @@ impl VmRunner {
                         format!("failed starting L2 block with {block_env:?} in batch executor")
                     })?;
             }
+
+            let mut block_output = L2BlockOutput::default();
             for tx in l2_block.txs {
                 let exec_result = batch_executor
                     .execute_tx(tx.clone())
                     .await
                     .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
-                let TxExecutionResult::Success {
-                    tx_result,
-                    tx_metrics,
-                    call_tracer_result,
-                    compressed_bytecodes,
-                    ..
-                } = exec_result
-                else {
-                    anyhow::bail!("Unexpected non-successful transaction");
-                };
-                let ExecutionMetricsForCriteria {
-                    l1_gas: tx_l1_gas_this_tx,
-                    execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
-                updates_manager.extend_from_executed_transaction(
-                    tx,
-                    *tx_result,
-                    compressed_bytecodes,
-                    tx_l1_gas_this_tx,
-                    tx_execution_metrics,
-                    call_tracer_result,
+                anyhow::ensure!(
+                    !exec_result.was_halted(),
+                    "Unexpected non-successful transaction"
                 );
+                block_output.push(tx, exec_result);
             }
             output_handler
-                .handle_l2_block(&updates_manager)
+                .handle_l2_block(block_env, &block_output)
                 .await
                 .context("VM runner failed to handle L2 block")?;
         }
 
-        let (finished_batch, storage_view_cache) = batch_executor
-            .finish_batch_with_cache()
+        let (batch, storage_view) = batch_executor
+            .finish_batch()
             .await
-            .context("Failed getting storage view cache")?;
-        updates_manager.finish_batch(finished_batch);
-        // this is needed for Basic Witness Input Producer to use in memory reads, but not database queries
-        updates_manager.update_storage_view_cache(storage_view_cache);
-
+            .context("VM runner failed to execute batch tip")?;
+        let output = L1BatchOutput {
+            batch,
+            storage_view_cache: storage_view.cache(),
+        };
         latency.observe();
         output_handler
-            .handle_l1_batch(Arc::new(updates_manager))
+            .handle_l1_batch(Arc::new(output))
             .await
             .context("VM runner failed to handle L1 batch")?;
         Ok(())
@@ -178,16 +161,14 @@ impl VmRunner {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             };
-            let updates_manager =
-                UpdatesManager::new(&batch_data.l1_batch_env, &batch_data.system_env);
-            let batch_executor = self.batch_processor.init_batch(
+            let batch_executor = self.batch_executor_factory.init_batch(
                 storage,
-                batch_data.l1_batch_env,
-                batch_data.system_env,
+                batch_data.l1_batch_env.clone(),
+                batch_data.system_env.clone(),
             );
             let output_handler = self
                 .output_handler_factory
-                .create_handler(next_batch)
+                .create_handler(batch_data.system_env, batch_data.l1_batch_env)
                 .await?;
 
             self.io
@@ -196,7 +177,6 @@ impl VmRunner {
             let handle = tokio::task::spawn(Self::process_batch(
                 batch_executor,
                 batch_data.l2_blocks,
-                updates_manager,
                 output_handler,
             ));
             task_handles.push((next_batch, handle));

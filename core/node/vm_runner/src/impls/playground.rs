@@ -15,16 +15,17 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_multivm::{dump::VmDump, shadow};
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
+use zksync_vm_executor::batch::{dump::VmDump, shadow, MainBatchExecutorFactory};
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::{PostgresLoader, StorageLoader},
-    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
-    StorageSyncTask, VmRunner, VmRunnerIo, VmRunnerStorage,
+    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
+    L2BlockOutput, OutputHandler, OutputHandlerFactory, StorageSyncTask, VmRunner, VmRunnerIo,
+    VmRunnerStorage,
 };
 
 #[derive(Debug, Serialize)]
@@ -83,7 +84,7 @@ enum VmPlaygroundStorage {
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor: MainBatchExecutor,
+    batch_executor_factory: MainBatchExecutorFactory,
     storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -129,8 +130,8 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
-        let mut batch_executor = MainBatchExecutor::new(false, false);
-        batch_executor.set_fast_vm_mode(vm_mode);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        batch_executor_factory.set_fast_vm_mode(vm_mode);
         let handle = tokio::runtime::Handle::current();
         if let Some(store) = dumps_object_store {
             tracing::info!("Using object store for VM dumps: {store:?}");
@@ -145,7 +146,7 @@ impl VmPlayground {
                     );
                 }
             });
-            batch_executor.set_divergence_handler(handler);
+            batch_executor_factory.set_divergence_handler(handler);
         }
 
         let io = VmPlaygroundIo {
@@ -177,7 +178,7 @@ impl VmPlayground {
         };
         let this = Self {
             pool,
-            batch_executor,
+            batch_executor_factory,
             storage,
             chain_id,
             io,
@@ -288,7 +289,7 @@ impl VmPlayground {
             Box::new(self.io),
             loader,
             Box::new(self.output_handler_factory),
-            Box::new(self.batch_executor),
+            Box::new(self.batch_executor_factory),
         );
         vm_runner.run(&stop_receiver).await
     }
@@ -433,9 +434,17 @@ impl VmRunnerIo for VmPlaygroundIo {
 struct VmPlaygroundOutputHandler;
 
 #[async_trait]
-impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        tracing::trace!("Processed L2 block #{}", updates_manager.l2_block.number);
+impl OutputHandler for VmPlaygroundOutputHandler {
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        _output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
+        tracing::trace!("Processed L2 block #{}", env.number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(self: Box<Self>, _output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -444,8 +453,9 @@ impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
 impl OutputHandlerFactory for VmPlaygroundOutputHandler {
     async fn create_handler(
         &mut self,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        _system_env: SystemEnv,
+        _l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
         Ok(Box::new(Self))
     }
 }

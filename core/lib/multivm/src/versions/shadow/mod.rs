@@ -21,13 +21,16 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// Handler for [`VmDump`].
+/// Handler for VM divergences.
 #[derive(Clone)]
 pub struct DivergenceHandler(Arc<dyn Fn(DivergenceErrors, VmDump) + Send + Sync>);
 
 impl fmt::Debug for DivergenceHandler {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_tuple("VmDumpHandler").field(&"_").finish()
+        formatter
+            .debug_tuple("DivergenceHandler")
+            .field(&"_")
+            .finish()
     }
 }
 
@@ -52,18 +55,10 @@ impl DivergenceHandler {
     }
 }
 
+#[derive(Debug)]
 struct VmWithReporting<Shadow> {
     vm: Shadow,
     divergence_handler: DivergenceHandler,
-}
-
-impl<Shadow: fmt::Debug> fmt::Debug for VmWithReporting<Shadow> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("VmWithReporting")
-            .field("vm", &self.vm)
-            .finish_non_exhaustive()
-    }
 }
 
 impl<Shadow: VmInterface> VmWithReporting<Shadow> {

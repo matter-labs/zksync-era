@@ -16,7 +16,8 @@ mod tests;
 pub use self::{
     io::VmRunnerIo,
     output_handler::{
-        ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
+        ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
+        L2BlockOutput, OutputHandler, OutputHandlerFactory,
     },
     process::VmRunner,
     storage::{BatchExecuteData, StorageSyncTask, VmRunnerStorage},
