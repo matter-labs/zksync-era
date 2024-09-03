@@ -7,7 +7,8 @@ use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{
-    get_failedcall_contract, get_loadnext_contract, test_contracts::LoadnextContractExecutionParams,
+    get_loadnext_contract, load_contract, read_bytecode,
+    test_contracts::LoadnextContractExecutionParams, TestContract,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
@@ -343,7 +344,14 @@ pub trait AccountFailedCall {
 
 impl AccountFailedCall for Account {
     fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
-        let failedcall_contract = get_failedcall_contract();
+        let bytecode = read_bytecode(
+            "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json");
+        let failedcall_contract = TestContract {
+            bytecode,
+            contract: load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json"),
+            factory_deps: vec![],
+        };
+
         self.get_deploy_tx(&failedcall_contract.bytecode, None, TxType::L2)
     }
 }

@@ -63,8 +63,6 @@ const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
-const FAILEDCALL_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json";
 
 fn home_path() -> &'static Path {
     workspace_dir_or_current_dir()
@@ -186,22 +184,9 @@ pub fn get_loadnext_contract() -> TestContract {
     }
 }
 
-pub fn get_failedcall_contract() -> TestContract {
-    let bytecode = read_bytecode(FAILEDCALL_CONTRACT_FILE);
-    TestContract {
-        bytecode,
-        contract: failedcall_contract(),
-        factory_deps: vec![],
-    }
-}
-
 // Returns loadnext contract and its factory dependencies
 fn loadnext_contract() -> Contract {
     load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
-}
-
-fn failedcall_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json")
 }
 
 pub fn deployer_contract() -> Contract {
