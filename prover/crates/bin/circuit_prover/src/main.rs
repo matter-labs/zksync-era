@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 // use zksync_circuit_prover::WitnessVectorGenerator;
 //
 // #![allow(incomplete_features)] // We have to use generic const exprs.
@@ -7,11 +9,14 @@
 //
 use anyhow::Context as _;
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
+use zksync_circuit_prover::WitnessVectorGenerator;
 // use tokio::sync::{oneshot, watch};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-
-use zksync_circuit_prover::WitnessVectorGenerator;
+use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
 // use zksync_object_store::ObjectStoreFactory;
@@ -62,16 +67,49 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build connection pool")?;
+    let prover_config = general_config
+        .prover_config
+        .context("failed to load prover_config")?;
+    let object_store_config = prover_config
+        .prover_object_store
+        .clone()
+        .context("prover object store config")?;
+    let object_store = ObjectStoreFactory::new(object_store_config)
+        .create_store()
+        .await
+        .expect("failed to create object store");
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
-    let wvg = WitnessVectorGenerator::new();
+    let mut tasks = vec![];
 
-    match tokio::signal::ctrl_c().await {
-        Ok(()) => {}
-        e @ Err(_) => {
-            tracing::error!("failed to setup ctrl_c signal listener");
-            e?
+    let cancellation_token = CancellationToken::new();
+
+    for _ in 0..wvg_count {
+        let wvg = WitnessVectorGenerator::new(
+            object_store.clone(),
+            connection_pool.clone(),
+            protocol_version,
+            prover_config.max_attempts,
+            Some(prover_config.setup_data_path.clone()),
+        );
+        tasks.push(tokio::spawn(wvg.run(cancellation_token.clone())));
+    }
+    let mut tasks = ManagedTasks::new(tasks);
+    tokio::select! {
+            _ = tasks.wait_single() => {},
+            result = tokio::signal::ctrl_c() => {
+            match result {
+                Ok(_) => {
+                    tracing::info!("Stop signal received, shutting down");
+                    cancellation_token.cancel();
+                },
+                Err(err) => {
+                    tracing::error!("failed to set up ctrl c listener");
+                }
+            }
         }
-    };
+    }
+    tasks.complete(Duration::from_secs(5)).await;
 
     Ok(())
     //     let config = general_config

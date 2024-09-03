@@ -7354,6 +7354,7 @@ dependencies = [
  "clap 4.5.4",
  "shivini",
  "tokio",
+ "tokio-util",
  "tracing",
  "zkevm_test_harness",
  "zksync_config",
@@ -7365,6 +7366,7 @@ dependencies = [
  "zksync_prover_fri_utils",
  "zksync_queued_job_processor",
  "zksync_types",
+ "zksync_utils",
  "zksync_vk_setup_data_generator_server_fri",
 ]
 
