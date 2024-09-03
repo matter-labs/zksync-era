@@ -1,36 +1,39 @@
+// FIXME: move storage-agnostic tests to VM executor crate
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tester::AccountFailedCall;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
 use zksync_test_account::Account;
 use zksync_types::{
     get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
 };
 
 use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
-use super::TxExecutionResult;
 
 mod read_storage_factory;
 mod tester;
 
 /// Ensures that the transaction was executed successfully.
-fn assert_executed(execution_result: &TxExecutionResult) {
-    assert_matches!(execution_result, TxExecutionResult::Success { .. });
+fn assert_executed(execution_result: &BatchTransactionExecutionResult) {
+    let result = &execution_result.tx_result.result;
+    assert_matches!(
+        result,
+        ExecutionResult::Success { .. } | ExecutionResult::Revert { .. }
+    );
 }
 
 /// Ensures that the transaction was rejected by the VM.
-fn assert_rejected(execution_result: &TxExecutionResult) {
-    assert_matches!(execution_result, TxExecutionResult::RejectedByVm { .. });
+fn assert_rejected(execution_result: &BatchTransactionExecutionResult) {
+    let result = &execution_result.tx_result.result;
+    assert_matches!(result, ExecutionResult::Halt { reason } if !matches!(reason, Halt::BootloaderOutOfGas));
 }
 
 /// Ensures that the transaction was executed successfully but reverted by the VM.
-fn assert_reverted(execution_result: &TxExecutionResult) {
-    assert_executed(execution_result);
-    if let TxExecutionResult::Success { tx_result, .. } = execution_result {
-        assert!(tx_result.result.is_failed());
-    } else {
-        unreachable!();
-    }
+fn assert_reverted(execution_result: &BatchTransactionExecutionResult) {
+    let result = &execution_result.tx_result.result;
+    assert_matches!(result, ExecutionResult::Revert { .. });
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -190,23 +193,11 @@ async fn rollback(vm_mode: FastVmMode) {
     executor.rollback_last_tx().await.unwrap();
 
     // Execute the same transaction, it must succeed.
-    let res_new = executor.execute_tx(tx).await.unwrap();
+    let res_new = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res_new);
 
-    let (
-        TxExecutionResult::Success {
-            tx_metrics: tx_metrics_old,
-            ..
-        },
-        TxExecutionResult::Success {
-            tx_metrics: tx_metrics_new,
-            ..
-        },
-    ) = (res_old, res_new)
-    else {
-        unreachable!();
-    };
-
+    let tx_metrics_old = res_old.tx_result.get_execution_metrics(Some(&tx));
+    let tx_metrics_new = res_new.tx_result.get_execution_metrics(Some(&tx));
     assert_eq!(
         tx_metrics_old, tx_metrics_new,
         "Execution results must be the same"
@@ -448,7 +439,12 @@ async fn bootloader_out_of_gas_for_any_tx(vm_mode: FastVmMode) {
         .await;
 
     let res = executor.execute_tx(alice.execute()).await.unwrap();
-    assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
+    assert_matches!(
+        res.tx_result.result,
+        ExecutionResult::Halt {
+            reason: Halt::BootloaderOutOfGas
+        }
+    );
 }
 
 /// Checks that we can handle the bootloader out of gas error on tip phase.
@@ -469,7 +465,7 @@ async fn bootloader_tip_out_of_gas() {
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
-    let finished_batch = executor.finish_batch().await.unwrap();
+    let (finished_batch, _) = executor.finish_batch().await.unwrap();
 
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
@@ -491,7 +487,12 @@ async fn bootloader_tip_out_of_gas() {
         .await;
 
     let res = second_executor.execute_tx(alice.execute()).await.unwrap();
-    assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
+    assert_matches!(
+        res.tx_result.result,
+        ExecutionResult::Halt {
+            reason: Halt::BootloaderOutOfGas
+        }
+    );
 }
 
 #[tokio::test]

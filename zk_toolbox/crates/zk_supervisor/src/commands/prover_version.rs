@@ -27,8 +27,7 @@ async fn get_protocol_version(shell: &Shell, link_to_prover: &Path) -> anyhow::R
 }
 
 async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
-    let path =
-        link_to_prover.join("crates/bin/vk_setup_data_generator_server_fri/data/commitments.json");
+    let path = link_to_prover.join("data/keys/commitments.json");
     let file = fs::File::open(path).expect("Could not find commitments file in zksync-era");
     let json: serde_json::Value =
         serde_json::from_reader(file).expect("Could not parse commitments.json");

@@ -33,6 +33,32 @@ jobs:
       - name: Build zk_toolbox
         run: ci_run bash -c "./bin/zkt"
 
+      - name: Create log directories
+        run: |
+          SERVER_LOGS_DIR=logs/server
+          INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
+          INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/integration_tests/en
+          GENESIS_RECOVERY_LOGS_DIR=logs/integration_tests/en
+          EXTERNAL_NODE_LOGS_DIR=logs/external_node
+          REVERT_LOGS_DIR=logs/revert
+          
+          mkdir -p $SERVER_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_EN_LOGS_DIR
+          mkdir -p $SNAPSHOT_RECOVERY_LOGS_DIR
+          mkdir -p $GENESIS_RECOVERY_LOGS_DIR
+          mkdir -p $EXTERNAL_NODE_LOGS_DIR
+          mkdir -p $REVERT_LOGS_DIR
+          
+          echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_LOGS_DIR=$INTEGRATION_TESTS_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_EN_LOGS_DIR=$INTEGRATION_TESTS_EN_LOGS_DIR" >> $GITHUB_ENV
+          echo "SNAPSHOT_RECOVERY_LOGS_DIR=$SNAPSHOT_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
+          echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
+
       - name: Initialize ecosystem
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
@@ -57,7 +83,7 @@ jobs:
       - name: Create and initialize Validium chain
         run: |
           ci_run zk_inception chain create \
-          --chain-name chain_validium \
+          --chain-name validium \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -76,12 +102,12 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_validium \
           --port-offset 2000 \
-          --chain chain_validium
+          --chain validium
 
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zk_inception chain create \
-          --chain-name chain_custom_token \
+          --chain-name custom_token \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -100,7 +126,7 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
           --port-offset 3000 \
-          --chain chain_custom_token
+          --chain custom_token
 
       - name: Build test dependencies
         run: |
@@ -108,20 +134,20 @@ jobs:
 
       - name: Run servers
         run: |
-          ci_run zk_inception server --ignore-prerequisites --chain era &> server_rollup.log &
-          ci_run zk_inception server --ignore-prerequisites --chain chain_validium &> server_validium.log &
-          ci_run zk_inception server --ignore-prerequisites --chain chain_custom_token &> server_custom_token.log &
+          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> integration_rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain chain_validium &> integration_validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain chain_custom_token &> integration_custom_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -135,22 +161,23 @@ jobs:
           ci_run zk_inception external-node init --ignore-prerequisites --chain era 
           
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --chain chain_validium
-          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 --chain validium
+          ci_run zk_inception external-node init --ignore-prerequisites --chain validium
 
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain chain_custom_token
-          ci_run zk_inception external-node init --ignore-prerequisites --chain chain_custom_token
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 --chain custom_token
+          ci_run zk_inception external-node init --ignore-prerequisites --chain custom_token
 
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> recovery_snap_rollup.log &
+
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_validium &> recovery_snap_validium.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//validium.log &
           PID2=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain chain_custom_token &> recovery_snap_custom_token.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -159,13 +186,13 @@ jobs:
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> recovery_gen_rollup.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain chain_validium &> recovery_gen_validium.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain chain_custom_token &> recovery_gen_custom_token.log &
+          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
           wait $PID1
@@ -174,38 +201,38 @@ jobs:
 
       - name: Run external node server
         run: |
-          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> external_node_rollup.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain chain_validium &> external_node_validium.log &
-          ci_run zk_inception external-node run --ignore-prerequisites --chain chain_custom_token &> external_node_custom_token.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run sleep 5
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> integration_en_rollup.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain chain_validium &> integration_en_validium.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain chain_custom_token &> integration_en_cusotm_token.log &
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
           wait $PID1
           wait $PID2
           wait $PID3
 
-      - name: Run revert tests (external node)
+      - name: Run revert tests
         run: |
-          ci_run killall -INT zksync_server
-          ci_run killall -INT zksync_external_node
+          ci_run killall -INT zksync_server || true
+          ci_run killall -INT zksync_external_node || true
           
-          ci_run zk_supervisor test revert --no-deps --no-kill --ignore-prerequisites --chain chain_validium &> revert_validium.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --no-kill --external-node --ignore-prerequisites --chain era &> revert_rollup.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --no-kill --external-node --ignore-prerequisites --chain chain_custom_token &> revert_custom_token.log &
+          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
           wait $PID1
@@ -213,107 +240,17 @@ jobs:
           wait $PID3
 
 
-      # Upgrade tests should run last, because as soon as they 
+      # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
           ci_run zk_supervisor test upgrade --no-deps --chain era
 
-      - name: Show server_rollup.log logs
-        if: always()
-        run: ci_run cat server_rollup.log || true
 
-      - name: Show server_validium.log logs
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
         if: always()
-        run: ci_run cat server_validium.log || true
-
-      - name: Show server_custom_token.log logs
-        if: always()
-        run: ci_run cat server_custom_token.log || true
-
-      - name: Show external_node_rollup.log logs
-        if: always()
-        run: ci_run cat external_node_rollup.log || true
-
-      - name: Show external_node_validium.log logs
-        if: always()
-        run: ci_run cat external_node_validium.log || true
-
-      - name: Show external_node_custom_token.log logs
-        if: always()
-        run: ci_run cat external_node_custom_token.log || true
-
-      - name: Show integration_rollup.log logs
-        if: always()
-        run: ci_run cat integration_rollup.log || true
-
-      - name: Show integration_validium.log logs
-        if: always()
-        run: ci_run cat integration_validium.log || true
-
-      - name: Show integration_custom_token.log logs
-        if: always()
-        run: ci_run cat integration_custom_token.log || true
-
-      - name: Show recovery_snap_rollup.log logs
-        if: always()
-        run: ci_run cat recovery_snap_rollup.log || true
-
-      - name: Show recovery_snap_validium.log logs
-        if: always()
-        run: ci_run cat recovery_snap_validium.log || true
-
-      - name: Show recovery_snap_custom_token.log logs
-        if: always()
-        run: ci_run cat recovery_snap_custom_token.log || true
-
-      - name: Show recovery_gen_rollup.log logs
-        if: always()
-        run: ci_run cat recovery_gen_rollup.log || true
-
-      - name: Show recovery_gen_validium.log logs
-        if: always()
-        run: ci_run cat recovery_gen_validium.log || true
-
-      - name: Show recovery_gen_custom_token.log logs
-        if: always()
-        run: ci_run cat recovery_gen_custom_token.log || true
-
-      - name: Show integration_en_rollup.log logs
-        if: always()
-        run: ci_run cat integration_en_rollup.log || true
-
-      - name: Show integration_en_validium.log logs
-        if: always()
-        run: ci_run cat integration_en_validium.log || true
-
-      - name: Show integration_en_custom_token.log logs
-        if: always()
-        run: ci_run cat integration_en_custom_token.log || true
-
-      - name: Show revert_rollup.log logs
-        if: always()
-        run: ci_run cat revert_rollup.log || true
-
-      - name: Show revert_validium.log logs
-        if: always()
-        run: ci_run cat revert_validium.log || true
-
-      - name: Show revert_custom_token.log logs
-        if: always()
-        run: ci_run cat revert_custom_token.log || true
-
-      - name: Show revert_main.log logs
-        if: always()
-        run: |
-          ci_run cat core/tests/revert-test/era_revert_main.log || true
-          ci_run cat core/tests/revert-test/chain_validium_revert_main.log || true
-          ci_run cat core/tests/revert-test/chain_custom_token_revert_main.log || true
-
-      - name: Show revert_ext.log logs
-        if: always()
-        run: |
-          ci_run cat core/tests/revert-test/era_revert_ext.log || true
-          ci_run cat core/tests/revert-test/chain_validium_revert_ext.log || true
-          ci_run cat core/tests/revert-test/chain_validium_custom_token_ext.log || true
+        with:
+          name: logs
+          path: logs

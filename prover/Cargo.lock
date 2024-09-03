@@ -8365,6 +8365,8 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "hex",
  "serde",
  "thiserror",
