@@ -190,8 +190,7 @@ async fn deploy_ecosystem_inner(
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url("127.0.0.1:8545".to_string())
-        .with_sender(sender)
-        .with_broadcast();
+        .with_sender(sender);
 
     if config.l1_network == L1Network::Localhost {
         // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
