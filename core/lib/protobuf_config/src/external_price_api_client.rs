@@ -17,6 +17,9 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
                     numerator: self.forced_numerator,
                     denominator: self.forced_denominator,
                     fluctuation: self.forced_fluctuation,
+                    next_value_fluctuation: self.forced_next_value_fluctuation.unwrap_or(
+                        configs::external_price_api_client::DEFAULT_FORCED_NEXT_VALUE_FLUCTUATION,
+                    ),
                 }),
             },
         )
@@ -26,6 +29,7 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
         let numerator = this.forced.as_ref().and_then(|x| x.numerator);
         let denominator = this.forced.as_ref().and_then(|x| x.denominator);
         let fluctuation = this.forced.as_ref().and_then(|x| x.fluctuation);
+        let next_value_fluctuation = this.forced.as_ref().map(|x| x.next_value_fluctuation);
 
         Self {
             source: Some(this.source.clone()),
@@ -35,6 +39,7 @@ impl ProtoRepr for proto::ExternalPriceApiClient {
             forced_numerator: numerator,
             forced_denominator: denominator,
             forced_fluctuation: fluctuation,
+            forced_next_value_fluctuation: next_value_fluctuation,
         }
     }
 }

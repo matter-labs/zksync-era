@@ -43,6 +43,7 @@ mod tests {
                 numerator: Some(100),
                 denominator: Some(1),
                 fluctuation: Some(10),
+                next_value_fluctuation: 2,
             }),
         }
     }

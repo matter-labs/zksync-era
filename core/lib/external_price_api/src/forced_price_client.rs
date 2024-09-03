@@ -11,14 +11,13 @@ use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::PriceAPIClient;
 
-const NEXT_VALUE_VARIATION_RANGE: f64 = 0.03; //3%
-
 // Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
 #[derive(Debug)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
     previous_numerator: RwLock<NonZeroU64>,
     fluctuation: Option<u32>,
+    next_value_fluctuation: u32,
 }
 
 impl ForcedPriceClient {
@@ -36,6 +35,9 @@ impl ForcedPriceClient {
         let fluctuation = forced_price_client_config
             .fluctuation
             .map(|x| x.clamp(0, 100));
+        let next_value_fluctuation = forced_price_client_config
+            .next_value_fluctuation
+            .clamp(0, 100);
 
         Self {
             ratio: BaseTokenAPIRatio {
@@ -45,6 +47,7 @@ impl ForcedPriceClient {
             },
             previous_numerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
             fluctuation,
+            next_value_fluctuation,
         }
     }
 }
@@ -61,14 +64,16 @@ impl PriceAPIClient for ForcedPriceClient {
                 max(
                     (self.ratio.numerator.get() as f64 * (1.0 - (fluctation as f64 / 100.0)))
                         .round() as u64,
-                    (previous_numerator.get() as f64 * (1.0 - NEXT_VALUE_VARIATION_RANGE)).round()
-                        as u64,
+                    (previous_numerator.get() as f64
+                        * (1.0 - (self.next_value_fluctuation as f64 / 100.0)))
+                        .round() as u64,
                 ),
                 min(
                     (self.ratio.numerator.get() as f64 * (1.0 + (fluctation as f64 / 100.0)))
                         .round() as u64,
-                    (previous_numerator.get() as f64 * (1.0 + NEXT_VALUE_VARIATION_RANGE)).round()
-                        as u64,
+                    (previous_numerator.get() as f64
+                        * (1.0 + (self.next_value_fluctuation as f64 / 100.0)))
+                        .round() as u64,
                 ),
             );
 
