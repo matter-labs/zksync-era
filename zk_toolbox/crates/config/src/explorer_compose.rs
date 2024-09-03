@@ -11,99 +11,24 @@ use url::Url;
 use crate::{
     apps::AppsChainExplorerConfig,
     consts::{
-        EXPLORER_API_DOCKER_IMAGE, EXPLORER_APP_DOCKER_CONFIG_PATH, EXPLORER_APP_DOCKER_IMAGE,
-        EXPLORER_DATA_FETCHER_DOCKER_IMAGE, EXPLORER_DOCKER_COMPOSE_FILE,
-        EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH,
+        EXPLORER_API_DOCKER_IMAGE, EXPLORER_DATA_FETCHER_DOCKER_IMAGE,
+        EXPLORER_DOCKER_COMPOSE_FILE, EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_APPS_PATH,
+        LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH,
     },
     docker_compose::{DockerComposeConfig, DockerComposeService},
     traits::ZkToolboxConfig,
 };
 
-/// Explorer docker compose file. This file is auto-generated during "explorer" command
-/// and is passed to Docker Compose to launch the explorer app and backend services.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ExplorerComposeConfig {
-    #[serde(flatten)]
-    pub docker_compose: DockerComposeConfig,
-}
-
-impl ZkToolboxConfig for ExplorerComposeConfig {}
-
 /// Chain-level explorer backend docker compose config. It contains the configuration for
-/// api, data fetcher, and worker services. This config is generated during "explorer" command
-/// and serves as a building block for the main explorer docker compose file.
+/// api, data fetcher, and worker services.
+/// This config is auto-generated during "explorer run-backend" command.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExplorerBackendComposeConfig {
     #[serde(flatten)]
     pub docker_compose: DockerComposeConfig,
 }
 
-/// Strcuture to hold the parameters for the explorer app service.
-#[derive(Debug, Clone)]
-pub struct ExplorerAppServiceConfig {
-    pub port: u16,
-    pub config_path: PathBuf,
-}
-
-impl ExplorerComposeConfig {
-    const APP_NAME: &'static str = "explorer-app"; // app service name in the docker compose
-
-    pub fn new(
-        app_config: ExplorerAppServiceConfig,
-        backend_configs: Vec<ExplorerBackendComposeConfig>,
-    ) -> anyhow::Result<Self> {
-        let mut services = HashMap::new();
-        let mut app_depends_on = Vec::new();
-
-        // Add services from backend configs
-        for backend_config in backend_configs.iter() {
-            for (service_name, service) in &backend_config.docker_compose.services {
-                if service.image.starts_with(EXPLORER_API_DOCKER_IMAGE) {
-                    app_depends_on.push(service_name.clone());
-                }
-                services.insert(service_name.clone(), service.clone());
-            }
-        }
-
-        services.insert(
-            Self::APP_NAME.to_string(),
-            Self::create_app_service(app_config, Some(app_depends_on)),
-        );
-
-        let config = Self {
-            docker_compose: DockerComposeConfig { services },
-        };
-        Ok(config)
-    }
-
-    fn create_app_service(
-        app_config: ExplorerAppServiceConfig,
-        depends_on: Option<Vec<String>>,
-    ) -> DockerComposeService {
-        DockerComposeService {
-            image: EXPLORER_APP_DOCKER_IMAGE.to_string(),
-            platform: Some("linux/amd64".to_string()),
-            ports: Some(vec![format!("{}:3010", app_config.port)]),
-            volumes: Some(vec![format!(
-                "{}:{}",
-                app_config.config_path.display(),
-                EXPLORER_APP_DOCKER_CONFIG_PATH.to_string(),
-            )]),
-            depends_on,
-            restart: None,
-            environment: None,
-            extra_hosts: None,
-            other: serde_json::Value::Null,
-        }
-    }
-
-    pub fn get_config_path(ecosystem_base_path: &Path) -> PathBuf {
-        ecosystem_base_path
-            .join(LOCAL_CONFIGS_PATH)
-            .join(LOCAL_GENERATED_PATH)
-            .join(EXPLORER_DOCKER_COMPOSE_FILE)
-    }
-}
+impl ZkToolboxConfig for ExplorerBackendComposeConfig {}
 
 impl ExplorerBackendComposeConfig {
     pub fn new(
@@ -243,5 +168,14 @@ impl ExplorerBackendComposeConfig {
 
     fn data_fetcher_name(chain_name: &str) -> String {
         format!("explorer-data-fetcher-{}", chain_name)
+    }
+
+    pub fn get_config_path(ecosystem_base_path: &Path, chain_name: &str) -> PathBuf {
+        ecosystem_base_path
+            .join(LOCAL_CHAINS_PATH)
+            .join(chain_name)
+            .join(LOCAL_CONFIGS_PATH)
+            .join(LOCAL_APPS_PATH)
+            .join(EXPLORER_DOCKER_COMPOSE_FILE)
     }
 }

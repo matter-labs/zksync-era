@@ -113,6 +113,9 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
         chain_name, chains
     )
 }
+pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
+    format!("Failed to load chain config for {chain_name}")
+}
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
@@ -249,11 +252,27 @@ pub(super) const MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR: &str =
     "Failed to allocate ports for explorer services";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
+pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
+    "Failed to run docker compose with explorer services";
+pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run explorer docker container";
+pub(super) const MSG_EXPLORER_INITIALIZED: &str = "Explorer has been initialized successfully";
+pub(super) const MSG_EXPLORER_FAILED_TO_FIND_ANY_VALID: &str =
+    "Failed to find any valid chains to run explorer for";
 pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {
     format!("Initializing explorer database for {chain} chain")
 }
 pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
     format!("Starting explorer on http://{host}:{port}")
+}
+pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
+    format!("Chain is not initialized for explorer: run `zk_inception explorer init --chain {chain}` first")
+}
+pub(super) fn msg_explorer_skipping_not_initialized_chain(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for explorer. Skipping..")
+}
+pub(super) fn msg_explorer_failed_to_configure_chain(chain: &str) -> String {
+    format!("Failed to configure explorer for chain {chain}")
 }
 
 /// Forge utils related messages

@@ -56,12 +56,9 @@ pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
 pub const DEFAULT_PORTAL_PORT: u16 = 3030;
 
 pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
-pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
 pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker";
 
-/// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
-pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;
 
