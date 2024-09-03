@@ -113,9 +113,9 @@ impl GenesisParams {
                 },
             )));
         }
-        let _ = config
-            .protocol_version
-            .ok_or(GenesisError::MalformedConfig("protocol_version"))?;
+        if config.protocol_version.is_none() {
+            return Err(GenesisError::MalformedConfig("protocol_version"));
+        }
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -277,19 +277,13 @@ pub async fn validate_genesis_params(
         .call(query_client)
         .await?;
 
-    let (minor_version, patch_version) = packed_protocol_version.div_mod((1u64 << 32).into());
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(packed_protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
 
-    if minor_version != U256::from(genesis_params.minor_protocol_version() as u16) {
+    if protocol_version != genesis_params.protocol_version() {
         return Err(anyhow::anyhow!(
-            "Minor protocol version mismatch: {minor_version} on contract, {} in config",
-            genesis_params.minor_protocol_version() as u16
-        ));
-    }
-
-    if patch_version != U256::from(genesis_params.protocol_version().patch.0) {
-        return Err(anyhow::anyhow!(
-            "Patch protocol version mismatch: {patch_version} on contract, {} in config",
-            genesis_params.protocol_version().patch.0
+            "Protocol version mismatch: {protocol_version} on contract, {} in config",
+            genesis_params.protocol_version()
         ));
     }
 
