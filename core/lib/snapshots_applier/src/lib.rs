@@ -34,6 +34,8 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+pub const LOCAL_SNAPSHOT_HEADER_FILE_NAME: &str = "snapshot_header.json";
+
 #[derive(Debug, Serialize)]
 struct SnapshotsApplierHealthDetails {
     snapshot_l2_block: L2BlockNumber,
@@ -260,6 +262,7 @@ pub struct SnapshotsApplierTask {
     connection_pool: ConnectionPool<Core>,
     main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
     blob_store: Arc<dyn ObjectStore>,
+    local_snapshot_dir: Option<String>,
 }
 
 impl SnapshotsApplierTask {
@@ -268,6 +271,7 @@ impl SnapshotsApplierTask {
         connection_pool: ConnectionPool<Core>,
         main_node_client: Box<dyn SnapshotsApplierMainNodeClient>,
         blob_store: Arc<dyn ObjectStore>,
+        local_snapshot_dir: Option<String>,
     ) -> Self {
         Self {
             snapshot_l1_batch: None,
@@ -277,6 +281,7 @@ impl SnapshotsApplierTask {
             connection_pool,
             main_node_client,
             blob_store,
+            local_snapshot_dir,
         }
     }
 
@@ -407,6 +412,12 @@ impl SnapshotsApplierTask {
     }
 }
 
+/// The type of snapshot recovery method used.
+enum SnapshotRecoveryType {
+    Remote,
+    Local { snapshot_dir: String },
+}
+
 /// Strategy determining how snapshot recovery should proceed.
 #[derive(Debug, Clone, Copy)]
 enum SnapshotRecoveryStrategy {
@@ -423,6 +434,7 @@ impl SnapshotRecoveryStrategy {
         storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         snapshot_l1_batch: Option<L1BatchNumber>,
+        recovery_type: SnapshotRecoveryType,
     ) -> Result<(Self, SnapshotRecoveryStatus), SnapshotsApplierError> {
         let latency =
             METRICS.initial_stage_duration[&InitialStage::FetchMetadataFromMainNode].start();
@@ -438,12 +450,17 @@ impl SnapshotRecoveryStrategy {
             }
 
             let l1_batch_number = applied_snapshot_status.l1_batch_number;
-            let snapshot_header = main_node_client
-                .fetch_snapshot(l1_batch_number)
-                .await?
-                .with_context(|| {
-                    format!("snapshot for L1 batch #{l1_batch_number} is no longer present on main node")
-                })?;
+            let snapshot_header = match recovery_type {
+                SnapshotRecoveryType::Local { snapshot_dir } => read_local_snapshot_header(&snapshot_dir)?,
+                SnapshotRecoveryType::Remote => {
+                    main_node_client
+                    .fetch_snapshot(l1_batch_number)
+                    .await?
+                    .with_context(|| {
+                        format!("snapshot for L1 batch #{l1_batch_number} is no longer present on main node")
+                    })?
+                },
+            };
             // Old snapshots can theoretically be removed by the node, but in this case the snapshot data may be removed as well,
             // so returning an error looks appropriate here.
             let snapshot_version = Self::check_snapshot_version(snapshot_header.version)?;
@@ -460,8 +477,15 @@ impl SnapshotRecoveryStrategy {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
-            let (recovery_status, snapshot_version) =
-                Self::create_fresh_recovery_status(main_node_client, snapshot_l1_batch).await?;
+            let (recovery_status, snapshot_version) = match recovery_type {
+                SnapshotRecoveryType::Remote => {
+                    Self::create_fresh_recovery_status(main_node_client, snapshot_l1_batch).await?
+                }
+                SnapshotRecoveryType::Local { snapshot_dir } => {
+                    Self::create_fresh_recovery_status_from_local(main_node_client, snapshot_dir)
+                        .await?
+                }
+            };
 
             let storage_logs_count = storage
                 .storage_logs_dal()
@@ -480,6 +504,60 @@ impl SnapshotRecoveryStrategy {
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
             Ok((Self::New(snapshot_version), recovery_status))
         }
+    }
+
+    async fn create_fresh_recovery_status_from_local(
+        main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        snapshot_dir: String,
+    ) -> Result<(SnapshotRecoveryStatus, SnapshotVersion), SnapshotsApplierError> {
+        let snapshot = read_local_snapshot_header(&snapshot_dir)?;
+        let l1_batch_number = snapshot.l1_batch_number;
+        let l2_block_number = snapshot.l2_block_number;
+        tracing::info!(
+            "Found snapshot with data up to L1 batch #{l1_batch_number}, L2 block #{l2_block_number}, \
+            version {version}, storage logs are divided into {chunk_count} chunk(s)",
+            version = snapshot.version,
+            chunk_count = snapshot.storage_logs_chunks.len()
+        );
+        let snapshot_version = Self::check_snapshot_version(snapshot.version)?;
+
+        let l1_batch = main_node_client
+            .fetch_l1_batch_details(l1_batch_number)
+            .await?
+            .with_context(|| format!("L1 batch #{l1_batch_number} is missing on main node"))?;
+        let l1_batch_root_hash = l1_batch
+            .base
+            .root_hash
+            .context("snapshot L1 batch fetched from main node doesn't have root hash set")?;
+        let l2_block = main_node_client
+            .fetch_l2_block_details(l2_block_number)
+            .await?
+            .with_context(|| format!("L2 block #{l2_block_number} is missing on main node"))?;
+        let l2_block_hash = l2_block
+            .base
+            .root_hash
+            .context("snapshot L2 block fetched from main node doesn't have hash set")?;
+        let protocol_version = l2_block.protocol_version.context(
+            "snapshot L2 block fetched from main node doesn't have protocol version set",
+        )?;
+        if l2_block.l1_batch_number != l1_batch_number {
+            let err = anyhow::anyhow!(
+                "snapshot L2 block returned by main node doesn't belong to expected L1 batch #{l1_batch_number}: {l2_block:?}"
+            );
+            return Err(err.into());
+        }
+
+        let status = SnapshotRecoveryStatus {
+            l1_batch_number,
+            l1_batch_timestamp: l1_batch.base.timestamp,
+            l1_batch_root_hash,
+            l2_block_number: snapshot.l2_block_number,
+            l2_block_timestamp: l2_block.base.timestamp,
+            l2_block_hash,
+            protocol_version,
+            storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
+        };
+        Ok((status, snapshot_version))
     }
 
     async fn create_fresh_recovery_status(
@@ -677,10 +755,19 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
+        let recovery_type = if let Some(snapshot_dir) = &task.local_snapshot_dir {
+            SnapshotRecoveryType::Local {
+                snapshot_dir: snapshot_dir.clone(),
+            }
+        } else {
+            SnapshotRecoveryType::Remote
+        };
+        // TODO: recovery type based on config.
         let (strategy, applied_snapshot_status) = SnapshotRecoveryStrategy::new(
             &mut storage_transaction,
             main_node_client,
             task.snapshot_l1_batch,
+            recovery_type,
         )
         .await?;
         tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
@@ -892,7 +979,7 @@ impl<'a> SnapshotsApplier<'a> {
         }
         let latency = latency.observe();
         tracing::info!(
-            "Loaded {} storage logs from GCS for chunk {chunk_id} in {latency:?}",
+            "Loaded {} storage logs for chunk {chunk_id} in {latency:?}",
             storage_logs.len()
         );
 
@@ -1039,4 +1126,14 @@ impl<'a> SnapshotsApplier<'a> {
         storage.tokens_dal().add_tokens(&tokens).await?;
         Ok(())
     }
+}
+
+fn read_local_snapshot_header(snapshot_dir: &str) -> Result<SnapshotHeader, SnapshotsApplierError> {
+    let snapshot_header_path =
+        format!("{snapshot_dir}/storage_logs_snapshots/{LOCAL_SNAPSHOT_HEADER_FILE_NAME}");
+    let snapshot_header_file = std::fs::read_to_string(&snapshot_header_path)
+        .context("the provided file path was not found")?;
+    let snapshot: SnapshotHeader = serde_json::from_str(&snapshot_header_file)
+        .context("failed to deserialize snapshot header file")?;
+    Ok(snapshot)
 }

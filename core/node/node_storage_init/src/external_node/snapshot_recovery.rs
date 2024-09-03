@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
+use zksync_config::configs::object_store::ObjectStoreMode;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
@@ -30,6 +31,16 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             self.recovery_config.object_store_config.clone().context(
                 "Snapshot object store must be presented if snapshot recovery is activated",
             )?;
+
+        let local_snapshot_dir = if let ObjectStoreMode::FileBacked {
+            file_backed_base_path,
+        } = &object_store_config.mode
+        {
+            Some(file_backed_base_path.clone())
+        } else {
+            None
+        };
+
         let object_store = ObjectStoreFactory::new(object_store_config)
             .create_store()
             .await?;
@@ -40,6 +51,7 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             pool,
             Box::new(self.client.clone().for_component("snapshot_recovery")),
             object_store,
+            local_snapshot_dir,
         );
         if let Some(snapshot_l1_batch) = self.recovery_config.snapshot_l1_batch_override {
             tracing::info!(
