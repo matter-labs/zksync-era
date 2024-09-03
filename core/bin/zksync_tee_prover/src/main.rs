@@ -32,8 +32,6 @@ fn main() -> anyhow::Result<()> {
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
 
     let tee_prover_config = TeeProverConfig::from_env()?;
-    let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
-
     let prometheus_config = PrometheusConfig::from_env()?;
 
     let mut builder = ZkStackServiceBuilder::new()?;
@@ -45,12 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     builder
         .add_layer(SigintHandlerLayer)
-        .add_layer(TeeProverLayer::new(
-            tee_prover_config.api_url,
-            tee_prover_config.signing_key,
-            attestation_quote_bytes,
-            tee_prover_config.tee_type,
-        ));
+        .add_layer(TeeProverLayer::new(tee_prover_config));
 
     if let Some(gateway) = prometheus_config.gateway_endpoint() {
         let exporter_config =
