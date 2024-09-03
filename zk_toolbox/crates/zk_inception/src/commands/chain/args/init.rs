@@ -88,7 +88,7 @@ impl InitArgs {
             l1_rpc_url,
             port_offset: self
                 .port_offset
-                .unwrap_or(PortOffset::from_chain_id(config.chain_id.as_u64() as u16))
+                .unwrap_or(PortOffset::from_chain_id(config.id as u16))
                 .into(),
         }
     }
