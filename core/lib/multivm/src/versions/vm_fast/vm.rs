@@ -15,14 +15,10 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{
-    storage::{ImmutableStorageView, StoragePtr, StorageView},
-    VmFactory,
-};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -34,11 +30,12 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BytecodeCompressionError, CompressedBytecodeInfo,
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics, VmRevertReason,
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState, ExecutionResult,
+        FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxRevertReason, VmEvent,
+        VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
+        VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics, VmRevertReason,
+        VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -649,6 +646,12 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn pop_snapshot_no_rollback(&mut self) {
         self.snapshot = None;
         self.delete_history_if_appropriate();
+    }
+}
+
+impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
+    fn used_contract_hashes(&self) -> Vec<H256> {
+        self.decommitted_hashes().map(u256_to_h256).collect()
     }
 }
 

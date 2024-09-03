@@ -18,6 +18,7 @@ zksync_types.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 hex.workspace = true
+pretty_assertions.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

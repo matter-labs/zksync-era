@@ -7,19 +7,13 @@ use std::{
 
 use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction};
 
+use super::dump::{DumpingVm, VmDump};
 use crate::{
-    dump::{DumpingVm, VmDump, VmTrackingContracts},
-    interface::{
-        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
-    },
-    vm_fast,
+    storage::{ReadStorage, StoragePtr, StorageView},
+    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+    VmInterfaceHistoryEnabled, VmMemoryMetrics, VmTrackingContracts,
 };
-
-#[cfg(test)]
-mod tests;
 
 /// Handler for VM divergences.
 #[derive(Clone)]
@@ -74,9 +68,9 @@ impl<Shadow: VmInterface> VmWithReporting<Shadow> {
 /// Shadowed VM that executes 2 VMs for each operation and compares their outputs.
 ///
 /// If a divergence is detected, the VM state is dumped using [a pluggable handler](Self::set_dump_handler()),
-/// after which the VM either panics, or drops the shadowed VM, depending on [`Self::set_panic_on_divergence()`] setting.
+/// after which the VM drops the shadowed VM (since it's assumed that its state can contain arbitrary garbage at this point).
 #[derive(Debug)]
-pub struct ShadowVm<S, Main, Shadow = vm_fast::Vm<ImmutableStorageView<S>>> {
+pub struct ShadowVm<S, Main, Shadow> {
     main: DumpingVm<S, Main>,
     shadow: RefCell<Option<VmWithReporting<Shadow>>>,
 }
@@ -87,6 +81,7 @@ where
     Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
+    /// Sets the divergence handler to be used by this VM.
     pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.divergence_handler = handler;
@@ -105,6 +100,11 @@ where
             .unwrap()
             .report(err, self.main.dump_state());
     }
+
+    /// Dumps the current VM state.
+    pub fn dump_state(&self) -> VmDump {
+        self.main.dump_state()
+    }
 }
 
 impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
@@ -113,6 +113,7 @@ where
     Main: VmFactory<StorageView<S>> + VmTrackingContracts,
     Shadow: VmInterface,
 {
+    /// Creates a VM with a custom shadow storage.
     pub fn with_custom_shadow<ShadowS>(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -135,10 +136,11 @@ where
     }
 }
 
-impl<S, Main> VmFactory<StorageView<S>> for ShadowVm<S, Main>
+impl<S, Main, Shadow> VmFactory<StorageView<S>> for ShadowVm<S, Main, Shadow>
 where
     S: ReadStorage,
     Main: VmFactory<StorageView<S>> + VmTrackingContracts,
+    Shadow: VmFactory<StorageView<S>>,
 {
     fn new(
         batch_env: L1BatchEnv,

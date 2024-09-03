@@ -18,8 +18,11 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
-use zksync_vm_executor::batch::{dump::VmDump, shadow, MainBatchExecutorFactory};
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
+use zksync_vm_interface::{
+    utils::{DivergenceHandler, VmDump},
+    L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 
 use crate::{
     storage::{PostgresLoader, StorageLoader},
@@ -136,7 +139,7 @@ impl VmPlayground {
         if let Some(store) = dumps_object_store {
             tracing::info!("Using object store for VM dumps: {store:?}");
 
-            let handler = shadow::DivergenceHandler::new(move |err, dump| {
+            let handler = DivergenceHandler::new(move |err, dump| {
                 let err_message = err.to_string();
                 if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &err_message, &dump))
                 {

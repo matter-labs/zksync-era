@@ -34,14 +34,13 @@ anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-pretty_assertions.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
-serde.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+pretty_assertions.workspace = true
 tokio = { workspace = true, features = ["time"] }
 zksync_test_account.workspace = true
 ethabi.workspace = true

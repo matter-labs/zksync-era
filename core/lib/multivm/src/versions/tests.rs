@@ -1,4 +1,5 @@
-//! Shadow VM tests.
+//! Shadow VM tests. Since there are no real VM implementations in the `vm_interface` crate where `ShadowVm` is defined,
+//! these tests are placed here.
 
 use assert_matches::assert_matches;
 use ethabi::Contract;
@@ -9,21 +10,26 @@ use zksync_contracts::{
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
     block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, H256, U256,
+    ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-use super::*;
 use crate::{
-    interface::{storage::InMemoryStorage, ExecutionResult, VmInterfaceExt},
+    interface::{
+        storage::{InMemoryStorage, ReadStorage, StorageView},
+        utils::{ShadowVm, VmDump},
+        ExecutionResult, L1BatchEnv, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
+    },
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
         default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
     },
+    vm_fast,
     vm_latest::{self, HistoryEnabled},
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
+type ShadowedVmFast<S = InMemoryStorage> = crate::vm_instance::ShadowedVmFast<S, HistoryEnabled>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
@@ -242,31 +248,29 @@ fn sanity_check_shadow_vm() {
 
 #[test]
 fn shadow_vm_basics() {
-    let (vm, harness) = sanity_check_vm::<ShadowVm<_, ReferenceVm>>();
-    let mut dump = vm.main.dump_state();
+    let (vm, harness) = sanity_check_vm::<ShadowedVmFast>();
+    let mut dump = vm.dump_state();
     Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
-    let replayed_dump = dump
-        .clone()
-        .play_back::<ShadowVm<_, ReferenceVm<_>>>()
-        .main
-        .dump_state();
+    let replayed_dump = dump.clone().play_back::<ShadowedVmFast<_>>().dump_state();
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
-    let dump_storage = StorageView::new(dump.storage.clone()).to_rc_ptr();
-    let mut vm = ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-        dump.l1_batch_env.clone(),
-        dump.system_env.clone(),
-        storage,
-        dump_storage,
-    );
 
-    VmDump::play_back_blocks(dump.l2_blocks.clone(), &mut vm);
-    let new_dump = vm.main.dump_state();
+    let vm = dump
+        .clone()
+        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
+            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+                l1_batch_env,
+                system_env,
+                storage,
+                dump_storage,
+            )
+        });
+    let new_dump = vm.dump_state();
     pretty_assertions::assert_eq!(new_dump, dump);
 }

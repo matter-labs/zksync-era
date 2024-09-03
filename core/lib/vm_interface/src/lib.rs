@@ -36,10 +36,11 @@ pub use crate::{
         },
         tracer,
     },
-    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled},
+    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled, VmTrackingContracts},
 };
 
 pub mod executor;
 pub mod storage;
 mod types;
+pub mod utils;
 mod vm;

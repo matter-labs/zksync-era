@@ -7,10 +7,10 @@ use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         storage::{ReadStorage, StorageView},
+        utils::DivergenceHandler,
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
     },
-    shadow,
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
@@ -36,7 +36,7 @@ pub struct MainBatchExecutorFactory {
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    divergence_handler: Option<shadow::DivergenceHandler>,
+    divergence_handler: Option<DivergenceHandler>,
 }
 
 impl MainBatchExecutorFactory {
@@ -58,7 +58,7 @@ impl MainBatchExecutorFactory {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_divergence_handler(&mut self, handler: shadow::DivergenceHandler) {
+    pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
         tracing::info!("Set VM divergence handler");
         self.divergence_handler = Some(handler);
     }
@@ -100,7 +100,7 @@ struct CommandReceiver<S> {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    divergence_handler: Option<shadow::DivergenceHandler>,
+    divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
     _storage: PhantomData<S>,
 }
