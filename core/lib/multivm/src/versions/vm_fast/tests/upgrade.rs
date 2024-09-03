@@ -12,7 +12,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
+        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     vm_fast::tests::{

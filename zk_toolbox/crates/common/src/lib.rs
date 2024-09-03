@@ -7,6 +7,7 @@ pub mod config;
 pub mod db;
 pub mod docker;
 pub mod ethereum;
+pub mod external_node;
 pub mod files;
 pub mod forge;
 pub mod git;

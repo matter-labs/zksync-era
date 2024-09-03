@@ -17,7 +17,7 @@ pub struct TeeVerifierInputProducerDal<'a, 'c> {
 }
 
 /// The amount of attempts to process a job before giving up.
-pub const JOB_MAX_ATTEMPT: i16 = 2;
+pub const JOB_MAX_ATTEMPT: i16 = 5;
 
 /// Time to wait for job to be processed
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));

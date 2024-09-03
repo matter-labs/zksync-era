@@ -4,8 +4,8 @@ use super::VmTester;
 use crate::{
     interface::{
         storage::ReadStorage, CurrentExecutionState, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled, VmRevertReason,
     },
     vm_fast::Vm,
 };

@@ -5520,6 +5520,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "secp256k1-sys",
+ "serde",
 ]
 
 [[package]]
@@ -8068,6 +8069,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "chrono",
  "hex",
  "rand 0.8.5",
@@ -8781,13 +8783,14 @@ name = "zksync_external_proof_integration_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bincode",
+ "thiserror",
  "tokio",
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_config",
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -9629,6 +9632,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "envy",
  "reqwest 0.12.5",
  "secp256k1",
  "serde",
@@ -9793,6 +9797,7 @@ dependencies = [
  "assert_matches",
  "hex",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "zksync_contracts",
@@ -9805,6 +9810,7 @@ name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "backon",
  "dashmap",
