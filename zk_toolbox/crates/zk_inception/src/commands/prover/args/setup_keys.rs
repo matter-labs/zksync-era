@@ -9,17 +9,17 @@ pub struct SetupKeysArgs {
     #[clap(long)]
     pub region: Option<Region>,
     #[clap(long)]
-    pub approach: Option<SetupKeysApproach>,
+    pub mode: Option<Mode>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SetupKeysArgsFinal {
     pub region: Option<Region>,
-    pub approach: SetupKeysApproach,
+    pub mode: Mode,
 }
 
 #[derive(Debug, Clone, ValueEnum, strum::EnumString, EnumIter, PartialEq, Eq, strum::Display)]
-pub enum SetupKeysApproach {
+pub enum Mode {
     Download,
     Generate,
 }
@@ -33,24 +33,21 @@ pub enum Region {
 
 impl SetupKeysArgs {
     pub fn fill_values_with_prompt(self) -> SetupKeysArgsFinal {
-        let approach = self.approach.unwrap_or_else(|| {
-            PromptSelect::new(MSG_SETUP_KEYS_DOWNLOAD_HELP, SetupKeysApproach::iter()).ask()
-        });
+        let mode = self
+            .mode
+            .unwrap_or_else(|| PromptSelect::new(MSG_SETUP_KEYS_DOWNLOAD_HELP, Mode::iter()).ask());
 
-        if approach == SetupKeysApproach::Download {
+        if mode == Mode::Download {
             let region = self.region.unwrap_or_else(|| {
                 PromptSelect::new(MSG_SETUP_KEYS_REGION_PROMPT, Region::iter()).ask()
             });
 
             SetupKeysArgsFinal {
                 region: Some(region),
-                approach,
+                mode,
             }
         } else {
-            SetupKeysArgsFinal {
-                region: None,
-                approach,
-            }
+            SetupKeysArgsFinal { region: None, mode }
         }
     }
 }

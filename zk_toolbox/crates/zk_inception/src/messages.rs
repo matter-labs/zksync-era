@@ -6,7 +6,7 @@ use ethers::{
 };
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_HELP: &str =
-    "Do you want to download the setup keys or generate them";
+    "Do you want to download the setup keys or generate them?";
 pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
     "From which region you want setup keys to be downloaded?";
 /// Common messages
