@@ -54,10 +54,6 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut genesis_args = args.genesis_args.clone();
-    if args.dev {
-        genesis_args.use_default = true;
-    }
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
@@ -264,7 +260,8 @@ async fn deploy_ecosystem_inner(
         forge = forge.with_slow();
     }
 
-    forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
+    // TODO add sender instead of private key
+    // forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     check_the_balance(&forge).await?;

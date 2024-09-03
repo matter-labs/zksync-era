@@ -11,8 +11,8 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
-        MSG_DEV_ARG_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP,
+        MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
+        MSG_L1_RPC_URL_PROMPT,
     },
 };
 
@@ -79,6 +79,9 @@ pub struct EcosystemBuildArgs {
     /// Deploy ERC20 contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_erc20: Option<bool>,
+    /// Address of the transaction sender.
+    #[arg(long)]
+    pub sender: String,
     #[clap(flatten)]
     #[serde(flatten)]
     pub ecosystem: EcosystemArgs,
@@ -88,46 +91,38 @@ pub struct EcosystemBuildArgs {
     #[clap(flatten, next_help_heading = MSG_GENESIS_ARGS_HELP)]
     #[serde(flatten)]
     pub genesis_args: GenesisArgs,
-    #[clap(long, help = MSG_DEV_ARG_HELP)]
-    pub dev: bool,
-    #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
-    pub observability: Option<bool>,
 }
 
 impl EcosystemBuildArgs {
     pub fn fill_values_with_prompt(self, l1_network: L1Network) -> EcosystemBuildArgsFinal {
-        let (deploy_paymaster, deploy_erc20) = if self.dev {
-            (true, true)
-        } else {
-            let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
-                    .default(true)
-                    .ask()
-            });
-            let deploy_erc20 = self.deploy_erc20.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
-                    .default(true)
-                    .ask()
-            });
-            (deploy_paymaster, deploy_erc20)
-        };
-        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, self.dev);
+        let deploy_paymaster = self.deploy_paymaster.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_DEPLOY_PAYMASTER_PROMPT)
+                .default(true)
+                .ask()
+        });
+        let deploy_erc20 = self.deploy_erc20.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_DEPLOY_ERC20_PROMPT)
+                .default(true)
+                .ask()
+        });
+
+        let ecosystem = self.ecosystem.fill_values_with_prompt(l1_network, false);
 
         EcosystemBuildArgsFinal {
+            sender: self.sender,
             deploy_paymaster,
             deploy_erc20,
             ecosystem,
             forge_args: self.forge_args.clone(),
-            dev: self.dev,
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EcosystemBuildArgsFinal {
+    pub sender: String,
     pub deploy_paymaster: bool,
     pub deploy_erc20: bool,
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
-    pub dev: bool,
 }
