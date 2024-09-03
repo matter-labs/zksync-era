@@ -9,13 +9,47 @@ use xshell::{cmd, Shell};
 use crate::messages::{
     MSG_BUILDING_CONTRACTS, MSG_BUILDING_CONTRACTS_SUCCESS, MSG_BUILDING_L1_CONTRACTS_SPINNER,
     MSG_BUILDING_L2_CONTRACTS_SPINNER, MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER,
-    MSG_CONTRACTS_DEPS_SPINNER,
+    MSG_BUILD_L1_CONTRACTS_HELP, MSG_BUILD_L2_CONTRACTS_HELP, MSG_BUILD_SYSTEM_CONTRACTS_HELP,
+    MSG_CONTRACTS_DEPS_SPINNER, MSG_NOTHING_TO_BUILD_MSG,
 };
 
 #[derive(Debug, Parser)]
 pub struct ContractsArgs {
-    #[clap(long, short = 'c')]
-    pub contracts: Vec<ContractType>,
+    #[clap(long, help = MSG_BUILD_L1_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub l1_contracts: Option<bool>,
+    #[clap(long, help = MSG_BUILD_L2_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub l2_contracts: Option<bool>,
+    #[clap(long, help = MSG_BUILD_SYSTEM_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub system_contracts: Option<bool>,
+}
+
+impl ContractsArgs {
+    fn contracts(&self) -> Vec<ContractType> {
+        if self.l1_contracts.is_none()
+            && self.l2_contracts.is_none()
+            && self.system_contracts.is_none()
+        {
+            return vec![
+                ContractType::L1,
+                ContractType::L2,
+                ContractType::SystemContracts,
+            ];
+        }
+
+        let mut contracts = vec![];
+
+        if self.l1_contracts.unwrap_or(false) {
+            contracts.push(ContractType::L1);
+        }
+        if self.l2_contracts.unwrap_or(false) {
+            contracts.push(ContractType::L2);
+        }
+        if self.system_contracts.unwrap_or(false) {
+            contracts.push(ContractType::SystemContracts);
+        }
+
+        contracts
+    }
 }
 
 #[derive(Debug, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Clone, Copy)]
@@ -74,20 +108,16 @@ impl ContractBuilder {
 }
 
 pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
+    let contracts = args.contracts();
+    if contracts.is_empty() {
+        logger::outro(MSG_NOTHING_TO_BUILD_MSG);
+        return Ok(());
+    }
+
     logger::info(MSG_BUILDING_CONTRACTS);
 
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let link_to_code = ecosystem.link_to_code.clone();
-
-    let contracts = if args.contracts.is_empty() {
-        vec![
-            ContractType::L1,
-            ContractType::L2,
-            ContractType::SystemContracts,
-        ]
-    } else {
-        args.contracts.clone()
-    };
 
     let spinner = Spinner::new(MSG_CONTRACTS_DEPS_SPINNER);
     let _dir_guard = shell.push_dir(&link_to_code);

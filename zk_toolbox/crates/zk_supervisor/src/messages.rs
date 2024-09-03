@@ -106,12 +106,16 @@ pub(super) const MSG_POSTGRES_CONFIG_NOT_FOUND_ERR: &str = "Postgres config not 
 pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases";
 
 // Contract building related messages
+pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
 pub(super) const MSG_CONTRACTS_DEPS_SPINNER: &str = "Installing dependencies..";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
 pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
+pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
+pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
+pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
