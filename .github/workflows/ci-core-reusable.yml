@@ -54,7 +54,7 @@ jobs:
         run: |
           ci_run run_retried rustup show
           ci_run ./bin/zkt
-          ci_run zks contracts
+          ci_run zk_supervisor contracts
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
