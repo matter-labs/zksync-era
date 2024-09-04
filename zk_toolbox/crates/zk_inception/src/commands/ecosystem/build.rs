@@ -29,8 +29,10 @@ use super::{
 use crate::{
     commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
-        msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
-        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
+        msg_ecosystem_no_found_preexisting_contract, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
+        MSG_ECOSYSTEM_BUILD_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_BUILD_OUTRO,
+        MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
+        MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::check_the_balance,
 };
@@ -64,7 +66,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     shell
         .create_dir(&final_ecosystem_args.out)
-        .context("Impossible to create out dir")?;
+        .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
 
     save_toml_file(
         shell,
@@ -72,14 +74,14 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         contracts_config,
         "",
     )
-    .context("Impossible to save contracts file")?;
+    .context(MSG_ECOSYSTEM_BUILD_CONTRACTS_PATH_INVALID_ERR)?;
 
     shell.copy_file(
         DEPLOY_TRANSACTIONS_FILE,
         format!("{}/deploy.json", final_ecosystem_args.out),
     )?;
 
-    logger::outro("Transactions successfully built");
+    logger::outro(MSG_ECOSYSTEM_BUILD_OUTRO);
 
     Ok(())
 }
@@ -197,10 +199,7 @@ async fn build_ecosystem_inner(
         forge = forge.with_slow();
     }
 
-    // TODO add sender instead of private key
-    // forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
-
-    let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
+    let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     spinner.finish();

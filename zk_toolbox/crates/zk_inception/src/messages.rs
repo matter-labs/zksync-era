@@ -114,6 +114,13 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
     )
 }
 
+/// Ecosystem build related messages
+pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecosystem contracts...";
+pub(super) const MSG_ECOSYSTEM_BUILD_OUTRO: &str = "Transactions successfully built";
+pub(super) const MSG_ECOSYSTEM_BUILD_CONTRACTS_PATH_INVALID_ERR: &str =
+    "Impossible to save contracts file";
+pub(super) const MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
 pub(super) const MSG_CHAIN_ID_HELP: &str = "Chain ID";
