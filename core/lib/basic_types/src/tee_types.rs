@@ -1,23 +1,36 @@
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use std::{fmt, str::FromStr};
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumString, Display, Serialize, Deserialize)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum TeeType {
     Sgx,
 }
 
+impl fmt::Display for TeeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TeeType::Sgx => write!(f, "sgx"),
+        }
+    }
+}
+
+impl FromStr for TeeType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(&format!("\"{}\"", s.to_lowercase()))
+            .map_err(|_| format!("Invalid value for TeeType: {}", s))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use envy;
-    use serde::Deserialize;
     use serde_json;
 
-    use super::TeeType;
+    use super::*;
 
     #[derive(Deserialize)]
     struct Config {
@@ -39,8 +52,8 @@ mod tests {
     #[test]
     fn test_enumstring_teetype() {
         assert_eq!(TeeType::from_str("sgx").unwrap(), TeeType::Sgx);
-        assert!(TeeType::from_str("Sgx").is_err());
-        assert!(TeeType::from_str("SGX").is_err());
+        assert_eq!(TeeType::from_str("Sgx").unwrap(), TeeType::Sgx);
+        assert_eq!(TeeType::from_str("SGX").unwrap(), TeeType::Sgx);
     }
 
     #[test]
