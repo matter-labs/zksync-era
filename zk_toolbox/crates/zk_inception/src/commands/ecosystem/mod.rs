@@ -21,7 +21,7 @@ pub enum EcosystemCommands {
     /// Create a new ecosystem and chain,
     /// setting necessary configurations for later initialization
     Create(EcosystemCreateArgs),
-    ///
+    /// Create transactions to build ecosystem contracts
     Build(EcosystemBuildArgs),
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
