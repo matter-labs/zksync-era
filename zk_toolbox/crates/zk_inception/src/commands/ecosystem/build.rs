@@ -188,7 +188,7 @@ async fn build_ecosystem_inner(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let forge = Forge::new(&config.path_to_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url("127.0.0.1:8545".to_string())
