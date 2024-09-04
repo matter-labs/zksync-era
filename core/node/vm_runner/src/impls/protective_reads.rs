@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
     storage::StorageSyncTask, ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask,
-    OutputHandlerFactory, VmRunner, VmRunnerIo, VmRunnerStorage,
+    L1BatchOutput, L2BlockOutput, OutputHandler, OutputHandlerFactory, VmRunner, VmRunnerIo,
+    VmRunnerStorage,
 };
 
 /// A standalone component that writes protective reads asynchronously to state keeper.
@@ -37,7 +38,7 @@ impl ProtectiveReadsWriter {
         let output_handler_factory = ProtectiveReadsOutputHandlerFactory { pool: pool.clone() };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutor::new(false, false);
+        let batch_processor = MainBatchExecutorFactory::new(false, false);
         let vm_runner = VmRunner::new(
             pool,
             Box::new(io),
@@ -133,30 +134,29 @@ impl VmRunnerIo for ProtectiveReadsIo {
 
 #[derive(Debug)]
 struct ProtectiveReadsOutputHandler {
+    l1_batch_number: L1BatchNumber,
     pool: ConnectionPool<Core>,
 }
 
 #[async_trait]
-impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
-    async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+impl OutputHandler for ProtectiveReadsOutputHandler {
+    async fn handle_l2_block(
+        &mut self,
+        _env: L2BlockEnv,
+        _output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
     #[tracing::instrument(
         name = "ProtectiveReadsOutputHandler::handle_l1_batch",
         skip_all,
-        fields(l1_batch = %updates_manager.l1_batch.number)
+        fields(l1_batch = %self.l1_batch_number)
     )]
-    async fn handle_l1_batch(
-        &mut self,
-        updates_manager: Arc<UpdatesManager>,
-    ) -> anyhow::Result<()> {
-        let finished_batch = updates_manager
-            .l1_batch
-            .finished
-            .as_ref()
-            .context("L1 batch is not actually finished")?;
-        let (_, computed_protective_reads): (Vec<StorageLog>, Vec<StorageLog>) = finished_batch
+    async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
+        let l1_batch_number = self.l1_batch_number;
+        let (_, computed_protective_reads): (Vec<StorageLog>, Vec<StorageLog>) = output
+            .batch
             .final_execution_state
             .deduplicated_storage_logs
             .iter()
@@ -168,12 +168,12 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             .await?;
         let mut written_protective_reads = connection
             .storage_logs_dedup_dal()
-            .get_protective_reads_for_l1_batch(updates_manager.l1_batch.number)
+            .get_protective_reads_for_l1_batch(l1_batch_number)
             .await?;
 
         if !written_protective_reads.is_empty() {
             tracing::debug!(
-                l1_batch_number = %updates_manager.l1_batch.number,
+                l1_batch_number = %l1_batch_number,
                 "Protective reads have already been written, validating"
             );
             for protective_read in computed_protective_reads {
@@ -181,7 +181,7 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
                 let key = protective_read.key.key();
                 if !written_protective_reads.remove(&protective_read.key) {
                     tracing::error!(
-                        l1_batch_number = %updates_manager.l1_batch.number,
+                        l1_batch_number = %l1_batch_number,
                         address = %address,
                         key = %key,
                         "VM runner produced a protective read that did not happen in state keeper"
@@ -190,7 +190,7 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             }
             for remaining_read in written_protective_reads {
                 tracing::error!(
-                    l1_batch_number = %updates_manager.l1_batch.number,
+                    l1_batch_number = %l1_batch_number,
                     address = %remaining_read.address(),
                     key = %remaining_read.key(),
                     "State keeper produced a protective read that did not happen in VM runner"
@@ -198,15 +198,12 @@ impl StateKeeperOutputHandler for ProtectiveReadsOutputHandler {
             }
         } else {
             tracing::debug!(
-                l1_batch_number = %updates_manager.l1_batch.number,
+                l1_batch_number = %l1_batch_number,
                 "Protective reads have not been written, writing"
             );
             connection
                 .storage_logs_dedup_dal()
-                .insert_protective_reads(
-                    updates_manager.l1_batch.number,
-                    &computed_protective_reads,
-                )
+                .insert_protective_reads(l1_batch_number, &computed_protective_reads)
                 .await?;
         }
 
@@ -223,10 +220,12 @@ struct ProtectiveReadsOutputHandlerFactory {
 impl OutputHandlerFactory for ProtectiveReadsOutputHandlerFactory {
     async fn create_handler(
         &mut self,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        _system_env: SystemEnv,
+        l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
         Ok(Box::new(ProtectiveReadsOutputHandler {
             pool: self.pool.clone(),
+            l1_batch_number: l1_batch_env.number,
         }))
     }
 }

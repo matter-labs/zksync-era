@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use vm2::{
     decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, StorageInterface, Tracer, VirtualMachine,
+    ExecutionEnd, Program, Settings, Tracer, VirtualMachine,
 };
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -23,6 +23,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
+    circuits_tracer::CircuitsTracer,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -54,21 +55,20 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S, T = ()> {
-    pub(crate) world: World<S, T>,
-    pub(crate) inner: VirtualMachine<T, World<S, T>>,
-    suspended_at: u16,
+pub struct Vm<S> {
+    pub(crate) world: World<S, CircuitsTracer>,
+    pub(crate) inner: VirtualMachine<CircuitsTracer, World<S, CircuitsTracer>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
+    pub(crate) tracer: CircuitsTracer,
 }
 
-impl<S: ReadStorage, T: Tracer> Vm<S, T> {
+impl<S: ReadStorage> Vm<S> {
     fn run(
         &mut self,
-        tracer: &mut T,
         execution_mode: VmExecutionMode,
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
@@ -80,7 +80,7 @@ impl<S: ReadStorage, T: Tracer> Vm<S, T> {
         let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
-            let hook = match self.inner.run(&mut self.world, tracer) {
+            let hook = match self.inner.run(&mut self.world, &mut self.tracer) {
                 ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
@@ -417,7 +417,6 @@ impl<S: ReadStorage> Vm<S> {
         let mut me = Self {
             world: World::new(storage, program_cache),
             inner,
-            suspended_at: 0,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
@@ -427,6 +426,7 @@ impl<S: ReadStorage> Vm<S> {
             system_env,
             batch_env,
             snapshot: None,
+            tracer: CircuitsTracer::default(),
         };
 
         me.write_to_bootloader_heap(bootloader_memory);
@@ -493,10 +493,11 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             track_refunds = true;
         }
 
+        self.tracer = CircuitsTracer::default();
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
 
-        let (result, refunds) = self.run(&mut (), execution_mode, track_refunds);
+        let (result, refunds) = self.run(execution_mode, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -548,6 +549,9 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         let pubdata_after = self.inner.world_diff.pubdata();
+
+        let circuit_statistic = self.tracer.circuit_statistic();
+
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -560,7 +564,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: Default::default(),
+                circuit_statistic,
             },
             refunds,
         }
@@ -622,7 +626,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 struct VmSnapshot {
     vm_snapshot: vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
-    suspended_at: u16,
     gas_for_account_validation: u32,
 }
 
@@ -637,7 +640,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         self.snapshot = Some(VmSnapshot {
             vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
-            suspended_at: self.suspended_at,
             gas_for_account_validation: self.gas_for_account_validation,
         });
     }
@@ -646,13 +648,11 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
         let VmSnapshot {
             vm_snapshot,
             bootloader_snapshot,
-            suspended_at,
             gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback(vm_snapshot);
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
-        self.suspended_at = suspended_at;
         self.gas_for_account_validation = gas_for_account_validation;
 
         self.delete_history_if_appropriate();
@@ -667,7 +667,6 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 impl<S: fmt::Debug> fmt::Debug for Vm<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
-            .field("suspended_at", &self.suspended_at)
             .field(
                 "gas_for_account_validation",
                 &self.gas_for_account_validation,
@@ -735,7 +734,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> StorageInterface for World<S, T> {
+impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {

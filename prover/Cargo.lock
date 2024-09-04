@@ -1883,7 +1883,7 @@ dependencies = [
 [[package]]
 name = "eravm-stable-interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=d385127d8715050cdc5c1265df3f80e98c7a73f4#d385127d8715050cdc5c1265df3f80e98c7a73f4"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "primitive-types",
 ]
@@ -6824,7 +6824,7 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=d385127d8715050cdc5c1265df3f80e98c7a73f4#d385127d8715050cdc5c1265df3f80e98c7a73f4"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
  "eravm-stable-interface",
@@ -8365,6 +8365,8 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "hex",
  "serde",
  "thiserror",

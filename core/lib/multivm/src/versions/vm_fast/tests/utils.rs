@@ -12,13 +12,13 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use crate::{interface::storage::ReadStorage, vm_fast::vm::World};
+use crate::interface::storage::ReadStorage;
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(crate) fn verify_required_memory<S: ReadStorage>(
-    state: &State<(), World<S, ()>>,
+pub(crate) fn verify_required_memory<T, W>(
+    state: &State<T, W>,
     required_values: Vec<(U256, HeapId, u32)>,
 ) {
     for (required_value, memory_page, cell) in required_values {

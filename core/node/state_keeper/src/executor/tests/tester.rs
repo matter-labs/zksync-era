@@ -6,16 +6,22 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
+use zksync_contracts::{
+    get_loadnext_contract, load_contract, read_bytecode,
+    test_contracts::LoadnextContractExecutionParams, TestContract,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
-    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
+    interface::{
+        executor::{BatchExecutor, BatchExecutorFactory},
+        L1BatchEnv, L2BlockEnv, SystemEnv,
+    },
     utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
-use zksync_state::{ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::L2BlockHasher,
@@ -29,14 +35,14 @@ use zksync_types::{
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    batch_executor::{BatchExecutorHandle, TxExecutionResult},
     testonly,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{default_l1_batch_env, default_system_env},
-    AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
+    AsyncRocksdbCache,
 };
 
 /// Representation of configuration parameters used by the state keeper.
@@ -97,7 +103,7 @@ impl Tester {
     pub(super) async fn create_batch_executor(
         &mut self,
         storage_type: StorageType,
-    ) -> BatchExecutorHandle {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let (l1_batch_env, system_env) = self.default_batch_params();
         match storage_type {
             StorageType::AsyncRocksdbCache => {
@@ -142,8 +148,8 @@ impl Tester {
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
-        let mut batch_executor = MainBatchExecutor::new(self.config.save_call_traces, false);
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
+        let mut batch_executor = MainBatchExecutorFactory::new(self.config.save_call_traces, false);
         batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
 
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -158,7 +164,7 @@ impl Tester {
     pub(super) async fn recover_batch_executor(
         &mut self,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> BatchExecutorHandle {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let (storage_factory, task) = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
@@ -175,7 +181,7 @@ impl Tester {
         &mut self,
         storage_type: &StorageType,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> BatchExecutorHandle {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         match storage_type {
             StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
             StorageType::Rocksdb => {
@@ -199,7 +205,7 @@ impl Tester {
         &self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
-    ) -> BatchExecutorHandle {
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         let current_timestamp = snapshot.l2_block_timestamp + 1;
         let (mut l1_batch_env, system_env) =
             self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
@@ -259,9 +265,8 @@ impl Tester {
     /// Adds funds for specified account list.
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
     pub(super) async fn fund(&self, addresses: &[Address]) {
-        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
-
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
@@ -331,6 +336,24 @@ pub trait AccountLoadNextExecutable {
         gas_to_burn: u32,
         gas_limit: u32,
     ) -> Transaction;
+}
+
+pub trait AccountFailedCall {
+    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx;
+}
+
+impl AccountFailedCall for Account {
+    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
+        let bytecode = read_bytecode(
+            "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json");
+        let failedcall_contract = TestContract {
+            bytecode,
+            contract: load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json"),
+            factory_deps: vec![],
+        };
+
+        self.get_deploy_tx(&failedcall_contract.bytecode, None, TxType::L2)
+    }
 }
 
 impl AccountLoadNextExecutable for Account {
@@ -485,13 +508,10 @@ impl StorageSnapshot {
             let tx = alice.execute();
             let tx_hash = tx.hash(); // probably incorrect
             let res = executor.execute_tx(tx).await.unwrap();
-            if let TxExecutionResult::Success { tx_result, .. } = res {
-                let storage_logs = &tx_result.logs.storage_logs;
-                storage_writes_deduplicator
-                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
-            } else {
-                panic!("Unexpected tx execution result: {res:?}");
-            };
+            assert!(!res.was_halted());
+            let tx_result = res.tx_result;
+            let storage_logs = &tx_result.logs.storage_logs;
+            storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
 
             let mut hasher = L2BlockHasher::new(
                 L2BlockNumber(l2_block_env.number),
@@ -506,7 +526,7 @@ impl StorageSnapshot {
             executor.start_next_l2_block(l2_block_env).await.unwrap();
         }
 
-        let finished_batch = executor.finish_batch().await.unwrap();
+        let (finished_batch, _) = executor.finish_batch().await.unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();
