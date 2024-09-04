@@ -14,10 +14,10 @@ use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_keystore::commitment_utils::get_cached_commitments;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
@@ -171,7 +171,10 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
+                let start = Instant::now();
                 let vk_commitments = get_cached_commitments(Some(setup_data_path.clone()));
+                let end = start.elapsed();
+                tracing::info!("Calculating commitment took: {:?}", end);
                 assert_eq!(
                     vk_commitments,
                     vk_commitments_in_db,
