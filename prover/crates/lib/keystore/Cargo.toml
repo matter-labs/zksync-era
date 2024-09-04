@@ -1,5 +1,5 @@
 [package]
-name = "zksync_vk_setup_data_generator_server_fri"
+name = "zksync_prover_keystore"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,29 +10,26 @@ keywords.workspace = true
 categories.workspace = true
 
 
-[[bin]]
-name = "key_generator"
-path = "src/main.rs"
-
-
 [dependencies]
-zksync_vlog.workspace = true
 zksync_types.workspace = true
+zksync_utils.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_prover_keystore.workspace = true
 zkevm_test_harness.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
+shivini = { workspace = true, optional = true }
+zksync_config.workspace = true
+zksync_env_config.workspace = true
 
 anyhow.workspace = true
-clap = { workspace = true, features = ["derive"] }
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-toml_edit.workspace = true
-indicatif.workspace = true
-
-[dev-dependencies]
-proptest.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+bincode.workspace = true
+once_cell.workspace = true
+md5.workspace = true
+sha3.workspace = true
+hex.workspace = true
 
 [features]
 default = []
-gpu = ["zksync_prover_keystore/gpu"]
+gpu = ["shivini"]

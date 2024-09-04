@@ -43,11 +43,11 @@ use zksync_prover_fri_types::{
     keys::{ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper,
 };
+use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
