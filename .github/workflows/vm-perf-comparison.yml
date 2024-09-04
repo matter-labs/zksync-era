@@ -68,7 +68,7 @@ jobs:
         id: comparison
 
       - name: Comment on PR
-        uses: thollander/actions-comment-pull-request@v2
+        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
         with:
           message: |
             ${{ steps.comparison.outputs.speedup == '' && '## No performance difference detected (anymore)' || '## Detected VM performance changes' }}
