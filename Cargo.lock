@@ -8102,7 +8102,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "chrono",
- "envy",
  "ethabi",
  "hex",
  "num_enum 0.7.2",

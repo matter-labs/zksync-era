@@ -26,4 +26,3 @@ serde_with.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true
-envy.workspace = true
