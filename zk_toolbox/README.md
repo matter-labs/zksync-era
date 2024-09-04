@@ -320,6 +320,14 @@ Create a snapshot of the current chain:
 zks snapshot create
 ```
 
+### Contracts
+
+Build contracts:
+
+```bash
+zks contracts
+```
+
 ### Format
 
 Format code:

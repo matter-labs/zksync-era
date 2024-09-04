@@ -1881,6 +1881,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "eravm-stable-interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
+dependencies = [
+ "primitive-types",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6816,9 +6824,10 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
+ "eravm-stable-interface",
  "primitive-types",
  "zk_evm_abstractions 0.150.4",
  "zkevm_opcode_defs 0.150.4",
@@ -8014,10 +8023,10 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
- "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8114,10 +8123,10 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
- "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8206,6 +8215,29 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_prover_keystore"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "hex",
+ "md5",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sha3 0.10.8",
+ "shivini",
+ "tracing",
+ "zkevm_test_harness",
+ "zksync_config",
+ "zksync_env_config",
+ "zksync_prover_fri_types",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -8301,29 +8333,17 @@ name = "zksync_vk_setup_data_generator_server_fri"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bincode",
  "circuit_definitions",
  "clap 4.5.4",
- "hex",
  "indicatif",
- "itertools 0.10.5",
- "md5",
- "once_cell",
  "proptest",
- "serde",
- "serde_derive",
- "serde_json",
- "sha3 0.10.8",
- "shivini",
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",
  "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
  "zksync_prover_fri_types",
+ "zksync_prover_keystore",
  "zksync_types",
- "zksync_utils",
  "zksync_vlog",
 ]
 
@@ -8356,6 +8376,8 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "hex",
  "serde",
  "thiserror",
@@ -8416,11 +8438,11 @@ dependencies = [
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_interface",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
- "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 
@@ -8443,10 +8465,10 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
- "zksync_vk_setup_data_generator_server_fri",
  "zksync_vlog",
 ]
 

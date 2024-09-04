@@ -1,9 +1,4 @@
-use std::{
-    fmt::{Debug, Formatter},
-    mem,
-    sync::Arc,
-    time::Duration,
-};
+use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -13,12 +8,51 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_dal::{ConnectionPool, Core};
-use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
-use zksync_types::L1BatchNumber;
+use zksync_state::interface::StorageViewCache;
+use zksync_types::{L1BatchNumber, Transaction};
+use zksync_vm_interface::{
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 
 use crate::{metrics::METRICS, VmRunnerIo};
 
 type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<()>>>;
+
+/// Output from executing a single L2 block.
+#[derive(Debug, Default)]
+pub struct L2BlockOutput {
+    /// Executed transactions together with execution results.
+    pub transactions: Vec<(Transaction, BatchTransactionExecutionResult)>,
+}
+
+impl L2BlockOutput {
+    pub(crate) fn push(&mut self, tx: Transaction, exec_result: BatchTransactionExecutionResult) {
+        self.transactions.push((tx, exec_result));
+    }
+}
+
+/// Output from executing L1 batch tip.
+#[derive(Debug)]
+pub struct L1BatchOutput {
+    /// Finished L1 batch.
+    pub batch: FinishedL1Batch,
+    /// Information about storage accesses for the batch.
+    pub storage_view_cache: StorageViewCache,
+}
+
+/// Handler of batch execution.
+#[async_trait]
+pub trait OutputHandler: fmt::Debug + Send {
+    /// Handles an L2 block processed by the VM.
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        output: &L2BlockOutput,
+    ) -> anyhow::Result<()>;
+
+    /// Handles an L1 batch processed by the VM.
+    async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()>;
+}
 
 /// Functionality to produce a [`StateKeeperOutputHandler`] implementation for a specific L1 batch.
 ///
@@ -27,7 +61,7 @@ type BatchReceiver = oneshot::Receiver<JoinHandle<anyhow::Result<()>>>;
 /// simultaneously. Implementing this trait signifies that this property is held for the data the
 /// implementation is responsible for.
 #[async_trait]
-pub trait OutputHandlerFactory: Debug + Send {
+pub trait OutputHandlerFactory: fmt::Debug + Send {
     /// Creates a [`StateKeeperOutputHandler`] implementation for the provided L1 batch. Only
     /// supposed to be used for the L1 batch data it was created against. Using it for anything else
     /// will lead to errors.
@@ -37,8 +71,9 @@ pub trait OutputHandlerFactory: Debug + Send {
     /// Propagates DB errors.
     async fn create_handler(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>>;
+        system_env: SystemEnv,
+        l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>>;
 }
 
 /// A delegator factory that requires an underlying factory `F` that does the actual work, however
@@ -57,8 +92,12 @@ pub struct ConcurrentOutputHandlerFactory<Io: VmRunnerIo, F: OutputHandlerFactor
     factory: F,
 }
 
-impl<Io: VmRunnerIo, F: OutputHandlerFactory> Debug for ConcurrentOutputHandlerFactory<Io, F> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<Io, F> fmt::Debug for ConcurrentOutputHandlerFactory<Io, F>
+where
+    Io: VmRunnerIo,
+    F: OutputHandlerFactory,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConcurrentOutputHandlerFactory")
             .field("pool", &self.pool)
             .field("io", &self.io)
@@ -101,8 +140,10 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
 {
     async fn create_handler(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        system_env: SystemEnv,
+        l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
+        let l1_batch_number = l1_batch_env.number;
         let mut conn = self.pool.connection_tagged(self.io.name()).await?;
         let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
         let last_processable_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
@@ -121,70 +162,50 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
             last_processable_batch
         );
 
-        let handler = self.factory.create_handler(l1_batch_number).await?;
+        let handler = self
+            .factory
+            .create_handler(system_env, l1_batch_env)
+            .await?;
         let (sender, receiver) = oneshot::channel();
         self.state.insert(l1_batch_number, receiver);
-        Ok(Box::new(AsyncOutputHandler::Running { handler, sender }))
+        Ok(Box::new(AsyncOutputHandler { handler, sender }))
     }
 }
 
-enum AsyncOutputHandler {
-    Running {
-        handler: Box<dyn StateKeeperOutputHandler>,
-        sender: oneshot::Sender<JoinHandle<anyhow::Result<()>>>,
-    },
-    Finished,
+struct AsyncOutputHandler {
+    handler: Box<dyn OutputHandler>,
+    sender: oneshot::Sender<JoinHandle<anyhow::Result<()>>>,
 }
 
-impl Debug for AsyncOutputHandler {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AsyncOutputHandler::Running { handler, .. } => f
-                .debug_struct("AsyncOutputHandler::Running")
-                .field("handler", handler)
-                .finish(),
-            AsyncOutputHandler::Finished => f.debug_struct("AsyncOutputHandler::Finished").finish(),
-        }
+impl fmt::Debug for AsyncOutputHandler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AsyncOutputHandler::Running")
+            .field("handler", &self.handler)
+            .finish()
     }
 }
 
 #[async_trait]
-impl StateKeeperOutputHandler for AsyncOutputHandler {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        match self {
-            AsyncOutputHandler::Running { handler, .. } => {
-                handler.handle_l2_block(updates_manager).await
-            }
-            AsyncOutputHandler::Finished => {
-                Err(anyhow::anyhow!("Cannot handle any more L2 blocks"))
-            }
-        }
+impl OutputHandler for AsyncOutputHandler {
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
+        self.handler.handle_l2_block(env, output).await
     }
 
-    async fn handle_l1_batch(
-        &mut self,
-        updates_manager: Arc<UpdatesManager>,
-    ) -> anyhow::Result<()> {
-        let state = mem::replace(self, AsyncOutputHandler::Finished);
-        match state {
-            AsyncOutputHandler::Running {
-                mut handler,
-                sender,
-            } => {
-                sender
-                    .send(tokio::task::spawn(async move {
-                        let latency = METRICS.output_handle_time.start();
-                        let result = handler.handle_l1_batch(updates_manager).await;
-                        latency.observe();
-                        result
-                    }))
-                    .ok();
-                Ok(())
-            }
-            AsyncOutputHandler::Finished => {
-                Err(anyhow::anyhow!("Cannot handle any more L1 batches"))
-            }
-        }
+    async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
+        let handler = self.handler;
+        self.sender
+            .send(tokio::task::spawn(async move {
+                let latency = METRICS.output_handle_time.start();
+                let result = handler.handle_l1_batch(output).await;
+                latency.observe();
+                result
+            }))
+            .ok();
+        Ok(())
     }
 }
 
@@ -196,8 +217,8 @@ pub struct ConcurrentOutputHandlerFactoryTask<Io: VmRunnerIo> {
     state: Arc<DashMap<L1BatchNumber, BatchReceiver>>,
 }
 
-impl<Io: VmRunnerIo> Debug for ConcurrentOutputHandlerFactoryTask<Io> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<Io: VmRunnerIo> fmt::Debug for ConcurrentOutputHandlerFactoryTask<Io> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConcurrentOutputHandlerFactoryTask")
             .field("pool", &self.pool)
             .field("io", &self.io)
