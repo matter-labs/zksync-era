@@ -81,7 +81,7 @@ pub struct BridgeHubRequestL2TransactionOnGateway {
 impl Default for BridgeHubRequestL2TransactionOnGateway {
     fn default() -> Self {
         BridgeHubRequestL2TransactionOnGateway {
-            chaind_id: U256::from(272),
+            chaind_id: U256::from(273),
             transaction: L2CanonicalTransaction::default(),
             factory_deps: vec![],
             canonical_tx_hash: [0u8; 32],

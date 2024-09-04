@@ -1,8 +1,6 @@
 use ethabi::{encode, Contract, Token};
-use zksync_basic_types::{web3::keccak256, Address, H256};
-use zksync_system_constants::{
-    L2_ASSET_ROUTER_ADDRESS, SETTLEMENT_LAYER_RELAY_SENDER, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
-};
+use zksync_basic_types::{web3::keccak256, Address, H160, H256};
+use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, SETTLEMENT_LAYER_RELAY_SENDER};
 use zksync_test_account::Account;
 use zksync_types::{
     diamond::{compile_initial_cut_hash, facet_cut, Action, ChainCreationParams, VerifierParams},
@@ -233,10 +231,13 @@ fn prepare_environment_and_deploy_contracts(
     // Deploy New Chain via BH BridgeMint
 
     // Define the dummy data
-    let chain_id: Token = Token::Uint(272.into());
+    let chain_id: Token = Token::Uint(273.into());
 
     // Create the tokens for each parameter
-    let base_token_token = Token::Address(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS);
+    let base_token_token = Token::Address(H160([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x01,
+    ]));
     let admin_token = Token::Address(deploy_account_address);
     let protocol_version_token = Token::Uint(U256::from(21));
     let diamond_cut_token = encode(&[diamond_cut.to_token()]);
