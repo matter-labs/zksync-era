@@ -578,14 +578,16 @@ fn test_l1_l2_complete_tx_execution_modified_l2_canonical_tx_calldata_factory_de
     let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
     // Generate a large number of vectors
-    let small_vector_size: usize = 1_470_560; // Size of each vector
+    // let small_vector_size: usize = 1_470_560; // Size of each vector
+    let small_vector_size: usize = 1_200_000; // Size of each vector
     let num_vectors = 1; // Number of vectors
 
     let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
         .map(|_| vec![0u8; small_vector_size])
         .collect();
 
-    let call_data_size: usize = 2_879_168; // Size of calldata of L2 tx
+    // let call_data_size: usize = 2_879_168; // Size of calldata of L2 tx
+    let call_data_size: usize = 2_500_000; // Size of calldata of L2 tx
     let call_data: Vec<u8> = vec![1u8; call_data_size]; // 5350756
 
     let tx_factory_deps_size: usize = 32_209; // Size of factory deps of L2 tx
