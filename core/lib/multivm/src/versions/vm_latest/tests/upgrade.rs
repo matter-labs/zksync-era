@@ -1,6 +1,5 @@
 use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
-use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 use zksync_types::{
     ethabi::{Contract, Token},
@@ -15,8 +14,8 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 use super::utils::{get_complex_upgrade_abi, read_test_contract};
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
-        VmInterfaceHistoryEnabled,
+        storage::WriteStorage, ExecutionResult, Halt, TxExecutionMode, VmExecutionMode,
+        VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     vm_latest::{
         tests::{

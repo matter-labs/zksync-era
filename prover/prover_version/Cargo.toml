@@ -1,7 +1,0 @@
-[package]
-name = "prover_version"
-version = "0.1.0"
-edition.workspace = true
-
-[dependencies]
-zksync_prover_fri_types.workspace = true

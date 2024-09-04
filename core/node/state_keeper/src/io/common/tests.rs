@@ -9,16 +9,17 @@ use futures::FutureExt;
 use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
     prepare_recovery_snapshot,
 };
 use zksync_types::{
-    block::L2BlockHasher, fee::TransactionExecutionMetrics,
-    protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::L2BlockHasher, protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion,
+    ProtocolVersionId,
 };
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use super::*;
 

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash\n            FROM\n                protocol_patches\n            WHERE\n                minor = $1\n                AND patch = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recursion_scheduler_level_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d93ebd47a227a6086a5eb963c7ed36e6c9d9e70dc52677c6b335b3ed4025db85"
+}

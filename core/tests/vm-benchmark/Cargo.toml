@@ -6,39 +6,30 @@ license.workspace = true
 publish = false
 
 [dependencies]
-zksync_vm_benchmark_harness.workspace = true
+zksync_contracts.workspace = true
+zksync_multivm.workspace = true
+zksync_types.workspace = true
+zksync_utils.workspace = true
 zksync_vlog.workspace = true
+
+criterion.workspace = true
+once_cell.workspace = true
+rand.workspace = true
 vise.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-criterion.workspace = true
+assert_matches.workspace = true
 iai.workspace = true
 
 [[bench]]
-name = "criterion"
+name = "oneshot"
 harness = false
 
 [[bench]]
-name = "diy_benchmark"
+name = "batch"
 harness = false
 
 [[bench]]
 name = "iai"
 harness = false
-
-[[bin]]
-name = "iai_results_to_prometheus"
-path = "src/iai_results_to_prometheus.rs"
-
-[[bin]]
-name = "compare_iai_results"
-path = "src/compare_iai_results.rs"
-
-[[bin]]
-name = "find-slowest"
-path = "src/find_slowest.rs"
-
-[[bin]]
-name = "instruction-counts"
-path = "src/instruction_counts.rs"

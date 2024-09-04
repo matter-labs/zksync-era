@@ -30,11 +30,7 @@ impl ProtoRepr for proto::Observability {
             sentry_url,
             sentry_environment,
             log_format: required(&self.log_format).context("log_format")?.clone(),
-            opentelemetry: self
-                .opentelemetry
-                .as_ref()
-                .map(|cfg| cfg.read().context("opentelemetry"))
-                .transpose()?,
+            opentelemetry: self.opentelemetry.as_ref().and_then(|cfg| cfg.read().ok()),
             log_directives: self.log_directives.clone(),
         })
     }
@@ -66,6 +62,7 @@ impl ProtoRepr for proto::Opentelemetry {
         Ok(Self::Type {
             level: required(&self.level).context("level")?.clone(),
             endpoint: required(&self.endpoint).context("endpoint")?.clone(),
+            logs_endpoint: self.logs_endpoint.clone(),
         })
     }
 
@@ -73,6 +70,7 @@ impl ProtoRepr for proto::Opentelemetry {
         Self {
             level: Some(this.level.clone()),
             endpoint: Some(this.endpoint.clone()),
+            logs_endpoint: this.logs_endpoint.clone(),
         }
     }
 }

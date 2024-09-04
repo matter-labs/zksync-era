@@ -1,10 +1,9 @@
 name: Workflow template for CI jobs for Prover Components
 on:
   workflow_call:
-
 jobs:
   lint:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-highmem-long]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 
@@ -35,7 +34,7 @@ jobs:
         run: ci_run bash -c "cd prover && cargo fmt --check"
 
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-highmem-long]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 

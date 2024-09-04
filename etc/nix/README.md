@@ -41,25 +41,25 @@ nix run github:nixos/nixpkgs/nixos-23.11#nixci
 ### Build individual parts
 
 ```shell
-nix build .#zksync_server
+nix build .#zksync
 ```
 
 or
 
 ```shell
-nix build .#zksync_server.contract_verifier
-nix build .#zksync_server.external_node
-nix build .#zksync_server.server
-nix build .#zksync_server.snapshots_creator
-nix build .#zksync_server.block_reverter
+nix build .#zksync.contract_verifier
+nix build .#zksync.external_node
+nix build .#zksync.server
+nix build .#zksync.snapshots_creator
+nix build .#zksync.block_reverter
 ```
 
 or
 
 ```shell
 nix build .#tee_prover
-nix build .#container-tee_prover-dcap
-nix build .#container-tee_prover-azure
+nix build .#container-tee-prover-dcap
+nix build .#container-tee-prover-azure
 ```
 
 ## Develop

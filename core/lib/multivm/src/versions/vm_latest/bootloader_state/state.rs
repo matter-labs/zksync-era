@@ -2,11 +2,10 @@ use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_latest::{
         bootloader_state::{
             l2_block::BootloaderL2Block,
@@ -29,7 +28,7 @@ use crate::{
 /// Serves two purposes:
 /// - Tracks where next tx should be pushed to in the bootloader memory.
 /// - Tracks which transaction should be executed next.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BootloaderState {
     /// ID of the next transaction to be executed.
     /// See the structure doc-comment for a better explanation of purpose.

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use zksync_contracts::BaseSystemContracts;
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
+use crate::interface::storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 
 use crate::HistoryMode;
 use zksync_types::block::legacy_miniblock_hash;

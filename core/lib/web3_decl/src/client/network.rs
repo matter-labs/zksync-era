@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 /// Marker trait for networks. Two standard network kinds are [`L1`] and [`L2`].
 ///
@@ -12,9 +12,10 @@ pub trait Network: 'static + Copy + Default + Sync + Send + fmt::Debug {
     fn metric_label(&self) -> String;
 }
 
-/// L1 (i.e., Ethereum) network.
+/// L1-compatible (e.g., Ethereum) network.
+/// Note, that this network does not have to be an L1. It can be any network that is compatible with Ethereum JSON-RPC.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct L1(Option<L1ChainId>);
+pub struct L1(Option<SLChainId>);
 
 impl Network for L1 {
     fn metric_label(&self) -> String {
@@ -26,9 +27,15 @@ impl Network for L1 {
     }
 }
 
+impl From<SLChainId> for L1 {
+    fn from(chain_id: SLChainId) -> Self {
+        Self(Some(chain_id))
+    }
+}
+
 impl From<L1ChainId> for L1 {
     fn from(chain_id: L1ChainId) -> Self {
-        Self(Some(chain_id))
+        Self(Some(chain_id.into()))
     }
 }
 
@@ -54,7 +61,7 @@ impl From<L2ChainId> for L2 {
 
 /// Associates a type with a particular type of RPC networks, such as Ethereum or ZKsync Era. RPC traits created using `jsonrpsee::rpc`
 /// can use `ForNetwork` as a client boundary to restrict which implementations can call their methods.
-pub trait ForNetwork {
+pub trait ForWeb3Network {
     /// Network that the type is associated with.
     type Net: Network;
 
@@ -66,7 +73,7 @@ pub trait ForNetwork {
     fn component(&self) -> &'static str;
 }
 
-impl<T: ?Sized + ForNetwork> ForNetwork for &T {
+impl<T: ?Sized + ForWeb3Network> ForWeb3Network for &T {
     type Net = T::Net;
 
     fn network(&self) -> Self::Net {
@@ -78,7 +85,7 @@ impl<T: ?Sized + ForNetwork> ForNetwork for &T {
     }
 }
 
-impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
+impl<T: ?Sized + ForWeb3Network> ForWeb3Network for Box<T> {
     type Net = T::Net;
 
     fn network(&self) -> Self::Net {
@@ -91,7 +98,7 @@ impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
 }
 
 /// Client that can be tagged with the component using it.
-pub trait TaggedClient: ForNetwork {
+pub trait TaggedClient: ForWeb3Network {
     /// Tags this client as working for a specific component.
     fn set_component(&mut self, component_name: &'static str);
 }

@@ -14,8 +14,9 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+envy.workspace = true
 reqwest.workspace = true
-secp256k1.workspace = true
+secp256k1 = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -23,7 +24,7 @@ tracing.workspace = true
 url.workspace = true
 vise.workspace = true
 zksync_basic_types.workspace = true
-zksync_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_env_config.workspace = true
 zksync_node_framework.workspace = true
 zksync_prover_interface.workspace = true

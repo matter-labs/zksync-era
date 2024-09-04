@@ -26,7 +26,6 @@ jobs:
     runs-on: [ubuntu-latest]
     outputs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
-      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -59,9 +58,21 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       en_alpha_release: true
 
+  build-push-tee-prover-images:
+    name: Build and push images
+    needs: [setup]
+    uses: ./.github/workflows/build-tee-prover-template.yml
+    if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
   build-push-contract-verifier:
     name: Build and push image
-    needs: [ setup ]
+    needs: [setup]
     uses: ./.github/workflows/build-contract-verifier-template.yml
     if: contains(github.ref_name, 'contract_verifier')
     secrets:
@@ -83,6 +94,19 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-push-witness-generator-image-avx512:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-witness-generator-template.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: "60;70;75;89"
+      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU

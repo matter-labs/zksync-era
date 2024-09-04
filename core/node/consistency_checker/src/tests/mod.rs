@@ -7,7 +7,7 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
-use zksync_eth_client::{clients::MockEthereum, Options};
+use zksync_eth_client::{clients::MockSettlementLayer, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -45,6 +45,7 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
         raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
+    l1_batch.header.l2_to_l1_logs = vec![];
     l1_batch.metadata.bootloader_initial_content_commitment = None;
     l1_batch.metadata.events_queue_commitment = None;
     l1_batch
@@ -91,7 +92,7 @@ pub(crate) fn build_commit_tx_input_data(
 }
 
 pub(crate) fn create_mock_checker(
-    client: MockEthereum,
+    client: MockSettlementLayer,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
@@ -110,8 +111,8 @@ pub(crate) fn create_mock_checker(
     }
 }
 
-fn create_mock_ethereum() -> MockEthereum {
-    let mock = MockEthereum::builder().with_call_handler(|call, _block_id| {
+fn create_mock_ethereum() -> MockSettlementLayer {
+    let mock = MockSettlementLayer::builder().with_call_handler(|call, _block_id| {
         assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
         let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
         let contract = zksync_contracts::hyperchain_contract();
@@ -649,7 +650,7 @@ impl IncorrectDataKind {
 
     async fn apply(
         self,
-        client: &MockEthereum,
+        client: &MockSettlementLayer,
         l1_batch: &L1BatchWithMetadata,
         commitment_mode: L1BatchCommitmentMode,
     ) -> H256 {

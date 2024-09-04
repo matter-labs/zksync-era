@@ -1,13 +1,16 @@
 import * as utils from 'utils';
 import { loadConfig, shouldLoadConfigFromFile, getAllConfigsPath } from 'utils/build/file-configs';
-import { runServerInBackground } from 'utils/build/server';
+import { runServerInBackground } from './utils';
 import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
-import fs from 'fs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
+import { ChildProcessWithoutNullStreams } from 'child_process';
+import fs from 'node:fs/promises';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -40,8 +43,12 @@ function parseSuggestedValues(suggestedValuesString: string): {
     };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('killall -9 zksync_server');
+async function killServerAndWaitForShutdown(tester: Tester, serverProcess?: ChildProcessWithoutNullStreams) {
+    if (!serverProcess) {
+        await utils.exec('killall -9 zksync_server').catch(ignoreError);
+        return;
+    }
+    await killPidWithAllChilds(serverProcess.pid!, 9).catch(ignoreError);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -63,24 +70,27 @@ function ignoreError(_err: any, context?: string) {
     console.info(message);
 }
 
+const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/revert/', name);
+}
 
 describe('Block reverting test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let mainContract: IZkSyncHyperchain;
     let blocksCommittedBeforeRevert: bigint;
-    let logs: fs.WriteStream;
+    let logs: fs.FileHandle;
     let operatorAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
-
-    const fileConfig = shouldLoadConfigFromFile();
-
+    let serverProcess: ChildProcessWithoutNullStreams | undefined;
     const pathToHome = path.join(__dirname, '../../../..');
-
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher';
+    let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
     if (enableConsensus) {
         components += ',consensus';
     }
@@ -125,19 +135,22 @@ describe('Block reverting test', function () {
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        await killServerAndWaitForShutdown(tester).catch(ignoreError);
+        if (autoKill) {
+            // Make sure server isn't running.
+            await killServerAndWaitForShutdown(tester);
+        }
 
         // Run server in background.
-        runServerInBackground({
+        logs = await fs.open(await logsPath('server.log'), 'a');
+        serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -201,13 +214,16 @@ describe('Block reverting test', function () {
         blocksCommittedBeforeRevert = blocksCommitted;
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
     });
 
     step('revert blocks', async () => {
         let fileConfigFlags = '';
         if (fileConfig.loadFromFile) {
-            const configPaths = getAllConfigsPath({ pathToHome, chain: fileConfig.chain });
+            const configPaths = getAllConfigsPath({
+                pathToHome,
+                chain: fileConfig.chain
+            });
             fileConfigFlags = `
                 --config-path=${configPaths['general.yaml']}
                 --contracts-config-path=${configPaths['contracts.yaml']}
@@ -237,7 +253,7 @@ describe('Block reverting test', function () {
 
         console.log('Rolling back DB..');
         await utils.spawn(
-            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache ${fileConfigFlags}`
+            `cd ${pathToHome} && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache --rollback-vm-runners-cache ${fileConfigFlags}`
         );
 
         let blocksCommitted = await mainContract.getTotalBatchesCommitted();
@@ -246,11 +262,12 @@ describe('Block reverting test', function () {
 
     step('execute transaction after revert', async () => {
         // Run server.
-        runServerInBackground({
+        serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(30);
 
@@ -293,14 +310,15 @@ describe('Block reverting test', function () {
         await checkedRandomTransfer(alice, 1n);
 
         // Stop server.
-        await killServerAndWaitForShutdown(tester);
+        await killServerAndWaitForShutdown(tester, serverProcess!);
 
         // Run again.
-        runServerInBackground({
+        serverProcess = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(30);
 
@@ -309,7 +327,9 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        await utils.exec('killall zksync_server').catch(ignoreError);
+        if (autoKill) {
+            await utils.exec('killall zksync_server').catch(ignoreError);
+        }
     });
 });
 

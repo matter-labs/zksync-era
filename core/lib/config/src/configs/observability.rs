@@ -11,7 +11,7 @@ pub struct ObservabilityConfig {
     /// Format of the logs as expected by the `vlog` crate.
     /// Currently must be either `plain` or `json`.
     pub log_format: String,
-    // Log directives in format that is used in `RUST_LOG`
+    /// Log directives in format that is used in `RUST_LOG`
     pub log_directives: Option<String>,
 }
 
@@ -19,6 +19,12 @@ pub struct ObservabilityConfig {
 pub struct OpentelemetryConfig {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
     pub level: String,
-    /// Opentelemetry HTTP collector endpoint.
+    /// Opentelemetry HTTP traces collector endpoint.
     pub endpoint: String,
+    /// Opentelemetry HTTP logs collector endpoing.
+    /// This is optional, since right now the primary way to collect logs is via stdout.
+    ///
+    /// Important: sending logs via OTLP has only been tested locally, and the performance may be
+    /// suboptimal in production environments.
+    pub logs_endpoint: Option<String>,
 }

@@ -15,6 +15,9 @@ import * as zksync from 'zksync-ethers';
 import * as elliptic from 'elliptic';
 import { RetryProvider } from '../src/retry-provider';
 
+const SECONDS = 1000;
+jest.setTimeout(300 * SECONDS);
+
 // TODO: Leave only important ones.
 const contracts = {
     counter: getTestContract('Counter'),
@@ -35,6 +38,7 @@ describe('Smart contract behavior checks', () => {
 
     // Contracts shared in several tests.
     let counterContract: zksync.Contract;
+    let expensiveContract: zksync.Contract;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
@@ -71,12 +75,13 @@ describe('Smart contract behavior checks', () => {
     });
 
     test('Should perform "expensive" contract calls', async () => {
-        const expensiveContract = await deployContract(alice, contracts.expensive, []);
+        expensiveContract = await deployContract(alice, contracts.expensive, []);
+        //  Check that the transaction that is too expensive would be rejected by the API server.
+        await expect(expensiveContract.expensive(15000)).toBeRejected();
+    });
 
-        // First, check that the transaction that is too expensive would be rejected by the API server.
-        await expect(expensiveContract.expensive(3000)).toBeRejected();
-
-        // Second, check that processable transaction may fail with "out of gas" error.
+    test('Should perform underpriced "expensive" contract calls', async () => {
+        //  Check that processable transaction may fail with "out of gas" error.
         // To do so, we estimate gas for arg "1" and supply it to arg "20".
         // This guarantees that transaction won't fail during verification.
         const lowGasLimit = await expensiveContract.expensive.estimateGas(1);

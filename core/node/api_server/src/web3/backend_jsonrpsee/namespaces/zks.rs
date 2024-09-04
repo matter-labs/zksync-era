@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
+use zksync_multivm::interface::VmEvent;
 use zksync_types::{
     api::{
-        ApiStorageLog, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Log, Proof,
-        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
+        L1BatchDetails, L2ToL1LogProof, Log, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    web3::Bytes,
-    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -22,14 +22,22 @@ use crate::web3::ZksNamespace;
 
 #[async_trait]
 impl ZksNamespaceServer for ZksNamespace {
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
-        self.estimate_fee_impl(req)
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee> {
+        self.estimate_fee_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256> {
-        self.estimate_l1_to_l2_gas_impl(req)
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256> {
+        self.estimate_l1_to_l2_gas_impl(req, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -187,7 +195,7 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn send_raw_transaction_with_detailed_output(
         &self,
-        tx_bytes: Bytes,
+        tx_bytes: web3::Bytes,
     ) -> RpcResult<TransactionDetailedResult> {
         self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
@@ -200,19 +208,37 @@ impl ZksNamespaceServer for ZksNamespace {
                     .iter()
                     .filter(|x| x.log.is_write())
                     .map(ApiStorageLog::from)
-                    .collect_vec(),
+                    .collect(),
                 events: result
                     .1
                     .logs
                     .events
                     .iter()
-                    .map(|x| {
-                        let mut l = Log::from(x);
-                        l.transaction_hash = Some(result.0);
-                        l
+                    .map(|event| {
+                        let mut log = map_event(event);
+                        log.transaction_hash = Some(result.0);
+                        log
                     })
-                    .collect_vec(),
+                    .collect(),
             })
             .map_err(|err| self.current_method().map_err(err))
+    }
+}
+
+fn map_event(vm_event: &VmEvent) -> Log {
+    Log {
+        address: vm_event.address,
+        topics: vm_event.indexed_topics.clone(),
+        data: web3::Bytes::from(vm_event.value.clone()),
+        block_hash: None,
+        block_number: None,
+        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+        transaction_hash: None,
+        transaction_index: Some(web3::Index::from(vm_event.location.1)),
+        log_index: None,
+        transaction_log_index: None,
+        log_type: None,
+        removed: Some(false),
+        block_timestamp: None,
     }
 }

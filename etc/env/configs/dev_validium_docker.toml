@@ -1,12 +1,12 @@
-__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev_validium_docker.init.env" ]
+__imports__ = ["base", "l1-inits/.init.env", "l2-inits/dev_validium_docker.init.env"]
 
-database_url = "postgres://postgres:notsecurepassword@postgres/zksync_local"
-database_prover_url = "postgres://postgres:notsecurepassword@postgres/prover_local"
-test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_local_test"
-test_database_prover_url = "postgres://postgres:notsecurepassword@host:5433/prover_local_test"
+database_url = "postgres://postgres:notsecurepassword@localhost:5432/zksync_local"
+database_prover_url = "postgres://postgres:notsecurepassword@localhost:5432/prover_local"
+test_database_url = "postgres://postgres:notsecurepassword@localhost:5433/zksync_local_test"
+test_database_prover_url = "postgres://postgres:notsecurepassword@localhost:5433/prover_local_test"
 
 # for loadtest
-l1_rpc_address = "http://reth:8545"
+l1_rpc_address = "http://localhost:8545"
 
 [chain.state_keeper]
 compute_overhead_part = 1.0
@@ -20,10 +20,10 @@ l1_batch_commit_data_generator_mode = "Validium"
 miniblock_iteration_interval = 50
 
 [eth_sender]
-sender_pubdata_sending_mode="Custom"
+sender_pubdata_sending_mode = "Custom"
 
 [eth_client]
-web3_url = "http://reth:8545"
+web3_url = "http://localhost:8545"
 
 [_metadata]
 base = ["dev.toml"]

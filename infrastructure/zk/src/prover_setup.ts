@@ -204,7 +204,7 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: string) 
     );
 
     await utils.spawn(
-        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
+        `cp -r ${process.env.ZKSYNC_HOME}/prover/data/keys/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
 }
 

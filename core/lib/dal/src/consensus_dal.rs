@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use bigdecimal::Zero;
+use bigdecimal::Zero as _;
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BlockStoreState, ReplicaState};
 use zksync_db_connection::{
@@ -7,9 +7,10 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_protobuf::ProtoFmt as _;
 use zksync_types::L2BlockNumber;
 
-pub use crate::consensus::Payload;
+pub use crate::consensus::{AttestationStatus, Payload};
 use crate::{Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -48,9 +49,20 @@ impl ConsensusDal<'_, '_> {
             let Some(genesis) = row.genesis else {
                 return Ok(None);
             };
-            let genesis: validator::GenesisRaw =
-                zksync_protobuf::serde::deserialize(genesis).decode_column("genesis")?;
-            Ok(Some(genesis.with_hash()))
+            // Deserialize the json, but don't allow for unknown fields.
+            // We might encounter an unknown fields here in case if support for the previous
+            // consensus protocol version is removed before the migration to a new version
+            // is performed. The node should NOT operate in such a state.
+            Ok(Some(
+                validator::GenesisRaw::read(
+                    &zksync_protobuf::serde::deserialize_proto_with_options(
+                        &genesis, /*deny_unknown_fields=*/ true,
+                    )
+                    .decode_column("genesis")?,
+                )
+                .decode_column("genesis")?
+                .with_hash(),
+            ))
         })
         .instrument("genesis")
         .fetch_optional(self.storage)
@@ -92,6 +104,14 @@ impl ConsensusDal<'_, '_> {
             serde_json::value::Serializer,
         )
         .unwrap();
+        sqlx::query!(
+            r#"
+            DELETE FROM l1_batches_consensus
+            "#
+        )
+        .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
+        .execute(&mut txn)
+        .await?;
         sqlx::query!(
             r#"
             DELETE FROM miniblocks_consensus
@@ -378,9 +398,7 @@ impl ConsensusDal<'_, '_> {
     ) -> Result<(), InsertCertificateError> {
         use InsertCertificateError as E;
         let header = &cert.message.proposal;
-        let mut txn = self.storage.start_transaction().await?;
-        let want_payload = txn
-            .consensus_dal()
+        let want_payload = self
             .block_payload(cert.message.proposal.number)
             .await?
             .ok_or(E::MissingPayload)?;
@@ -394,28 +412,24 @@ impl ConsensusDal<'_, '_> {
             VALUES
                 ($1, $2)
             "#,
-            header.number.0 as i64,
+            i64::try_from(header.number.0).context("overflow")?,
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_block_certificate")
         .report_latency()
-        .execute(&mut txn)
+        .execute(self.storage)
         .await?;
-        txn.commit().await.context("commit")?;
         Ok(())
     }
 
     /// Inserts a certificate for the L1 batch.
-    ///
-    /// Insertion is allowed even if it creates gaps in the L1 batch history.
-    ///
-    /// This method assumes that all payload validation has been carried out by the caller.
+    /// Noop if a certificate for the same L1 batch is already present.
+    /// No verification is performed - it cannot be performed due to circular dependency on
+    /// `zksync_l1_contract_interface`.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> Result<(), InsertCertificateError> {
-        let l1_batch_number = cert.message.number.0 as i64;
-
+    ) -> anyhow::Result<()> {
         let res = sqlx::query!(
             r#"
             INSERT INTO
@@ -424,26 +438,25 @@ impl ConsensusDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number,
+            i64::try_from(cert.message.number.0).context("overflow")?,
+            // Unwrap is ok, because serialization should always succeed.
             zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
         .execute(self.storage)
         .await?;
-
         if res.rows_affected().is_zero() {
-            tracing::debug!(l1_batch_number, "duplicate batch certificate");
+            tracing::debug!(l1_batch_number = ?cert.message.number, "duplicate batch certificate");
         }
-
         Ok(())
     }
 
     /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
     /// depending on the order in which votes have been collected over gossip by consensus.
-    pub async fn get_last_batch_certificate_number(
+    pub async fn last_batch_certificate_number(
         &mut self,
-    ) -> DalResult<Option<attester::BatchNumber>> {
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -452,14 +465,96 @@ impl ConsensusDal<'_, '_> {
                 l1_batches_consensus
             "#
         )
-        .instrument("get_last_batch_certificate_number")
+        .instrument("last_batch_certificate_number")
         .report_latency()
         .fetch_one(self.storage)
         .await?;
 
-        Ok(row
-            .number
-            .map(|number| attester::BatchNumber(number as u64)))
+        let Some(n) = row.number else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            n.try_into().context("overflow")?,
+        )))
+    }
+
+    /// Number of L1 batch that the L2 block belongs to.
+    /// None if the L2 block doesn't exist.
+    pub async fn batch_of_block(
+        &mut self,
+        block: validator::BlockNumber,
+    ) -> anyhow::Result<Option<attester::BatchNumber>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    )
+                ) AS "l1_batch_number!"
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::try_from(block.0).context("overflow")?,
+        )
+        .instrument("batch_of_block")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(attester::BatchNumber(
+            row.l1_batch_number.try_into().context("overflow")?,
+        )))
+    }
+
+    /// Global attestation status.
+    /// Includes the next batch that the attesters should vote for.
+    /// None iff the consensus genesis is missing (i.e. consensus wasn't enabled) or
+    /// L2 block with number `genesis.first_block` doesn't exist yet.
+    ///
+    /// This is a main node only query.
+    /// ENs should call the attestation_status RPC of the main node.
+    pub async fn attestation_status(&mut self) -> anyhow::Result<Option<AttestationStatus>> {
+        let Some(genesis) = self.genesis().await.context("genesis()")? else {
+            return Ok(None);
+        };
+        let Some(next_batch_to_attest) = async {
+            // First batch that we don't have a certificate for.
+            if let Some(last) = self
+                .last_batch_certificate_number()
+                .await
+                .context("last_batch_certificate_number()")?
+            {
+                return Ok(Some(last + 1));
+            }
+            // Otherwise start with the batch containing the first block of the fork.
+            self.batch_of_block(genesis.first_block)
+                .await
+                .context("batch_of_block()")
+        }
+        .await?
+        else {
+            tracing::info!(%genesis.first_block, "genesis block not found");
+            return Ok(None);
+        };
+        Ok(Some(AttestationStatus {
+            genesis: genesis.hash(),
+            next_batch_to_attest,
+        }))
     }
 }
 
@@ -574,7 +669,7 @@ mod tests {
         // Retrieve the latest certificate.
         let number = conn
             .consensus_dal()
-            .get_last_batch_certificate_number()
+            .last_batch_certificate_number()
             .await
             .unwrap()
             .unwrap();

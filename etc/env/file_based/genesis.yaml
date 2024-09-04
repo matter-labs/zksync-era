@@ -1,7 +1,7 @@
 genesis_root: 0xabdb766b18a479a5c783a4b80e12686bc8ea3cc2d8a3050491b701d72370ebb5
 genesis_rollup_leaf_index: 54
 genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd
-genesis_protocol_semantic_version: '0.24.1'
+genesis_protocol_semantic_version: '0.24.2'
 # deprecated
 genesis_protocol_version: 24
 default_aa_hash: 0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32
@@ -11,8 +11,5 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 prover:
   recursion_scheduler_level_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
-  recursion_node_level_vk_hash: 0xf520cd5b37e74e19fdb369c8d676a04dce8a19457497ac6686d2bb95d94109c8
-  recursion_leaf_level_vk_hash: 0xf9664f4324c1400fa5c3822d667f30e873f53f1b8033180cd15fe41c1e2355c6
-  recursion_circuits_set_vks_hash: '0x0000000000000000000000000000000000000000000000000000000000000000'
   dummy_verifier: true
 l1_batch_commit_data_generator_mode: Rollup

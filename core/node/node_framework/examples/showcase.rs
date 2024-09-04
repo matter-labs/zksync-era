@@ -251,10 +251,10 @@ impl WiringLayer for TasksLayer {
 }
 
 fn main() -> anyhow::Result<()> {
-    ZkStackServiceBuilder::new()
-        .add_layer(DatabaseLayer)
-        .add_layer(TasksLayer)
-        .build()?
-        .run()?;
+    let mut builder = ZkStackServiceBuilder::new()?;
+
+    builder.add_layer(DatabaseLayer).add_layer(TasksLayer);
+
+    builder.build().run(None)?;
     Ok(())
 }

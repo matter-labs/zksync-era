@@ -4,9 +4,13 @@ use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
+use zksync_types::{api::state_override::StateOverride, Transaction};
 
 use super::*;
-use crate::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts};
+use crate::{
+    execution_sandbox::{apply::VmSandbox, storage::StorageWithOverrides},
+    tx_sender::ApiContracts,
+};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -165,42 +169,43 @@ async fn creating_block_args_after_snapshot_recovery() {
 #[tokio::test]
 async fn instantiating_vm() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let mut connection = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut connection, &GenesisParams::mock())
         .await
         .unwrap();
 
-    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
-    test_instantiating_vm(pool.clone(), block_args).await;
-    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
+    let block_args = BlockArgs::pending(&mut connection).await.unwrap();
+    test_instantiating_vm(connection, block_args).await;
+
+    let mut connection = pool.connection().await.unwrap();
+    let start_info = BlockStartInfo::new(&mut connection, Duration::MAX)
         .await
         .unwrap();
-    let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), &start_info)
+    let block_args = BlockArgs::new(&mut connection, api::BlockId::Number(0.into()), &start_info)
         .await
         .unwrap();
-    test_instantiating_vm(pool.clone(), block_args).await;
+    test_instantiating_vm(connection, block_args).await;
 }
 
-async fn test_instantiating_vm(pool: ConnectionPool<Core>, block_args: BlockArgs) {
-    let (vm_concurrency_limiter, _) = VmConcurrencyLimiter::new(1);
-    let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
-    let transaction = create_l2_transaction(10, 100).into();
+async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args: BlockArgs) {
+    let transaction = Transaction::from(create_l2_transaction(10, 100));
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
+
+    let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
+    let (env, storage) = apply::prepare_env_and_storage(
+        connection,
+        TxSetupArgs::mock(TxExecutionMode::EstimateFee, estimate_gas_contracts),
+        &block_args,
+    )
+    .await
+    .unwrap();
+    let storage = StorageWithOverrides::new(storage, &StateOverride::default());
+
     tokio::task::spawn_blocking(move || {
-        apply_vm_in_sandbox(
-            vm_permit,
-            TxSharedArgs::mock(estimate_gas_contracts),
-            true,
-            &TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
-            &pool,
-            transaction.clone(),
-            block_args,
-            |_, received_tx, _| {
-                assert_eq!(received_tx, transaction);
-            },
-        )
+        VmSandbox::new(storage, env, execution_args).apply(|_, received_tx| {
+            assert_eq!(received_tx, transaction);
+        });
     })
     .await
-    .expect("VM instantiation panicked")
-    .expect("VM instantiation errored");
+    .expect("VM execution panicked")
 }

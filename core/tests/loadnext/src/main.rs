@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
 use loadnext::{
     command::TxType,
     config::{ExecutionConfig, LoadtestConfig},
@@ -21,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     // We don't want to introduce dependency on `zksync_env_config` in loadnext,
     // but we historically rely on the environment variables for the observability configuration,
     // so we load them directly here.
-    let log_format: zksync_vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
+    let log_format: zksync_vlog::logs::LogFormat = std::env::var("MISC_LOG_FORMAT")
         .ok()
         .unwrap_or("plain".to_string())
         .parse()?;
@@ -39,14 +40,20 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let mut builder = zksync_vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
+    let logs = zksync_vlog::Logs::from(log_format);
+    let sentry = sentry_url
+        .map(|url| {
+            anyhow::Ok(
+                zksync_vlog::Sentry::new(&url)
+                    .context("Invalid Sentry URL")?
+                    .with_environment(environment),
+            )
+        })
+        .transpose()?;
+    let _guard = zksync_vlog::ObservabilityBuilder::new()
+        .with_logs(Some(logs))
+        .with_sentry(sentry)
+        .build();
 
     let config = LoadtestConfig::from_env()
         .expect("Config parameters should be loaded from env or from default values");

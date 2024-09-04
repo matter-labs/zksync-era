@@ -1,0 +1,102 @@
+import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
+import { promisify } from 'util';
+
+// executes a command in background and returns a child process handle
+// by default pipes data to parent's stdio but this can be overridden
+export function background({
+    command,
+    stdio = 'inherit',
+    cwd,
+    env
+}: {
+    command: string;
+    stdio: any;
+    cwd?: ProcessEnvOptions['cwd'];
+    env?: ProcessEnvOptions['env'];
+}): ChildProcessWithoutNullStreams {
+    command = command.replace(/\n/g, ' ');
+    console.log(`Run command ${command}`);
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
+}
+
+export function runInBackground({
+    command,
+    components,
+    stdio,
+    cwd,
+    env
+}: {
+    command: string;
+    components?: string[];
+    stdio: any;
+    cwd?: Parameters<typeof background>[0]['cwd'];
+    env?: Parameters<typeof background>[0]['env'];
+}): ChildProcessWithoutNullStreams {
+    if (components && components.length > 0) {
+        command += ` --components=${components.join(',')}`;
+    }
+    return background({ command, stdio, cwd, env });
+}
+
+export function runServerInBackground({
+    components,
+    stdio,
+    cwd,
+    env,
+    useZkInception,
+    chain
+}: {
+    components?: string[];
+    stdio: any;
+    cwd?: Parameters<typeof background>[0]['cwd'];
+    env?: Parameters<typeof background>[0]['env'];
+    useZkInception?: boolean;
+    chain?: string;
+}): ChildProcessWithoutNullStreams {
+    let command = '';
+    if (useZkInception) {
+        command = 'zk_inception server';
+        if (chain) {
+            command += ` --chain ${chain}`;
+        }
+    } else {
+        command = 'zk server';
+    }
+    return runInBackground({ command, components, stdio, cwd, env });
+}
+
+export function runExternalNodeInBackground({
+    components,
+    stdio,
+    cwd,
+    env,
+    useZkInception,
+    chain
+}: {
+    components?: string[];
+    stdio: any;
+    cwd?: Parameters<typeof background>[0]['cwd'];
+    env?: Parameters<typeof background>[0]['env'];
+    useZkInception?: boolean;
+    chain?: string;
+}): ChildProcessWithoutNullStreams {
+    let command = '';
+    if (useZkInception) {
+        command = 'zk_inception external-node run';
+        command += chain ? ` --chain ${chain}` : '';
+    } else {
+        command = 'zk external-node';
+    }
+
+    return runInBackground({ command, components, stdio, cwd, env });
+}
+
+// async executor of shell commands
+// spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
+// returns { stdout, stderr }
+const promisified = promisify(_exec);
+
+export function exec(command: string, options: ProcessEnvOptions) {
+    command = command.replace(/\n/g, ' ');
+    return promisified(command, options);
+}
