@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 

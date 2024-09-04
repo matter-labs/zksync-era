@@ -27,8 +27,8 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
 
     if !args.no_deps {
-        build_contracts(shell, &ecosystem_config)?;
         install_and_build_dependencies(shell, &ecosystem_config)?;
+        build_contracts(shell, &ecosystem_config)?;
     }
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);
