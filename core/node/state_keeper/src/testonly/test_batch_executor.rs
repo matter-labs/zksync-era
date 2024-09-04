@@ -264,10 +264,10 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
             },
             statistics: Default::default(),
             refunds: Default::default(),
+            new_known_factory_deps: Default::default(),
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
-        new_known_factory_deps: Default::default(),
     }
 }
 
@@ -279,10 +279,10 @@ pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),
+            new_known_factory_deps: Default::default(),
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
-        new_known_factory_deps: Default::default(),
     }
 }
 

@@ -117,6 +117,7 @@ pub struct VmExecutionResultAndLogs {
     pub logs: VmExecutionLogs,
     pub statistics: VmExecutionStatistics,
     pub refunds: Refunds,
+    pub new_known_factory_deps: Option<Vec<(H256, Vec<u8>)>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -303,7 +304,6 @@ pub struct BatchTransactionExecutionResult {
     pub tx_result: Box<VmExecutionResultAndLogs>,
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     pub call_traces: Vec<Call>,
-    pub new_known_factory_deps: Vec<(H256, Vec<u8>)>,
 }
 
 impl BatchTransactionExecutionResult {

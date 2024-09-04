@@ -26,6 +26,7 @@ impl FinishedL1Batch {
                 logs: VmExecutionLogs::default(),
                 statistics: VmExecutionStatistics::default(),
                 refunds: Refunds::default(),
+                new_known_factory_deps: Default::default(),
             },
             final_execution_state: CurrentExecutionState {
                 events: vec![],

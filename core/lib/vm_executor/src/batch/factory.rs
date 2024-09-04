@@ -1,47 +1,26 @@
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use anyhow::Context as _;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         storage::{ReadStorage, StorageView},
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmEvent, VmInterface, VmInterfaceHistoryEnabled,
+        L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
     MultiVMTracer, VmInstance,
 };
-use zksync_types::{ethabi, vm::FastVmMode, Transaction, H256, KNOWN_CODES_STORAGE_ADDRESS};
+use zksync_types::{vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, KEEPER_METRICS},
 };
 use crate::batch::metrics::{InteractionType, EXECUTOR_METRICS};
-
-/// Extracts all bytecodes marked as known on the system contracts.
-pub fn extract_bytecodes_marked_as_known(all_generated_events: &[VmEvent]) -> Vec<H256> {
-    static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-        ethabi::long_signature(
-            "MarkedAsKnown",
-            &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
-        )
-    });
-
-    all_generated_events
-        .iter()
-        .filter(|event| {
-            // Filter events from the deployer contract that match the expected signature.
-            event.address == KNOWN_CODES_STORAGE_ADDRESS
-                && event.indexed_topics.len() == 3
-                && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
-        })
-        .map(|event| event.indexed_topics[1])
-        .collect()
-}
 
 /// The default implementation of [`BatchExecutorFactory`].
 /// Creates real batch executors which maintain the VM (as opposed to the test factories which don't use the VM).
@@ -266,22 +245,21 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         if let (Ok(compressed_bytecodes), tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
         {
-            let factory_deps_marked_as_known =
-                extract_bytecodes_marked_as_known(&tx_result.logs.events);
-            let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
-            let new_known_factory_deps = factory_deps_marked_as_known
-                .into_iter()
-                .zip(preimages)
-                .collect();
+            // let factory_deps_marked_as_known =
+            //     extract_bytecodes_marked_as_known(&tx_result.logs.events);
+            // let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
+            // let new_known_factory_deps = factory_deps_marked_as_known
+            //     .into_iter()
+            //     .zip(preimages)
+            //     .collect();
             let call_traces = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
                 .unwrap_or_default();
             return Ok(BatchTransactionExecutionResult {
                 tx_result: Box::new(tx_result),
-                compressed_bytecodes,
+                compressed_bytecodes: compressed_bytecodes.into_owned(),
                 call_traces,
-                new_known_factory_deps,
             });
         }
 
@@ -297,18 +275,19 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             vec![]
         };
 
-        let (compression_result, mut tx_result) =
+        let (compression_result, tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
-        let compressed_bytecodes =
-            compression_result.context("compression failed when it wasn't applied")?;
+        let compressed_bytecodes = compression_result
+            .context("compression failed when it wasn't applied")?
+            .into_owned();
 
-        let factory_deps_marked_as_known =
-            extract_bytecodes_marked_as_known(&tx_result.logs.events);
-        let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
-        let new_known_factory_deps = factory_deps_marked_as_known
-            .into_iter()
-            .zip(preimages)
-            .collect();
+        // let factory_deps_marked_as_known =
+        //     extract_bytecodes_marked_as_known(&tx_result.logs.events);
+        // let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
+        // let new_known_factory_deps = factory_deps_marked_as_known
+        //     .into_iter()
+        //     .zip(preimages)
+        //     .collect();
 
         // TODO implement tracer manager which will be responsible
         //   for collecting result from all tracers and save it to the database
@@ -320,7 +299,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,
             call_traces,
-            new_known_factory_deps,
         })
     }
 
@@ -341,22 +319,21 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         let (bytecodes_result, mut tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
         if let Ok(compressed_bytecodes) = bytecodes_result {
-            let factory_deps_marked_as_known =
-                extract_bytecodes_marked_as_known(&tx_result.logs.events);
-            let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
-            let new_known_factory_deps = factory_deps_marked_as_known
-                .into_iter()
-                .zip(preimages)
-                .collect();
+            // let factory_deps_marked_as_known =
+            //     extract_bytecodes_marked_as_known(&tx_result.logs.events);
+            // let preimages = vm.ask_decommitter(factory_deps_marked_as_known.clone());
+            // let new_known_factory_deps = factory_deps_marked_as_known
+            //     .into_iter()
+            //     .zip(preimages)
+            //     .collect();
             let call_traces = Arc::try_unwrap(call_tracer_result)
                 .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
                 .take()
                 .unwrap_or_default();
             Ok(BatchTransactionExecutionResult {
                 tx_result: Box::new(tx_result),
-                compressed_bytecodes,
+                compressed_bytecodes: compressed_bytecodes.into_owned(),
                 call_traces,
-                new_known_factory_deps,
             })
         } else {
             // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
@@ -367,7 +344,6 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 tx_result: Box::new(tx_result),
                 compressed_bytecodes: vec![],
                 call_traces: vec![],
-                new_known_factory_deps: vec![],
             })
         }
     }

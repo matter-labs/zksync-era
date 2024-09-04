@@ -2,7 +2,7 @@ use zksync_multivm::interface::{
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult, Halt,
     VmExecutionResultAndLogs,
 };
-use zksync_types::{Transaction, H256};
+use zksync_types::Transaction;
 pub use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use crate::ExecutionMetricsForCriteria;
@@ -23,7 +23,6 @@ pub enum TxExecutionResult {
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
-        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
     },
     /// The VM rejected the tx for some reason.
     RejectedByVm { reason: Halt },
@@ -41,10 +40,9 @@ impl TxExecutionResult {
             _ => Self::Success {
                 tx_metrics: Box::new(ExecutionMetricsForCriteria::new(Some(tx), &res.tx_result)),
                 gas_remaining: res.tx_result.statistics.gas_remaining,
-                tx_result: res.tx_result,
+                tx_result: res.tx_result.clone(),
                 compressed_bytecodes: res.compressed_bytecodes,
                 call_tracer_result: res.call_traces,
-                new_known_factory_deps: res.new_known_factory_deps,
             },
         }
     }

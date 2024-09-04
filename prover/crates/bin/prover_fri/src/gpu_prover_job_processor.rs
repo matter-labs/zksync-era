@@ -5,6 +5,7 @@ pub mod gpu_prover {
     use anyhow::Context as _;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+        ProverContextConfig,
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
@@ -29,12 +30,12 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_prover_fri_utils::region_fetcher::Zone;
+    use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
         prover_dal::SocketAddress,
     };
-    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
@@ -82,7 +83,15 @@ pub mod gpu_prover {
             address: SocketAddress,
             zone: Zone,
             protocol_version: ProtocolSemanticVersion,
+            max_allocation: Option<usize>,
         ) -> Self {
+            let prover_context = match max_allocation {
+                Some(max_allocation) => ProverContext::create_with_config(
+                    ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+                )
+                .expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
+            };
             Prover {
                 blob_store,
                 public_blob_store,
@@ -91,8 +100,7 @@ pub mod gpu_prover {
                 setup_load_mode,
                 circuit_ids_for_round_to_be_proven,
                 witness_vector_queue,
-                prover_context: ProverContext::create()
-                    .expect("failed initializing gpu prover context"),
+                prover_context,
                 address,
                 zone,
                 protocol_version,

@@ -33,10 +33,10 @@ pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),
+            new_known_factory_deps: Default::default(),
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
-        new_known_factory_deps: Default::default(),
     }
 }
 

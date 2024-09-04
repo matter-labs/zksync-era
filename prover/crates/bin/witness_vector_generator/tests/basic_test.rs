@@ -1,8 +1,8 @@
 use std::fs;
 
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]

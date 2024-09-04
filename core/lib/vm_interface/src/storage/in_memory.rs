@@ -14,7 +14,7 @@ use super::ReadStorage;
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct InMemoryStorage {
     state: HashMap<H256, (StorageValue, u64)>,
     factory_deps: HashMap<H256, Vec<u8>>,

@@ -6,9 +6,12 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
-    vm_fast::tests::{
-        tester::{get_empty_storage, VmTesterBuilder},
-        utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
+    vm_fast::{
+        circuits_tracer::CircuitsTracer,
+        tests::{
+            tester::{get_empty_storage, VmTesterBuilder},
+            utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
+        },
     },
 };
 
@@ -207,11 +210,11 @@ fn refunds_in_code_oracle() {
 
         let account = &mut vm.rich_accounts[0];
         if decommit {
-            let (_, is_fresh) = vm
-                .vm
-                .inner
-                .world_diff
-                .decommit_opcode(&mut vm.vm.world, h256_to_u256(normal_zkevm_bytecode_hash));
+            let (_, is_fresh) = vm.vm.inner.world_diff.decommit_opcode(
+                &mut vm.vm.world,
+                &mut CircuitsTracer::default(),
+                h256_to_u256(normal_zkevm_bytecode_hash),
+            );
             assert!(is_fresh);
         }
 

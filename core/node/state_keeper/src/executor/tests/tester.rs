@@ -6,7 +6,10 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
+use zksync_contracts::{
+    get_loadnext_contract, load_contract, read_bytecode,
+    test_contracts::LoadnextContractExecutionParams, TestContract,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
@@ -262,9 +265,8 @@ impl Tester {
     /// Adds funds for specified account list.
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
     pub(super) async fn fund(&self, addresses: &[Address]) {
-        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
-
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
 
         for address in addresses {
             let key = storage_key_for_standard_token_balance(
@@ -334,6 +336,24 @@ pub trait AccountLoadNextExecutable {
         gas_to_burn: u32,
         gas_limit: u32,
     ) -> Transaction;
+}
+
+pub trait AccountFailedCall {
+    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx;
+}
+
+impl AccountFailedCall for Account {
+    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
+        let bytecode = read_bytecode(
+            "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json");
+        let failedcall_contract = TestContract {
+            bytecode,
+            contract: load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json"),
+            factory_deps: vec![],
+        };
+
+        self.get_deploy_tx(&failedcall_contract.bytecode, None, TxType::L2)
+    }
 }
 
 impl AccountLoadNextExecutable for Account {

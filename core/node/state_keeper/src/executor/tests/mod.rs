@@ -2,6 +2,7 @@
 
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
+use tester::AccountFailedCall;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
 use zksync_test_account::Account;
@@ -297,6 +298,27 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
             .await
             .unwrap(),
     );
+    executor.finish_batch().await.unwrap();
+}
+
+#[test_casing(3, FAST_VM_MODES)]
+#[tokio::test]
+async fn deploy_failedcall(vm_mode: FastVmMode) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, vm_mode);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let tx = alice.deploy_failedcall_tx();
+
+    let execute_tx = executor.execute_tx(tx.tx).await.unwrap();
+    assert_executed(&execute_tx);
+
     executor.finish_batch().await.unwrap();
 }
 

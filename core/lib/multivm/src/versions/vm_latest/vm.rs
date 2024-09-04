@@ -2,8 +2,9 @@ use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_querie
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
-    Transaction,
+    Transaction, H256,
 };
+use zksync_utils::{be_words_to_bytes, h256_to_u256};
 
 use crate::{
     glue::GlueInto,
@@ -78,6 +79,29 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
+    pub(crate) fn ask_decommitter(&self, hashes: Vec<H256>) -> Vec<Vec<u8>> {
+        // let vm = if let VmInstance::Vm1_5_0(vm) = &self {
+        //     vm
+        // } else {
+        //     return vec![];
+        // };
+
+        let mut result = vec![];
+        for hash in hashes {
+            let bytecode = self
+                .state
+                .decommittment_processor
+                .known_bytecodes
+                .inner()
+                .get(&h256_to_u256(hash))
+                .expect("Bytecode not found")
+                .clone();
+            result.push(be_words_to_bytes(&bytecode));
+        }
+
+        result
+    }
+
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
         let (raw_events, l1_messages) = self.state.event_sink.flatten();
@@ -141,7 +165,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, None);
         if self.has_unpublished_bytecodes() {
@@ -151,7 +175,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             )
         } else {
             (
-                Ok(self.bootloader_state.get_last_tx_compressed_bytecodes()),
+                Ok(self
+                    .bootloader_state
+                    .get_last_tx_compressed_bytecodes()
+                    .into()),
                 result,
             )
         }

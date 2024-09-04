@@ -39,6 +39,7 @@ pretty_assertions.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
+ethabi.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

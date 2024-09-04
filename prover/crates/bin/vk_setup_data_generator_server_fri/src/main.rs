@@ -23,13 +23,14 @@ use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
     ProverServiceDataKey,
 };
-use zksync_vk_setup_data_server_fri::{
+use zksync_prover_keystore::{
     commitment_utils::generate_commitments,
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
 mod commitment_generator;
+mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
