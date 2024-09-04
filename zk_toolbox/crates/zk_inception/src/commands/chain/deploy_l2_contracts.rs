@@ -210,13 +210,10 @@ async fn call_forge(
 }
 
 fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    {
-        let _dir_guard = shell.push_dir(link_to_code.join("contracts/l2-contracts"));
-        Cmd::new(cmd!(
-            shell,
-            "forge build --zksync --zk-enable-eravm-extensions"
-        ))
-        .run()?;
-    }
-    Ok(Cmd::new(cmd!(shell, "yarn l2 build")).run()?)
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/l2-contracts"));
+    Ok(Cmd::new(cmd!(
+        shell,
+        "forge build --zksync --zk-enable-eravm-extensions"
+    ))
+    .run()?)
 }
