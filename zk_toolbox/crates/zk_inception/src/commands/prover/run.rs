@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context};
 use common::spinner::Spinner;
 use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
 use config::{ChainConfig, EcosystemConfig};
+use std::path::PathBuf;
 use xshell::{cmd, Shell};
 
 use super::{
@@ -263,8 +264,9 @@ fn run_dockerized_component(
         .expect(MSG_CHAIN_NOT_FOUND_ERR)
         .configs
         .clone();
-    let path_to_artifacts =
-        get_link_to_prover(&EcosystemConfig::from_file(shell)?).join("/artifacts");
+    let mut path_to_artifacts = get_link_to_prover(&ecosystem_config).into_os_string();
+    path_to_artifacts.push("/artifacts");
+    let path_to_artifacts: PathBuf = path_to_artifacts.into();
 
     let mut cmd = if additional_args.is_empty() {
         Cmd::new(cmd!(
