@@ -23,9 +23,9 @@ use zksync_prover_fri_types::{
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 

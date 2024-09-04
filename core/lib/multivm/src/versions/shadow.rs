@@ -166,6 +166,11 @@ impl DivergenceErrors {
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
         self.check_match(
+            "statistics.circuit_statistic",
+            &main_result.statistics.circuit_statistic,
+            &shadow_result.statistics.circuit_statistic,
+        );
+        self.check_match(
             "gas_remaining",
             &main_result.statistics.gas_remaining,
             &shadow_result.statistics.gas_remaining,
