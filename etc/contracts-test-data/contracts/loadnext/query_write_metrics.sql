@@ -7,9 +7,9 @@ WITH
 			50000 AS LIMIT_MINIBLOCKS
 	)
 SELECT
-    -- initial writes
-    STDDEV_SAMP(INITIAL_WRITES_PER_TX) AS INITIAL_WRITES_STDDEV,
-    PERCENTILE_CONT(0.00) WITHIN GROUP (
+	-- initial writes
+	STDDEV_SAMP(INITIAL_WRITES_PER_TX) AS INITIAL_WRITES_STDDEV,
+	PERCENTILE_CONT(0.00) WITHIN GROUP (
 		ORDER BY
 			INITIAL_WRITES_PER_TX
 	) AS INITIAL_WRITES_00,
@@ -106,7 +106,7 @@ FROM
 					LEFT JOIN INITIAL_WRITES IW ON IW.HASHED_KEY = SL.HASHED_KEY
 					AND IW.L1_BATCH_NUMBER = MB.L1_BATCH_NUMBER
 					AND MB.NUMBER = (
- 						-- initial writes are only tracked by L1 batch number, so find the first miniblock in that batch that contains a write to that key
+						-- initial writes are only tracked by L1 batch number, so find the first miniblock in that batch that contains a write to that key
 						SELECT
 							MINIBLOCK_NUMBER
 						FROM
