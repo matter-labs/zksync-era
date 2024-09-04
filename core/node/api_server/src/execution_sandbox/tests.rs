@@ -2,10 +2,17 @@
 
 use assert_matches::assert_matches;
 use zksync_dal::ConnectionPool;
+use zksync_multivm::{
+    interface::{executor::OneshotExecutor, OneshotTracingParams, TxExecutionArgs},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
+use zksync_types::{api::state_override::StateOverride, ProtocolVersionId, Transaction};
+use zksync_vm_executor::oneshot::MainOneshotExecutor;
 
 use super::*;
+use crate::{execution_sandbox::storage::StorageWithOverrides, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -161,7 +168,6 @@ async fn creating_block_args_after_snapshot_recovery() {
     }
 }
 
-/* FIXME: move to executor
 #[tokio::test]
 async fn instantiating_vm() {
     let pool = ConnectionPool::<Core>::test_pool().await;
@@ -184,25 +190,29 @@ async fn instantiating_vm() {
 }
 
 async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args: BlockArgs) {
-    let transaction = Transaction::from(create_l2_transaction(10, 100));
     let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
+    let mut setup_args = TxSetupArgs::mock(TxExecutionMode::EstimateFee, estimate_gas_contracts);
+    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
+        setup_args.fee_input,
+        ProtocolVersionId::latest().into(),
+    );
+    setup_args.enforced_base_fee = Some(base_fee);
+    let mut transaction = create_l2_transaction(base_fee, gas_per_pubdata);
+    transaction.common_data.fee.gas_limit = 200_000.into();
+    let transaction = Transaction::from(transaction);
 
     let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
-    let (env, storage) = apply::prepare_env_and_storage(
-        connection,
-        TxSetupArgs::mock(TxExecutionMode::EstimateFee, estimate_gas_contracts),
-        &block_args,
-    )
-    .await
-    .unwrap();
+    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
+        .await
+        .unwrap();
     let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
-    tokio::task::spawn_blocking(move || {
-        VmSandbox::new(storage, env, execution_args).apply(|_, received_tx| {
-            assert_eq!(received_tx, transaction);
-        });
-    })
-    .await
-    .expect("VM execution panicked")
+    let tracing_params = OneshotTracingParams::default();
+    let output = MainOneshotExecutor::new(usize::MAX)
+        .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracing_params)
+        .await
+        .unwrap();
+    output.compression_result.unwrap();
+    let tx_result = *output.tx_result;
+    assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
 }
-*/

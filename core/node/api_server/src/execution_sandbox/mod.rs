@@ -163,6 +163,26 @@ pub(crate) struct TxSetupArgs {
     pub enforced_base_fee: Option<u64>,
 }
 
+impl TxSetupArgs {
+    #[cfg(test)]
+    pub fn mock(
+        execution_mode: TxExecutionMode,
+        base_system_contracts: MultiVMBaseSystemContracts,
+    ) -> Self {
+        Self {
+            execution_mode,
+            operator_account: AccountTreeId::default(),
+            fee_input: BatchFeeInput::l1_pegged(55, 555),
+            base_system_contracts,
+            caches: PostgresStorageCaches::new(1, 1),
+            validation_computational_gas_limit: u32::MAX,
+            chain_id: L2ChainId::default(),
+            whitelisted_tokens_for_aa: vec![],
+            enforced_base_fee: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct BlockStartInfoInner {
     info: PruningInfo,

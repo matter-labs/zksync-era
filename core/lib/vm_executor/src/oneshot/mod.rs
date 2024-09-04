@@ -118,13 +118,11 @@ where
         tx: L2Tx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
-        let missed_storage_invocation_limit = match env.system.execution_mode {
-            // storage accesses are not limited for tx validation
-            TxExecutionMode::VerifyExecute => usize::MAX,
-            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
-                self.missed_storage_invocation_limit
-            }
-        };
+        anyhow::ensure!(
+            env.system.execution_mode == TxExecutionMode::VerifyExecute,
+            "Unexpected execution mode for tx validation: {:?} (expected `VerifyExecute`)",
+            env.system.execution_mode
+        );
 
         tokio::task::spawn_blocking(move || {
             let (validation_tracer, mut validation_result) =
@@ -132,10 +130,7 @@ where
                     validation_params,
                     env.system.version.into(),
                 );
-            let tracers = vec![
-                validation_tracer.into_tracer_pointer(),
-                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
-            ];
+            let tracers = vec![validation_tracer.into_tracer_pointer()];
 
             let executor = VmSandbox::new(storage, env, TxExecutionArgs::for_validation(tx));
             let exec_result = executor.apply(|vm, transaction| {
