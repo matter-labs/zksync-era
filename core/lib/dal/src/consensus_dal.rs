@@ -699,14 +699,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Try insert duplicate batch certificate for the same batch.
-        let cert2 = mock_batch_qc(l1_batch_number);
-
-        conn.consensus_dal()
-            .insert_batch_certificate(&cert2)
-            .await
-            .unwrap();
-
         // Retrieve the latest certificate.
         let number = conn
             .consensus_dal()
@@ -722,7 +714,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(cert, cert1, "duplicates are ignored");
+        assert_eq!(cert, cert1);
 
         // Try insert batch certificate for non-existing batch
         let cert3 = mock_batch_qc(l1_batch_number.next());

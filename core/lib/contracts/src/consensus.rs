@@ -26,12 +26,12 @@ pub trait Function {
 
 /// Address of contract C. It is just a wrapper of ethabi::Address,
 /// just additionally indicating what contract is deployed under this address.
-#[derive(Debug, Hash)]
+#[derive(Debug)]
 pub struct Address<C>(ethabi::Address, std::marker::PhantomData<C>);
 
 impl<C> Clone for Address<C> {
     fn clone(&self) -> Self {
-        Self(self.0, self.1)
+        *self
     }
 }
 
@@ -120,7 +120,7 @@ impl AsRef<ethabi::Contract> for ConsensusRegistry {
 }
 
 impl ConsensusRegistry {
-    const FILE: &str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
+    const FILE: &'static str = "contracts/l2-contracts/artifacts-zk/contracts/ConsensusRegistry.sol/ConsensusRegistry.json";
 
     /// Loads bytecode of the contract.
     pub fn bytecode() -> Vec<u8> {
