@@ -22,7 +22,7 @@ pub struct PortOffset(u16);
 
 impl PortOffset {
     pub fn from_chain_id(chain_id: u16) -> Self {
-        Self(chain_id * 100)
+        Self((chain_id - 1) * 100)
     }
 }
 
@@ -88,7 +88,7 @@ impl InitArgs {
             l1_rpc_url,
             port_offset: self
                 .port_offset
-                .unwrap_or(PortOffset::from_chain_id((config.id - 1) as u16))
+                .unwrap_or(PortOffset::from_chain_id(config.id as u16))
                 .into(),
         }
     }
