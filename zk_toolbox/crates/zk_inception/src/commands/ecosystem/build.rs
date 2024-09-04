@@ -41,7 +41,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
             final_ecosystem_args.forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(final_ecosystem_args.ecosystem.l1_rpc_url)
+        .with_rpc_url(final_ecosystem_args.l1_rpc_url)
         .with_sender(sender);
 
     check_the_balance(&forge).await?;

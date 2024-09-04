@@ -16,7 +16,7 @@ use crate::{
 const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemArgs {
+pub struct EcosystemBuildArgs {
     /// Deploy ecosystem contracts
     #[arg(long)]
     pub build_ecosystem: bool,
@@ -25,10 +25,19 @@ pub struct EcosystemArgs {
     pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    /// Address of the transaction sender.
+    #[arg(long)]
+    pub sender: String,
+    /// Output directory for the generated files.
+    #[arg(long, short)]
+    pub out: Option<String>,
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
 }
 
-impl EcosystemArgs {
-    pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
+impl EcosystemBuildArgs {
+    pub fn fill_values_with_prompt(self) -> EcosystemBuildArgsFinal {
         let ecosystem_contracts_path = match &self.ecosystem_contracts_path {
             Some(path) => Some(path.clone()),
             None => {
@@ -61,47 +70,13 @@ impl EcosystemArgs {
                 })
                 .ask()
         });
-
-        EcosystemArgsFinal {
-            build_ecosystem: self.build_ecosystem,
-            ecosystem_contracts_path,
-            l1_rpc_url,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EcosystemArgsFinal {
-    pub build_ecosystem: bool,
-    pub ecosystem_contracts_path: Option<PathBuf>,
-    pub l1_rpc_url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemBuildArgs {
-    /// Address of the transaction sender.
-    #[arg(long)]
-    pub sender: String,
-    /// Output directory for the generated files.
-    #[arg(long, short)]
-    pub out: Option<String>,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub ecosystem: EcosystemArgs,
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
-}
-
-impl EcosystemBuildArgs {
-    pub fn fill_values_with_prompt(self) -> EcosystemBuildArgsFinal {
-        let ecosystem = self.ecosystem.fill_values_with_prompt();
-
         EcosystemBuildArgsFinal {
             sender: self.sender,
             out: self.out.unwrap_or_else(|| DEFAULT_OUT_DIR.into()),
-            ecosystem,
             forge_args: self.forge_args.clone(),
+            build_ecosystem: self.build_ecosystem,
+            ecosystem_contracts_path,
+            l1_rpc_url,
         }
     }
 }
@@ -110,6 +85,8 @@ impl EcosystemBuildArgs {
 pub struct EcosystemBuildArgsFinal {
     pub sender: String,
     pub out: String,
-    pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
+    pub build_ecosystem: bool,
+    pub ecosystem_contracts_path: Option<PathBuf>,
+    pub l1_rpc_url: String,
 }
