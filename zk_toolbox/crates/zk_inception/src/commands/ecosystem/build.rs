@@ -55,12 +55,18 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
-    let contracts_config = init(
-        &mut final_ecosystem_args,
+    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
+    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    spinner.finish();
+
+    let contracts = build_ecosystem(
         shell,
+        &mut final_ecosystem_args.ecosystem,
+        final_ecosystem_args.forge_args.clone(),
         &ecosystem_config,
         &initial_deployment_config,
-        sender.clone(),
+        sender,
     )
     .await?;
 
@@ -71,7 +77,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     save_toml_file(
         shell,
         format!("{}/contracts.toml", final_ecosystem_args.out),
-        contracts_config,
+        contracts,
         "",
     )
     .context(MSG_ECOSYSTEM_BUILD_CONTRACTS_PATH_INVALID_ERR)?;
@@ -84,31 +90,6 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     logger::outro(MSG_ECOSYSTEM_BUILD_OUTRO);
 
     Ok(())
-}
-
-async fn init(
-    init_args: &mut EcosystemBuildArgsFinal,
-    shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    sender: String,
-) -> anyhow::Result<ContractsConfig> {
-    let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
-    spinner.finish();
-
-    let contracts = build_ecosystem(
-        shell,
-        &mut init_args.ecosystem,
-        init_args.forge_args.clone(),
-        ecosystem_config,
-        initial_deployment_config,
-        sender,
-    )
-    .await?;
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-    Ok(contracts)
 }
 
 async fn build_ecosystem(
