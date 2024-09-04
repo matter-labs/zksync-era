@@ -127,7 +127,7 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
     let prometheus = config
         .prometheus_config
         .as_mut()
-        .context("Prometheus config is not presented")?;
+        .context("Contract Verifier config is not presented")?;
 
     api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
     update_port_in_url(

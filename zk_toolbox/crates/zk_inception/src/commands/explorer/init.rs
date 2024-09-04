@@ -10,24 +10,21 @@ use url::Url;
 use xshell::Shell;
 
 use crate::{
-    consts::{L2_BASE_TOKEN_ADDRESS, MAX_ALLOCATED_PORT, MIN_ALLOCATED_PORT},
+    commands::chain::args::init::PortOffset,
+    consts::L2_BASE_TOKEN_ADDRESS,
     defaults::{
         generate_explorer_db_name, DATABASE_EXPLORER_URL, EXPLORER_API_PORT,
         EXPLORER_DATA_FETCHER_PORT, EXPLORER_WORKER_PORT,
     },
     messages::{
         msg_chain_load_err, msg_explorer_db_name_prompt, msg_explorer_db_url_prompt,
-        msg_explorer_initializing_database_for, MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR,
-        MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR, MSG_EXPLORER_INITIALIZED,
+        msg_explorer_initializing_database_for, MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR,
+        MSG_EXPLORER_INITIALIZED,
     },
-    utils::ports::{EcosystemPorts, EcosystemPortsScanner},
 };
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    // Keep track of allocated ports:
-    let mut ecosystem_ports =
-        EcosystemPortsScanner::scan(shell).context("Failed to scan ecosystem ports")?;
     // If specific chain is provided, initialize only that chain; otherwise, initialize all chains
     let chains_enabled = match global_config().chain_name {
         Some(ref chain_name) => vec![chain_name.clone()],
@@ -40,8 +37,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
             .load_chain(Some(chain_name.clone()))
             .context(msg_chain_load_err(chain_name))?;
         // Initialize chain-level apps.yaml
-        let apps_chain_config =
-            initialize_apps_chain_config(shell, &chain_config, &mut ecosystem_ports)?;
+        let apps_chain_config = initialize_apps_chain_config(shell, &chain_config)?;
         // Initialize explorer database
         initialize_explorer_database(&apps_chain_config.explorer.database_url).await?;
         // Create chain-level explorer.json
@@ -54,7 +50,6 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
 fn initialize_apps_chain_config(
     shell: &Shell,
     chain_config: &ChainConfig,
-    ecosystem_ports: &mut EcosystemPorts,
 ) -> anyhow::Result<AppsChainConfig> {
     let ecosystem_path = shell.current_dir();
     let apps_chain_config_path =
@@ -68,8 +63,7 @@ fn initialize_apps_chain_config(
     let db_config = fill_database_values_with_prompt(chain_config);
 
     // Allocate ports for backend services
-    let services_config = allocate_explorer_services_ports(ecosystem_ports)
-        .context(MSG_EXPLORER_FAILED_TO_ALLOCATE_PORTS_ERR)?;
+    let services_config = allocate_explorer_services_ports(chain_config);
 
     // Build and save apps chain config
     let app_chain_config = AppsChainConfig {
@@ -104,34 +98,14 @@ fn fill_database_values_with_prompt(config: &ChainConfig) -> db::DatabaseConfig 
     db::DatabaseConfig::new(explorer_db_url, explorer_db_name)
 }
 
-fn allocate_explorer_services_ports(
-    ports: &mut EcosystemPorts,
-) -> anyhow::Result<ExplorerServicesConfig> {
-    let default_ports = vec![
-        EXPLORER_API_PORT,
-        EXPLORER_DATA_FETCHER_PORT,
-        EXPLORER_WORKER_PORT,
-    ];
-
+fn allocate_explorer_services_ports(chain_config: &ChainConfig) -> ExplorerServicesConfig {
     // Try to allocate intuitive ports with an offset from the defaults
-    let range = MIN_ALLOCATED_PORT..MAX_ALLOCATED_PORT;
-    let offset = ports.find_offset(&default_ports, range.clone(), 100)?;
-    let services_config = ExplorerServicesConfig::new(
+    let offset: u16 = PortOffset::from_chain_id(chain_config.id as u16).into();
+    ExplorerServicesConfig::new(
         EXPLORER_API_PORT + offset,
         EXPLORER_DATA_FETCHER_PORT + offset,
         EXPLORER_WORKER_PORT + offset,
-    );
-    // Assign ports and add port information:
-    ports.add_port_info(services_config.api_http_port, "Explorer API".to_string());
-    ports.add_port_info(
-        services_config.data_fetcher_http_port,
-        "Explorer Data Fetcher".to_string(),
-    );
-    ports.add_port_info(
-        services_config.worker_http_port,
-        "Explorer Worker".to_string(),
-    );
-    Ok(services_config)
+    )
 }
 
 fn create_explorer_chain_config(

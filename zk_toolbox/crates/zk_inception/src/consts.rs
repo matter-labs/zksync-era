@@ -15,6 +15,3 @@ pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
-
-pub const MIN_ALLOCATED_PORT: u16 = 3000;
-pub const MAX_ALLOCATED_PORT: u16 = 65535;
