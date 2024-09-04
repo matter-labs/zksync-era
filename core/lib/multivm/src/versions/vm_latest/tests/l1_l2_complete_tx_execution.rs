@@ -18,7 +18,7 @@ use crate::{
             tester::{VmTester, VmTesterBuilder},
             utils::{
                 deploy_and_verify_contract, read_admin_facet, read_bridgehub, read_diamond,
-                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root_test,
+                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root,
                 read_stm, read_transparent_proxy, send_l2_tx_and_verify, send_prank_tx_and_verify,
                 undo_l1_to_l2_alias, BASE_SYSTEM_CONTRACTS,
             },
@@ -53,7 +53,7 @@ fn prepare_environment_and_deploy_contracts(
 
     // Deploy Message Root
 
-    let message_root_contract_bytecode = read_message_root_test();
+    let message_root_contract_bytecode = read_message_root();
     let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[Token::Address(bridgehub_address)];
     let message_root_address = deploy_and_verify_contract(
@@ -578,16 +578,14 @@ fn test_l1_l2_complete_tx_execution_modified_l2_canonical_tx_calldata_factory_de
     let request_params = BridgeHubRequestL2TransactionOnGateway::default();
 
     // Generate a large number of vectors
-    // let small_vector_size: usize = 1_470_560; // Size of each vector
-    let small_vector_size: usize = 1_200_000; // Size of each vector
+    let small_vector_size: usize = 1_470_560; // Size of each vector
     let num_vectors = 1; // Number of vectors
 
     let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
         .map(|_| vec![0u8; small_vector_size])
         .collect();
 
-    // let call_data_size: usize = 2_879_168; // Size of calldata of L2 tx
-    let call_data_size: usize = 2_500_000; // Size of calldata of L2 tx
+    let call_data_size: usize = 2_879_168; // Size of calldata of L2 tx
     let call_data: Vec<u8> = vec![1u8; call_data_size]; // 5350756
 
     let tx_factory_deps_size: usize = 32_209; // Size of factory deps of L2 tx
