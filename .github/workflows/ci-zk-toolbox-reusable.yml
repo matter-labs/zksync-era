@@ -1,7 +1,8 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
-    compilers:
+    inputs:
+      compilers:
         description: 'JSON of required compilers and their versions'
         type: string
         required: false
