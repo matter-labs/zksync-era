@@ -30,7 +30,7 @@ impl FromStr for TeeType {
 mod tests {
     use serde_json;
 
-    use super::TeeType;
+    use super::*;
 
     #[test]
     fn test_deserialize_teetype() {
