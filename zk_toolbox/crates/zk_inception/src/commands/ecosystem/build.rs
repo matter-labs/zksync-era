@@ -1,12 +1,9 @@
-use std::{path::PathBuf, str::FromStr};
-
 use anyhow::Context;
 use common::{
     files::save_toml_file,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
-    Prompt,
 };
 use config::{
     forge_interface::{
@@ -33,7 +30,6 @@ use crate::{
     commands::ecosystem::create_configs::create_initial_deployments_config,
     messages::{
         msg_ecosystem_no_found_preexisting_contract, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::check_the_balance,
@@ -132,28 +128,6 @@ async fn build_ecosystem(
         .await;
     }
 
-    let ecosystem_contracts_path = match &ecosystem.ecosystem_contracts_path {
-        Some(path) => Some(path.clone()),
-        None => {
-            let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
-                .allow_empty()
-                .validate_with(|val: &String| {
-                    if val.is_empty() {
-                        return Ok(());
-                    }
-                    PathBuf::from_str(val)
-                        .map(|_| ())
-                        .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
-                })
-                .ask();
-            if input_path.is_empty() {
-                None
-            } else {
-                Some(input_path.into())
-            }
-        }
-    };
-
     let ecosystem_preexisting_configs_path =
         ecosystem_config
             .get_preexisting_configs_path()
@@ -164,21 +138,25 @@ async fn build_ecosystem(
 
     // currently there are not some preexisting ecosystem contracts in
     // chains, so we need check if this file exists.
-    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
+    if ecosystem.ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists()
+    {
         anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
             &ecosystem_config.l1_network.to_string()
         ))
     }
 
     let ecosystem_contracts_path =
-        ecosystem_contracts_path.unwrap_or_else(|| match ecosystem_config.l1_network {
-            L1Network::Localhost => {
-                ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
-            }
-            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => {
-                ecosystem_preexisting_configs_path
-            }
-        });
+        ecosystem
+            .ecosystem_contracts_path
+            .clone()
+            .unwrap_or_else(|| match ecosystem_config.l1_network {
+                L1Network::Localhost => {
+                    ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
+                }
+                L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => {
+                    ecosystem_preexisting_configs_path
+                }
+            });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
 }

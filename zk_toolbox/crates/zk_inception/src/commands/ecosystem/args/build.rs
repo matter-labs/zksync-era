@@ -1,10 +1,16 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use common::forge::ForgeScriptArgs;
+use common::{forge::ForgeScriptArgs, Prompt};
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::chain::args::genesis::GenesisArgs, messages::MSG_GENESIS_ARGS_HELP};
+use crate::{
+    commands::chain::args::genesis::GenesisArgs,
+    messages::{
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_GENESIS_ARGS_HELP,
+    },
+};
 
 const DEFAULT_OUT_DIR: &str = "transactions";
 
@@ -20,9 +26,31 @@ pub struct EcosystemArgs {
 
 impl EcosystemArgs {
     pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
+        let ecosystem_contracts_path = match &self.ecosystem_contracts_path {
+            Some(path) => Some(path.clone()),
+            None => {
+                let input_path: String = Prompt::new(MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT)
+                    .allow_empty()
+                    .validate_with(|val: &String| {
+                        if val.is_empty() {
+                            return Ok(());
+                        }
+                        PathBuf::from_str(val)
+                            .map(|_| ())
+                            .map_err(|_| MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR.to_string())
+                    })
+                    .ask();
+                if input_path.is_empty() {
+                    None
+                } else {
+                    Some(input_path.into())
+                }
+            }
+        };
+
         EcosystemArgsFinal {
             build_ecosystem: self.build_ecosystem,
-            ecosystem_contracts_path: self.ecosystem_contracts_path,
+            ecosystem_contracts_path,
         }
     }
 }
