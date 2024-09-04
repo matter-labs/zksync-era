@@ -374,5 +374,5 @@ fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<
         .run()?;
     }
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn sc build:bootloader")).run()?)
+    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }
