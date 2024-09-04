@@ -50,7 +50,7 @@ pub struct EthWatch {
 impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        diamond_proxy_addr: Address,
+        sl_diamond_proxy_addr: Address,
         governance_contract: &Contract,
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
@@ -67,7 +67,7 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id, priority_merkle_tree)?;
         let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            diamond_proxy_addr,
+            sl_diamond_proxy_addr,
             state.last_seen_protocol_version,
             governance_contract,
         );

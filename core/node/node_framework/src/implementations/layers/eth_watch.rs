@@ -72,6 +72,22 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
         let priority_tree = input.priority_tree.0;
+        let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
+            self.gateway_contracts_config
+                .clone()
+                .unwrap()
+                .diamond_proxy_addr
+        } else {
+            self.contracts_config.diamond_proxy_addr
+        };
+        tracing::info!(
+            "Diamond proxy address ethereum: {}",
+            self.contracts_config.diamond_proxy_addr
+        );
+        tracing::info!(
+            "Diamond proxy address settlement_layer: {}",
+            sl_diamond_proxy_addr
+        );
 
         let l1_client = EthHttpQueryClient::new(
             client,
@@ -102,7 +118,7 @@ impl WiringLayer for EthWatchLayer {
         };
 
         let eth_watch = EthWatch::new(
-            self.contracts_config.diamond_proxy_addr,
+            sl_diamond_proxy_addr,
             &governance_contract(),
             &chain_admin_contract(),
             Box::new(l1_client),

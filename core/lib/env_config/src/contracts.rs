@@ -53,7 +53,7 @@ impl FromEnvVariant for ContractsConfig {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }
-        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
+        contracts.ecosystem_contracts = EcosystemContracts::from_env_variant(variant).ok();
         Ok(contracts)
     }
 }
