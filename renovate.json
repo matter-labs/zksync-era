@@ -1,5 +1,5 @@
 {
-  "extends": ["config:base", "helpers:pinGitHubActionDigests"],
+  "extends": ["config:base", "schedule:earlyMondays","helpers:pinGitHubActionDigests"],
   "enabledManagers": ["github-actions"],
   "prCreation": "immediate"
 }
