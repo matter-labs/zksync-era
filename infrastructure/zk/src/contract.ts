@@ -144,11 +144,12 @@ async function updateConfigOnSyncLayer() {
         if (specialParams.includes(envVar)) {
             continue;
         }
-        const contractsVar = envVar.replace(/GATEWAY/g, 'CONTRACTS');
+        const contractsVar = envVar.replace(/GATEWAY/g, 'GATEWAY_CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('GATEWAY_ETH_CLIENT_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    // for loadtest
     env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.GATEWAY_CHAIN_ID!, envFile, false);
 
