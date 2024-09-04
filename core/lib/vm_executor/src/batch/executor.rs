@@ -1,83 +1,32 @@
-use std::{error::Error as StdError, fmt, sync::Arc};
+use std::{error::Error as StdError, sync::Arc};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
-    Call, CompressedBytecodeInfo, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
-    VmExecutionResultAndLogs,
+    executor::BatchExecutor,
+    storage::{ReadStorage, StorageView},
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
-use zksync_state::{interface::StorageViewCache, OwnedStorage};
-use zksync_types::{Transaction, H256};
+use zksync_types::Transaction;
 
-use crate::{
-    metrics::{ExecutorCommand, EXECUTOR_METRICS},
-    types::ExecutionMetricsForCriteria,
-};
-
-pub mod main_executor;
-#[cfg(test)]
-mod tests;
-
-/// Representation of a transaction executed in the virtual machine.
-#[derive(Debug, Clone)]
-pub enum TxExecutionResult {
-    /// Successful execution of the tx and the block tip dry run.
-    Success {
-        tx_result: Box<VmExecutionResultAndLogs>,
-        tx_metrics: Box<ExecutionMetricsForCriteria>,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
-        call_tracer_result: Vec<Call>,
-        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
-        gas_remaining: u32,
-    },
-    /// The VM rejected the tx for some reason.
-    RejectedByVm { reason: Halt },
-    /// Bootloader gas limit is not enough to execute the tx.
-    BootloaderOutOfGasForTx,
-}
-
-impl TxExecutionResult {
-    /// Returns a revert reason if either transaction was rejected or bootloader ran out of gas.
-    pub(super) fn err(&self) -> Option<&Halt> {
-        match self {
-            Self::Success { .. } => None,
-            Self::RejectedByVm {
-                reason: rejection_reason,
-            } => Some(rejection_reason),
-            Self::BootloaderOutOfGasForTx => Some(&Halt::BootloaderOutOfGas),
-        }
-    }
-}
-
-/// An abstraction that allows us to create different kinds of batch executors.
-/// The only requirement is to return a [`BatchExecutorHandle`], which does its work
-/// by communicating with the externally initialized thread.
-///
-/// This type is generic over the storage type accepted to create the VM instance, mostly for testing purposes.
-pub trait BatchExecutor<S = OwnedStorage>: 'static + Send + Sync + fmt::Debug {
-    fn init_batch(
-        &mut self,
-        storage: S,
-        l1_batch_params: L1BatchEnv,
-        system_env: SystemEnv,
-    ) -> BatchExecutorHandle;
-}
+use super::metrics::{ExecutorCommand, EXECUTOR_METRICS};
 
 #[derive(Debug)]
-enum HandleOrError {
-    Handle(JoinHandle<anyhow::Result<()>>),
+enum HandleOrError<S> {
+    Handle(JoinHandle<anyhow::Result<StorageView<S>>>),
     Err(Arc<dyn StdError + Send + Sync>),
 }
 
-impl HandleOrError {
+impl<S> HandleOrError<S> {
     async fn wait_for_error(&mut self) -> anyhow::Error {
         let err_arc = match self {
             Self::Handle(handle) => {
                 let err = match handle.await {
-                    Ok(Ok(())) => anyhow::anyhow!("batch executor unexpectedly stopped"),
+                    Ok(Ok(_)) => anyhow::anyhow!("batch executor unexpectedly stopped"),
                     Ok(Err(err)) => err,
                     Err(err) => anyhow::Error::new(err).context("batch executor panicked"),
                 };
@@ -91,7 +40,7 @@ impl HandleOrError {
         anyhow::Error::new(err_arc)
     }
 
-    async fn wait(self) -> anyhow::Result<()> {
+    async fn wait(self) -> anyhow::Result<StorageView<S>> {
         match self {
             Self::Handle(handle) => handle.await.context("batch executor panicked")?,
             Self::Err(err_arc) => Err(anyhow::Error::new(err_arc)),
@@ -99,21 +48,16 @@ impl HandleOrError {
     }
 }
 
-/// A public interface for interaction with the `BatchExecutor`.
-/// `BatchExecutorHandle` is stored in the state keeper and is used to invoke or rollback transactions, and also seal
-/// the batches.
+/// "Main" [`BatchExecutor`] implementation instantiating a VM in a blocking Tokio thread.
 #[derive(Debug)]
-pub struct BatchExecutorHandle {
-    handle: HandleOrError,
+pub struct MainBatchExecutor<S> {
+    handle: HandleOrError<S>,
     commands: mpsc::Sender<Command>,
 }
 
-impl BatchExecutorHandle {
-    /// Creates a batch executor handle from the provided sender and thread join handle.
-    /// Can be used to inject an alternative batch executor implementation.
-    #[doc(hidden)]
-    pub(super) fn from_raw(
-        handle: JoinHandle<anyhow::Result<()>>,
+impl<S: ReadStorage> MainBatchExecutor<S> {
+    pub(super) fn new(
+        handle: JoinHandle<anyhow::Result<StorageView<S>>>,
         commands: mpsc::Sender<Command>,
     ) -> Self {
         Self {
@@ -121,9 +65,18 @@ impl BatchExecutorHandle {
             commands,
         }
     }
+}
 
+#[async_trait]
+impl<S> BatchExecutor<S> for MainBatchExecutor<S>
+where
+    S: ReadStorage + Send + 'static,
+{
     #[tracing::instrument(skip_all)]
-    pub async fn execute_tx(&mut self, tx: Transaction) -> anyhow::Result<TxExecutionResult> {
+    async fn execute_tx(
+        &mut self,
+        tx: Transaction,
+    ) -> anyhow::Result<BatchTransactionExecutionResult> {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -145,9 +98,9 @@ impl BatchExecutorHandle {
         };
         let elapsed = latency.observe();
 
-        if let TxExecutionResult::Success { tx_metrics, .. } = &res {
-            let gas_per_nanosecond = tx_metrics.execution_metrics.computational_gas_used as f64
-                / elapsed.as_nanos() as f64;
+        if !res.tx_result.result.is_failed() {
+            let gas_per_nanosecond =
+                res.tx_result.statistics.computational_gas_used as f64 / elapsed.as_nanos() as f64;
             EXECUTOR_METRICS
                 .computational_gas_per_nanosecond
                 .observe(gas_per_nanosecond);
@@ -163,31 +116,7 @@ impl BatchExecutorHandle {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
-        // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
-        // indeed has been processed.
-        let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self
-            .commands
-            .send(Command::StartNextL2Block(env, response_sender))
-            .await
-            .is_err();
-        if send_failed {
-            return Err(self.handle.wait_for_error().await);
-        }
-
-        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::StartNextL2Block]
-            .start();
-        if response_receiver.await.is_err() {
-            return Err(self.handle.wait_for_error().await);
-        }
-        latency.observe();
-        Ok(())
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
+    async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
         let (response_sender, response_receiver) = oneshot::channel();
@@ -211,7 +140,33 @@ impl BatchExecutorHandle {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn finish_batch(mut self) -> anyhow::Result<FinishedL1Batch> {
+    async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
+        // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
+        // indeed has been processed.
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::StartNextL2Block(env, response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::StartNextL2Block]
+            .start();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
+        latency.observe();
+        Ok(())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn finish_batch(
+        mut self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
@@ -229,44 +184,19 @@ impl BatchExecutorHandle {
             Ok(batch) => batch,
             Err(_) => return Err(self.handle.wait_for_error().await),
         };
-        self.handle.wait().await?;
         latency.observe();
-        Ok(finished_batch)
-    }
-
-    pub async fn finish_batch_with_cache(
-        mut self,
-    ) -> anyhow::Result<(FinishedL1Batch, StorageViewCache)> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self
-            .commands
-            .send(Command::FinishBatchWithCache(response_sender))
-            .await
-            .is_err();
-        if send_failed {
-            return Err(self.handle.wait_for_error().await);
-        }
-
-        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::FinishBatchWithCache]
-            .start();
-        let batch_with_cache = match response_receiver.await {
-            Ok(batch_with_cache) => batch_with_cache,
-            Err(_) => return Err(self.handle.wait_for_error().await),
-        };
-
-        self.handle.wait().await?;
-
-        latency.observe();
-        Ok(batch_with_cache)
+        let storage_view = self.handle.wait().await?;
+        Ok((finished_batch, storage_view))
     }
 }
 
 #[derive(Debug)]
 pub(super) enum Command {
-    ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
+    ExecuteTx(
+        Box<Transaction>,
+        oneshot::Sender<BatchTransactionExecutionResult>,
+    ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
-    FinishBatchWithCache(oneshot::Sender<(FinishedL1Batch, StorageViewCache)>),
 }

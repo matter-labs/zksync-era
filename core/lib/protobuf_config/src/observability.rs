@@ -30,11 +30,7 @@ impl ProtoRepr for proto::Observability {
             sentry_url,
             sentry_environment,
             log_format: required(&self.log_format).context("log_format")?.clone(),
-            opentelemetry: self
-                .opentelemetry
-                .as_ref()
-                .map(|cfg| cfg.read().context("opentelemetry"))
-                .transpose()?,
+            opentelemetry: self.opentelemetry.as_ref().and_then(|cfg| cfg.read().ok()),
             log_directives: self.log_directives.clone(),
         })
     }

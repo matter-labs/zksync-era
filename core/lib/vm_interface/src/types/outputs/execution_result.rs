@@ -297,6 +297,22 @@ impl Call {
     }
 }
 
+/// Mid-level transaction execution output returned by a batch executor.
+#[derive(Debug, Clone)]
+pub struct BatchTransactionExecutionResult {
+    pub tx_result: Box<VmExecutionResultAndLogs>,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub new_known_factory_deps: Vec<(H256, Vec<u8>)>,
+}
+
+impl BatchTransactionExecutionResult {
+    pub fn was_halted(&self) -> bool {
+        matches!(self.tx_result.result, ExecutionResult::Halt { .. })
+    }
+}
+
+/// High-level transaction execution result used by the API server sandbox etc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
     pub transaction: Transaction,

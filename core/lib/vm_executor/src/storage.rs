@@ -1,13 +1,15 @@
+//! Utils to get data for L1 batch execution from storage.
+
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
     block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
 

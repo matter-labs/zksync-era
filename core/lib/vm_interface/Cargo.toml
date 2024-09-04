@@ -16,6 +16,8 @@ zksync_system_constants.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 
+anyhow.workspace = true
+async-trait.workspace = true
 hex.workspace = true
 serde.workspace = true
 thiserror.workspace = true

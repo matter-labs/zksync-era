@@ -16,29 +16,9 @@ use zksync_types::{
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm_executor::batch::extract_bytecodes_marked_as_known;
 
 use crate::metrics::KEEPER_METRICS;
-
-/// Extracts all bytecodes marked as known on the system contracts.
-pub(crate) fn extract_bytecodes_marked_as_known(all_generated_events: &[VmEvent]) -> Vec<H256> {
-    static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-        ethabi::long_signature(
-            "MarkedAsKnown",
-            &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
-        )
-    });
-
-    all_generated_events
-        .iter()
-        .filter(|event| {
-            // Filter events from the deployer contract that match the expected signature.
-            event.address == KNOWN_CODES_STORAGE_ADDRESS
-                && event.indexed_topics.len() == 3
-                && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
-        })
-        .map(|event| event.indexed_topics[1])
-        .collect()
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {

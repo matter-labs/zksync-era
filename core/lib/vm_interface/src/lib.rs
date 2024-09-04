@@ -28,17 +28,18 @@ pub use crate::{
             VmExecutionMode,
         },
         outputs::{
-            BootloaderMemory, Call, CallType, CircuitStatistic, CompressedBytecodeInfo,
-            CurrentExecutionState, DeduplicatedWritesMetrics, ExecutionResult, FinishedL1Batch,
-            L2Block, Refunds, TransactionExecutionMetrics, TransactionExecutionResult,
-            TxExecutionStatus, VmEvent, VmExecutionLogs, VmExecutionMetrics,
-            VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+            BatchTransactionExecutionResult, BootloaderMemory, Call, CallType, CircuitStatistic,
+            CompressedBytecodeInfo, CurrentExecutionState, DeduplicatedWritesMetrics,
+            ExecutionResult, FinishedL1Batch, L2Block, Refunds, TransactionExecutionMetrics,
+            TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionLogs,
+            VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
         },
         tracer,
     },
     vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled},
 };
 
+pub mod executor;
 pub mod storage;
 mod types;
 mod vm;
