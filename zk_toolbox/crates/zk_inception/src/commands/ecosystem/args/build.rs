@@ -6,12 +6,10 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
-        MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
     },
 };
 
@@ -93,9 +91,6 @@ pub struct EcosystemBuildArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
-    #[clap(flatten, next_help_heading = MSG_GENESIS_ARGS_HELP)]
-    #[serde(flatten)]
-    pub genesis_args: GenesisArgs,
 }
 
 impl EcosystemBuildArgs {
