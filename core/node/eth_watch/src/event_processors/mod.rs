@@ -32,6 +32,7 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
+#[derive(Debug)]
 pub(super) enum EventsSource {
     L1,
     SL,
