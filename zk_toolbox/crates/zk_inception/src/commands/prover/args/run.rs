@@ -12,6 +12,8 @@ pub struct ProverRunArgs {
     pub witness_generator_args: WitnessGeneratorArgs,
     #[clap(flatten)]
     pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
+    #[clap(long)]
+    pub docker: Option<bool>,
 }
 
 #[derive(
@@ -30,6 +32,19 @@ pub enum ProverComponent {
     Compressor,
     #[strum(to_string = "ProverJobMonitor")]
     ProverJobMonitor,
+}
+
+impl ProverComponent {
+    pub fn image_name(&self) -> &'static str {
+        match self {
+            Self::Gateway => "matterlabs/prover-fri-gateway:latest",
+            Self::WitnessGenerator => "matterlabs/witness-generator:latest",
+            Self::WitnessVectorGenerator => "matterlabs/witness-vector-generator:latest",
+            Self::Prover => "matterlabs/prover-gpu-fri:latest",
+            Self::Compressor => "matterlabs/proof-fri-gpu-compressor:latest",
+            Self::ProverJobMonitor => "matterlabs/prover-job-monitor:latest",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -77,7 +92,7 @@ impl WitnessVectorGeneratorArgs {
 }
 
 impl ProverRunArgs {
-    pub fn fill_values_with_prompt(&self) -> anyhow::Result<ProverRunArgs> {
+    pub fn fill_values_with_prompt(self) -> anyhow::Result<ProverRunArgs> {
         let component = self.component.unwrap_or_else(|| {
             PromptSelect::new(MSG_RUN_COMPONENT_PROMPT, ProverComponent::iter()).ask()
         });
@@ -90,10 +105,17 @@ impl ProverRunArgs {
             .witness_vector_generator_args
             .fill_values_with_prompt(component)?;
 
+        let docker = self.docker.unwrap_or_else(|| {
+            Prompt::new("Do you want to run Docker image for the component?")
+                .default("false")
+                .ask()
+        });
+
         Ok(ProverRunArgs {
             component: Some(component),
             witness_generator_args,
             witness_vector_generator_args,
+            docker: Some(docker),
         })
     }
 }
