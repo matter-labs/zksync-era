@@ -409,10 +409,7 @@ export class TestContextOwner {
                     );
 
                     // Race the transaction wait against the timeout
-                    await Promise.race([
-                        tx.wait(),
-                        timeoutPromise
-                    ]);
+                    await Promise.race([tx.wait(), timeoutPromise]);
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
