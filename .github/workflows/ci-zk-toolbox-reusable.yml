@@ -201,6 +201,7 @@ jobs:
 
       - name: Run external node server
         run: |
+          ci_run cargo build --release --bin zksync_external_node 
           ci_run zk_inception external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zk_inception external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zk_inception external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
