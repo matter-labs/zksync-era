@@ -8827,7 +8827,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_prover_dal",
  "zksync_shared_metrics",
  "zksync_types",
 ]
@@ -9177,7 +9176,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
- "zksync_prover_dal",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
  "zksync_state",
@@ -9396,16 +9394,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prover_dal"
-version = "0.1.0"
-dependencies = [
- "sqlx",
- "strum",
- "zksync_basic_types",
- "zksync_db_connection",
 ]
 
 [[package]]
