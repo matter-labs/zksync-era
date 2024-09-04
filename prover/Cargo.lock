@@ -733,9 +733,9 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c861b4baec895cb8e53b10825407f0844b0eafda2ac79e7f02de95439f0f1e74"
+checksum = "32b8cef3fbb88f7487b0b6df0fcfc4d3f0512caa3aa95179e24ba4968efd78ec"
 dependencies = [
  "boojum",
  "cmake",
@@ -1862,9 +1862,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "era_cudart"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ac97d833b861e32bc0a71d0542bf5c92094f9818c52d65c695227bfa95ffbe3"
+checksum = "56adce5e80762de54a767b1a8b986f7d2e9a3b3d576498812a501ca3ea908c64"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1873,9 +1873,9 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee6aed60cf09cb6d0b954d74351acb9beb13daab0bacad279691f6b97504b7e6"
+checksum = "c817b1af13a7c689d4bc94c02ca4840eb38cf1026655810e3d1afb357223cb1b"
 dependencies = [
  "serde_json",
 ]
@@ -5572,9 +5572,9 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e5d862287bb883a4cb0bc4f8ea938ba3fdaa5e495f1a59bc3515231017a0e2"
+checksum = "e3f109ab872c4f8b50e6efc17f564eb1a024766f129066e3dc8ef5b1493ad540"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
@@ -7549,13 +7549,15 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82fe099f4f4a2cc8ca8ca591d7619ac00b8054f63b712fa6ceee2b84c6e04c62"
+checksum = "6cd244a1ca2cc5338a35ed37d767392581415c8770ed6608b836df05fff003ed"
 dependencies = [
  "bindgen 0.59.2",
+ "cmake",
  "crossbeam 0.8.4",
  "derivative",
+ "era_cudart_sys",
  "futures 0.3.30",
  "futures-locks",
  "num_cpus",
@@ -7563,9 +7565,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f73d27e0e4589c7445f5a22e511cb5186e2d205172ca4b26acd7a334b3af9492"
+checksum = "3376c9dd7c8abfcc088c7a2ffbf9f233f1ab2b02af3584614fda5894d3bbd08d"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
@@ -7580,9 +7582,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-wrapper-prover"
-version = "0.150.4"
+version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cf4c09adf0a84af0d7ded1fd85a2487fef4cbf1cfc1925412717d0eef03dd5a"
+checksum = "de4a5904e90135a046284ed22bb764e85a7ea705f27cde3d19213edbb333bc28"
 dependencies = [
  "circuit_definitions",
  "zkevm_test_harness",
