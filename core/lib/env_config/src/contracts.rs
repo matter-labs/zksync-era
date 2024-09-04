@@ -10,15 +10,15 @@ impl FromEnv for EcosystemContracts {
 impl FromEnvVariant for EcosystemContracts {
     fn from_env_variant(variant: String) -> anyhow::Result<Self> {
         Ok(Self {
-            bridgehub_proxy_addr: std::env::var(&format!(
+            bridgehub_proxy_addr: std::env::var(format!(
                 "{variant}CONTRACTS_BRIDGEHUB_PROXY_ADDR"
             ))?
             .parse()?,
-            state_transition_proxy_addr: std::env::var(&format!(
+            state_transition_proxy_addr: std::env::var(format!(
                 "{variant}CONTRACTS_STATE_TRANSITION_PROXY_ADDR"
             ))?
             .parse()?,
-            transparent_proxy_admin_addr: std::env::var(&format!(
+            transparent_proxy_admin_addr: std::env::var(format!(
                 "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
             ))?
             .parse()?,

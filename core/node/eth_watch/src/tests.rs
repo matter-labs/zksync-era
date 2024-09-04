@@ -47,8 +47,7 @@ impl FakeEthClientData {
                 .entry(eth_block.0 as u64)
                 .or_default()
                 .push(tx_into_log(transaction.clone()));
-            self.processed_priority_transactions_count =
-                self.processed_priority_transactions_count + 1;
+            self.processed_priority_transactions_count += 1;
         }
     }
 

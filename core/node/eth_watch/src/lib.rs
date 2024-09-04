@@ -48,6 +48,7 @@ pub struct EthWatch {
 }
 
 impl EthWatch {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         diamond_proxy_addr: Address,
         governance_contract: &Contract,

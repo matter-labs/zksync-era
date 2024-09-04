@@ -203,6 +203,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    #[allow(dead_code)]
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
             self.contracts_config.diamond_proxy_addr,
