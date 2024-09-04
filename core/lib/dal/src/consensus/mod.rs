@@ -493,7 +493,7 @@ impl ProtoRepr for proto::AttesterCommittee {
             .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
             .collect::<Result<_, _>>()
             .context("members")?;
-        Self::Type::new(members.into_iter())
+        Self::Type::new(members)
     }
 
     fn build(this: &Self::Type) -> Self {
