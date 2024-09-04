@@ -194,11 +194,6 @@ async fn build_ecosystem_inner(
         .with_rpc_url("127.0.0.1:8545".to_string())
         .with_sender(sender);
 
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
     check_the_balance(&forge).await?;
     forge.run(shell)?;
