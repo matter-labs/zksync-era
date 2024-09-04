@@ -13,17 +13,14 @@ use config::{
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    traits::{
-        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath,
-    },
+    traits::{FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig},
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode};
 use xshell::Shell;
 
 use super::{
-    args::build::{EcosystemArgsFinal, EcosystemBuildArgs, EcosystemBuildArgsFinal},
+    args::build::{EcosystemArgsFinal, EcosystemBuildArgs},
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
@@ -51,7 +48,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     };
 
     let sender = args.sender.clone();
-    let mut final_ecosystem_args = args.fill_values_with_prompt();
+    let final_ecosystem_args = args.fill_values_with_prompt();
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
@@ -62,11 +59,12 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let contracts = build_ecosystem(
         shell,
-        &mut final_ecosystem_args.ecosystem,
+        &mut final_ecosystem_args.ecosystem.clone(),
         final_ecosystem_args.forge_args.clone(),
         &ecosystem_config,
         &initial_deployment_config,
         sender,
+        final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
     )
     .await?;
 
@@ -99,16 +97,47 @@ async fn build_ecosystem(
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     sender: String,
+    l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.build_ecosystem {
-        return build_ecosystem_inner(
-            shell,
-            forge_args,
-            ecosystem_config,
+        let deploy_config_path =
+            DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
+
+        let default_genesis_config =
+            GenesisConfig::read_with_base_path(shell, ecosystem_config.get_default_configs_path())
+                .context("Context")?;
+
+        let wallets_config = ecosystem_config.get_wallets()?;
+
+        // For deploying ecosystem we only need genesis batch params
+        let deploy_config = DeployL1Config::new(
+            &default_genesis_config,
+            &wallets_config,
             initial_deployment_config,
-            sender,
-        )
-        .await;
+            ecosystem_config.era_chain_id,
+            ecosystem_config.prover_version == ProverMode::NoProofs,
+        );
+        deploy_config.save(shell, deploy_config_path)?;
+
+        let forge = Forge::new(&ecosystem_config.path_to_foundry())
+            .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
+            .with_ffi()
+            .with_rpc_url(l1_rpc_url)
+            .with_sender(sender);
+
+        let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
+        check_the_balance(&forge).await?;
+        forge.run(shell)?;
+        spinner.finish();
+
+        let script_output = DeployL1Output::read(
+            shell,
+            DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
+        )?;
+        let mut contracts_config = ContractsConfig::default();
+        contracts_config.update_from_l1_output(&script_output);
+
+        return Ok(contracts_config);
     }
 
     let ecosystem_preexisting_configs_path =
@@ -142,50 +171,4 @@ async fn build_ecosystem(
             });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)
-}
-
-async fn build_ecosystem_inner(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    sender: String,
-) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("Context")?;
-
-    let wallets_config = config.get_wallets()?;
-
-    // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
-        &wallets_config,
-        initial_deployment_config,
-        config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-    );
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let forge = Forge::new(&config.path_to_foundry())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url("127.0.0.1:8545".to_string())
-        .with_sender(sender);
-
-    let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-    spinner.finish();
-
-    let script_output = DeployL1Output::read(
-        shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
-    )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
-
-    Ok(contracts_config)
 }
