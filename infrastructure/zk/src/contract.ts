@@ -161,6 +161,12 @@ async function updateConfigOnSyncLayer() {
     env.modify('ETH_SENDER_SENDER_WAIT_CONFIRMATIONS', '0', envFile, false);
     env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, false);
     env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, false);
+    env.modify(
+        'ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY',
+        '0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93',
+        envFile,
+        false
+    );
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
