@@ -455,28 +455,34 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn attester_committee(&mut self, n : attester::BatchNumber) -> anyhow::Result<Option<attester::Committee>> {
-        // TODO
+    /// Fetches the attester committee for the L1 batch with the given number.
+    pub async fn attester_committee(
+        &mut self,
+        n: attester::BatchNumber,
+    ) -> anyhow::Result<Option<attester::Committee>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                attesters
             FROM
-                l1_batches_consensus
+                l1_batches_consensus_committees
             WHERE
                 l1_batch_number = $1
             "#,
-            i64::try_from(batch_number.0)?
+            i64::try_from(n.0)?
         )
-        .instrument("batch_certificate")
+        .instrument("attester_committee")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
-    
+        let raw = zksync_protobuf::serde::deserialize_proto(&row.attesters)
+            .context("deserialize_proto()")?;
+        Ok(Some(
+            proto::AttesterCommittee::read(&raw).context("read()")?,
+        ))
     }
 
     /// Inserts a certificate for the L1 batch.
@@ -488,11 +494,18 @@ impl ConsensusDal<'_, '_> {
         &mut self,
         cert: &attester::BatchQC,
     ) -> anyhow::Result<()> {
-        let genesis = self.genesis().await.context("genesis()").context("genesis is missing")?;
-        let committee = self.attester_committee(cert.message.number).await
-            .context("attester_committee()")
+        let genesis = self
+            .genesis()
+            .await
+            .context("genesis()")?
+            .context("genesis is missing")?;
+        let committee = self
+            .attester_committee(cert.message.number)
+            .await
+            .context("attester_committee()")?
             .context("attester committee is missing")?;
-        cert.verify(genesis.hash(), &committee).context("cert.verify()")?;
+        cert.verify(genesis.hash(), &committee)
+            .context("cert.verify()")?;
         let res = sqlx::query!(
             r#"
             INSERT INTO
@@ -633,7 +646,7 @@ mod tests {
     use rand::Rng as _;
     use zksync_consensus_roles::{attester, validator};
     use zksync_consensus_storage::ReplicaState;
-    use zksync_types::{L1BatchNumber, ProtocolVersion};
+    use zksync_types::ProtocolVersion;
 
     use crate::{
         tests::{create_l1_batch_header, create_l2_block_header},
@@ -678,14 +691,28 @@ mod tests {
     #[tokio::test]
     async fn test_batch_certificate() {
         let rng = &mut rand::thread_rng();
+        let setup = validator::testonly::Setup::new(rng, 3);
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
+        conn.consensus_dal()
+            .try_update_genesis(&setup.genesis)
+            .await
+            .unwrap();
 
-        let mut mock_batch_qc = |number: L1BatchNumber| {
-            let mut cert: attester::BatchQC = rng.gen();
-            cert.message.number.0 = u64::from(number.0);
-            cert.signatures.add(rng.gen(), rng.gen());
-            cert
+        let mut make_cert = |number: attester::BatchNumber| {
+            let m = attester::Batch {
+                genesis: setup.genesis.hash(),
+                hash: rng.gen(),
+                number,
+            };
+            let mut sigs = attester::MultiSig::default();
+            for k in &setup.attester_keys {
+                sigs.add(k.public(), k.sign_msg(m.clone()).sig);
+            }
+            attester::BatchQC {
+                message: m,
+                signatures: sigs,
+            }
         };
 
         // Required for inserting l2 blocks
@@ -697,8 +724,7 @@ mod tests {
         // Insert some mock L2 blocks and L1 batches
         let mut block_number = 0;
         let mut batch_number = 0;
-        let num_batches = 3;
-        for _ in 0..num_batches {
+        for _ in 0..3 {
             for _ in 0..3 {
                 block_number += 1;
                 let l2_block = create_l2_block_header(block_number);
@@ -706,56 +732,56 @@ mod tests {
             }
             batch_number += 1;
             let l1_batch = create_l1_batch_header(batch_number);
-
             conn.blocks_dal()
                 .insert_mock_l1_batch(&l1_batch)
                 .await
                 .unwrap();
-
             conn.blocks_dal()
                 .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.number)
                 .await
                 .unwrap();
         }
 
-        let l1_batch_number = L1BatchNumber(batch_number);
+        let n = attester::BatchNumber(batch_number.into());
 
         // Insert a batch certificate for the last L1 batch.
-        let cert1 = mock_batch_qc(l1_batch_number);
-
+        let want = make_cert(n);
         conn.consensus_dal()
-            .insert_batch_certificate(&cert1)
+            .upsert_attester_committee(n, setup.genesis.attesters.as_ref().unwrap())
+            .await
+            .unwrap();
+        conn.consensus_dal()
+            .insert_batch_certificate(&want)
             .await
             .unwrap();
 
+        // Reinserting a cert should fail.
+        assert!(conn
+            .consensus_dal()
+            .insert_batch_certificate(&make_cert(n))
+            .await
+            .is_err());
+
         // Retrieve the latest certificate.
-        let number = conn
+        let got_n = conn
             .consensus_dal()
             .last_batch_certificate_number()
             .await
             .unwrap()
             .unwrap();
-
-        let cert = conn
+        let got = conn
             .consensus_dal()
-            .batch_certificate(number)
+            .batch_certificate(got_n)
             .await
             .unwrap()
             .unwrap();
-
-        assert_eq!(cert, cert1);
+        assert_eq!(got, want);
 
         // Try insert batch certificate for non-existing batch
-        let cert3 = mock_batch_qc(l1_batch_number.next());
-        conn.consensus_dal()
-            .insert_batch_certificate(&cert3)
+        assert!(conn
+            .consensus_dal()
+            .insert_batch_certificate(&make_cert(n.next()))
             .await
-            .expect_err("missing payload");
-
-        // Insert one more L1 batch without a certificate.
-        conn.blocks_dal()
-            .insert_mock_l1_batch(&create_l1_batch_header(batch_number + 1))
-            .await
-            .unwrap();
+            .is_err());
     }
 }
