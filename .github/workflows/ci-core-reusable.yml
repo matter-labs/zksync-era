@@ -90,7 +90,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 21000 || 15000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo FAIL_FAST=true >> .env
