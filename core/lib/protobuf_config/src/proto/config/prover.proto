@@ -19,6 +19,7 @@ message ProofCompressor {
 enum SetupLoadMode {
   FROM_DISK = 0;
   FROM_MEMORY = 1;
+  FROM_MEMORY_FULL = 2;
 }
 
 enum CloudType {

@@ -358,6 +358,36 @@ pub mod gpu_prover {
                 }
                 SetupLoadMode::FromMemory(cache)
             }
+            zksync_config::configs::fri_prover::SetupLoadMode::FromMemoryFull => {
+                let mut cache = HashMap::new();
+                for specialized_group_id in 0..15 {
+                    tracing::info!(
+                        "Loading setup data cache for group {}",
+                        &specialized_group_id
+                    );
+                    let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                        .context("FriProverGroupConfig::from_env()")?
+                        .get_circuit_ids_for_group_id(specialized_group_id)
+                        .context(
+                            "At least one circuit should be configured for group when running in FromMemory mode",
+                        )?;
+                    tracing::info!(
+                        "for group {} configured setup metadata are {:?}",
+                        &specialized_group_id,
+                        prover_setup_metadata_list
+                    );
+                    let keystore =
+                        Keystore::new_with_setup_data_path(config.setup_data_path.clone());
+                    for prover_setup_metadata in prover_setup_metadata_list {
+                        let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
+                        let setup_data = keystore
+                            .load_gpu_setup_data_for_circuit_type(key.clone())
+                            .context("load_gpu_setup_data_for_circuit_type()")?;
+                        cache.insert(key, Arc::new(setup_data));
+                    }
+                }
+                SetupLoadMode::FromMemory(cache)
+            }
         })
     }
 }

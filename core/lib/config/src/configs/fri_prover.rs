@@ -8,6 +8,7 @@ use crate::ObjectStoreConfig;
 pub enum SetupLoadMode {
     FromDisk,
     FromMemory,
+    FromMemoryFull,
 }
 
 /// Kind of cloud environment prover subsystem runs in.

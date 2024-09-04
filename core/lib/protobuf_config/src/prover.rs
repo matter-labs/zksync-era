@@ -284,6 +284,7 @@ impl proto::SetupLoadMode {
         match x {
             From::FromDisk => Self::FromDisk,
             From::FromMemory => Self::FromMemory,
+            From::FromMemoryFull => Self::FromMemoryFull,
         }
     }
 
@@ -292,6 +293,7 @@ impl proto::SetupLoadMode {
         match self {
             Self::FromDisk => To::FromDisk,
             Self::FromMemory => To::FromMemory,
+            Self::FromMemoryFull => To::FromMemoryFull,
         }
     }
 }
