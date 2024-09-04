@@ -12,14 +12,14 @@ use crate::{
     apps::AppsChainExplorerConfig,
     consts::{
         EXPLORER_API_DOCKER_IMAGE, EXPLORER_DATA_FETCHER_DOCKER_IMAGE,
-        EXPLORER_DOCKER_COMPOSE_FILE, EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_APPS_PATH,
-        LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH,
+        EXPLORER_DOCKER_COMPOSE_FILE, EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_CHAINS_PATH,
+        LOCAL_CONFIGS_PATH, LOCAL_GENERATED_PATH,
     },
     docker_compose::{DockerComposeConfig, DockerComposeService},
     traits::ZkToolboxConfig,
 };
 
-/// Chain-level explorer backend docker compose config. It contains the configuration for
+/// Chain-level explorer backend docker compose file. It contains the configuration for
 /// api, data fetcher, and worker services.
 /// This config is auto-generated during "explorer run-backend" command.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -175,7 +175,7 @@ impl ExplorerBackendComposeConfig {
             .join(LOCAL_CHAINS_PATH)
             .join(chain_name)
             .join(LOCAL_CONFIGS_PATH)
-            .join(LOCAL_APPS_PATH)
+            .join(LOCAL_GENERATED_PATH)
             .join(EXPLORER_DOCKER_COMPOSE_FILE)
     }
 }

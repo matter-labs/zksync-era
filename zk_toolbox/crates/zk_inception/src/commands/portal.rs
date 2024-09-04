@@ -12,7 +12,7 @@ use types::{BaseToken, TokenInfo};
 use xshell::Shell;
 
 use crate::{
-    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONTAINER_PORT, PORTAL_DOCKER_IMAGE},
+    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONFIG_PATH, PORTAL_DOCKER_IMAGE},
     messages::{
         msg_portal_starting_on, MSG_PORTAL_FAILED_TO_CREATE_ANY_CHAIN_CONFIG_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR,
@@ -152,13 +152,18 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 }
 
 fn run_portal(shell: &Shell, config_file_path: &Path, port: u16) -> anyhow::Result<()> {
-    let port_mapping = format!("{}:{}", port, PORTAL_DOCKER_CONTAINER_PORT);
-    let volume_mapping = format!("{}:/usr/src/app/dist/config.js", config_file_path.display());
+    let port_mapping = format!("{}:{}", port, port);
+    let volume_mapping = format!(
+        "{}:{}",
+        config_file_path.display(),
+        PORTAL_DOCKER_CONFIG_PATH
+    );
 
     let mut docker_args: HashMap<String, String> = HashMap::new();
     docker_args.insert("--platform".to_string(), "linux/amd64".to_string());
     docker_args.insert("-p".to_string(), port_mapping);
     docker_args.insert("-v".to_string(), volume_mapping);
+    docker_args.insert("-e".to_string(), format!("PORT={}", port));
 
     docker::run(shell, PORTAL_DOCKER_IMAGE, docker_args)
         .with_context(|| MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR)?;

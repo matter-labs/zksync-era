@@ -266,7 +266,7 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
     format!("Starting explorer on http://{host}:{port}")
 }
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
-    format!("Chain is not initialized for explorer: run `zk_inception explorer init --chain {chain}` first")
+    format!("Chain {chain} is not initialized for explorer: run `zk_inception explorer init --chain {chain}` first")
 }
 pub(super) fn msg_explorer_skipping_not_initialized_chain(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer. Skipping..")

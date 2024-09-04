@@ -12,9 +12,13 @@ lazy_static! {
 }
 
 // Default ports for services
-pub const DEFAULT_EXPLORER_WORKER_PORT: u16 = 3001;
-pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
-pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
+pub const OBSERVABILITY_PORT: u16 = 3000;
+pub const EXPLORER_WORKER_PORT: u16 = 3001;
+pub const EXPLORER_API_PORT: u16 = 3002;
+pub const EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
+pub const POSTGRES_DB_PORT: u16 = 5432;
+pub const LOCAL_HTTP_RPC_PORT: u16 = 8545;
+pub const LOCAL_WS_RPC_PORT: u16 = 8546;
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
