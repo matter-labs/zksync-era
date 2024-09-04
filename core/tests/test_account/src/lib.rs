@@ -136,6 +136,7 @@ impl Account {
         };
 
         // Although serial_id != to deployment_once, it will be reused for the purpose of testing
+        // In era, the address is determined by the deployer address + deployment nonce (stored separataly from usual nonce)
         let mut nonce = 0;
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),

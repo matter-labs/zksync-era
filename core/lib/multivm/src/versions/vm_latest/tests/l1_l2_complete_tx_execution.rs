@@ -18,7 +18,7 @@ use crate::{
             tester::{VmTester, VmTesterBuilder},
             utils::{
                 deploy_and_verify_contract, read_admin_facet, read_bridgehub, read_diamond,
-                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root,
+                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root_test,
                 read_stm, read_transparent_proxy, send_l2_tx_and_verify, send_prank_tx_and_verify,
                 undo_l1_to_l2_alias, BASE_SYSTEM_CONTRACTS,
             },
@@ -53,7 +53,7 @@ fn prepare_environment_and_deploy_contracts(
 
     // Deploy Message Root
 
-    let message_root_contract_bytecode = read_message_root();
+    let message_root_contract_bytecode = read_message_root_test();
     let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[Token::Address(bridgehub_address)];
     let message_root_address = deploy_and_verify_contract(
@@ -486,6 +486,124 @@ fn test_l1_l2_complete_tx_execution_one_large_factory_dep() {
         .encode_input(&modified_request_params.to_tokens())
         .unwrap();
 
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
+
+    send_prank_tx_and_verify(
+        &mut vm,
+        bridgehub_address,
+        vec![],
+        encoded_data,
+        SETTLEMENT_LAYER_RELAY_SENDER,
+    );
+}
+
+#[test]
+fn test_l1_l2_complete_tx_execution_modified_l2_canonical_tx_calldata() {
+    // In this test, we try to execute a transaction from L1 to L2 via Gateway
+    // Here instead of marking code hash via the bootloader means, we will be
+    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let default_account: Account = vm.rich_accounts[0].clone();
+
+    let (bridgehub_address, bridgehub_contract) =
+        prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
+
+    // Collect Data for Test
+
+    let request_params = BridgeHubRequestL2TransactionOnGateway::default();
+
+    // Generate a large number of vectors
+    let small_vector_size: usize = 1_470_560; // Size of each vector
+    let num_vectors = 1; // Number of vectors
+
+    let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
+        .map(|_| vec![0u8; small_vector_size])
+        .collect();
+
+    let call_data_size: usize = 3_879_168; // Size of calldata of L2 tx
+    let call_data: Vec<u8> = vec![1u8; call_data_size];
+
+    // Update request_params with the current factory_deps
+    let mut modified_request_params = request_params.clone();
+    modified_request_params.factory_deps = factory_deps.clone();
+    modified_request_params.transaction.data = call_data;
+
+    let encoded_data = bridgehub_contract
+        .function("forwardTransactionOnGateway")
+        .unwrap()
+        .encode_input(&modified_request_params.to_tokens())
+        .unwrap();
+
+    // Total tx size increase > 2x due to calldata increase
+    println!("Factory deps data size: {}", factory_deps.len());
+    println!("Encoded data size: {}", encoded_data.len());
+
+    send_prank_tx_and_verify(
+        &mut vm,
+        bridgehub_address,
+        vec![],
+        encoded_data,
+        SETTLEMENT_LAYER_RELAY_SENDER,
+    );
+}
+
+#[test]
+fn test_l1_l2_complete_tx_execution_modified_l2_canonical_tx_calldata_factory_deps() {
+    // In this test, we try to execute a transaction from L1 to L2 via Gateway
+    // Here instead of marking code hash via the bootloader means, we will be
+    // using L1->Gateway->L2 communication, the same it would likely be done during the priority mode.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let default_account: Account = vm.rich_accounts[0].clone();
+
+    let (bridgehub_address, bridgehub_contract) =
+        prepare_environment_and_deploy_contracts(&mut vm, default_account.address);
+
+    // Collect Data for Test
+
+    let request_params = BridgeHubRequestL2TransactionOnGateway::default();
+
+    // Generate a large number of vectors
+    let small_vector_size: usize = 1_470_560; // Size of each vector
+    let num_vectors = 1; // Number of vectors
+
+    let factory_deps: Vec<Vec<u8>> = (0..num_vectors)
+        .map(|_| vec![0u8; small_vector_size])
+        .collect();
+
+    let call_data_size: usize = 2_879_168; // Size of calldata of L2 tx
+    let call_data: Vec<u8> = vec![1u8; call_data_size]; // 5350756
+
+    let tx_factory_deps_size: usize = 32_209; // Size of factory deps of L2 tx
+    let tx_factory_deps = vec![U256::from(1); tx_factory_deps_size]; // Total size 5381476, out of which outer factory deps are 1470592 (tx is ~3910884)
+
+    // Update request_params with the current factory_deps
+    let mut modified_request_params = request_params.clone();
+    modified_request_params.factory_deps = factory_deps.clone();
+    modified_request_params.transaction.data = call_data;
+    modified_request_params.transaction.factory_deps = tx_factory_deps;
+
+    let encoded_data = bridgehub_contract
+        .function("forwardTransactionOnGateway")
+        .unwrap()
+        .encode_input(&modified_request_params.to_tokens())
+        .unwrap();
+
+    // Total tx size only changes by a few %, as more data is assigned to one param vs another
     println!("Factory deps data size: {}", factory_deps.len());
     println!("Encoded data size: {}", encoded_data.len());
 
