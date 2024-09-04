@@ -70,20 +70,32 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             attester::BatchNumber(first_batch.0.into())
         );
 
-        tracing::info!("Insert a (fake) cert");
+        tracing::info!("Insert a cert");
         {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
             let genesis = conn.genesis(ctx).await?.unwrap().hash();
-            let cert = attester::BatchQC {
-                signatures: attester::MultiSig::default(),
-                message: attester::Batch {
-                    number,
-                    hash,
-                    genesis,
-                },
+            let m = attester::Batch {
+                number,
+                hash,
+                genesis,
             };
+            let mut sigs = attester::MultiSig::default();
+            for k in &setup.attester_keys {
+                sigs.add(k.public(), k.sign_msg(m.clone()).sig);
+            }
+            let cert = attester::BatchQC {
+                signatures: sigs,
+                message: m,
+            };
+            conn.upsert_attester_committee(
+                ctx,
+                cert.message.number,
+                &setup.genesis.attesters.as_ref().unwrap(),
+            )
+            .await
+            .context("upsert_attester_committee")?;
             conn.insert_batch_certificate(ctx, &cert)
                 .await
                 .context("insert_batch_certificate()")?;
