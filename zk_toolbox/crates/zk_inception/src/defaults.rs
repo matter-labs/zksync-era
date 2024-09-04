@@ -11,6 +11,12 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
 }
 
+// Default ports for services
+pub const OBSERVABILITY_PORT: u16 = 3000;
+pub const POSTGRES_DB_PORT: u16 = 5432;
+pub const LOCAL_HTTP_RPC_PORT: u16 = 8545;
+pub const LOCAL_WS_RPC_PORT: u16 = 8546;
+
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
 pub const ROCKS_DB_PROTECTIVE_READS: &str = "protective_reads";
