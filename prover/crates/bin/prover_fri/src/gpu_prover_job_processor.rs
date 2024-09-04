@@ -90,7 +90,7 @@ pub mod gpu_prover {
                     ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
                 )
                 .expect("failed initializing gpu prover context"),
-                None => ProverContext::default().expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
             };
             Prover {
                 blob_store,
