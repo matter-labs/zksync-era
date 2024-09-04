@@ -407,7 +407,7 @@ pub struct StorageTransactionExecutionInfo {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct StorageTransactionDetails {
+pub(crate) struct StorageTransactionDetails {
     pub is_priority: bool,
     pub initiator_address: Vec<u8>,
     pub gas_limit: Option<BigDecimal>,
