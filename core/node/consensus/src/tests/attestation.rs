@@ -92,7 +92,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             conn.upsert_attester_committee(
                 ctx,
                 cert.message.number,
-                &setup.genesis.attesters.as_ref().unwrap(),
+                setup.genesis.attesters.as_ref().unwrap(),
             )
             .await
             .context("upsert_attester_committee")?;
@@ -199,24 +199,22 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
         }
 
         tracing::info!("add attesters one by one");
+        #[allow(clippy::needless_range_loop)]
         for i in 1..attesters.len() {
-            let mut txs = vec![];
-            txs.push(testonly::make_tx(
-                account,
-                registry_addr,
-                registry
-                    .add(
-                        rng.gen(),
-                        testonly::gen_validator(rng),
-                        attesters[i].clone(),
-                    )
-                    .unwrap(),
-            ));
-            txs.push(testonly::make_tx(
-                account,
-                registry_addr,
-                registry.commit_attester_committee(),
-            ));
+            let txs = vec![
+                testonly::make_tx(
+                    account,
+                    registry_addr,
+                    registry
+                        .add(
+                            rng.gen(),
+                            testonly::gen_validator(rng),
+                            attesters[i].clone(),
+                        )
+                        .unwrap(),
+                ),
+                testonly::make_tx(account, registry_addr, registry.commit_attester_committee()),
+            ];
             validator.push_block(&txs).await;
             validator.seal_batch().await;
         }
