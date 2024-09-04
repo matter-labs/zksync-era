@@ -1881,6 +1881,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "eravm-stable-interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
+dependencies = [
+ "primitive-types",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6816,9 +6824,10 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
+ "eravm-stable-interface",
  "primitive-types",
  "zk_evm_abstractions 0.150.4",
  "zkevm_opcode_defs 0.150.4",
